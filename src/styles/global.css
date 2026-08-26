@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply bg-slate-950 text-slate-100;
+  }
+}
+
+@layer utilities {
+  .animate-pulse-slow {
+    animation: pulse 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+}

@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.astro/
+.env
+.env.*
+!.env.example
+npm-debug.log*
+
+# Local tooling / OS cruft — not project config
+.claude/
+desktop.ini
+Thumbs.db
