@@ -90,10 +90,14 @@ export const AREAS: AreaConfig[] = [
   {
     slug: 'manufactura',
     name: 'Manufactura',
-    description: 'Top 10 productos por unidades vendidas',
+    description: 'Ventas, eficiencia y consumo de materia prima',
     accent: 'orange',
     icon: ICONS.gear,
-    tabs: [{ slug: 'top-productos', name: 'Top 10 Productos' }],
+    tabs: [
+      { slug: 'top-productos', name: 'Top 10 Productos' },
+      { slug: 'oee', name: 'Eficiencia (OEE)' },
+      { slug: 'consumo-mp', name: 'Consumo MP vs Stock' },
+    ],
   },
   {
     slug: 'mejora-continua',
