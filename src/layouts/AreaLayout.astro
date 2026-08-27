@@ -1,0 +1,33 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import Breadcrumb from '../components/nav/Breadcrumb.astro';
+import TabsNav from '../components/nav/TabsNav.astro';
+import { getArea } from '../lib/areas.config';
+
+interface Props {
+  areaSlug: string;
+  tabSlug: string;
+}
+
+const { areaSlug, tabSlug } = Astro.props;
+const area = getArea(areaSlug);
+if (!area) throw new Error(`Unknown area "${areaSlug}"`);
+const tab = area.tabs.find((t) => t.slug === tabSlug);
+if (!tab) throw new Error(`Unknown tab "${tabSlug}" for area "${areaSlug}"`);
+---
+
+<BaseLayout title={`${tab.name} · ${area.name} | Frontera Living`}>
+  <div class="mx-auto max-w-7xl px-4 py-8">
+    <Breadcrumb area={area} tab={tab} />
+
+    <header class="mb-6 mt-2">
+      <h1 class="text-2xl font-semibold text-slate-100">{area.name}</h1>
+    </header>
+
+    <TabsNav area={area} activeTabSlug={tabSlug} />
+
+    <main class="mt-6">
+      <slot />
+    </main>
+  </div>
+</BaseLayout>

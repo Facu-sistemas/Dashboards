@@ -1,0 +1,21 @@
+---
+import AreaLayout from '../../layouts/AreaLayout.astro';
+import PlaceholderTab from '../../components/nav/PlaceholderTab.astro';
+import PresupuestoComprasTab from '../../components/finanzas/PresupuestoComprasTab.astro';
+import FacturacionTab from '../../components/finanzas/FacturacionTab.astro';
+import { getArea } from '../../lib/areas.config';
+
+export const prerender = false;
+
+const { area: areaSlug, tab: tabSlug } = Astro.params;
+const area = getArea(areaSlug!);
+if (!area || !area.tabs.some((t) => t.slug === tabSlug)) {
+  return Astro.redirect('/', 302);
+}
+---
+
+<AreaLayout areaSlug={area.slug} tabSlug={tabSlug!}>
+  {area.slug === 'finanzas' && tabSlug === 'presupuesto-compras' && <PresupuestoComprasTab />}
+  {area.slug === 'finanzas' && tabSlug === 'facturacion' && <FacturacionTab />}
+  {area.slug !== 'finanzas' && <PlaceholderTab areaName={area.name} />}
+</AreaLayout>

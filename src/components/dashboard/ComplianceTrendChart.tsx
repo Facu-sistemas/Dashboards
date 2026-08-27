@@ -16,7 +16,8 @@ interface Props {
   points: MonthlyCompliancePoint[];
 }
 
-const monthLabelFormatter = new Intl.DateTimeFormat('es-AR', { month: 'short', year: '2-digit' });
+// timeZone: 'UTC' is load-bearing — see monthOptions.ts for why.
+const monthLabelFormatter = new Intl.DateTimeFormat('es-AR', { month: 'short', year: '2-digit', timeZone: 'UTC' });
 
 function monthLabel(monthKey: string): string {
   const [year, month] = monthKey.split('-').map(Number);

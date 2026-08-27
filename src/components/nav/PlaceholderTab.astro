@@ -1,0 +1,12 @@
+---
+interface Props {
+  areaName: string;
+}
+
+const { areaName } = Astro.props;
+---
+
+<div class="rounded-lg border border-dashed border-slate-800 bg-slate-900/40 p-10 text-center">
+  <p class="text-slate-300">Todavía no hay indicadores cargados para {areaName}.</p>
+  <p class="mt-1 text-sm text-slate-500">Esta sección se habilita en una próxima iteración.</p>
+</div>
