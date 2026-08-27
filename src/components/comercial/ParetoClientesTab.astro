@@ -1,0 +1,41 @@
+---
+import ParetoClientsApp from './ParetoClientsApp';
+import { buildParetoClientsDehydratedState } from '../../lib/pareto-clients-ssr';
+import type { ParetoRange } from '../../lib/odoo/pareto-clients';
+
+const RANGE_VALUES: ParetoRange[] = ['all', 'this-year', 'last-12-months', 'last-6-months'];
+
+const params = Astro.url.searchParams;
+const rangeParam = params.get('range');
+const initialRange: ParetoRange = RANGE_VALUES.includes(rangeParam as ParetoRange) ? (rangeParam as ParetoRange) : 'all';
+
+let dehydratedState;
+let ssrError: string | null = null;
+try {
+  dehydratedState = await buildParetoClientsDehydratedState(initialRange);
+} catch (err) {
+  ssrError = err instanceof Error ? err.message : 'Error desconocido consultando Odoo';
+}
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Top Clientes — Concentración de Facturación</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Los 10 clientes con mayor facturación (facturas emitidas y confirmadas) y qué porcentaje del
+      total representan de forma acumulada — para ver de un vistazo si hay dependencia de pocos
+      clientes. Solo lectura.
+    </p>
+  </header>
+
+  {
+    ssrError && (
+      <p class="mb-6 rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">
+        No se pudo precargar la data desde Odoo en el servidor ({ssrError}). El panel
+        intentará cargar los datos desde el navegador.
+      </p>
+    )
+  }
+
+  <ParetoClientsApp client:load initialRange={initialRange} dehydratedState={dehydratedState} />
+</div>

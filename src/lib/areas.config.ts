@@ -90,10 +90,10 @@ export const AREAS: AreaConfig[] = [
   {
     slug: 'manufactura',
     name: 'Manufactura',
-    description: 'Próximamente',
+    description: 'Top 10 productos por unidades vendidas',
     accent: 'orange',
     icon: ICONS.gear,
-    tabs: [{ slug: 'inicio', name: 'Inicio' }],
+    tabs: [{ slug: 'top-productos', name: 'Top 10 Productos' }],
   },
   {
     slug: 'mejora-continua',
@@ -114,10 +114,13 @@ export const AREAS: AreaConfig[] = [
   {
     slug: 'comercial',
     name: 'Comercial',
-    description: 'Próximamente',
+    description: 'Tendencia de precios y concentración de clientes',
     accent: 'rose',
     icon: ICONS.cart,
-    tabs: [{ slug: 'inicio', name: 'Inicio' }],
+    tabs: [
+      { slug: 'tendencia-precios', name: 'Tendencia de Precios' },
+      { slug: 'top-clientes', name: 'Top Clientes' },
+    ],
   },
 ];
 

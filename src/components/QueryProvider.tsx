@@ -1,5 +1,6 @@
 import { HydrationBoundary, QueryClient, QueryClientProvider, type DehydratedState } from '@tanstack/react-query';
 import { useState, type PropsWithChildren } from 'react';
+import LoadingIndicator from './shared/LoadingIndicator';
 
 interface Props extends PropsWithChildren {
   dehydratedState?: DehydratedState;
@@ -32,6 +33,7 @@ export default function QueryProvider({ children, dehydratedState }: Props) {
   return (
     <QueryClientProvider client={client}>
       <HydrationBoundary state={dehydratedState}>{children}</HydrationBoundary>
+      <LoadingIndicator />
     </QueryClientProvider>
   );
 }

@@ -66,3 +66,30 @@ export async function getComprasAnalyticAccountId(): Promise<number | null> {
     return rows[0]?.id ?? null;
   });
 }
+
+/**
+ * `ir.model.fields` id for `product.template.list_price` — needed to filter
+ * `mail.tracking.value` rows down to list-price changes specifically.
+ * Resolved by name instead of hardcoding the id, same reasoning as above:
+ * confirmed live as 3185 on 2026-08-27, but ids aren't guaranteed stable
+ * across Odoo instances/upgrades.
+ */
+export async function getListPriceFieldId(): Promise<number> {
+  return withTtlCache('ref:field:list_price', REFERENCE_TTL_MS, async () => {
+    type Row = { id: number };
+    const rows = await searchRead<Row>({
+      model: 'ir.model.fields',
+      domain: [
+        ['name', '=', 'list_price'],
+        ['model', '=', 'product.template'],
+      ],
+      fields: ['id'],
+      limit: 1,
+    });
+    const row = rows[0];
+    if (!row) {
+      throw new OdooError('ir.model.fields row for product.template.list_price not found');
+    }
+    return row.id;
+  });
+}

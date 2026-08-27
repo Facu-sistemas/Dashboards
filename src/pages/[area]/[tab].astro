@@ -3,6 +3,9 @@ import AreaLayout from '../../layouts/AreaLayout.astro';
 import PlaceholderTab from '../../components/nav/PlaceholderTab.astro';
 import PresupuestoComprasTab from '../../components/finanzas/PresupuestoComprasTab.astro';
 import FacturacionTab from '../../components/finanzas/FacturacionTab.astro';
+import TendenciaPreciosTab from '../../components/comercial/TendenciaPreciosTab.astro';
+import ParetoClientesTab from '../../components/comercial/ParetoClientesTab.astro';
+import TopProductosTab from '../../components/manufactura/TopProductosTab.astro';
 import { getArea } from '../../lib/areas.config';
 
 export const prerender = false;
@@ -17,5 +20,8 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug)) {
 <AreaLayout areaSlug={area.slug} tabSlug={tabSlug!}>
   {area.slug === 'finanzas' && tabSlug === 'presupuesto-compras' && <PresupuestoComprasTab />}
   {area.slug === 'finanzas' && tabSlug === 'facturacion' && <FacturacionTab />}
-  {area.slug !== 'finanzas' && <PlaceholderTab areaName={area.name} />}
+  {area.slug === 'comercial' && tabSlug === 'tendencia-precios' && <TendenciaPreciosTab />}
+  {area.slug === 'comercial' && tabSlug === 'top-clientes' && <ParetoClientesTab />}
+  {area.slug === 'manufactura' && tabSlug === 'top-productos' && <TopProductosTab />}
+  {!['finanzas', 'comercial', 'manufactura'].includes(area.slug) && <PlaceholderTab areaName={area.name} />}
 </AreaLayout>
