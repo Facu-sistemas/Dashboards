@@ -1,0 +1,18 @@
+---
+import type { AreaConfig, TabConfig } from '../../lib/areas.config';
+
+interface Props {
+  area: AreaConfig;
+  tab: TabConfig;
+}
+
+const { area, tab } = Astro.props;
+---
+
+<nav class="mb-4 flex items-center gap-2 text-sm text-slate-500" aria-label="Breadcrumb">
+  <a href="/" class="hover:text-slate-300">Home</a>
+  <span aria-hidden="true">/</span>
+  <a href={`/${area.slug}`} class="hover:text-slate-300">{area.name}</a>
+  <span aria-hidden="true">/</span>
+  <span class="text-slate-300" aria-current="page">{tab.name}</span>
+</nav>

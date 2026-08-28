@@ -1,22 +1,10 @@
 import { useApiQuery } from './useApiQuery';
+import { monthOptions } from '../shared/monthOptions';
 import type { CategoryOption, DashboardFilters } from './types';
 
 interface Props {
   filters: DashboardFilters;
   onChange: (next: DashboardFilters) => void;
-}
-
-function monthOptions(count = 12): { value: string; label: string }[] {
-  const now = new Date();
-  const formatter = new Intl.DateTimeFormat('es-AR', { month: 'long', year: 'numeric' });
-  const options: { value: string; label: string }[] = [];
-  for (let i = 0; i < count; i++) {
-    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
-    const value = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
-    const label = formatter.format(d);
-    options.push({ value, label: label.charAt(0).toUpperCase() + label.slice(1) });
-  }
-  return options;
 }
 
 export default function FilterBar({ filters, onChange }: Props) {

@@ -1,0 +1,48 @@
+---
+import OeeApp from './OeeApp';
+import { buildOeeDehydratedState } from '../../lib/oee-ssr';
+import type { OeeGranularity, OeeCategoryFilter } from '../../lib/odoo/oee';
+
+const GRANULARITY_VALUES: OeeGranularity[] = ['day', 'week', 'month'];
+const CATEGORY_VALUES: OeeCategoryFilter[] = ['all', 'colchones', 'living'];
+
+const params = Astro.url.searchParams;
+const granularityParam = params.get('granularity');
+const categoryParam = params.get('category');
+const initialGranularity: OeeGranularity = GRANULARITY_VALUES.includes(granularityParam as OeeGranularity)
+  ? (granularityParam as OeeGranularity)
+  : 'month';
+const initialCategory: OeeCategoryFilter = CATEGORY_VALUES.includes(categoryParam as OeeCategoryFilter)
+  ? (categoryParam as OeeCategoryFilter)
+  : 'all';
+
+let dehydratedState;
+let ssrError: string | null = null;
+try {
+  dehydratedState = await buildOeeDehydratedState(initialGranularity, initialCategory);
+} catch (err) {
+  ssrError = err instanceof Error ? err.message : 'Error desconocido consultando Odoo';
+}
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Eficiencia de Producción</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Unidades producidas vs. planificadas en el período. No incluye desglose de Disponibilidad ×
+      Rendimiento × Calidad — Odoo no tiene cargados datos de paradas de máquina todavía. Solo
+      lectura.
+    </p>
+  </header>
+
+  {
+    ssrError && (
+      <p class="mb-6 rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">
+        No se pudo precargar la data desde Odoo en el servidor ({ssrError}). El panel
+        intentará cargar los datos desde el navegador.
+      </p>
+    )
+  }
+
+  <OeeApp client:load initialGranularity={initialGranularity} initialCategory={initialCategory} dehydratedState={dehydratedState} />
+</div>

@@ -1,0 +1,55 @@
+---
+import RawMaterialConsumptionApp from './RawMaterialConsumptionApp';
+import { buildRawMaterialConsumptionDehydratedState } from '../../lib/raw-material-consumption-ssr';
+import type { ConsumptionLookbackDays } from '../../lib/odoo/raw-material-consumption';
+
+const LOOKBACK_VALUES: ConsumptionLookbackDays[] = [30, 60, 90, 180];
+
+const params = Astro.url.searchParams;
+const categoryParam = params.get('category_id');
+const initialCategoryId = categoryParam ? Number(categoryParam) : null;
+
+const lookbackParam = Number(params.get('lookback_days'));
+const initialLookbackDays: ConsumptionLookbackDays = LOOKBACK_VALUES.includes(lookbackParam as ConsumptionLookbackDays)
+  ? (lookbackParam as ConsumptionLookbackDays)
+  : 90;
+
+// Defaults to true: per the redesign, the alert list IS the default view, not the full catalog.
+const onlyLowParam = params.get('only_low');
+const initialOnlyLow = onlyLowParam === null ? true : onlyLowParam === 'true';
+
+let dehydratedState;
+let ssrError: string | null = null;
+try {
+  dehydratedState = await buildRawMaterialConsumptionDehydratedState(initialCategoryId, initialLookbackDays, initialOnlyLow);
+} catch (err) {
+  ssrError = err instanceof Error ? err.message : 'Error desconocido consultando Odoo';
+}
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Consumo de Materia Prima vs. Stock</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Insumos ordenados por urgencia (menos días hasta quiebre primero). Elegí uno para ver su
+      consumo mensual vs. stock actual y punto de reorden. Solo lectura.
+    </p>
+  </header>
+
+  {
+    ssrError && (
+      <p class="mb-6 rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">
+        No se pudo precargar la data desde Odoo en el servidor ({ssrError}). El panel
+        intentará cargar los datos desde el navegador.
+      </p>
+    )
+  }
+
+  <RawMaterialConsumptionApp
+    client:load
+    initialCategoryId={initialCategoryId}
+    initialLookbackDays={initialLookbackDays}
+    initialOnlyLow={initialOnlyLow}
+    dehydratedState={dehydratedState}
+  />
+</div>

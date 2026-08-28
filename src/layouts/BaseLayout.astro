@@ -17,6 +17,60 @@ const { title } = Astro.props;
     <title>{title}</title>
   </head>
   <body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+    <div
+      id="page-loading-bar"
+      class="pointer-events-none fixed inset-x-0 top-0 z-[100] h-0.5 origin-left scale-x-0 bg-brand-500 transition-transform ease-out"
+    >
+    </div>
     <slot />
+    <script>
+      // Full multi-page navigation (no client router), so this can't be a
+      // React island — it has to be plain DOM/JS living in the layout that
+      // survives up to the moment the browser actually unloads the page.
+      const bar = document.getElementById('page-loading-bar');
+
+      function internalNavAnchor(e: MouseEvent): HTMLAnchorElement | null {
+        if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return null;
+        const anchor = (e.target as HTMLElement | null)?.closest('a[href]') as HTMLAnchorElement | null;
+        if (!anchor) return null;
+        if (anchor.target && anchor.target !== '_self') return null;
+        if (anchor.hasAttribute('download')) return null;
+
+        const url = new URL(anchor.href, location.href);
+        if (url.origin !== location.origin) return null;
+        // Same-page hash link (e.g. an anchor jump) — no real navigation happens.
+        if (url.pathname === location.pathname && url.search === location.search && url.hash) return null;
+        return anchor;
+      }
+
+      document.addEventListener('click', (e) => {
+        if (!bar || !internalNavAnchor(e)) return;
+        bar.style.transitionDuration = '0ms';
+        bar.style.transform = 'scaleX(0)';
+        void bar.offsetWidth; // force reflow so the next transform change animates
+
+        // Two-stage animation: an immediate, clearly-visible jump first, then
+        // a slow crawl. A fast tab-to-tab swap (Finanzas > Presupuesto to
+        // Finanzas > Facturación, both cheap SSR queries) can finish in a
+        // couple hundred ms — with a single 4s transition the bar barely
+        // moves before the page swaps out, which reads as "nothing
+        // happened." The upfront jump guarantees visible feedback even then.
+        bar.style.transitionDuration = '150ms';
+        bar.style.transform = 'scaleX(0.35)';
+        window.setTimeout(() => {
+          if (!bar) return;
+          bar.style.transitionDuration = '4000ms';
+          bar.style.transform = 'scaleX(0.85)';
+        }, 150);
+      });
+
+      // If the destination page is restored from bfcache instead of a fresh
+      // load, reset instantly instead of leaving a stale bar on screen.
+      window.addEventListener('pageshow', () => {
+        if (!bar) return;
+        bar.style.transitionDuration = '0ms';
+        bar.style.transform = 'scaleX(0)';
+      });
+    </script>
   </body>
 </html>

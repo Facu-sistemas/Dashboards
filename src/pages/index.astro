@@ -1,52 +1,18 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import DashboardApp from '../components/dashboard/DashboardApp';
-import { buildDehydratedState } from '../lib/dashboard-ssr';
-import type { DashboardFilters } from '../components/dashboard/types';
-
-// SSR: this whole block re-runs on every request (F5 = fresh Odoo data).
-export const prerender = false;
-
-function currentMonthKey(): string {
-  const now = new Date();
-  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
-}
-
-const params = Astro.url.searchParams;
-const monthParam = params.get('month');
-const initialFilters: DashboardFilters = {
-  month: monthParam && /^\d{4}-\d{2}$/.test(monthParam) ? monthParam : currentMonthKey(),
-  categoryId: params.get('category_id') ? Number(params.get('category_id')) : undefined,
-};
-
-let dehydratedState;
-let ssrError: string | null = null;
-try {
-  dehydratedState = await buildDehydratedState(initialFilters);
-} catch (err) {
-  ssrError = err instanceof Error ? err.message : 'Error desconocido consultando Odoo';
-}
+import AreaCard from '../components/nav/AreaCard.astro';
+import { AREAS } from '../lib/areas.config';
 ---
 
-<BaseLayout title="Cumplimiento de Presupuesto de Compras | Frontera Living">
-  <main class="mx-auto max-w-7xl px-4 py-8">
-    <header class="mb-6">
-      <h1 class="text-2xl font-semibold text-slate-100">% Cumplimiento del Presupuesto de Compras</h1>
-      <p class="mt-1 text-sm text-slate-400">
-        Datos en vivo desde Odoo (solo lectura). Presupuestado vs. real por categoría, cada una en
-        su moneda de carga — sin conversión entre pesos y dólares.
-      </p>
+<BaseLayout title="Frontera Living — Dashboards">
+  <main class="mx-auto max-w-6xl px-4 py-10">
+    <header class="mb-8">
+      <h1 class="text-2xl font-semibold text-slate-100">Frontera Living</h1>
+      <p class="mt-1 text-sm text-slate-400">Elegí un área para ver sus indicadores.</p>
     </header>
 
-    {
-      ssrError && (
-        <p class="mb-6 rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">
-          No se pudo precargar la data desde Odoo en el servidor ({ssrError}). El panel
-          intentará cargar los datos desde el navegador.
-        </p>
-      )
-    }
-
-    <DashboardApp client:load initialFilters={initialFilters} dehydratedState={dehydratedState} />
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {AREAS.map((area) => <AreaCard area={area} />)}
+    </div>
   </main>
 </BaseLayout>

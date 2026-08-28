@@ -1,0 +1,12 @@
+---
+import { getArea } from '../../lib/areas.config';
+
+export const prerender = false;
+
+const { area: areaSlug } = Astro.params;
+const area = getArea(areaSlug!);
+if (!area) {
+  return Astro.redirect('/', 302);
+}
+return Astro.redirect(`/${area.slug}/${area.tabs[0]!.slug}`, 302);
+---

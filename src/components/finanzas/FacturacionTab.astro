@@ -1,0 +1,39 @@
+---
+import FacturacionApp from '../facturacion/FacturacionApp';
+import { buildFacturacionDehydratedState } from '../../lib/facturacion-ssr';
+import { currentMonthKey } from '../../lib/date';
+
+const params = Astro.url.searchParams;
+const monthParam = params.get('month');
+const initialMonth = monthParam && /^\d{4}-\d{2}$/.test(monthParam) ? monthParam : currentMonthKey();
+
+let dehydratedState;
+let ssrError: string | null = null;
+try {
+  dehydratedState = await buildFacturacionDehydratedState(initialMonth);
+} catch (err) {
+  ssrError = err instanceof Error ? err.message : 'Error desconocido consultando Odoo';
+}
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Facturación — Banco vs. Efectivo</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Comparativo de cobros según los filtros "Objetivo finanzas Bancos completo" y "Objetivo
+      finanzas efectivo completo" configurados en Odoo. Solo lectura — nunca crea ni modifica
+      datos.
+    </p>
+  </header>
+
+  {
+    ssrError && (
+      <p class="mb-6 rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">
+        No se pudo precargar la data desde Odoo en el servidor ({ssrError}). El panel
+        intentará cargar los datos desde el navegador.
+      </p>
+    )
+  }
+
+  <FacturacionApp client:load initialMonth={initialMonth} dehydratedState={dehydratedState} />
+</div>

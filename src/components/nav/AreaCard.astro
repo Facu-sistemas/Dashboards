@@ -1,0 +1,22 @@
+---
+import { ACCENT_CLASSES, type AreaConfig } from '../../lib/areas.config';
+
+interface Props {
+  area: AreaConfig;
+}
+
+const { area } = Astro.props;
+const accent = ACCENT_CLASSES[area.accent];
+const href = `/${area.slug}/${area.tabs[0]!.slug}`;
+---
+
+<a
+  href={href}
+  class={`group flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-sm ring-1 ring-transparent transition-colors hover:border-slate-700 hover:bg-slate-800/60 ${accent.ring}`}
+>
+  <span class={`flex h-10 w-10 items-center justify-center rounded-lg ${accent.bg} ${accent.text}`}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5" set:html={area.icon} />
+  </span>
+  <span class="text-base font-semibold text-slate-100">{area.name}</span>
+  <span class="text-sm text-slate-500">{area.description}</span>
+</a>

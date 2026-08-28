@@ -11,10 +11,11 @@ async function fetchJson<T>(path: string): Promise<T> {
 }
 
 /** Shared fetch-on-filter-change hook backing every table/chart in the dashboard. */
-export function useApiQuery<T>(queryKey: QueryKey, path: string) {
+export function useApiQuery<T>(queryKey: QueryKey, path: string, options?: { enabled?: boolean }) {
   return useQuery<T>({
     queryKey,
     queryFn: () => fetchJson<T>(path),
     placeholderData: (prev) => prev,
+    enabled: options?.enabled ?? true,
   });
 }

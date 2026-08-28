@@ -1,0 +1,28 @@
+---
+import type { AreaConfig } from '../../lib/areas.config';
+
+interface Props {
+  area: AreaConfig;
+  activeTabSlug: string;
+}
+
+const { area, activeTabSlug } = Astro.props;
+---
+
+<nav class="flex flex-wrap gap-1 border-b border-slate-800" aria-label={`Secciones de ${area.name}`}>
+  {
+    area.tabs.map((tab) => (
+      <a
+        href={`/${area.slug}/${tab.slug}`}
+        aria-current={tab.slug === activeTabSlug ? 'page' : undefined}
+        class={`rounded-t-lg border border-b-0 px-4 py-2 text-sm font-medium transition-colors ${
+          tab.slug === activeTabSlug
+            ? 'border-slate-800 bg-slate-900 text-slate-100'
+            : 'border-transparent text-slate-500 hover:text-slate-300'
+        }`}
+      >
+        {tab.name}
+      </a>
+    ))
+  }
+</nav>
