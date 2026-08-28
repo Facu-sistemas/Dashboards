@@ -9,6 +9,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { useChartTheme } from '../shared/useChartTheme';
 import type { FacturacionTrendPoint } from './types';
 
 interface Props {
@@ -35,6 +36,7 @@ const MIN_CHART_WIDTH_PX = 480;
 const RATIO_NAME = 'Ratio (Banco / Efectivo)';
 
 export default function FacturacionTrendChart({ points }: Props) {
+  const chartTheme = useChartTheme();
   if (points.length === 0) return null;
 
   const data = points.map((p) => ({
@@ -51,19 +53,19 @@ export default function FacturacionTrendChart({ points }: Props) {
       <div style={{ width: chartWidth, height: 320 }}>
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-            <XAxis dataKey="month" stroke="#64748b" fontSize={12} />
-            <YAxis yAxisId="amount" stroke="#64748b" fontSize={12} tickFormatter={(v) => money.format(v)} width={90} />
+            <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
+            <XAxis dataKey="month" stroke={chartTheme.axis} fontSize={12} />
+            <YAxis yAxisId="amount" stroke={chartTheme.axis} fontSize={12} tickFormatter={(v) => money.format(v)} width={90} />
             <YAxis
               yAxisId="ratio"
               orientation="right"
-              stroke="#64748b"
+              stroke={chartTheme.axis}
               fontSize={12}
               tickFormatter={(v) => `${Number(v).toFixed(1)}x`}
             />
             <Tooltip
-              contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8 }}
-              labelStyle={{ color: '#e2e8f0' }}
+              contentStyle={{ background: chartTheme.tooltipBg, border: `1px solid ${chartTheme.tooltipBorder}`, borderRadius: 8 }}
+              labelStyle={{ color: chartTheme.tooltipText }}
               formatter={(value, name) => {
                 if (name === RATIO_NAME) {
                   return typeof value === 'number' ? `${value.toFixed(2)}x` : 'Sin datos';
@@ -72,13 +74,13 @@ export default function FacturacionTrendChart({ points }: Props) {
               }}
             />
             <Legend />
-            <Bar yAxisId="amount" dataKey="banco" fill="#2f6fed" radius={[4, 4, 0, 0]} name="Facturación 1 (Banco)" />
-            <Bar yAxisId="amount" dataKey="efectivo" fill="#10b981" radius={[4, 4, 0, 0]} name="Facturación 2 (Efectivo)" />
+            <Bar yAxisId="amount" dataKey="banco" fill={chartTheme.primary} radius={[4, 4, 0, 0]} name="Facturación 1 (Banco)" />
+            <Bar yAxisId="amount" dataKey="efectivo" fill={chartTheme.secondary} radius={[4, 4, 0, 0]} name="Facturación 2 (Efectivo)" />
             <Line
               yAxisId="ratio"
               type="monotone"
               dataKey="ratio"
-              stroke="#f59e0b"
+              stroke={chartTheme.warn}
               strokeWidth={2}
               dot={{ r: 3 }}
               connectNulls={false}

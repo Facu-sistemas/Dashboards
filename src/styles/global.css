@@ -2,6 +2,88 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Theme tokens, as "R G B" triplets (Tailwind's <alpha-value> convention).
+ * Dark is the default (:root) and matches this app's original always-dark
+ * design pixel-for-pixel. Light is an explicit opt-in via
+ * <html data-theme="light">, styled after Solarized Light: the role each
+ * shade plays (950/900 = backgrounds, 100/200 = primary text, ...) stays
+ * the same across themes, only the actual color changes — see
+ * tailwind.config.mjs for how these get wired into `bg-slate-*` etc.
+ */
+:root {
+  color-scheme: dark;
+
+  --slate-50: 248 250 252;
+  --slate-100: 241 245 249;
+  --slate-200: 226 232 240;
+  --slate-300: 203 213 225;
+  --slate-400: 148 163 184;
+  --slate-500: 100 116 139;
+  --slate-600: 71 85 105;
+  --slate-700: 51 65 85;
+  --slate-800: 30 41 59;
+  --slate-900: 15 23 42;
+  --slate-950: 2 6 23;
+
+  --brand-50: 238 246 255;
+  --brand-100: 217 234 255;
+  --brand-400: 90 143 240;
+  --brand-500: 47 111 237;
+  --brand-600: 31 86 201;
+  --brand-700: 25 67 160;
+
+  --status-green: 52 211 153;
+  --status-yellow: 251 191 36;
+  --status-red: 248 113 113;
+
+  --accent-purple: 192 132 252;
+  --accent-amber: 251 191 36;
+  --accent-emerald: 52 211 153;
+  --accent-orange: 251 146 60;
+  --accent-teal: 45 212 191;
+  --accent-cyan: 34 211 238;
+  --accent-rose: 251 113 133;
+}
+
+/* Solarized Light (https://ethanschoonover.com/solarized/) mapped onto the
+ * same role scale: base3/base2 for backgrounds, base01/base00/base0/base1
+ * for the text hierarchy, base's own hues for the semaphore/accents. */
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --slate-50: 0 43 54; /* base03 — reserved, max-contrast fallback */
+  --slate-100: 88 110 117; /* base01 — primary/heading text */
+  --slate-200: 88 110 117; /* base01 */
+  --slate-300: 101 123 131; /* base00 — secondary/body text */
+  --slate-400: 125 143 143; /* between base1/base00 — muted labels */
+  --slate-500: 147 161 161; /* base1 — faint/comment-level labels */
+  --slate-600: 168 159 138; /* muted tan — very faint placeholders ("—") */
+  --slate-700: 205 196 165; /* visible borders/dividers */
+  --slate-800: 228 220 196; /* subtle borders, skeleton bg */
+  --slate-900: 238 232 213; /* base2 — card/surface bg */
+  --slate-950: 253 246 227; /* base3 — page/canvas bg */
+
+  --brand-50: 234 245 252;
+  --brand-100: 215 236 249;
+  --brand-400: 75 163 221;
+  --brand-500: 38 139 210; /* Solarized blue */
+  --brand-600: 30 110 166;
+  --brand-700: 24 90 134;
+
+  --status-green: 133 153 0; /* Solarized green */
+  --status-yellow: 181 137 0; /* Solarized yellow */
+  --status-red: 220 50 47; /* Solarized red */
+
+  --accent-purple: 108 113 196; /* Solarized violet */
+  --accent-amber: 181 137 0; /* Solarized yellow */
+  --accent-emerald: 133 153 0; /* Solarized green */
+  --accent-orange: 203 75 22; /* Solarized orange */
+  --accent-teal: 42 161 152; /* Solarized cyan */
+  --accent-cyan: 42 161 152; /* Solarized cyan */
+  --accent-rose: 211 54 130; /* Solarized magenta */
+}
+
 @layer base {
   html {
     @apply bg-slate-950 text-slate-100;

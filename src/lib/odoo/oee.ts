@@ -1,4 +1,4 @@
-import { searchReadAll, searchRead, searchCount } from './client';
+import { searchReadAll } from './client';
 import { getFronteraCompany } from './reference';
 import { monthBounds, currentMonthKey } from '../date';
 import type { OdooDomain } from './types';
@@ -16,10 +16,10 @@ export interface OeeResult {
   plannedQty: number;
   producedQty: number;
   pctComplete: number;
-  /** Orders finished within the selected period — the ones behind plannedQty/producedQty. */
+  /** Orders finished within the selected period — contribute to plannedQty/producedQty. */
   closedOrders: OeeOrderSummary[];
   closedTotal: number;
-  /** Currently open orders (not yet done), independent of the period selector — a running backlog, not "due this period" (no scheduling field here is reliable enough to draw that line). */
+  /** Currently open orders (not yet done), independent of the period selector (see getOeeSummary doc comment) — also folded into plannedQty/producedQty. */
   pendingOrders: OeeOrderSummary[];
   pendingTotal: number;
 }
@@ -65,14 +65,28 @@ function categoryDomain(categoryFilter: OeeCategoryFilter): OdooDomain {
 }
 
 /**
- * Simple OEE v1: produced vs. planned units for the current period —
- * confirmed live that `mrp.workcenter.productivity` has 0 rows (no
+ * Simple OEE v1: produced vs. planned units, scoped to Frontera Living S.A.
+ * — confirmed live that `mrp.workcenter.productivity` has 0 rows (no
  * downtime/scrap tracking loaded in Odoo yet), so the full
- * Availability × Performance × Quality breakdown isn't computable. This
- * gauge is just `qty_produced / product_qty` for orders finished in the
- * period, scoped to Frontera Living S.A. — plus the order names behind
- * that number (closed this period, and what's still open), since a bare
- * percentage with nothing to read gives no sense of whether it's moving.
+ * Availability × Performance × Quality breakdown isn't computable.
+ *
+ * `plannedQty`/`producedQty` cover BOTH orders finished in the selected
+ * period AND every order still open (confirmed/progress/to_close),
+ * regardless of period. That's deliberate: an order can't reach `done` in
+ * this Odoo workflow without having produced its full planned qty, so a
+ * ratio computed only over closed orders is ~100% by construction and
+ * tells you nothing — it hides the entire backlog of work that's been
+ * planned but not yet produced. Folding the open backlog into the
+ * denominator (and its actual `qty_produced`, for any partially-started
+ * orders) turns this into a real "how much of what's been planned has
+ * actually come out the door" number.
+ *
+ * The open backlog isn't period-scoped because there's no reliable field
+ * to scope it by — confirmed live that `date_start`/`date_finished`/
+ * `planning_date` on unstarted orders all carry the same placeholder
+ * sentinel (`2100-01-01`), not a real schedule. So the "Período" selector
+ * only changes which closed orders count toward the numerator; the open
+ * backlog is always the current one.
  */
 export async function getOeeSummary(granularity: OeeGranularity, categoryFilter: OeeCategoryFilter): Promise<OeeResult> {
   const { companyId } = await getFronteraCompany();
@@ -100,25 +114,25 @@ export async function getOeeSummary(granularity: OeeGranularity, categoryFilter:
     order: 'date_finished desc',
   });
 
-  const plannedQty = closedRows.reduce((sum, r) => sum + r.product_qty, 0);
-  const producedQty = closedRows.reduce((sum, r) => sum + r.qty_produced, 0);
-
   const pendingDomain: OdooDomain = [
     ['state', 'in', ['confirmed', 'progress', 'to_close']],
     ['company_id', '=', companyId],
     ...categDomain,
   ];
 
-  const [pendingTotal, pendingRows] = await Promise.all([
-    searchCount('mrp.production', pendingDomain),
-    searchRead<Row>({
-      model: 'mrp.production',
-      domain: pendingDomain,
-      fields: ['name', 'product_id'],
-      order: 'create_date asc',
-      limit: LIST_LIMIT,
-    }),
-  ]);
+  // Same "sum raw rows in JS" reasoning as closedRows above — and since we
+  // need every open order's qty anyway for the planned/produced totals,
+  // one full fetch replaces what used to be a separate searchCount +
+  // limited searchRead.
+  const pendingRows = await searchReadAll<Row>({
+    model: 'mrp.production',
+    domain: pendingDomain,
+    fields: ['name', 'product_qty', 'qty_produced', 'product_id'],
+    order: 'create_date asc',
+  });
+
+  const plannedQty = closedRows.reduce((sum, r) => sum + r.product_qty, 0) + pendingRows.reduce((sum, r) => sum + r.product_qty, 0);
+  const producedQty = closedRows.reduce((sum, r) => sum + r.qty_produced, 0) + pendingRows.reduce((sum, r) => sum + r.qty_produced, 0);
 
   return {
     plannedQty,
@@ -126,7 +140,7 @@ export async function getOeeSummary(granularity: OeeGranularity, categoryFilter:
     pctComplete: plannedQty > 0 ? (producedQty / plannedQty) * 100 : 0,
     closedOrders: closedRows.slice(0, LIST_LIMIT).map((r) => ({ id: r.id, reference: r.name, productName: r.product_id[1] })),
     closedTotal: closedRows.length,
-    pendingOrders: pendingRows.map((r) => ({ id: r.id, reference: r.name, productName: r.product_id[1] })),
-    pendingTotal,
+    pendingOrders: pendingRows.slice(0, LIST_LIMIT).map((r) => ({ id: r.id, reference: r.name, productName: r.product_id[1] })),
+    pendingTotal: pendingRows.length,
   };
 }

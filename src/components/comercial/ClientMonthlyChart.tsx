@@ -1,4 +1,5 @@
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { useChartTheme } from '../shared/useChartTheme';
 import type { ClientMonthlySeries } from './types';
 
 interface Props {
@@ -15,9 +16,9 @@ function monthLabel(monthKey: string): string {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-const COLORS = ['#2f6fed', '#10b981'];
-
 export default function ClientMonthlyChart({ series }: Props) {
+  const chartTheme = useChartTheme();
+  const COLORS = [chartTheme.primary, chartTheme.secondary];
   if (series.length === 0) return null;
 
   const months = series[0]!.points.map((p) => p.month);
@@ -32,13 +33,13 @@ export default function ClientMonthlyChart({ series }: Props) {
   return (
     <ResponsiveContainer width="100%" height={300}>
       <BarChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-        <XAxis dataKey="month" stroke="#64748b" fontSize={12} />
-        <YAxis stroke="#64748b" fontSize={12} tickFormatter={(v) => money.format(Number(v))} width={90} />
+        <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
+        <XAxis dataKey="month" stroke={chartTheme.axis} fontSize={12} />
+        <YAxis stroke={chartTheme.axis} fontSize={12} tickFormatter={(v) => money.format(Number(v))} width={90} />
         <Tooltip
-          contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8 }}
-          labelStyle={{ color: '#e2e8f0' }}
-          itemStyle={{ color: '#e2e8f0' }}
+          contentStyle={{ background: chartTheme.tooltipBg, border: `1px solid ${chartTheme.tooltipBorder}`, borderRadius: 8 }}
+          labelStyle={{ color: chartTheme.tooltipText }}
+          itemStyle={{ color: chartTheme.tooltipText }}
           formatter={(value) => money.format(Number(value))}
         />
         <Legend />

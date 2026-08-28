@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { DehydratedState } from '@tanstack/react-query';
 import QueryProvider from '../QueryProvider';
 import { useApiQuery } from '../dashboard/useApiQuery';
+import { useChartTheme } from '../shared/useChartTheme';
 import TopProductsChart from './TopProductsChart';
 import type { TopProductsRange, TopProductsResult } from './types';
 
@@ -19,6 +20,7 @@ const RANGE_OPTIONS: { value: TopProductsRange; label: string }[] = [
 
 function TopProductsInner({ initialRange }: { initialRange: TopProductsRange }) {
   const [range, setRange] = useState<TopProductsRange>(initialRange);
+  const chartTheme = useChartTheme();
 
   const query = useApiQuery<TopProductsResult>(
     ['top-products', range],
@@ -58,8 +60,8 @@ function TopProductsInner({ initialRange }: { initialRange: TopProductsRange }) 
           </>
         ) : (
           <>
-            <TopProductsChart title="Colchones" rows={query.data?.colchones ?? []} color="#2f6fed" />
-            <TopProductsChart title="Living" rows={query.data?.living ?? []} color="#10b981" />
+            <TopProductsChart title="Colchones" rows={query.data?.colchones ?? []} color={chartTheme.primary} />
+            <TopProductsChart title="Living" rows={query.data?.living ?? []} color={chartTheme.secondary} />
           </>
         )}
       </div>

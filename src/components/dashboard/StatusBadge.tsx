@@ -8,9 +8,9 @@ const LABELS: Record<ComplianceStatus, string> = {
 };
 
 const CLASSES: Record<ComplianceStatus, string> = {
-  green: 'bg-emerald-500/15 text-emerald-400 ring-1 ring-inset ring-emerald-500/30',
-  yellow: 'bg-amber-500/15 text-amber-400 ring-1 ring-inset ring-amber-500/30',
-  red: 'bg-red-500/15 text-red-400 ring-1 ring-inset ring-red-500/30',
+  green: 'bg-status-green/15 text-status-green ring-1 ring-inset ring-status-green/30',
+  yellow: 'bg-status-yellow/15 text-status-yellow ring-1 ring-inset ring-status-yellow/30',
+  red: 'bg-status-red/15 text-status-red ring-1 ring-inset ring-status-red/30',
   'no-budget': 'bg-slate-700/40 text-slate-400 ring-1 ring-inset ring-slate-600/50',
 };
 

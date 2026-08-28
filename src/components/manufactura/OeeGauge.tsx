@@ -1,4 +1,5 @@
 import { Cell, Pie, PieChart, ResponsiveContainer } from 'recharts';
+import { useChartTheme, type ChartTheme } from '../shared/useChartTheme';
 
 interface Props {
   pct: number;
@@ -7,17 +8,18 @@ interface Props {
 // Arc scales to 120% so over-performance still fits, per plan's "0-100% (o hasta 120%)".
 const MAX_SCALE = 120;
 
-function zoneColor(pct: number): string {
-  if (pct < 60) return '#ef4444';
-  if (pct < 85) return '#f59e0b';
-  return '#10b981';
+function zoneColor(pct: number, theme: ChartTheme): string {
+  if (pct < 60) return theme.danger;
+  if (pct < 85) return theme.warn;
+  return theme.secondary;
 }
 
 export default function OeeGauge({ pct }: Props) {
+  const chartTheme = useChartTheme();
   const clamped = Math.max(0, Math.min(pct, MAX_SCALE));
   const data = [
-    { value: clamped, fill: zoneColor(pct) },
-    { value: MAX_SCALE - clamped, fill: '#1e293b' },
+    { value: clamped, fill: zoneColor(pct, chartTheme) },
+    { value: MAX_SCALE - clamped, fill: chartTheme.grid },
   ];
 
   return (

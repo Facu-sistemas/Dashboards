@@ -1,4 +1,5 @@
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { useChartTheme } from '../shared/useChartTheme';
 import type { TopProductRow } from './types';
 
 interface Props {
@@ -10,6 +11,7 @@ interface Props {
 const numberFmt = new Intl.NumberFormat('es-AR');
 
 export default function TopProductsChart({ title, rows, color }: Props) {
+  const chartTheme = useChartTheme();
   if (rows.length === 0) {
     return (
       <div className="flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-900 p-4">
@@ -32,13 +34,13 @@ export default function TopProductsChart({ title, rows, color }: Props) {
       <h3 className="text-sm font-medium text-slate-300">{title}</h3>
       <ResponsiveContainer width="100%" height={380}>
         <BarChart data={data} layout="vertical" margin={{ top: 8, right: 24, left: 8, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" horizontal={false} />
-          <XAxis type="number" stroke="#64748b" fontSize={12} tickFormatter={(v) => numberFmt.format(Number(v))} />
-          <YAxis type="category" dataKey="name" stroke="#64748b" fontSize={11} width={230} tick={{ fill: '#94a3b8' }} />
+          <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} horizontal={false} />
+          <XAxis type="number" stroke={chartTheme.axis} fontSize={12} tickFormatter={(v) => numberFmt.format(Number(v))} />
+          <YAxis type="category" dataKey="name" stroke={chartTheme.axis} fontSize={11} width={230} tick={{ fill: chartTheme.axisSecondary }} />
           <Tooltip
-            contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8 }}
-            labelStyle={{ color: '#e2e8f0' }}
-            itemStyle={{ color: '#e2e8f0' }}
+            contentStyle={{ background: chartTheme.tooltipBg, border: `1px solid ${chartTheme.tooltipBorder}`, borderRadius: 8 }}
+            labelStyle={{ color: chartTheme.tooltipText }}
+            itemStyle={{ color: chartTheme.tooltipText }}
             formatter={(value, _name, item) => {
               const subcategory = (item?.payload as { subcategory?: string } | undefined)?.subcategory;
               return [`${numberFmt.format(Number(value))} u.`, subcategory || 'Unidades vendidas'];

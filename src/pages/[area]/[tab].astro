@@ -8,6 +8,7 @@ import ParetoClientesTab from '../../components/comercial/ParetoClientesTab.astr
 import TopProductosTab from '../../components/manufactura/TopProductosTab.astro';
 import OeeTab from '../../components/manufactura/OeeTab.astro';
 import RawMaterialConsumptionTab from '../../components/manufactura/RawMaterialConsumptionTab.astro';
+import MapaDepositoTab from '../../components/almacen/MapaDepositoTab.astro';
 import { getArea } from '../../lib/areas.config';
 
 export const prerender = false;
@@ -27,5 +28,6 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug)) {
   {area.slug === 'manufactura' && tabSlug === 'top-productos' && <TopProductosTab />}
   {area.slug === 'manufactura' && tabSlug === 'oee' && <OeeTab />}
   {area.slug === 'manufactura' && tabSlug === 'consumo-mp' && <RawMaterialConsumptionTab />}
-  {!['finanzas', 'comercial', 'manufactura'].includes(area.slug) && <PlaceholderTab areaName={area.name} />}
+  {area.slug === 'almacen' && tabSlug === 'mapa-deposito' && <MapaDepositoTab />}
+  {!['finanzas', 'comercial', 'manufactura', 'almacen'].includes(area.slug) && <PlaceholderTab areaName={area.name} />}
 </AreaLayout>

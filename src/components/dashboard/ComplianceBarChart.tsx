@@ -1,4 +1,5 @@
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { useChartTheme } from '../shared/useChartTheme';
 import type { CategoryBudgetStatus, PurchaseCurrency } from './types';
 
 interface Props {
@@ -37,6 +38,7 @@ function bucketTopN(rows: CategoryBudgetStatus[], topN: number): ChartRow[] {
 }
 
 export default function ComplianceBarChart({ currency, rows, topN = 8 }: Props) {
+  const chartTheme = useChartTheme();
   if (rows.length === 0) return null;
 
   const data = bucketTopN(rows, topN);
@@ -45,25 +47,25 @@ export default function ComplianceBarChart({ currency, rows, topN = 8 }: Props) 
   return (
     <ResponsiveContainer width="100%" height={320}>
       <BarChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 48 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+        <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
         <XAxis
           dataKey="categoryName"
-          stroke="#64748b"
+          stroke={chartTheme.axis}
           fontSize={12}
           angle={-35}
           textAnchor="end"
           interval={0}
           height={70}
         />
-        <YAxis stroke="#64748b" fontSize={12} tickFormatter={(v) => money.format(v)} width={90} />
+        <YAxis stroke={chartTheme.axis} fontSize={12} tickFormatter={(v) => money.format(v)} width={90} />
         <Tooltip
-          contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8 }}
-          labelStyle={{ color: '#e2e8f0' }}
+          contentStyle={{ background: chartTheme.tooltipBg, border: `1px solid ${chartTheme.tooltipBorder}`, borderRadius: 8 }}
+          labelStyle={{ color: chartTheme.tooltipText }}
           formatter={(value: number) => money.format(value)}
         />
         <Legend />
-        <Bar dataKey="presupuestado" fill="#64748b" radius={[4, 4, 0, 0]} name="Presupuestado" />
-        <Bar dataKey="real" fill="#2f6fed" radius={[4, 4, 0, 0]} name="Real" />
+        <Bar dataKey="presupuestado" fill={chartTheme.axis} radius={[4, 4, 0, 0]} name="Presupuestado" />
+        <Bar dataKey="real" fill={chartTheme.primary} radius={[4, 4, 0, 0]} name="Real" />
       </BarChart>
     </ResponsiveContainer>
   );

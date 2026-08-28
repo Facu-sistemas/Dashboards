@@ -28,15 +28,18 @@ export interface AreaConfig {
 // Each key maps to complete Tailwind class names (not built from the
 // AccentColor string at runtime) so the JIT compiler can find and generate
 // them — a dynamic `bg-${accent}-500` template wouldn't be detected.
+// `text` uses the `accent-*` tokens (theme-aware, see tailwind.config.mjs +
+// global.css) — `bg`/`ring` stay on the standard Tailwind palette at low
+// opacity, which reads fine unchanged in both themes.
 export const ACCENT_CLASSES: Record<AccentColor, { bg: string; text: string; ring: string }> = {
   brand: { bg: 'bg-brand-500/10', text: 'text-brand-400', ring: 'group-hover:ring-brand-500/30' },
-  purple: { bg: 'bg-purple-500/10', text: 'text-purple-400', ring: 'group-hover:ring-purple-500/30' },
-  amber: { bg: 'bg-amber-500/10', text: 'text-amber-400', ring: 'group-hover:ring-amber-500/30' },
-  emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', ring: 'group-hover:ring-emerald-500/30' },
-  orange: { bg: 'bg-orange-500/10', text: 'text-orange-400', ring: 'group-hover:ring-orange-500/30' },
-  teal: { bg: 'bg-teal-500/10', text: 'text-teal-400', ring: 'group-hover:ring-teal-500/30' },
-  cyan: { bg: 'bg-cyan-500/10', text: 'text-cyan-400', ring: 'group-hover:ring-cyan-500/30' },
-  rose: { bg: 'bg-rose-500/10', text: 'text-rose-400', ring: 'group-hover:ring-rose-500/30' },
+  purple: { bg: 'bg-purple-500/10', text: 'text-accent-purple', ring: 'group-hover:ring-purple-500/30' },
+  amber: { bg: 'bg-amber-500/10', text: 'text-accent-amber', ring: 'group-hover:ring-amber-500/30' },
+  emerald: { bg: 'bg-emerald-500/10', text: 'text-accent-emerald', ring: 'group-hover:ring-emerald-500/30' },
+  orange: { bg: 'bg-orange-500/10', text: 'text-accent-orange', ring: 'group-hover:ring-orange-500/30' },
+  teal: { bg: 'bg-teal-500/10', text: 'text-accent-teal', ring: 'group-hover:ring-teal-500/30' },
+  cyan: { bg: 'bg-cyan-500/10', text: 'text-accent-cyan', ring: 'group-hover:ring-cyan-500/30' },
+  rose: { bg: 'bg-rose-500/10', text: 'text-accent-rose', ring: 'group-hover:ring-rose-500/30' },
 };
 
 const ICONS = {
@@ -110,10 +113,10 @@ export const AREAS: AreaConfig[] = [
   {
     slug: 'almacen',
     name: 'Almacén',
-    description: 'Próximamente',
+    description: 'Mapa interactivo de ubicaciones de stock',
     accent: 'cyan',
     icon: ICONS.box,
-    tabs: [{ slug: 'inicio', name: 'Inicio' }],
+    tabs: [{ slug: 'mapa-deposito', name: 'Mapa de Depósito' }],
   },
   {
     slug: 'comercial',

@@ -15,6 +15,18 @@ const { title } = Astro.props;
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow" />
     <title>{title}</title>
+    <script is:inline>
+      // Blocking (not type=module, not deferred) and first in <head> on
+      // purpose: must run before first paint or the page flashes dark
+      // then flips to the stored theme a frame later.
+      try {
+        const stored = localStorage.getItem('theme');
+        if (stored === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      } catch {
+        // localStorage can throw in locked-down contexts (private mode,
+        // disabled storage) — default theme (dark) is still correct.
+      }
+    </script>
   </head>
   <body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
     <div
@@ -22,6 +34,62 @@ const { title } = Astro.props;
       class="pointer-events-none fixed inset-x-0 top-0 z-[100] h-0.5 origin-left scale-x-0 bg-brand-500 transition-transform ease-out"
     >
     </div>
+
+    <button
+      id="theme-toggle"
+      type="button"
+      aria-label="Cambiar entre modo oscuro y claro"
+      class="fixed right-4 top-4 z-40 flex h-9 w-9 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-slate-300 shadow-sm transition-colors hover:border-brand-500 hover:text-brand-500"
+    >
+      <svg id="theme-toggle-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden h-4.5 w-4.5">
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+      </svg>
+      <svg id="theme-toggle-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden h-4.5 w-4.5">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z" />
+      </svg>
+    </button>
+    <script is:inline>
+      (function () {
+        const button = document.getElementById('theme-toggle');
+        const sunIcon = document.getElementById('theme-toggle-sun');
+        const moonIcon = document.getElementById('theme-toggle-moon');
+        if (!button || !sunIcon || !moonIcon) return;
+
+        function currentTheme() {
+          return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+        }
+
+        function syncIcon() {
+          const isLight = currentTheme() === 'light';
+          // Sun means "currently light" (shows what's active), click swaps to the other.
+          sunIcon.classList.toggle('hidden', !isLight);
+          moonIcon.classList.toggle('hidden', isLight);
+        }
+
+        button.addEventListener('click', () => {
+          const next = currentTheme() === 'light' ? 'dark' : 'light';
+          if (next === 'light') {
+            document.documentElement.setAttribute('data-theme', 'light');
+          } else {
+            document.documentElement.removeAttribute('data-theme');
+          }
+          try {
+            localStorage.setItem('theme', next);
+          } catch {
+            // best-effort persistence only
+          }
+          syncIcon();
+          // Chart components hold their own hex colors read from CSS vars
+          // at mount time (SVG attrs, not Tailwind classes) — they can't
+          // see this attribute change on their own, so nudge them.
+          window.dispatchEvent(new CustomEvent('themechange', { detail: { theme: next } }));
+        });
+
+        syncIcon();
+      })();
+    </script>
+
     <slot />
     <script>
       // Full multi-page navigation (no client router), so this can't be a

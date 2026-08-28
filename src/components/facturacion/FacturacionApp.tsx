@@ -5,6 +5,7 @@ import { useApiQuery } from '../dashboard/useApiQuery';
 import { monthOptions } from '../shared/monthOptions';
 import KpiCard from '../shared/KpiCard';
 import ComparisonTable from './ComparisonTable';
+import FacturacionSplitPieChart from './FacturacionSplitPieChart';
 import FacturacionTrendChart from './FacturacionTrendChart';
 import type { FacturacionComparison, FacturacionSource, FacturacionTrendPoint } from './types';
 
@@ -35,7 +36,7 @@ function FacturacionInner({ initialMonth }: { initialMonth: string }) {
   );
 
   const data = query.data;
-  const diff = data ? data.banco.total - data.efectivo.total : undefined;
+  const sum = data ? data.banco.total + data.efectivo.total : undefined;
   const activeResult = data?.[activeSource];
 
   return (
@@ -66,7 +67,7 @@ function FacturacionInner({ initialMonth }: { initialMonth: string }) {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <KpiCard label="Facturación 1 (Banco)" value={data?.banco.total} isLoading={query.isLoading} format="currency" />
         <KpiCard label="Facturación 2 (Efectivo)" value={data?.efectivo.total} isLoading={query.isLoading} format="currency" />
-        <KpiCard label="Diferencia (Banco − Efectivo)" value={diff} isLoading={query.isLoading} format="currency" />
+        <KpiCard label="Total (Banco + Efectivo)" value={sum} isLoading={query.isLoading} format="currency" />
       </div>
 
       <section className="flex flex-col gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
@@ -78,6 +79,15 @@ function FacturacionInner({ initialMonth }: { initialMonth: string }) {
         ) : (
           <FacturacionTrendChart points={trendQuery.data ?? []} />
         )}
+      </section>
+
+      <section className="flex flex-col gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
+        <h3 className="text-sm font-medium text-slate-300">Composición del total — Banco vs. Efectivo</h3>
+        {query.isLoading ? (
+          <div className="h-[320px] w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
+        ) : data ? (
+          <FacturacionSplitPieChart data={data} />
+        ) : null}
       </section>
 
       <section className="flex flex-col gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">

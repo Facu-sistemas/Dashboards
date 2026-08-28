@@ -1,4 +1,5 @@
 import { Bar, BarChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { useChartTheme } from '../shared/useChartTheme';
 import type { MaterialMonthlyPoint } from './types';
 
 interface Props {
@@ -25,27 +26,28 @@ function monthLabel(monthKey: string): string {
  * "cross" it in any literal sense.
  */
 export default function MaterialHistoryChart({ points, reorderPoint }: Props) {
+  const chartTheme = useChartTheme();
   const data = points.map((p) => ({ month: monthLabel(p.month), consumption: p.consumption }));
 
   return (
     <ResponsiveContainer width="100%" height={280}>
       <BarChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-        <XAxis dataKey="month" stroke="#64748b" fontSize={12} />
-        <YAxis stroke="#64748b" fontSize={12} tickFormatter={(v) => numberFmt.format(Number(v))} width={70} />
+        <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
+        <XAxis dataKey="month" stroke={chartTheme.axis} fontSize={12} />
+        <YAxis stroke={chartTheme.axis} fontSize={12} tickFormatter={(v) => numberFmt.format(Number(v))} width={70} />
         <Tooltip
-          contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8 }}
-          labelStyle={{ color: '#e2e8f0' }}
-          itemStyle={{ color: '#e2e8f0' }}
+          contentStyle={{ background: chartTheme.tooltipBg, border: `1px solid ${chartTheme.tooltipBorder}`, borderRadius: 8 }}
+          labelStyle={{ color: chartTheme.tooltipText }}
+          itemStyle={{ color: chartTheme.tooltipText }}
           formatter={(value) => [`${numberFmt.format(Number(value))} / mes`, 'Consumo']}
         />
-        <Bar dataKey="consumption" fill="#2f6fed" radius={[4, 4, 0, 0]} name="Consumo mensual" isAnimationActive={false} />
+        <Bar dataKey="consumption" fill={chartTheme.primary} radius={[4, 4, 0, 0]} name="Consumo mensual" isAnimationActive={false} />
         {reorderPoint !== null && (
           <ReferenceLine
             y={reorderPoint}
-            stroke="#ef4444"
+            stroke={chartTheme.danger}
             strokeDasharray="4 4"
-            label={{ value: 'Punto de reorden', position: 'insideBottomRight', fill: '#ef4444', fontSize: 11 }}
+            label={{ value: 'Punto de reorden', position: 'insideBottomRight', fill: chartTheme.danger, fontSize: 11 }}
           />
         )}
       </BarChart>
