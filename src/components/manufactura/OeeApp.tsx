@@ -2,37 +2,33 @@ import { useState } from 'react';
 import type { DehydratedState } from '@tanstack/react-query';
 import QueryProvider from '../QueryProvider';
 import { useApiQuery } from '../dashboard/useApiQuery';
-import OeeGauge from './OeeGauge';
+import OeeGaugeCard from './OeeGaugeCard';
+import OeeMonthlySummary from './OeeMonthlySummary';
 import OeeOrderList from './OeeOrderList';
-import type { OeeCategoryFilter, OeeGranularity, OeeResult } from './types';
+import { dateToWeekValue, weekValueToDate } from './isoWeek';
+import type { OeeCategoryGauge, OeePeriodKind, OeeResult } from './types';
 
 interface Props {
-  initialGranularity: OeeGranularity;
-  initialCategory: OeeCategoryFilter;
+  initialPeriodKind: OeePeriodKind;
+  initialDate: string;
   dehydratedState?: DehydratedState;
 }
 
-const GRANULARITY_OPTIONS: { value: OeeGranularity; label: string }[] = [
-  { value: 'day', label: 'Hoy' },
-  { value: 'week', label: 'Esta semana' },
-  { value: 'month', label: 'Este mes' },
+const PERIOD_OPTIONS: { value: OeePeriodKind; label: string }[] = [
+  { value: 'day', label: 'Día' },
+  { value: 'week', label: 'Semana' },
+  { value: 'month', label: 'Mes' },
 ];
 
-const CATEGORY_OPTIONS: { value: OeeCategoryFilter; label: string }[] = [
-  { value: 'all', label: 'Todos los productos' },
-  { value: 'colchones', label: 'Colchones' },
-  { value: 'living', label: 'Living' },
-];
+const EMPTY_GAUGE: OeeCategoryGauge = { planned: 0, produced: 0, pctComplete: 0 };
 
-const units = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
-
-function OeeInner({ initialGranularity, initialCategory }: { initialGranularity: OeeGranularity; initialCategory: OeeCategoryFilter }) {
-  const [granularity, setGranularity] = useState<OeeGranularity>(initialGranularity);
-  const [category, setCategory] = useState<OeeCategoryFilter>(initialCategory);
+function OeeInner({ initialPeriodKind, initialDate }: { initialPeriodKind: OeePeriodKind; initialDate: string }) {
+  const [periodKind, setPeriodKind] = useState<OeePeriodKind>(initialPeriodKind);
+  const [date, setDate] = useState<string>(initialDate);
 
   const query = useApiQuery<OeeResult>(
-    ['oee', granularity, category],
-    `/api/oee?${new URLSearchParams({ granularity, category })}`
+    ['oee', periodKind, date],
+    `/api/oee?${new URLSearchParams({ period: periodKind, date })}`
   );
 
   return (
@@ -41,11 +37,11 @@ function OeeInner({ initialGranularity, initialCategory }: { initialGranularity:
         <label className="flex flex-col gap-1 text-sm text-slate-300">
           Período
           <select
-            value={granularity}
-            onChange={(e) => setGranularity(e.target.value as OeeGranularity)}
+            value={periodKind}
+            onChange={(e) => setPeriodKind(e.target.value as OeePeriodKind)}
             className="min-w-[9rem] rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-slate-100 focus:border-brand-500 focus:outline-none"
           >
-            {GRANULARITY_OPTIONS.map((o) => (
+            {PERIOD_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
@@ -53,20 +49,41 @@ function OeeInner({ initialGranularity, initialCategory }: { initialGranularity:
           </select>
         </label>
 
-        <label className="flex flex-col gap-1 text-sm text-slate-300">
-          Producto
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value as OeeCategoryFilter)}
-            className="min-w-[10rem] rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-slate-100 focus:border-brand-500 focus:outline-none"
-          >
-            {CATEGORY_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        {periodKind === 'day' && (
+          <label className="flex flex-col gap-1 text-sm text-slate-300">
+            Fecha
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-slate-100 focus:border-brand-500 focus:outline-none"
+            />
+          </label>
+        )}
+
+        {periodKind === 'week' && (
+          <label className="flex flex-col gap-1 text-sm text-slate-300">
+            Semana
+            <input
+              type="week"
+              value={dateToWeekValue(date)}
+              onChange={(e) => setDate(weekValueToDate(e.target.value))}
+              className="rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-slate-100 focus:border-brand-500 focus:outline-none"
+            />
+          </label>
+        )}
+
+        {periodKind === 'month' && (
+          <label className="flex flex-col gap-1 text-sm text-slate-300">
+            Mes
+            <input
+              type="month"
+              value={date.slice(0, 7)}
+              onChange={(e) => setDate(`${e.target.value}-01`)}
+              className="rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-slate-100 focus:border-brand-500 focus:outline-none"
+            />
+          </label>
+        )}
       </div>
 
       {query.isError && (
@@ -75,18 +92,25 @@ function OeeInner({ initialGranularity, initialCategory }: { initialGranularity:
         </p>
       )}
 
-      <section className="flex flex-col items-center gap-3 rounded-lg border border-slate-800 bg-slate-900 p-6">
-        {query.isLoading ? (
-          <div className="h-[200px] w-full max-w-xs animate-pulse-slow rounded-lg bg-slate-800/60" />
-        ) : (
-          <>
-            <OeeGauge pct={query.data?.pctComplete ?? 0} />
-            <p className="text-sm text-slate-400">
-              {units.format(query.data?.producedQty ?? 0)} unidades producidas / {units.format(query.data?.plannedQty ?? 0)} planificadas
-            </p>
-          </>
-        )}
-      </section>
+      {query.isLoading ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="h-56 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
+          <div className="h-56 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
+          <div className="h-56 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <OeeGaugeCard title="Colchones" gauge={query.data?.colchones ?? EMPTY_GAUGE} />
+          <OeeGaugeCard title="Living" gauge={query.data?.living ?? EMPTY_GAUGE} />
+          <OeeGaugeCard title="Todos los productos" gauge={query.data?.total ?? EMPTY_GAUGE} />
+        </div>
+      )}
+
+      {query.isLoading ? (
+        <div className="h-48 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
+      ) : (
+        query.data && <OeeMonthlySummary rows={query.data.monthly} />
+      )}
 
       {query.isLoading ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -114,10 +138,10 @@ function OeeInner({ initialGranularity, initialCategory }: { initialGranularity:
 }
 
 /** Entry point mounted as an Astro client island (`client:load`), same pattern as the other tabs. */
-export default function OeeApp({ dehydratedState, initialGranularity, initialCategory }: Props) {
+export default function OeeApp({ dehydratedState, initialPeriodKind, initialDate }: Props) {
   return (
     <QueryProvider dehydratedState={dehydratedState}>
-      <OeeInner initialGranularity={initialGranularity} initialCategory={initialCategory} />
+      <OeeInner initialPeriodKind={initialPeriodKind} initialDate={initialDate} />
     </QueryProvider>
   );
 }

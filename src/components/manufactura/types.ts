@@ -12,8 +12,13 @@ export interface TopProductsResult {
   living: TopProductRow[];
 }
 
-export type OeeGranularity = 'day' | 'week' | 'month';
-export type OeeCategoryFilter = 'all' | 'colchones' | 'living';
+export type OeePeriodKind = 'day' | 'week' | 'month';
+
+export interface OeeCategoryGauge {
+  planned: number;
+  produced: number;
+  pctComplete: number;
+}
 
 export interface OeeOrderSummary {
   id: number;
@@ -21,14 +26,23 @@ export interface OeeOrderSummary {
   productName: string;
 }
 
+export interface OeeMonthlyRow {
+  month: string;
+  colchones: OeeCategoryGauge;
+  living: OeeCategoryGauge;
+  total: OeeCategoryGauge;
+}
+
 export interface OeeResult {
-  plannedQty: number;
-  producedQty: number;
-  pctComplete: number;
+  period: { kind: OeePeriodKind; date: string; start: string; endInclusive: string };
+  colchones: OeeCategoryGauge;
+  living: OeeCategoryGauge;
+  total: OeeCategoryGauge;
   closedOrders: OeeOrderSummary[];
   closedTotal: number;
   pendingOrders: OeeOrderSummary[];
   pendingTotal: number;
+  monthly: OeeMonthlyRow[];
 }
 
 export interface RawMaterialCategoryOption {
