@@ -1,0 +1,42 @@
+---
+import TicketsSoporteApp from './TicketsSoporteApp';
+import { buildTicketsSoporteDehydratedState } from '../../lib/tickets-soporte-ssr';
+import type { CalidadRange } from './types';
+
+const RANGE_VALUES: CalidadRange[] = ['all', 'this-year', 'last-12-months', 'last-6-months'];
+
+const params = Astro.url.searchParams;
+const rangeParam = params.get('range');
+const initialRange: CalidadRange = RANGE_VALUES.includes(rangeParam as CalidadRange) ? (rangeParam as CalidadRange) : 'last-12-months';
+
+let dehydratedState;
+let ssrError: string | null = null;
+try {
+  dehydratedState = await buildTicketsSoporteDehydratedState(initialRange);
+} catch (err) {
+  ssrError = err instanceof Error ? err.message : 'Error desconocido consultando Odoo';
+}
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Tickets de Soporte</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Tickets por Tipo, por Prioridad, y volumen mensual. El campo "Motivo" (Post-Venta, Calidad,
+      Transporte, etc.) todavía no se carga de forma consistente en Odoo — está poblado en 1 de
+      cada ~220 tickets — así que el desglose por motivo queda pendiente hasta que se cargue mejor.
+      Solo lectura.
+    </p>
+  </header>
+
+  {
+    ssrError && (
+      <p class="mb-6 rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">
+        No se pudo precargar la data desde Odoo en el servidor ({ssrError}). El panel
+        intentará cargar los datos desde el navegador.
+      </p>
+    )
+  }
+
+  <TicketsSoporteApp client:load initialRange={initialRange} dehydratedState={dehydratedState} />
+</div>

@@ -85,10 +85,10 @@ export const AREAS: AreaConfig[] = [
   {
     slug: 'gestion-calidad',
     name: 'Gestión de Calidad',
-    description: 'Próximamente',
+    description: 'Tickets de soporte por tipo y prioridad',
     accent: 'emerald',
     icon: ICONS.checkCircle,
-    tabs: [{ slug: 'inicio', name: 'Inicio' }],
+    tabs: [{ slug: 'tickets-soporte', name: 'Tickets de Soporte' }],
   },
   {
     slug: 'manufactura',
