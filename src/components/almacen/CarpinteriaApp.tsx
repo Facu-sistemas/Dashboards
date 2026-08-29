@@ -4,6 +4,7 @@ import QueryProvider from '../QueryProvider';
 import { useApiQuery } from '../dashboard/useApiQuery';
 import ModeloSearchTable from './ModeloSearchTable';
 import PedidoListonesTable from './PedidoListonesTable';
+import LastUpdated from '../shared/LastUpdated';
 import type { PedidoAgregado, PedidoListonRow, RecetaListonRow } from './types';
 
 interface Props {
@@ -29,6 +30,7 @@ function CarpinteriaInner() {
   const [linea, setLinea] = useState('');
   const [generandoEtiqueta, setGenerandoEtiqueta] = useState(false);
   const [etiquetaError, setEtiquetaError] = useState<string | null>(null);
+  const [listUpdatedAt, setListUpdatedAt] = useState<number>(0);
 
   const recetaQuery = useApiQuery<RecetaListonRow[]>(
     ['carpinteria-receta', selected ?? null],
@@ -108,8 +110,12 @@ function CarpinteriaInner() {
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="flex justify-end">
+        <LastUpdated dataUpdatedAt={recetaQuery.dataUpdatedAt || listUpdatedAt} />
+      </div>
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[360px_1fr]">
-        <ModeloSearchTable selectedModelo={selected} onSelect={(name) => setSelected(name)} />
+        <ModeloSearchTable selectedModelo={selected} onSelect={(name) => setSelected(name)} onDataUpdatedAt={setListUpdatedAt} />
 
         <section className="flex flex-col gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
           {!selected ? (

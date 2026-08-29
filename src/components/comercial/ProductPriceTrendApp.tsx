@@ -4,6 +4,7 @@ import QueryProvider from '../QueryProvider';
 import { useApiQuery } from '../dashboard/useApiQuery';
 import ProductSearchTable from './ProductSearchTable';
 import ProductPriceChart from './ProductPriceChart';
+import LastUpdated from '../shared/LastUpdated';
 import type { ProductPriceTrend } from './types';
 
 interface Props {
@@ -12,6 +13,7 @@ interface Props {
 
 function ProductPriceTrendInner() {
   const [selected, setSelected] = useState<{ id: number; name: string } | null>(null);
+  const [listUpdatedAt, setListUpdatedAt] = useState<number>(0);
 
   const trendQuery = useApiQuery<ProductPriceTrend>(
     ['product-price-trend', selected?.id ?? null],
@@ -20,8 +22,17 @@ function ProductPriceTrendInner() {
   );
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[360px_1fr]">
-      <ProductSearchTable selectedProductId={selected?.id ?? null} onSelect={(id, name) => setSelected({ id, name })} />
+    <div className="flex flex-col gap-3">
+      <div className="flex justify-end">
+        <LastUpdated dataUpdatedAt={trendQuery.dataUpdatedAt || listUpdatedAt} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[360px_1fr]">
+      <ProductSearchTable
+        selectedProductId={selected?.id ?? null}
+        onSelect={(id, name) => setSelected({ id, name })}
+        onDataUpdatedAt={setListUpdatedAt}
+      />
 
       <section className="flex flex-col gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
         {!selected ? (
@@ -46,6 +57,7 @@ function ProductPriceTrendInner() {
           </>
         )}
       </section>
+      </div>
     </div>
   );
 }

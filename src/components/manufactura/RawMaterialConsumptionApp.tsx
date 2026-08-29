@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { DehydratedState } from '@tanstack/react-query';
 import QueryProvider from '../QueryProvider';
 import { useApiQuery } from '../dashboard/useApiQuery';
+import LastUpdated from '../shared/LastUpdated';
 import RawMaterialTable from './RawMaterialTable';
 import MaterialStatRow from './MaterialStatRow';
 import MaterialHistoryChart from './MaterialHistoryChart';
@@ -56,7 +57,8 @@ function RawMaterialConsumptionInner({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-end gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
+      <div className="flex flex-wrap items-end justify-between gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
+        <div className="flex flex-wrap items-end gap-4">
         <label className="flex flex-col gap-1 text-sm text-slate-300">
           Categoría de materia prima
           <select
@@ -97,6 +99,9 @@ function RawMaterialConsumptionInner({
           />
           Solo en alerta
         </label>
+        </div>
+
+        <LastUpdated dataUpdatedAt={query.dataUpdatedAt} />
       </div>
 
       {query.isError && (

@@ -5,6 +5,7 @@ import { useApiQuery } from '../dashboard/useApiQuery';
 import OeeGaugeCard from './OeeGaugeCard';
 import OeeMonthlySummary from './OeeMonthlySummary';
 import OeeOrderList from './OeeOrderList';
+import LastUpdated from '../shared/LastUpdated';
 import { dateToWeekValue, weekValueToDate } from './isoWeek';
 import type { OeeCategoryGauge, OeePeriodKind, OeeResult } from './types';
 
@@ -33,7 +34,8 @@ function OeeInner({ initialPeriodKind, initialDate }: { initialPeriodKind: OeePe
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-end gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
+      <div className="flex flex-wrap items-end justify-between gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
+        <div className="flex flex-wrap items-end gap-4">
         <label className="flex flex-col gap-1 text-sm text-slate-300">
           Período
           <select
@@ -84,6 +86,9 @@ function OeeInner({ initialPeriodKind, initialDate }: { initialPeriodKind: OeePe
             />
           </label>
         )}
+        </div>
+
+        <LastUpdated dataUpdatedAt={query.dataUpdatedAt} />
       </div>
 
       {query.isError && (

@@ -9,9 +9,10 @@ const DEBOUNCE_MS = 300;
 interface Props {
   selectedModelo: string | null;
   onSelect: (name: string) => void;
+  onDataUpdatedAt?: (dataUpdatedAt: number) => void;
 }
 
-export default function ModeloSearchTable({ selectedModelo, onSelect }: Props) {
+export default function ModeloSearchTable({ selectedModelo, onSelect, onDataUpdatedAt }: Props) {
   const [searchInput, setSearchInput] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [page, setPage] = useState(0);
@@ -28,6 +29,10 @@ export default function ModeloSearchTable({ selectedModelo, onSelect }: Props) {
     ['carpinteria-modelos', debouncedQuery, page],
     `/api/carpinteria-modelos?${new URLSearchParams({ q: debouncedQuery, limit: String(PAGE_SIZE), offset: String(page * PAGE_SIZE) })}`
   );
+
+  useEffect(() => {
+    if (query.dataUpdatedAt) onDataUpdatedAt?.(query.dataUpdatedAt);
+  }, [query.dataUpdatedAt, onDataUpdatedAt]);
 
   const items = query.data?.items ?? [];
   const total = query.data?.total ?? 0;

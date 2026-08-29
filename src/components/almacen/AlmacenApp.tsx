@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { DehydratedState } from '@tanstack/react-query';
 import QueryProvider from '../QueryProvider';
 import { useApiQuery } from '../dashboard/useApiQuery';
+import LastUpdated from '../shared/LastUpdated';
 import WarehouseOverview from './WarehouseOverview';
 import WarehouseRackDetail from './WarehouseRackDetail';
 import UbicacionDetail from './UbicacionDetail';
@@ -41,6 +42,10 @@ function AlmacenInner() {
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="flex justify-end">
+        <LastUpdated dataUpdatedAt={layoutQuery.dataUpdatedAt} />
+      </div>
+
       {layoutQuery.isError && (
         <p className="rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">
           No se pudo cargar el layout del depósito: {(layoutQuery.error as Error).message}

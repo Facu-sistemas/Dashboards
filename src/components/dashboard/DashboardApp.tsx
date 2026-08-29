@@ -3,6 +3,7 @@ import type { DehydratedState } from '@tanstack/react-query';
 import QueryProvider from '../QueryProvider';
 import FilterBar from './FilterBar';
 import FxRateBadge from './FxRateBadge';
+import LastUpdated from '../shared/LastUpdated';
 import CurrencySection from './CurrencySection';
 import ComplianceTrendChart from './ComplianceTrendChart';
 import { useApiQuery } from './useApiQuery';
@@ -41,7 +42,10 @@ function DashboardInner({ initialFilters }: Pick<Props, 'initialFilters'>) {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <FilterBar filters={filters} onChange={setFilters} />
-        <FxRateBadge />
+        <div className="flex items-center gap-3">
+          <FxRateBadge />
+          <LastUpdated dataUpdatedAt={complianceQuery.dataUpdatedAt} />
+        </div>
       </div>
 
       {complianceQuery.isError && (

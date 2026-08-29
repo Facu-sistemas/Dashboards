@@ -5,6 +5,7 @@ import type { SellableProductPage } from './types';
 interface Props {
   selectedProductId: number | null;
   onSelect: (id: number, name: string) => void;
+  onDataUpdatedAt?: (dataUpdatedAt: number) => void;
 }
 
 // Must match product-price-trend-ssr.ts's PAGE_SIZE so the first page hydrates from SSR instead of refetching.
@@ -13,7 +14,7 @@ const DEBOUNCE_MS = 300;
 
 const money = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
 
-export default function ProductSearchTable({ selectedProductId, onSelect }: Props) {
+export default function ProductSearchTable({ selectedProductId, onSelect, onDataUpdatedAt }: Props) {
   const [searchInput, setSearchInput] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [page, setPage] = useState(0);
@@ -30,6 +31,10 @@ export default function ProductSearchTable({ selectedProductId, onSelect }: Prop
     ['sellable-products', debouncedQuery, page],
     `/api/products?${new URLSearchParams({ q: debouncedQuery, limit: String(PAGE_SIZE), offset: String(page * PAGE_SIZE) })}`
   );
+
+  useEffect(() => {
+    if (query.dataUpdatedAt) onDataUpdatedAt?.(query.dataUpdatedAt);
+  }, [query.dataUpdatedAt, onDataUpdatedAt]);
 
   const items = query.data?.items ?? [];
   const total = query.data?.total ?? 0;

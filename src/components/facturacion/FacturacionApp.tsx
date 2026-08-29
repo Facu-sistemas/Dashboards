@@ -4,6 +4,7 @@ import QueryProvider from '../QueryProvider';
 import { useApiQuery } from '../dashboard/useApiQuery';
 import { monthOptions } from '../shared/monthOptions';
 import KpiCard from '../shared/KpiCard';
+import LastUpdated from '../shared/LastUpdated';
 import ComparisonTable from './ComparisonTable';
 import FacturacionSplitPieChart from './FacturacionSplitPieChart';
 import FacturacionTrendChart from './FacturacionTrendChart';
@@ -41,7 +42,7 @@ function FacturacionInner({ initialMonth }: { initialMonth: string }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-end gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
+      <div className="flex flex-wrap items-end justify-between gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
         <label className="flex flex-col gap-1 text-sm text-slate-300">
           Período
           <select
@@ -56,6 +57,7 @@ function FacturacionInner({ initialMonth }: { initialMonth: string }) {
             ))}
           </select>
         </label>
+        <LastUpdated dataUpdatedAt={query.dataUpdatedAt} />
       </div>
 
       {query.isError && (
