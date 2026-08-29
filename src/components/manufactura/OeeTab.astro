@@ -1,25 +1,23 @@
 ---
 import OeeApp from './OeeApp';
 import { buildOeeDehydratedState } from '../../lib/oee-ssr';
-import type { OeeGranularity, OeeCategoryFilter } from '../../lib/odoo/oee';
+import { getArgentinaTodayIso, type OeePeriodKind } from '../../lib/odoo/oee';
 
-const GRANULARITY_VALUES: OeeGranularity[] = ['day', 'week', 'month'];
-const CATEGORY_VALUES: OeeCategoryFilter[] = ['all', 'colchones', 'living'];
+const PERIOD_VALUES: OeePeriodKind[] = ['day', 'week', 'month'];
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const params = Astro.url.searchParams;
-const granularityParam = params.get('granularity');
-const categoryParam = params.get('category');
-const initialGranularity: OeeGranularity = GRANULARITY_VALUES.includes(granularityParam as OeeGranularity)
-  ? (granularityParam as OeeGranularity)
-  : 'month';
-const initialCategory: OeeCategoryFilter = CATEGORY_VALUES.includes(categoryParam as OeeCategoryFilter)
-  ? (categoryParam as OeeCategoryFilter)
-  : 'all';
+const periodParam = params.get('period');
+const dateParam = params.get('date');
+const initialPeriodKind: OeePeriodKind = PERIOD_VALUES.includes(periodParam as OeePeriodKind)
+  ? (periodParam as OeePeriodKind)
+  : 'day';
+const initialDate = dateParam && DATE_RE.test(dateParam) ? dateParam : getArgentinaTodayIso();
 
 let dehydratedState;
 let ssrError: string | null = null;
 try {
-  dehydratedState = await buildOeeDehydratedState(initialGranularity, initialCategory);
+  dehydratedState = await buildOeeDehydratedState(initialPeriodKind, initialDate);
 } catch (err) {
   ssrError = err instanceof Error ? err.message : 'Error desconocido consultando Odoo';
 }
@@ -29,9 +27,10 @@ try {
   <header class="mb-6">
     <h2 class="text-lg font-semibold text-slate-100">Eficiencia de Producción</h2>
     <p class="mt-1 text-sm text-slate-400">
-      Unidades producidas vs. planificadas en el período. No incluye desglose de Disponibilidad ×
-      Rendimiento × Calidad — Odoo no tiene cargados datos de paradas de máquina todavía. Solo
-      lectura.
+      Planificado vs. cumplido por familia de producto — usa los mismos filtros que Planificación
+      aplica en Odoo (Fabricación: "CERRADO COLCHONES/LIVING", "PLAN+CUMPL COLC/LIVING"). No
+      incluye desglose de Disponibilidad × Rendimiento × Calidad — Odoo no tiene cargados datos de
+      paradas de máquina todavía. Solo lectura.
     </p>
   </header>
 
@@ -44,5 +43,5 @@ try {
     )
   }
 
-  <OeeApp client:load initialGranularity={initialGranularity} initialCategory={initialCategory} dehydratedState={dehydratedState} />
+  <OeeApp client:load initialPeriodKind={initialPeriodKind} initialDate={initialDate} dehydratedState={dehydratedState} />
 </div>
