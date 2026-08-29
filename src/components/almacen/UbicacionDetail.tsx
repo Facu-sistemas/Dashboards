@@ -40,7 +40,9 @@ export default function UbicacionDetail({ selectedCode, query }: Props) {
               {query.data.productos.map((p) => (
                 <tr key={p.producto} className="border-b border-slate-800/60 last:border-0">
                   <td className="py-2 pr-4 text-slate-200">{p.producto}</td>
-                  <td className="py-2 text-slate-300">{numberFmt.format(p.cantidad)}</td>
+                  <td className="py-2 text-slate-300">
+                    {numberFmt.format(p.cantidad)} {p.unidad}
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -18,6 +18,7 @@ export type RackSide = 'izquierdo' | 'derecho';
 export interface UbicacionProducto {
   producto: string;
   cantidad: number;
+  unidad: string;
 }
 
 export interface UbicacionStockResult {

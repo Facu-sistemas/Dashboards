@@ -30,6 +30,17 @@ export interface WarehouseLayout {
 export interface UbicacionProducto {
   producto: string;
   cantidad: number;
+  unidad: string;
+}
+
+/**
+ * Odoo's `uom.uom` names are mostly fine to show as-is (kg, m, m², L, t...)
+ * but the "Unit" category record is named "Units" in English regardless of
+ * app language — shorten just that one to match how the rest of this
+ * Spanish UI reads.
+ */
+function formatUom(name: string): string {
+  return name === 'Units' ? 'u' : name;
 }
 
 export interface UbicacionStockResult {
@@ -133,20 +144,25 @@ export async function getUbicacionStock(codigo: string): Promise<UbicacionStockR
       return { codigo, productos: [] };
     }
 
-    const quants = await searchReadAll<{ product_id: [number, string]; quantity: number }>({
+    const quants = await searchReadAll<{ product_id: [number, string]; quantity: number; product_uom_id: [number, string] }>({
       model: 'stock.quant',
       domain: [['location_id', '=', location.id]],
-      fields: ['product_id', 'quantity'],
+      fields: ['product_id', 'quantity', 'product_uom_id'],
     });
 
-    const byProduct = new Map<string, number>();
+    const byProduct = new Map<string, { cantidad: number; unidad: string }>();
     for (const q of quants) {
       const name = q.product_id[1];
-      byProduct.set(name, (byProduct.get(name) ?? 0) + q.quantity);
+      const existing = byProduct.get(name);
+      if (existing) {
+        existing.cantidad += q.quantity;
+      } else {
+        byProduct.set(name, { cantidad: q.quantity, unidad: formatUom(q.product_uom_id[1]) });
+      }
     }
 
     const productos = [...byProduct.entries()]
-      .map(([producto, cantidad]) => ({ producto, cantidad }))
+      .map(([producto, { cantidad, unidad }]) => ({ producto, cantidad, unidad }))
       .sort((a, b) => b.cantidad - a.cantidad);
 
     return { codigo, productos };
