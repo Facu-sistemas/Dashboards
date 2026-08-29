@@ -116,7 +116,10 @@ export const AREAS: AreaConfig[] = [
     description: 'Mapa interactivo de ubicaciones de stock',
     accent: 'cyan',
     icon: ICONS.box,
-    tabs: [{ slug: 'mapa-deposito', name: 'Mapa de Depósito' }],
+    tabs: [
+      { slug: 'mapa-deposito', name: 'Mapa de Depósito' },
+      { slug: 'calculadora-carpinteria', name: 'Calculadora Carpintería' },
+    ],
   },
   {
     slug: 'comercial',

@@ -1,0 +1,35 @@
+---
+import CarpinteriaApp from './CarpinteriaApp';
+import { buildCarpinteriaModelosDehydratedState } from '../../lib/carpinteria-ssr';
+
+let dehydratedState;
+let ssrError: string | null = null;
+try {
+  dehydratedState = await buildCarpinteriaModelosDehydratedState();
+} catch (err) {
+  ssrError = err instanceof Error ? err.message : 'Error desconocido consultando Odoo';
+}
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Calculadora Carpintería</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Elegí un modelo de sillón y una cantidad a producir para calcular los listones necesarios,
+      tomando la receta de la BOM de Odoo (mrp.bom). Las cantidades por pieza se calculan a partir
+      de la superficie (ft²) cargada en cada línea — se muestran sin redondear, así se nota cuando
+      una BOM tiene un dato cargado con imprecisión. Solo lectura.
+    </p>
+  </header>
+
+  {
+    ssrError && (
+      <p class="mb-6 rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">
+        No se pudo precargar la data desde Odoo en el servidor ({ssrError}). El panel
+        intentará cargar los datos desde el navegador.
+      </p>
+    )
+  }
+
+  <CarpinteriaApp client:load dehydratedState={dehydratedState} />
+</div>
