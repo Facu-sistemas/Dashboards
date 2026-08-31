@@ -37,23 +37,23 @@ const MARGIN = 10;
 const COLUMN_GAP = 8;
 const FOOTER_MARGIN = 6;
 
-// Doubled from the original tuning per the user's explicit request — the
-// factory floor found the first pass too small to read at a glance.
-const TITLE_FONT_SIZE = 20;
-const PAGE_INDEX_FONT_SIZE = 12;
-const MODELOS_FONT_SIZE = 14;
-const MODELOS_LINE_HEIGHT = 18;
-const META_FONT_SIZE = 14;
-const META_LINE_HEIGHT = 20;
-const GAP_AFTER_TITLE = 10;
-const GAP_AFTER_MODELOS = 6;
-const GAP_AFTER_META = 10;
-const GAP_BEFORE_TABLE = 28;
+// 1.5x the original tuning per the user's explicit request — the factory
+// floor found the first pass too small to read at a glance.
+const TITLE_FONT_SIZE = 15;
+const PAGE_INDEX_FONT_SIZE = 9;
+const MODELOS_FONT_SIZE = 10.5;
+const MODELOS_LINE_HEIGHT = 13.5;
+const META_FONT_SIZE = 10.5;
+const META_LINE_HEIGHT = 15;
+const GAP_AFTER_TITLE = 7.5;
+const GAP_AFTER_MODELOS = 4.5;
+const GAP_AFTER_META = 7.5;
+const GAP_BEFORE_TABLE = 21;
 
-const MIN_ROW_HEIGHT = 16;
-const MAX_ROW_HEIGHT = 26;
-const MIN_FONT_SIZE = 11;
-const MAX_FONT_SIZE = 16;
+const MIN_ROW_HEIGHT = 12;
+const MAX_ROW_HEIGHT = 19.5;
+const MIN_FONT_SIZE = 8.25;
+const MAX_FONT_SIZE = 12;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(value, max));
