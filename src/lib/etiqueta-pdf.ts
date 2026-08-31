@@ -10,10 +10,13 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf
  * spills onto additional 10x10cm pages rather than clipping content.
  */
 
+export type EtiquetaListonColor = 'NEGRO' | 'GRIS' | 'BLANCO';
+
 export interface EtiquetaListonRow {
   medida: string;
   largoCm: number;
   piezas: number;
+  color: EtiquetaListonColor;
 }
 
 export interface EtiquetaModelo {
@@ -148,18 +151,30 @@ function drawHeader(
   return y;
 }
 
+/** Maps the sheet's COLOR column to a row background/text pair — "BLANCO" is just the normal look (no fill). */
+function rowColorStyle(color: EtiquetaListonColor): { fill: ReturnType<typeof rgb> | null; text: ReturnType<typeof rgb> } {
+  switch (color) {
+    case 'NEGRO':
+      return { fill: rgb(0, 0, 0), text: rgb(1, 1, 1) };
+    case 'GRIS':
+      return { fill: rgb(0.6, 0.6, 0.6), text: rgb(0, 0, 0) };
+    case 'BLANCO':
+      return { fill: null, text: rgb(0.1, 0.1, 0.1) };
+  }
+}
+
 function drawColumn(
   page: PDFPage,
   x: number,
   topY: number,
   width: number,
   title: string,
+  valueHeaderLabel: string,
   rows: EtiquetaListonRow[],
   font: PDFFont,
   boldFont: PDFFont,
   fontSize: number,
-  rowHeight: number,
-  showMedida: boolean
+  rowHeight: number
 ): void {
   let y = topY;
   // Capped independently of fontSize — at the max body size, "OTRAS
@@ -168,14 +183,13 @@ function drawColumn(
   y -= rowHeight;
 
   // Two slots, not three — at the (doubled) font size this is tuned for,
-  // "Medida" + "Largo(cm)" + "Cant." side by side no longer fits a
-  // ~half-page column without overlapping. "Otras medidas" folds medida
-  // and largo into one "1X3X700"-style value, same shape the "1x2" side
-  // already used.
+  // "Medida" + "Largo(mm)" + "Cant." side by side no longer fits a
+  // ~half-page column without overlapping. Both sides fold medida and
+  // largo into one "1X3X700"-style value instead.
   const valueX = x;
   const piezasX = x + width * 0.62;
 
-  page.drawText(showMedida ? 'Medida' : 'Largo(cm)', { x: valueX, y, size: fontSize, font: boldFont });
+  page.drawText(valueHeaderLabel, { x: valueX, y, size: fontSize, font: boldFont });
   page.drawText('Cant.', { x: piezasX, y, size: fontSize, font: boldFont });
   y -= rowHeight;
 
@@ -184,10 +198,22 @@ function drawColumn(
     return;
   }
 
+  // Shifts the fill rect down from the text baseline so the (all-digit /
+  // all-caps, so no descenders to worry about) row text sits roughly
+  // centered in its color bar instead of hugging the top. Every row uses
+  // the same constant shift, so consecutive bars still tile edge-to-edge
+  // with no gaps or overlaps — the row's baseline sits exactly `rowHeight`
+  // below the previous row's baseline (see the y -= rowHeight loop).
+  const rectYOffset = (rowHeight - fontSize) / 2;
+
   for (const row of rows) {
-    const valueText = showMedida ? `${row.medida}X${row.largoCm}` : String(row.largoCm);
-    page.drawText(valueText, { x: valueX, y, size: fontSize, font });
-    page.drawText(countLabel(row.piezas), { x: piezasX, y, size: fontSize, font });
+    const { fill, text } = rowColorStyle(row.color);
+    if (fill) {
+      page.drawRectangle({ x, y: y - rectYOffset, width, height: rowHeight, color: fill });
+    }
+    const valueText = `${row.medida}X${row.largoCm}`;
+    page.drawText(valueText, { x: valueX, y, size: fontSize, font, color: text });
+    page.drawText(countLabel(row.piezas), { x: piezasX, y, size: fontSize, font, color: text });
     y -= rowHeight;
   }
 }
@@ -231,8 +257,8 @@ export async function generateEtiquetaPdf(input: EtiquetaInput): Promise<Uint8Ar
     const slice1x2 = input.filas1x2.slice(start, start + rowsPerPage);
     const sliceOtras = input.filasOtras.slice(start, start + rowsPerPage);
 
-    drawColumn(page, MARGIN, tableTop, columnWidth, 'LISTONES 1x2', slice1x2, font, boldFont, fontSize, rowHeight, false);
-    drawColumn(page, MARGIN + columnWidth + COLUMN_GAP, tableTop, columnWidth, 'OTRAS MEDIDAS', sliceOtras, font, boldFont, fontSize, rowHeight, true);
+    drawColumn(page, MARGIN, tableTop, columnWidth, 'LISTONES 1x2', 'Largo(mm)', slice1x2, font, boldFont, fontSize, rowHeight);
+    drawColumn(page, MARGIN + columnWidth + COLUMN_GAP, tableTop, columnWidth, 'OTRAS MEDIDAS', 'Medida', sliceOtras, font, boldFont, fontSize, rowHeight);
   }
 
   return doc.save();

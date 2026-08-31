@@ -7,16 +7,20 @@ export interface ModeloCarpinteriaPage {
   total: number;
 }
 
+export type ListonColor = 'NEGRO' | 'GRIS' | 'BLANCO';
+
 export interface RecetaListonRow {
   medida: string;
   largoCm: number;
   piezasPorUnidad: number;
+  color: ListonColor;
 }
 
 export interface PedidoListonRow {
   medida: string;
   largoCm: number;
   piezas: number;
+  color: ListonColor;
 }
 
 export interface PedidoAgregado {

@@ -19,19 +19,36 @@ import { withTtlCache } from '../cache';
 const DASHBOARD_ID = 37;
 const DASHBOARD_TTL_MS = 5 * 60 * 1000;
 
-// Columns confirmed live: A=MODELO_SILLON, B=MEDIDA_LISTON, C=LARGO_LISTON_CM, D=(blank spacer), E=CANTIDAD.
+// Columns confirmed live: A=MODELO_SILLON, B=MEDIDA_LISTON, C=LARGO_LISTON_CM, D=COLOR, E=CANTIDAD.
 const COL_MODELO = 'A';
 const COL_MEDIDA = 'B';
 const COL_LARGO_CM = 'C';
 const COL_CANTIDAD = 'E';
 const HEADER_ROW = 1;
 
+// D's own cell content is a spreadsheet formula (COUNTIF lookups against the
+// "Hoja2" sheet), not a plain value, so it can't be read directly like the
+// other columns — the snapshot only stores formula text, not the last
+// computed result. Instead we replicate the formula's own logic: NEGRO if
+// "{MEDIDA}X{LARGO}" appears in Hoja2!A (rows 2+), BLANCO if it appears in
+// Hoja2!C (rows 2+), otherwise GRIS is the default fallback.
+const COLOR_SHEET_NAME = 'Hoja2';
+const COL_COLOR_NEGRO = 'A';
+const COL_COLOR_BLANCO = 'C';
+
+export type ListonColor = 'NEGRO' | 'GRIS' | 'BLANCO';
+
 interface SheetCell {
   content?: string;
 }
 
+interface Sheet {
+  name?: string;
+  cells?: Record<string, SheetCell>;
+}
+
 interface SheetDoc {
-  sheets: { cells?: Record<string, SheetCell> }[];
+  sheets: Sheet[];
 }
 
 export interface BomListonRow {
@@ -39,12 +56,35 @@ export interface BomListonRow {
   medida: string;
   largoCm: number;
   cantidad: number;
+  color: ListonColor;
+}
+
+function readColumnSet(sheet: Sheet | undefined, col: string): Set<string> {
+  const set = new Set<string>();
+  if (!sheet?.cells) return set;
+  for (const [key, cell] of Object.entries(sheet.cells)) {
+    const match = new RegExp(`^${col}(\\d+)$`).exec(key);
+    const content = cell.content?.trim().toUpperCase();
+    if (match && Number(match[1]) >= 2 && content) set.add(content);
+  }
+  return set;
+}
+
+function resolveColor(medida: string, largoCm: number, negro: Set<string>, blanco: Set<string>): ListonColor {
+  const key = `${medida}X${largoCm}`;
+  if (negro.has(key)) return 'NEGRO';
+  if (blanco.has(key)) return 'BLANCO';
+  return 'GRIS';
 }
 
 /** Parses every data row out of the embedded spreadsheet, normalizing medida casing (the sheet has a mix of "1x2"/"1X2"). */
 function parseBomListonSheet(snapshotBase64: string): BomListonRow[] {
   const doc = JSON.parse(Buffer.from(snapshotBase64, 'base64').toString('utf8')) as SheetDoc;
-  const cells = doc.sheets[0]?.cells ?? {};
+  const sheet = doc.sheets.find((s) => s.name !== COLOR_SHEET_NAME) ?? doc.sheets[0];
+  const cells = sheet?.cells ?? {};
+  const colorSheet = doc.sheets.find((s) => s.name === COLOR_SHEET_NAME);
+  const negroSet = readColumnSet(colorSheet, COL_COLOR_NEGRO);
+  const blancoSet = readColumnSet(colorSheet, COL_COLOR_BLANCO);
 
   let maxRow = HEADER_ROW;
   for (const key of Object.keys(cells)) {
@@ -60,7 +100,8 @@ function parseBomListonSheet(snapshotBase64: string): BomListonRow[] {
     const largoCm = Number(cells[`${COL_LARGO_CM}${r}`]?.content);
     const cantidad = Number(cells[`${COL_CANTIDAD}${r}`]?.content);
     if (!medida || !Number.isFinite(largoCm) || !Number.isFinite(cantidad)) continue;
-    rows.push({ modelo, medida, largoCm, cantidad });
+    const color = resolveColor(medida, largoCm, negroSet, blancoSet);
+    rows.push({ modelo, medida, largoCm, cantidad, color });
   }
   return rows;
 }
@@ -106,6 +147,7 @@ export interface RecetaListonRow {
   medida: string;
   largoCm: number;
   piezasPorUnidad: number;
+  color: ListonColor;
 }
 
 /** Recipe of listones for one sillón model, aggregated straight from the curated sheet — CANTIDAD is already an exact piece count, no unit math needed. */
@@ -120,7 +162,7 @@ export async function getRecetaListones(modelo: string): Promise<RecetaListonRow
     if (existing) {
       existing.piezasPorUnidad += row.cantidad;
     } else {
-      byKey.set(key, { medida: row.medida, largoCm: row.largoCm, piezasPorUnidad: row.cantidad });
+      byKey.set(key, { medida: row.medida, largoCm: row.largoCm, piezasPorUnidad: row.cantidad, color: row.color });
     }
   }
 

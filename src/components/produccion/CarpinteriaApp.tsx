@@ -54,7 +54,7 @@ function CarpinteriaInner() {
         if (existing) {
           next.set(key, { ...existing, piezas: existing.piezas + piezas });
         } else {
-          next.set(key, { medida: row.medida, largoCm: row.largoCm, piezas });
+          next.set(key, { medida: row.medida, largoCm: row.largoCm, piezas, color: row.color });
         }
       }
       return next;
