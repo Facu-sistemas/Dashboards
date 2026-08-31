@@ -6,6 +6,9 @@ interface Props {
 }
 
 const { title } = Astro.props;
+// Set by src/middleware.ts for every request — undefined only on /login
+// (already redirected away if a session exists by the time this renders).
+const usuario = Astro.locals.usuario;
 ---
 
 <!doctype html>
@@ -37,20 +40,59 @@ const { title } = Astro.props;
     >
     </div>
 
-    <button
-      id="theme-toggle"
-      type="button"
-      aria-label="Cambiar entre modo oscuro y claro"
-      class="fixed right-4 top-4 z-40 flex h-9 w-9 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-slate-300 shadow-sm transition-colors hover:border-brand-500 hover:text-brand-500"
-    >
-      <svg id="theme-toggle-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden h-4.5 w-4.5">
-        <circle cx="12" cy="12" r="4" />
-        <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
-      </svg>
-      <svg id="theme-toggle-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden h-4.5 w-4.5">
-        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z" />
-      </svg>
-    </button>
+    <div class="fixed right-4 top-4 z-40 flex items-center gap-2">
+      {
+        usuario && (
+          <>
+            {usuario.rol === 'dev' && (
+              <a
+                href="/admin/usuarios"
+                class="rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-300 shadow-sm transition-colors hover:border-brand-500 hover:text-brand-400"
+              >
+                Admin
+              </a>
+            )}
+            <button
+              id="logout-button"
+              type="button"
+              class="rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-300 shadow-sm transition-colors hover:border-red-500 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Cerrar sesión
+            </button>
+          </>
+        )
+      }
+
+      <button
+        id="theme-toggle"
+        type="button"
+        aria-label="Cambiar entre modo oscuro y claro"
+        class="flex h-9 w-9 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-slate-300 shadow-sm transition-colors hover:border-brand-500 hover:text-brand-500"
+      >
+        <svg id="theme-toggle-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden h-4.5 w-4.5">
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+        </svg>
+        <svg id="theme-toggle-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden h-4.5 w-4.5">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z" />
+        </svg>
+      </button>
+    </div>
+    <script is:inline>
+      (function () {
+        const logoutButton = document.getElementById('logout-button');
+        if (logoutButton) {
+          logoutButton.addEventListener('click', async () => {
+            logoutButton.disabled = true;
+            try {
+              await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+            } finally {
+              window.location.href = '/login';
+            }
+          });
+        }
+      })();
+    </script>
     <script is:inline>
       (function () {
         const button = document.getElementById('theme-toggle');

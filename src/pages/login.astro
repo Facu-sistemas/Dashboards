@@ -1,0 +1,97 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { createSupabaseServerClient } from '../lib/supabase/server';
+
+export const prerender = false;
+
+const supabase = createSupabaseServerClient(Astro);
+const {
+  data: { user },
+} = await supabase.auth.getUser();
+if (user) {
+  return Astro.redirect('/');
+}
+
+// Only accept a same-origin relative path — an attacker-controlled
+// `?redirect=` must never be able to bounce a login straight off-site.
+const rawRedirect = Astro.url.searchParams.get('redirect') ?? '/';
+const redirectTo = rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') ? rawRedirect : '/';
+---
+
+<BaseLayout title="Iniciar sesión — Frontera Living">
+  <main class="flex min-h-screen items-center justify-center px-4">
+    <div class="w-full max-w-sm rounded-lg border border-slate-800 bg-slate-900 p-6">
+      <h1 class="mb-1 text-lg font-semibold text-slate-100">Frontera Living</h1>
+      <p class="mb-6 text-sm text-slate-400">Ingresá con el usuario de tu área.</p>
+
+      <form id="login-form" class="flex flex-col gap-4">
+        <label class="flex flex-col gap-1 text-sm text-slate-300">
+          Usuario
+          <input
+            type="text"
+            name="username"
+            autocomplete="username"
+            required
+            class="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 focus:border-brand-500 focus:outline-none"
+          />
+        </label>
+        <label class="flex flex-col gap-1 text-sm text-slate-300">
+          Contraseña
+          <input
+            type="password"
+            name="password"
+            autocomplete="current-password"
+            required
+            class="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 focus:border-brand-500 focus:outline-none"
+          />
+        </label>
+
+        <p id="login-error" class="hidden text-sm text-red-400"></p>
+
+        <button
+          type="submit"
+          id="login-submit"
+          class="rounded bg-brand-500 px-4 py-2 text-sm font-medium text-slate-950 transition-colors hover:bg-brand-400 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Ingresar
+        </button>
+      </form>
+    </div>
+  </main>
+
+  <script define:vars={{ redirectTo }}>
+    const form = document.getElementById('login-form');
+    const errorEl = document.getElementById('login-error');
+    const submitBtn = document.getElementById('login-submit');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorEl.classList.add('hidden');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Ingresando…';
+
+      const formData = new FormData(form);
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: formData.get('username'),
+            password: formData.get('password'),
+          }),
+        });
+        const body = await res.json();
+        if (!res.ok || !body.ok) {
+          throw new Error(body.error ?? 'No se pudo iniciar sesión.');
+        }
+        window.location.href = redirectTo;
+      } catch (err) {
+        errorEl.textContent = err instanceof Error ? err.message : 'No se pudo iniciar sesión.';
+        errorEl.classList.remove('hidden');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Ingresar';
+      }
+    });
+  </script>
+</BaseLayout>

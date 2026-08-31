@@ -2,6 +2,11 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import AreaCard from '../components/nav/AreaCard.astro';
 import { AREAS } from '../lib/areas.config';
+
+export const prerender = false;
+
+const areasPermitidas = Astro.locals.usuario!.areasPermitidas;
+const areas = AREAS.filter((a) => areasPermitidas.includes(a.slug));
 ---
 
 <BaseLayout title="Frontera Living — Dashboards">
@@ -11,8 +16,14 @@ import { AREAS } from '../lib/areas.config';
       <p class="mt-1 text-sm text-slate-400">Elegí un área para ver sus indicadores.</p>
     </header>
 
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {AREAS.map((area) => <AreaCard area={area} />)}
-    </div>
+    {
+      areas.length === 0 ? (
+        <p class="text-sm text-slate-500">Tu usuario todavía no tiene áreas habilitadas.</p>
+      ) : (
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {areas.map((area) => <AreaCard area={area} />)}
+        </div>
+      )
+    }
   </main>
 </BaseLayout>

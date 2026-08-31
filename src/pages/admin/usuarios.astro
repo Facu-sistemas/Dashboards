@@ -1,0 +1,35 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AdminUsuariosApp from '../../components/admin/AdminUsuariosApp';
+import { getSupabaseAdminClient } from '../../lib/supabase/admin';
+import type { UsuarioConPermisos } from '../../components/admin/AdminUsuariosApp';
+
+export const prerender = false;
+
+if (Astro.locals.usuario?.rol !== 'dev') {
+  return Astro.rewrite('/404');
+}
+
+const admin = getSupabaseAdminClient();
+const { data: perfiles } = await admin.from('perfiles').select('id, username, nombre_completo, rol').order('username');
+const { data: permisos } = await admin.from('permisos_modulo').select('user_id, area_slug').eq('activo', true);
+
+const usuarios: UsuarioConPermisos[] = (perfiles ?? []).map((p) => ({
+  id: p.id,
+  username: p.username,
+  nombreCompleto: p.nombre_completo,
+  rol: p.rol,
+  areasActivas: (permisos ?? []).filter((perm) => perm.user_id === p.id).map((perm) => perm.area_slug),
+}));
+---
+
+<BaseLayout title="Administración de usuarios — Frontera Living">
+  <main class="mx-auto max-w-4xl px-4 py-10">
+    <header class="mb-8">
+      <h1 class="text-2xl font-semibold text-slate-100">Administración de usuarios</h1>
+      <p class="mt-1 text-sm text-slate-400">Cuentas de área y permisos por módulo.</p>
+    </header>
+
+    <AdminUsuariosApp client:load usuarios={usuarios} />
+  </main>
+</BaseLayout>

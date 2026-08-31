@@ -10,10 +10,15 @@ const listonRowSchema = z.object({
   piezas: z.number(),
 });
 
+const modeloSchema = z.object({
+  modelo: z.string(),
+  cantidad: z.number(),
+});
+
 const bodySchema = z.object({
   fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'fecha must be YYYY-MM-DD'),
   linea: z.string().trim().min(1).max(50),
-  modelos: z.array(z.string()),
+  modelos: z.array(modeloSchema),
   filas1x2: z.array(listonRowSchema),
   filasOtras: z.array(listonRowSchema),
 });
@@ -41,7 +46,7 @@ export const POST: APIRoute = async ({ request }) => {
 
   try {
     const pdfBytes = await generateEtiquetaPdf(parsed.data);
-    const filename = buildEtiquetaFilename(parsed.data.modelos, parsed.data.linea);
+    const filename = buildEtiquetaFilename(parsed.data.linea, parsed.data.fecha);
     return new Response(Buffer.from(pdfBytes), {
       status: 200,
       headers: {

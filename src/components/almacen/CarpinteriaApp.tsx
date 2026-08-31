@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { DehydratedState } from '@tanstack/react-query';
 import QueryProvider from '../QueryProvider';
 import { useApiQuery } from '../dashboard/useApiQuery';
@@ -75,16 +75,25 @@ function CarpinteriaInner() {
   const filasOtras = filas.filter((f) => f.medida !== '1X2').sort((a, b) => a.medida.localeCompare(b.medida) || a.largoCm - b.largoCm);
   const lineaValida = linea.trim() !== '';
 
+  // Sums repeated "agregar al pedido" clicks for the same modelo into one
+  // entry — the etiqueta shows "2xAero Rinconero", not two separate lines.
+  const modelosAgregados = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const h of historial) {
+      totals.set(h.modelo, (totals.get(h.modelo) ?? 0) + h.cantidad);
+    }
+    return [...totals.entries()].map(([modelo, cantidad]) => ({ modelo, cantidad }));
+  }, [historial]);
+
   async function generarEtiqueta() {
     if (historial.length === 0 || !lineaValida) return;
     setGenerandoEtiqueta(true);
     setEtiquetaError(null);
     try {
-      const modelos = [...new Set(historial.map((h) => h.modelo))];
       const res = await fetch('/api/carpinteria-etiqueta', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fecha, linea: linea.trim(), modelos, filas1x2, filasOtras }),
+        body: JSON.stringify({ fecha, linea: linea.trim(), modelos: modelosAgregados, filas1x2, filasOtras }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;

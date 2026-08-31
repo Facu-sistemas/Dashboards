@@ -17,7 +17,7 @@ export const prerender = false;
 
 const { area: areaSlug, tab: tabSlug } = Astro.params;
 const area = getArea(areaSlug!);
-if (!area || !area.tabs.some((t) => t.slug === tabSlug)) {
+if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario!.areasPermitidas.includes(area.slug)) {
   return Astro.rewrite('/404');
 }
 ---

@@ -137,3 +137,6 @@ export const AREAS: AreaConfig[] = [
 export function getArea(slug: string): AreaConfig | undefined {
   return AREAS.find((a) => a.slug === slug);
 }
+
+/** Every valid `area_slug` — reused to validate `permisos_modulo` rows against this config, both in the admin toggles form and in the middleware. */
+export const AREA_SLUGS = AREAS.map((a) => a.slug);
