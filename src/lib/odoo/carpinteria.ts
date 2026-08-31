@@ -33,8 +33,9 @@ const HEADER_ROW = 1;
 // formula's own logic: NEGRO if "{MEDIDA}X{LARGO}" appears in
 // REFERENCIAS!A (rows 2+), BLANCO otherwise — only two possibilities now,
 // no GRIS fallback. Separately, REFERENCIAS!C ("NO TRAER") lists
-// medida+largo combos that must be dropped from the recipe entirely,
-// regardless of color.
+// medida+largo combos that stay in the recipe/pedido (so stock math still
+// accounts for them) but must be left off the printed label — callers that
+// build the PDF are responsible for filtering on `noTraer`.
 const COLOR_SHEET_NAME = 'REFERENCIAS';
 const COL_COLOR_NEGRO = 'A';
 const COL_NO_TRAER = 'C';
@@ -60,6 +61,7 @@ export interface BomListonRow {
   largoCm: number;
   cantidad: number;
   color: ListonColor;
+  noTraer: boolean;
 }
 
 function readColumnSet(sheet: Sheet | undefined, col: string): Set<string> {
@@ -100,9 +102,9 @@ function parseBomListonSheet(snapshotBase64: string): BomListonRow[] {
     const largoCm = Number(cells[`${COL_LARGO_CM}${r}`]?.content);
     const cantidad = Number(cells[`${COL_CANTIDAD}${r}`]?.content);
     if (!medida || !Number.isFinite(largoCm) || !Number.isFinite(cantidad)) continue;
-    if (noTraerSet.has(`${medida}X${largoCm}`)) continue;
     const color = resolveColor(medida, largoCm, negroSet);
-    rows.push({ modelo, medida, largoCm, cantidad, color });
+    const noTraer = noTraerSet.has(`${medida}X${largoCm}`);
+    rows.push({ modelo, medida, largoCm, cantidad, color, noTraer });
   }
   return rows;
 }
@@ -149,6 +151,7 @@ export interface RecetaListonRow {
   largoCm: number;
   piezasPorUnidad: number;
   color: ListonColor;
+  noTraer: boolean;
 }
 
 /** Recipe of listones for one sillón model, aggregated straight from the curated sheet — CANTIDAD is already an exact piece count, no unit math needed. */
@@ -163,7 +166,13 @@ export async function getRecetaListones(modelo: string): Promise<RecetaListonRow
     if (existing) {
       existing.piezasPorUnidad += row.cantidad;
     } else {
-      byKey.set(key, { medida: row.medida, largoCm: row.largoCm, piezasPorUnidad: row.cantidad, color: row.color });
+      byKey.set(key, {
+        medida: row.medida,
+        largoCm: row.largoCm,
+        piezasPorUnidad: row.cantidad,
+        color: row.color,
+        noTraer: row.noTraer,
+      });
     }
   }
 

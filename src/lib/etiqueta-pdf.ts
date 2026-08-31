@@ -17,6 +17,9 @@ export interface EtiquetaListonRow {
   largoCm: number;
   piezas: number;
   color: EtiquetaListonColor;
+  // "NO TRAER" combos stay in the recipe/pedido (stock math still counts
+  // them) but must not print on the label — filtered out below.
+  noTraer: boolean;
 }
 
 export interface EtiquetaModelo {
@@ -221,6 +224,11 @@ export async function generateEtiquetaPdf(input: EtiquetaInput): Promise<Uint8Ar
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const boldFont = await doc.embedFont(StandardFonts.HelveticaBold);
 
+  // "NO TRAER" rows are kept in the recipe/pedido for stock-counting
+  // purposes, but never printed on the physical label.
+  const filas1x2 = input.filas1x2.filter((r) => !r.noTraer);
+  const filasOtras = input.filasOtras.filter((r) => !r.noTraer);
+
   const modelosLabel = buildModelosLabel(input.modelos);
   const modelosLines = wrapText(`Modelos: ${modelosLabel}`, boldFont, MODELOS_FONT_SIZE, PAGE_SIZE - MARGIN * 2);
 
@@ -239,7 +247,7 @@ export async function generateEtiquetaPdf(input: EtiquetaInput): Promise<Uint8Ar
   const columnWidth = (PAGE_SIZE - MARGIN * 2 - COLUMN_GAP) / 2;
   const availableHeight = PAGE_SIZE - MARGIN * 2 - headerHeight - FOOTER_MARGIN;
 
-  const maxRows = Math.max(input.filas1x2.length, input.filasOtras.length, 1);
+  const maxRows = Math.max(filas1x2.length, filasOtras.length, 1);
   // +2 for the column title row and the sub-header row above the data rows.
   const rowHeight = clamp(availableHeight / (maxRows + 2), MIN_ROW_HEIGHT, MAX_ROW_HEIGHT);
   const fontSize = clamp(rowHeight * 0.6, MIN_FONT_SIZE, MAX_FONT_SIZE);
@@ -252,8 +260,8 @@ export async function generateEtiquetaPdf(input: EtiquetaInput): Promise<Uint8Ar
     const tableTop = drawHeader(page, font, boldFont, modelosLines, input.fecha, input.linea, pageIndex, pageCount);
 
     const start = pageIndex * rowsPerPage;
-    const slice1x2 = input.filas1x2.slice(start, start + rowsPerPage);
-    const sliceOtras = input.filasOtras.slice(start, start + rowsPerPage);
+    const slice1x2 = filas1x2.slice(start, start + rowsPerPage);
+    const sliceOtras = filasOtras.slice(start, start + rowsPerPage);
 
     drawColumn(page, MARGIN, tableTop, columnWidth, 'LISTONES 1x2', 'Largo(mm)', slice1x2, font, boldFont, fontSize, rowHeight);
     drawColumn(page, MARGIN + columnWidth + COLUMN_GAP, tableTop, columnWidth, 'OTRAS MEDIDAS', 'Medida', sliceOtras, font, boldFont, fontSize, rowHeight);

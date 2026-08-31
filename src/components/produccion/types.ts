@@ -14,6 +14,7 @@ export interface RecetaListonRow {
   largoCm: number;
   piezasPorUnidad: number;
   color: ListonColor;
+  noTraer: boolean;
 }
 
 export interface PedidoListonRow {
@@ -21,6 +22,7 @@ export interface PedidoListonRow {
   largoCm: number;
   piezas: number;
   color: ListonColor;
+  noTraer: boolean;
 }
 
 export interface PedidoAgregado {

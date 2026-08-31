@@ -9,6 +9,7 @@ const listonRowSchema = z.object({
   largoCm: z.number(),
   piezas: z.number(),
   color: z.enum(['NEGRO', 'BLANCO']),
+  noTraer: z.boolean(),
 });
 
 const modeloSchema = z.object({
