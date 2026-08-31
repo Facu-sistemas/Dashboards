@@ -7,7 +7,7 @@ export interface ModeloCarpinteriaPage {
   total: number;
 }
 
-export type ListonColor = 'NEGRO' | 'GRIS' | 'BLANCO';
+export type ListonColor = 'NEGRO' | 'BLANCO';
 
 export interface RecetaListonRow {
   medida: string;

@@ -10,7 +10,7 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf
  * spills onto additional 10x10cm pages rather than clipping content.
  */
 
-export type EtiquetaListonColor = 'NEGRO' | 'GRIS' | 'BLANCO';
+export type EtiquetaListonColor = 'NEGRO' | 'BLANCO';
 
 export interface EtiquetaListonRow {
   medida: string;
@@ -156,8 +156,6 @@ function rowColorStyle(color: EtiquetaListonColor): { fill: ReturnType<typeof rg
   switch (color) {
     case 'NEGRO':
       return { fill: rgb(0, 0, 0), text: rgb(1, 1, 1) };
-    case 'GRIS':
-      return { fill: rgb(0.6, 0.6, 0.6), text: rgb(0, 0, 0) };
     case 'BLANCO':
       return { fill: null, text: rgb(0.1, 0.1, 0.1) };
   }

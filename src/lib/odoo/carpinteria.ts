@@ -19,24 +19,27 @@ import { withTtlCache } from '../cache';
 const DASHBOARD_ID = 37;
 const DASHBOARD_TTL_MS = 5 * 60 * 1000;
 
-// Columns confirmed live: A=MODELO_SILLON, B=MEDIDA_LISTON, C=LARGO_LISTON_CM, D=COLOR, E=CANTIDAD.
+// Columns confirmed live: A=MODELO_SILLON, B=MEDIDA_LISTON, C=LARGO_LISTON_CM, E=CANTIDAD, F=COLOR (D is a blank spacer).
 const COL_MODELO = 'A';
 const COL_MEDIDA = 'B';
 const COL_LARGO_CM = 'C';
 const COL_CANTIDAD = 'E';
 const HEADER_ROW = 1;
 
-// D's own cell content is a spreadsheet formula (COUNTIF lookups against the
-// "Hoja2" sheet), not a plain value, so it can't be read directly like the
-// other columns — the snapshot only stores formula text, not the last
-// computed result. Instead we replicate the formula's own logic: NEGRO if
-// "{MEDIDA}X{LARGO}" appears in Hoja2!A (rows 2+), BLANCO if it appears in
-// Hoja2!C (rows 2+), otherwise GRIS is the default fallback.
-const COLOR_SHEET_NAME = 'Hoja2';
+// The COLOR column (F, moved from D) holds a spreadsheet formula (COUNTIF
+// lookup against the "REFERENCIAS" sheet), not a plain value, so it can't
+// be read directly like the other columns — the snapshot only stores
+// formula text, not the last computed result. Instead we replicate the
+// formula's own logic: NEGRO if "{MEDIDA}X{LARGO}" appears in
+// REFERENCIAS!A (rows 2+), BLANCO otherwise — only two possibilities now,
+// no GRIS fallback. Separately, REFERENCIAS!C ("NO TRAER") lists
+// medida+largo combos that must be dropped from the recipe entirely,
+// regardless of color.
+const COLOR_SHEET_NAME = 'REFERENCIAS';
 const COL_COLOR_NEGRO = 'A';
-const COL_COLOR_BLANCO = 'C';
+const COL_NO_TRAER = 'C';
 
-export type ListonColor = 'NEGRO' | 'GRIS' | 'BLANCO';
+export type ListonColor = 'NEGRO' | 'BLANCO';
 
 interface SheetCell {
   content?: string;
@@ -70,21 +73,18 @@ function readColumnSet(sheet: Sheet | undefined, col: string): Set<string> {
   return set;
 }
 
-function resolveColor(medida: string, largoCm: number, negro: Set<string>, blanco: Set<string>): ListonColor {
-  const key = `${medida}X${largoCm}`;
-  if (negro.has(key)) return 'NEGRO';
-  if (blanco.has(key)) return 'BLANCO';
-  return 'GRIS';
+function resolveColor(medida: string, largoCm: number, negro: Set<string>): ListonColor {
+  return negro.has(`${medida}X${largoCm}`) ? 'NEGRO' : 'BLANCO';
 }
 
-/** Parses every data row out of the embedded spreadsheet, normalizing medida casing (the sheet has a mix of "1x2"/"1X2"). */
+/** Parses every data row out of the embedded spreadsheet, normalizing medida casing (the sheet has a mix of "1x2"/"1X2"), and drops any "NO TRAER" medida+largo combo entirely. */
 function parseBomListonSheet(snapshotBase64: string): BomListonRow[] {
   const doc = JSON.parse(Buffer.from(snapshotBase64, 'base64').toString('utf8')) as SheetDoc;
   const sheet = doc.sheets.find((s) => s.name !== COLOR_SHEET_NAME) ?? doc.sheets[0];
   const cells = sheet?.cells ?? {};
   const colorSheet = doc.sheets.find((s) => s.name === COLOR_SHEET_NAME);
   const negroSet = readColumnSet(colorSheet, COL_COLOR_NEGRO);
-  const blancoSet = readColumnSet(colorSheet, COL_COLOR_BLANCO);
+  const noTraerSet = readColumnSet(colorSheet, COL_NO_TRAER);
 
   let maxRow = HEADER_ROW;
   for (const key of Object.keys(cells)) {
@@ -100,7 +100,8 @@ function parseBomListonSheet(snapshotBase64: string): BomListonRow[] {
     const largoCm = Number(cells[`${COL_LARGO_CM}${r}`]?.content);
     const cantidad = Number(cells[`${COL_CANTIDAD}${r}`]?.content);
     if (!medida || !Number.isFinite(largoCm) || !Number.isFinite(cantidad)) continue;
-    const color = resolveColor(medida, largoCm, negroSet, blancoSet);
+    if (noTraerSet.has(`${medida}X${largoCm}`)) continue;
+    const color = resolveColor(medida, largoCm, negroSet);
     rows.push({ modelo, medida, largoCm, cantidad, color });
   }
   return rows;
