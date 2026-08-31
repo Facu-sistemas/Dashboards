@@ -1,0 +1,25 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+Astro.response.status = 404;
+---
+
+<BaseLayout title="Página no encontrada — Frontera Living">
+  <main class="mx-auto flex min-h-[80vh] max-w-xl flex-col items-center justify-center px-4 py-10 text-center">
+    <img src="/apple-touch-icon.png" alt="Frontera Living" class="mb-8 h-24 w-24 opacity-90" />
+
+    <p class="text-sm font-medium uppercase tracking-widest text-brand-400">Error 404</p>
+    <h1 class="mt-3 text-3xl font-semibold text-slate-100">Esta pieza no está en el catálogo</h1>
+    <p class="mt-4 max-w-md text-sm text-slate-400">
+      Che, medimos dos veces y cortamos una, pero esta página no aparece por ningún lado. Puede
+      que el link esté mal cortado o que esta sección todavía no salió de fábrica.
+    </p>
+
+    <a
+      href="/"
+      class="mt-8 rounded bg-brand-500 px-5 py-2 text-sm font-medium text-slate-950 transition-colors hover:bg-brand-400"
+    >
+      Volver al inicio
+    </a>
+  </main>
+</BaseLayout>

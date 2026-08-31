@@ -6,7 +6,7 @@ export const prerender = false;
 const { area: areaSlug } = Astro.params;
 const area = getArea(areaSlug!);
 if (!area) {
-  return Astro.redirect('/', 302);
+  return Astro.rewrite('/404');
 }
 return Astro.redirect(`/${area.slug}/${area.tabs[0]!.slug}`, 302);
 ---
