@@ -16,6 +16,10 @@ if (user) {
 // `?redirect=` must never be able to bounce a login straight off-site.
 const rawRedirect = Astro.url.searchParams.get('redirect') ?? '/';
 const redirectTo = rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') ? rawRedirect : '/';
+
+// Set by the middleware when it force-logs-out an account past its
+// configured sesion_max_minutos (see /admin/usuarios).
+const sessionExpired = Astro.url.searchParams.get('expired') === '1';
 ---
 
 <BaseLayout title="Iniciar sesión — Frontera Living">
@@ -23,6 +27,14 @@ const redirectTo = rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') 
     <div class="w-full max-w-sm rounded-lg border border-slate-800 bg-slate-900 p-6">
       <h1 class="mb-1 text-lg font-semibold text-slate-100">Frontera Living</h1>
       <p class="mb-6 text-sm text-slate-400">Ingresá con el usuario de tu área.</p>
+
+      {
+        sessionExpired && (
+          <p class="mb-4 rounded border border-amber-900 bg-amber-950/50 p-3 text-sm text-amber-300">
+            Tu sesión se cerró automáticamente por tiempo. Ingresá de nuevo.
+          </p>
+        )
+      }
 
       <form id="login-form" class="flex flex-col gap-4">
         <label class="flex flex-col gap-1 text-sm text-slate-300">

@@ -77,9 +77,9 @@ function sanitizeFilenamePart(s: string): string {
   return s.replace(/[\\/:*?"<>|]/g, '').trim();
 }
 
-/** "Linea{linea}-{fecha}.pdf" — per the factory's naming convention for these labels. */
+/** "Linea_{linea}-{fecha}.pdf" — per the factory's naming convention for these labels. */
 export function buildEtiquetaFilename(linea: string, fecha: string): string {
-  return `Linea${sanitizeFilenamePart(linea)}-${fechaFilenamePart(fecha)}.pdf`;
+  return `Linea_${sanitizeFilenamePart(linea)}-${fechaFilenamePart(fecha)}.pdf`;
 }
 
 /** "2xAero Rinconero, 1xMarea Soft" — aggregated quantity per model, not just the model names. */
@@ -168,14 +168,15 @@ function drawColumn(
   y -= rowHeight;
 
   // Two slots, not three — at the (doubled) font size this is tuned for,
-  // "Medida" + "Largo(cm)" + "Pzs" side by side no longer fits a ~half-page
-  // column without overlapping. "Otras medidas" folds medida into the same
-  // slot as the length ("1X3 700"), same shape the "1x2" side already used.
+  // "Medida" + "Largo(cm)" + "Cant." side by side no longer fits a
+  // ~half-page column without overlapping. "Otras medidas" folds medida
+  // and largo into one "1X3X700"-style value, same shape the "1x2" side
+  // already used.
   const valueX = x;
   const piezasX = x + width * 0.62;
 
   page.drawText(showMedida ? 'Medida' : 'Largo(cm)', { x: valueX, y, size: fontSize, font: boldFont });
-  page.drawText('Pzs', { x: piezasX, y, size: fontSize, font: boldFont });
+  page.drawText('Cant.', { x: piezasX, y, size: fontSize, font: boldFont });
   y -= rowHeight;
 
   if (rows.length === 0) {
@@ -184,7 +185,7 @@ function drawColumn(
   }
 
   for (const row of rows) {
-    const valueText = showMedida ? `${row.medida} ${row.largoCm}` : String(row.largoCm);
+    const valueText = showMedida ? `${row.medida}X${row.largoCm}` : String(row.largoCm);
     page.drawText(valueText, { x: valueX, y, size: fontSize, font });
     page.drawText(countLabel(row.piezas), { x: piezasX, y, size: fontSize, font });
     y -= rowHeight;

@@ -1,6 +1,7 @@
 import { defineMiddleware } from 'astro:middleware';
 import { createSupabaseServerClient } from './lib/supabase/server';
 import { AREA_SLUGS } from './lib/areas.config';
+import { SESSION_STARTED_COOKIE } from './lib/auth-constants';
 
 // Reachable without a session — everything else redirects to /login.
 // Static assets (favicon, /_astro/* build output, etc.) are matched by
@@ -33,13 +34,34 @@ export const onRequest = defineMiddleware(async (context, next) => {
     return context.redirect(`/login?redirect=${encodeURIComponent(redirectTo)}`);
   }
 
-  const { data: perfil } = await supabase.from('perfiles').select('id, username, rol').eq('id', user.id).single();
+  const { data: perfil } = await supabase
+    .from('perfiles')
+    .select('id, username, rol, sesion_max_minutos')
+    .eq('id', user.id)
+    .single();
 
   // Auth user with no matching perfiles row is a misconfigured account
   // (or Fase 1's first-run edge case) — treat exactly like "not logged in"
   // rather than letting pages render with a missing Astro.locals.usuario.
   if (!perfil) {
     return context.redirect('/login');
+  }
+
+  // Per-account auto-logout (set from /admin/usuarios). Enforced here
+  // instead of via the Supabase JWT's own expiry, because the refresh
+  // token would otherwise keep renewing the session forever — elapsed
+  // time is measured from the login timestamp in its own cookie, which
+  // silent token refreshes never touch, unlike the access token's `iat`.
+  if (perfil.sesion_max_minutos != null) {
+    const startedAt = context.cookies.get(SESSION_STARTED_COOKIE)?.value;
+    const startedAtMs = startedAt ? Date.parse(startedAt) : NaN;
+    const elapsedMinutes = Number.isNaN(startedAtMs) ? Infinity : (Date.now() - startedAtMs) / 60_000;
+    if (elapsedMinutes > perfil.sesion_max_minutos) {
+      await supabase.auth.signOut();
+      context.cookies.delete(SESSION_STARTED_COOKIE, { path: '/' });
+      const redirectTo = `${pathname}${context.url.search}`;
+      return context.redirect(`/login?redirect=${encodeURIComponent(redirectTo)}&expired=1`);
+    }
   }
 
   const { data: permisos } = await supabase.from('permisos_modulo').select('area_slug').eq('user_id', user.id).eq('activo', true);

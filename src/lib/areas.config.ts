@@ -52,6 +52,7 @@ const ICONS = {
   trendUp: '<polyline points="4,17 10,11 14,15 20,7"/><polyline points="14,7 20,7 20,13"/>',
   box: '<polygon points="4,8 12,4 20,8 12,12"/><line x1="4" y1="8" x2="4" y2="17"/><line x1="20" y1="8" x2="20" y2="17"/><line x1="12" y1="12" x2="12" y2="21"/><polyline points="4,17 12,21 20,17"/>',
   cart: '<rect x="6" y="7" width="12" height="7" rx="1"/><line x1="3" y1="4" x2="6" y2="4"/><line x1="6" y1="4" x2="6" y2="7"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/>',
+  ruler: '<rect x="3" y="9" width="18" height="6" rx="1"/><line x1="7" y1="9" x2="7" y2="12"/><line x1="11" y1="9" x2="11" y2="15"/><line x1="15" y1="9" x2="15" y2="12"/><line x1="19" y1="9" x2="19" y2="15"/>',
 };
 
 export const AREAS: AreaConfig[] = [
@@ -116,10 +117,15 @@ export const AREAS: AreaConfig[] = [
     description: 'Mapa interactivo de ubicaciones de stock',
     accent: 'cyan',
     icon: ICONS.box,
-    tabs: [
-      { slug: 'mapa-deposito', name: 'Mapa de Depósito' },
-      { slug: 'calculadora-carpinteria', name: 'Calculadora Carpintería' },
-    ],
+    tabs: [{ slug: 'mapa-deposito', name: 'Mapa de Depósito' }],
+  },
+  {
+    slug: 'produccion',
+    name: 'Producción',
+    description: 'Calculadora de listones para carpintería',
+    accent: 'amber',
+    icon: ICONS.ruler,
+    tabs: [{ slug: 'calculadora-carpinteria', name: 'Calculadora Carpintería' }],
   },
   {
     slug: 'comercial',

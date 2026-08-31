@@ -11,7 +11,10 @@ if (Astro.locals.usuario?.rol !== 'dev') {
 }
 
 const admin = getSupabaseAdminClient();
-const { data: perfiles } = await admin.from('perfiles').select('id, username, nombre_completo, rol').order('username');
+const { data: perfiles } = await admin
+  .from('perfiles')
+  .select('id, username, nombre_completo, rol, sesion_max_minutos')
+  .order('username');
 const { data: permisos } = await admin.from('permisos_modulo').select('user_id, area_slug').eq('activo', true);
 
 const usuarios: UsuarioConPermisos[] = (perfiles ?? []).map((p) => ({
@@ -20,11 +23,14 @@ const usuarios: UsuarioConPermisos[] = (perfiles ?? []).map((p) => ({
   nombreCompleto: p.nombre_completo,
   rol: p.rol,
   areasActivas: (permisos ?? []).filter((perm) => perm.user_id === p.id).map((perm) => perm.area_slug),
+  sesionMaxMinutos: p.sesion_max_minutos,
 }));
 ---
 
 <BaseLayout title="Administración de usuarios — Frontera Living">
   <main class="mx-auto max-w-4xl px-4 py-10">
+    <a href="/" class="mb-4 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-brand-400">← Volver al inicio</a>
+
     <header class="mb-8">
       <h1 class="text-2xl font-semibold text-slate-100">Administración de usuarios</h1>
       <p class="mt-1 text-sm text-slate-400">Cuentas de área y permisos por módulo.</p>

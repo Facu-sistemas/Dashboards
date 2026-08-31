@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '../../../lib/supabase/server';
 import { jsonResponse } from '../../../lib/api-helpers';
+import { SESSION_STARTED_COOKIE } from '../../../lib/auth-constants';
 
 export const prerender = false;
 
@@ -33,6 +34,17 @@ export const POST: APIRoute = async (context) => {
   if (error) {
     return jsonResponse({ ok: false, error: 'Usuario o contraseña incorrectos' }, { status: 401 });
   }
+
+  // Marks when THIS login happened, independent of Supabase's own
+  // session cookies — the middleware compares against this to enforce a
+  // per-account auto-logout, since silent token refreshes never touch it.
+  context.cookies.set(SESSION_STARTED_COOKIE, new Date().toISOString(), {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: import.meta.env.PROD,
+    maxAge: 60 * 60 * 24 * 400,
+  });
 
   return jsonResponse({ ok: true });
 };
