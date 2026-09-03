@@ -21,7 +21,7 @@ const PERIOD_OPTIONS: { value: PlanProduccionPeriodKind; label: string }[] = [
   { value: 'year', label: 'Año' },
 ];
 
-const EMPTY_GAUGE: PlanProduccionGauge = { planificado: 0, producido: 0, cerrado: 0, cumplimientoPct: 0, cerradoPct: 0 };
+const EMPTY_GAUGE: PlanProduccionGauge = { planificado: 0, producido: 0, cerrado: 0, objetivo: 0, planificadoPct: 0, cumplimientoPct: 0, cerradoPct: 0 };
 const EMPTY_DIARIA: PlanProduccionDailyRow[] = [];
 
 function PlanProduccionInner({ initialPeriodKind, initialDate }: { initialPeriodKind: PlanProduccionPeriodKind; initialDate: string }) {
@@ -140,8 +140,8 @@ function PlanProduccionInner({ initialPeriodKind, initialDate }: { initialPeriod
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <PlanProduccionTrendChart title={`Living — Tendencia ${date.slice(0, 7)}`} rows={diariaQuery.data ?? EMPTY_DIARIA} pick={(r) => r.living} unit="UE" />
-          <PlanProduccionTrendChart title={`Colchones — Tendencia ${date.slice(0, 7)}`} rows={diariaQuery.data ?? EMPTY_DIARIA} pick={(r) => r.colchones} unit="u" />
+          <PlanProduccionTrendChart title={`Living — Tendencia ${date.slice(0, 7)}`} rows={diariaQuery.data ?? EMPTY_DIARIA} pick={(r) => r.living} />
+          <PlanProduccionTrendChart title={`Colchones — Tendencia ${date.slice(0, 7)}`} rows={diariaQuery.data ?? EMPTY_DIARIA} pick={(r) => r.colchones} />
         </div>
       )}
     </div>

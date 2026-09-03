@@ -88,6 +88,8 @@ export interface PlanProduccionGauge {
   planificado: number;
   producido: number;
   cerrado: number;
+  objetivo: number;
+  planificadoPct: number;
   cumplimientoPct: number;
   cerradoPct: number;
 }

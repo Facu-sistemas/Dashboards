@@ -1,32 +1,40 @@
 import { searchReadAll } from './client';
 import { getFronteraCompany } from './reference';
 import { monthBounds, addDaysIso, periodBounds, type PeriodKind } from '../date';
-import { COLCHONES_CATEG_IDS, LIVING_CATEG_IDS } from './oee';
+import { COLCHONES_CATEG_IDS } from './oee';
+import {
+  getPlanProduccionSheetData,
+  objetivoForPeriod,
+  objetivoPerDay,
+  sheetTotalsForPeriod,
+  type SheetDailyData,
+} from '../plan-produccion-objetivo';
 
 export type { PeriodKind };
 
 /**
- * Living is measured in UE (Unidad Equivalente), Colchones in raw units —
- * confirmed live these are NOT interchangeable (SUM(product_qty) vs.
- * SUM(x_studio_ue_x_cant_1) for Colchones differ by ~6% in a real month),
- * so each category keeps its own unit throughout.
- *
- * There's no "objetivo" (target) here on purpose — the reference sheet's
- * daily target is built from "Tiempo disponible" × "Personal", which lives
- * in an external Excel Odoo has no access to (same gap plan.md already
- * flagged for "Disponibilidad Productiva"). Once that sheet is reachable,
- * Planificado/Cerrado can go back to being a % of that target.
+ * Colchones is computed live from Odoo, in raw units (`product_qty`) —
+ * confirmed complete data there. Living is read entirely from the
+ * reference Google Sheet instead (Planificado/Cumplimiento/Cerrado AND
+ * Objetivo) — confirmed live that `x_studio_ue_x_cant_1` (Living's UE
+ * multiplier) is unset on 64% of its product variants in a real month,
+ * undercounting Odoo's own numbers by roughly half; see
+ * plan-produccion-objetivo.ts for the source and how to retire this once
+ * that field gets filled in.
  */
-type UnitKind = 'ue' | 'unidades';
-
 export interface PlanProduccionGauge {
   /** Raw value — UE for Living, units for Colchones. */
   planificado: number;
+  /** Same unit — for Colchones, the part of `planificado` ALSO closed the same calendar day it was planned for (see `gaugeFromRows`); for Living, the sheet's own CUMPLIMIENTO column. */
   producido: number;
   cerrado: number;
-  /** producido / planificado — same "PLAN+CUMPL" criterion as the OEE, in this category's own unit. */
+  /** From the external sheet — 0 if that period/day isn't in it yet. */
+  objetivo: number;
+  /** planificado / objetivo. */
+  planificadoPct: number;
+  /** producido / planificado. */
   cumplimientoPct: number;
-  /** cerrado / planificado. */
+  /** cerrado / objetivo. */
   cerradoPct: number;
 }
 
@@ -42,33 +50,34 @@ export interface PlanProduccionDailyRow {
   living: PlanProduccionGauge;
 }
 
-type PlannedRow = { planning_date: string; product_qty: number; qty_produced: number; x_studio_ue_x_cant_1: number };
-type ClosedRow = { date_finished: string; product_qty: number; x_studio_ue_x_cant_1: number };
+/** `date_finished` is `false`/unset for orders that haven't closed yet. */
+type PlannedRow = { planning_date: string; date_finished: string | false; state: string; product_qty: number };
+type ClosedRow = { date_finished: string; product_qty: number };
 
-async function fetchPlannedRows(categIds: number[], companyId: number, start: string, endExclusive: string): Promise<PlannedRow[]> {
+async function fetchPlannedRows(companyId: number, start: string, endExclusive: string): Promise<PlannedRow[]> {
   return searchReadAll<PlannedRow>({
     model: 'mrp.production',
     domain: [
       ['company_id', '=', companyId],
-      ['product_id.categ_id', 'in', categIds],
+      ['product_id.categ_id', 'in', COLCHONES_CATEG_IDS],
       ['planning_date', '>=', start],
       ['planning_date', '<', endExclusive],
     ],
-    fields: ['planning_date', 'product_qty', 'qty_produced', 'x_studio_ue_x_cant_1'],
+    fields: ['planning_date', 'date_finished', 'state', 'product_qty'],
   });
 }
 
-async function fetchClosedRows(categIds: number[], companyId: number, start: string, endExclusive: string): Promise<ClosedRow[]> {
+async function fetchClosedRows(companyId: number, start: string, endExclusive: string): Promise<ClosedRow[]> {
   return searchReadAll<ClosedRow>({
     model: 'mrp.production',
     domain: [
       ['state', '=', 'done'],
       ['company_id', '=', companyId],
-      ['product_id.categ_id', 'in', categIds],
+      ['product_id.categ_id', 'in', COLCHONES_CATEG_IDS],
       ['date_finished', '>=', start],
       ['date_finished', '<', endExclusive],
     ],
-    fields: ['date_finished', 'product_qty', 'x_studio_ue_x_cant_1'],
+    fields: ['date_finished', 'product_qty'],
   });
 }
 
@@ -78,53 +87,62 @@ function everyDay(start: string, endExclusive: string): string[] {
   return days;
 }
 
-/**
- * `x_studio_ue_x_cant_1` (Living's UE) is the UE of the *planned* quantity
- * — there's no separate "UE producida" field, so its produced side is
- * prorated by how much of that order's planned quantity actually got
- * produced (`qty_produced / product_qty`). Colchones needs no such
- * prorating: `qty_produced` is already its produced value directly.
- */
-function gaugeFromRows(plannedRows: PlannedRow[], closedRows: ClosedRow[], unit: UnitKind): PlanProduccionGauge {
-  let planificado = 0;
-  let producido = 0;
-  for (const r of plannedRows) {
-    if (unit === 'unidades') {
-      planificado += r.product_qty;
-      producido += r.qty_produced;
-    } else {
-      planificado += r.x_studio_ue_x_cant_1;
-      if (r.product_qty > 0) producido += r.x_studio_ue_x_cant_1 * (r.qty_produced / r.product_qty);
-    }
-  }
-  let cerrado = 0;
-  for (const r of closedRows) cerrado += unit === 'unidades' ? r.product_qty : r.x_studio_ue_x_cant_1;
-
+function buildGauge(planificado: number, producido: number, cerrado: number, objetivo: number): PlanProduccionGauge {
   return {
     planificado,
     producido,
     cerrado,
+    objetivo,
+    planificadoPct: objetivo > 0 ? (planificado / objetivo) * 100 : 0,
     cumplimientoPct: planificado > 0 ? (producido / planificado) * 100 : 0,
-    cerradoPct: planificado > 0 ? (cerrado / planificado) * 100 : 0,
+    cerradoPct: objetivo > 0 ? (cerrado / objetivo) * 100 : 0,
   };
 }
 
-/** Planificado / Cumplimiento / Cerrado para Colchones y Living, para un período puntual (día/semana/mes/año) anclado en una fecha. */
+/**
+ * "Cumplimiento" is NOT produced-vs-planned in general — confirmed live
+ * against a real day-by-day reference (matched exactly, to the unit, on
+ * two separate days before trusting this): it only counts orders that were
+ * BOTH planned for a day AND actually closed (`state=done`) that SAME day.
+ * An order planned today but closed tomorrow (or closed today but planned
+ * last week — that's `cerrado`'s job) doesn't count here. That's the "lo
+ * que se cumplió del día" the sheet's owner meant.
+ */
+function colchonesGaugeFromOdoo(plannedRows: PlannedRow[], closedRows: ClosedRow[], objetivo: number): PlanProduccionGauge {
+  let planificado = 0;
+  let producido = 0;
+  for (const r of plannedRows) {
+    planificado += r.product_qty;
+    if (r.state === 'done' && r.date_finished && r.date_finished.slice(0, 10) === r.planning_date) {
+      producido += r.product_qty;
+    }
+  }
+  let cerrado = 0;
+  for (const r of closedRows) cerrado += r.product_qty;
+
+  return buildGauge(planificado, producido, cerrado, objetivo);
+}
+
+function livingGaugeFromSheet(map: SheetDailyData, start: string, endExclusive: string): PlanProduccionGauge {
+  const { planificado, cumplimiento, cerrado } = sheetTotalsForPeriod(map, start, endExclusive);
+  return buildGauge(planificado, cumplimiento, cerrado, objetivoForPeriod(map, start, endExclusive));
+}
+
+/** Planificado / Cumplimiento / Cerrado para Colchones (Odoo) y Living (planilla), para un período puntual (día/semana/mes/año) anclado en una fecha. */
 export async function getPlanProduccion(periodKind: PeriodKind, anchorIso: string): Promise<PlanProduccionResult> {
   const { companyId } = await getFronteraCompany();
   const { start, endExclusive } = periodBounds(periodKind, anchorIso);
 
-  const [colchonesPlanned, livingPlanned, colchonesClosed, livingClosed] = await Promise.all([
-    fetchPlannedRows(COLCHONES_CATEG_IDS, companyId, start, endExclusive),
-    fetchPlannedRows(LIVING_CATEG_IDS, companyId, start, endExclusive),
-    fetchClosedRows(COLCHONES_CATEG_IDS, companyId, start, endExclusive),
-    fetchClosedRows(LIVING_CATEG_IDS, companyId, start, endExclusive),
+  const [colchonesPlanned, colchonesClosed, sheet] = await Promise.all([
+    fetchPlannedRows(companyId, start, endExclusive),
+    fetchClosedRows(companyId, start, endExclusive),
+    getPlanProduccionSheetData(),
   ]);
 
   return {
     period: { kind: periodKind, date: anchorIso, start, endExclusive },
-    colchones: gaugeFromRows(colchonesPlanned, colchonesClosed, 'unidades'),
-    living: gaugeFromRows(livingPlanned, livingClosed, 'ue'),
+    colchones: colchonesGaugeFromOdoo(colchonesPlanned, colchonesClosed, objetivoForPeriod(sheet.colchones, start, endExclusive)),
+    living: livingGaugeFromSheet(sheet.living, start, endExclusive),
   };
 }
 
@@ -133,17 +151,18 @@ export async function getPlanProduccionDiaria(anchorIso: string): Promise<PlanPr
   const { companyId } = await getFronteraCompany();
   const { start, endExclusive } = monthBounds(anchorIso.slice(0, 7));
 
-  const [colchonesPlanned, livingPlanned, colchonesClosed, livingClosed] = await Promise.all([
-    fetchPlannedRows(COLCHONES_CATEG_IDS, companyId, start, endExclusive),
-    fetchPlannedRows(LIVING_CATEG_IDS, companyId, start, endExclusive),
-    fetchClosedRows(COLCHONES_CATEG_IDS, companyId, start, endExclusive),
-    fetchClosedRows(LIVING_CATEG_IDS, companyId, start, endExclusive),
+  const [colchonesPlanned, colchonesClosed, sheet] = await Promise.all([
+    fetchPlannedRows(companyId, start, endExclusive),
+    fetchClosedRows(companyId, start, endExclusive),
+    getPlanProduccionSheetData(),
   ]);
 
-  function bucket<T extends { planning_date: string } | { date_finished: string }>(rows: T[], field: 'planning_date' | 'date_finished'): Map<string, T[]> {
+  function bucket<T extends { planning_date?: string; date_finished?: string | false }>(rows: T[], field: 'planning_date' | 'date_finished'): Map<string, T[]> {
     const map = new Map<string, T[]>();
     for (const r of rows) {
-      const day = (r as Record<string, string>)[field]!.slice(0, 10);
+      const raw = r[field];
+      if (!raw) continue;
+      const day = raw.slice(0, 10);
       const list = map.get(day);
       if (list) list.push(r);
       else map.set(day, [r]);
@@ -152,13 +171,16 @@ export async function getPlanProduccionDiaria(anchorIso: string): Promise<PlanPr
   }
 
   const colchonesPlannedByDay = bucket(colchonesPlanned, 'planning_date');
-  const livingPlannedByDay = bucket(livingPlanned, 'planning_date');
   const colchonesClosedByDay = bucket(colchonesClosed, 'date_finished');
-  const livingClosedByDay = bucket(livingClosed, 'date_finished');
+  const colchonesObjetivoByDay = objetivoPerDay(sheet.colchones, start, endExclusive);
+  const livingObjetivoByDay = objetivoPerDay(sheet.living, start, endExclusive);
 
-  return everyDay(start, endExclusive).map((date) => ({
-    date,
-    colchones: gaugeFromRows(colchonesPlannedByDay.get(date) ?? [], colchonesClosedByDay.get(date) ?? [], 'unidades'),
-    living: gaugeFromRows(livingPlannedByDay.get(date) ?? [], livingClosedByDay.get(date) ?? [], 'ue'),
-  }));
+  return everyDay(start, endExclusive).map((date) => {
+    const livingRow = sheet.living.get(date);
+    return {
+      date,
+      colchones: colchonesGaugeFromOdoo(colchonesPlannedByDay.get(date) ?? [], colchonesClosedByDay.get(date) ?? [], colchonesObjetivoByDay.get(date) ?? 0),
+      living: buildGauge(livingRow?.planificado ?? 0, livingRow?.cumplimiento ?? 0, livingRow?.cerrado ?? 0, livingObjetivoByDay.get(date) ?? 0),
+    };
+  });
 }
