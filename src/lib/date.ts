@@ -45,6 +45,37 @@ export function lastMonthKeys(count: number, endingAt?: Date): string[] {
   return keys;
 }
 
+function toIsoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+export function addDaysIso(iso: string, days: number): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  return toIsoDate(new Date(Date.UTC(y!, m! - 1, d! + days)));
+}
+
+export type PeriodKind = 'day' | 'week' | 'month' | 'year';
+
+/** Start (inclusive) / end (exclusive) ISO dates for a day, ISO week (Mon-Sun), month, or year around an anchor date (plain "YYYY-MM-DD", no timezone math needed). */
+export function periodBounds(kind: PeriodKind, anchorIso: string): { start: string; endExclusive: string } {
+  if (kind === 'day') {
+    return { start: anchorIso, endExclusive: addDaysIso(anchorIso, 1) };
+  }
+  if (kind === 'week') {
+    const [y, m, d] = anchorIso.split('-').map(Number);
+    const anchor = new Date(Date.UTC(y!, m! - 1, d!));
+    const dayOfWeek = anchor.getUTCDay(); // 0=Sun..6=Sat
+    const diffToMonday = (dayOfWeek + 6) % 7;
+    const mondayIso = toIsoDate(new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), anchor.getUTCDate() - diffToMonday)));
+    return { start: mondayIso, endExclusive: addDaysIso(mondayIso, 7) };
+  }
+  if (kind === 'year') {
+    const year = Number(anchorIso.slice(0, 4));
+    return { start: `${year}-01-01`, endExclusive: `${year + 1}-01-01` };
+  }
+  return monthBounds(anchorIso.slice(0, 7));
+}
+
 /** Shared "period" preset shape reused by every dashboard that offers a date-range filter (Top Productos, Pareto Clientes, ...). */
 export type DateRangePreset = 'all' | 'this-year' | 'last-12-months' | 'last-6-months';
 

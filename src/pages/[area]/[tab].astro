@@ -8,6 +8,7 @@ import ParetoClientesTab from '../../components/comercial/ParetoClientesTab.astr
 import TopProductosTab from '../../components/manufactura/TopProductosTab.astro';
 import OeeTab from '../../components/manufactura/OeeTab.astro';
 import RawMaterialConsumptionTab from '../../components/manufactura/RawMaterialConsumptionTab.astro';
+import PlanProduccionTab from '../../components/manufactura/PlanProduccionTab.astro';
 import MapaDepositoTab from '../../components/almacen/MapaDepositoTab.astro';
 import CarpinteriaTab from '../../components/produccion/CarpinteriaTab.astro';
 import TicketsSoporteTab from '../../components/calidad/TicketsSoporteTab.astro';
@@ -30,6 +31,7 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
   {area.slug === 'manufactura' && tabSlug === 'top-productos' && <TopProductosTab />}
   {area.slug === 'manufactura' && tabSlug === 'oee' && <OeeTab />}
   {area.slug === 'manufactura' && tabSlug === 'consumo-mp' && <RawMaterialConsumptionTab />}
+  {area.slug === 'manufactura' && tabSlug === 'plan-produccion' && <PlanProduccionTab />}
   {area.slug === 'almacen' && tabSlug === 'mapa-deposito' && <MapaDepositoTab />}
   {area.slug === 'produccion' && tabSlug === 'calculadora-carpinteria' && <CarpinteriaTab />}
   {area.slug === 'gestion-calidad' && tabSlug === 'tickets-soporte' && <TicketsSoporteTab />}

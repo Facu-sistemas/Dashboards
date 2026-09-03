@@ -101,6 +101,7 @@ export const AREAS: AreaConfig[] = [
       { slug: 'top-productos', name: 'Top 10 Productos' },
       { slug: 'oee', name: 'Eficiencia (OEE)' },
       { slug: 'consumo-mp', name: 'Consumo MP vs Stock' },
+      { slug: 'plan-produccion', name: 'Plan de Producción' },
     ],
   },
   {

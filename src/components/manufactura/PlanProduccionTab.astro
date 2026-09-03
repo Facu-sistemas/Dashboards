@@ -1,0 +1,47 @@
+---
+import PlanProduccionApp from './PlanProduccionApp';
+import { buildPlanProduccionDehydratedState } from '../../lib/plan-produccion-ssr';
+import { getArgentinaTodayIso } from '../../lib/odoo/oee';
+import type { PeriodKind } from '../../lib/odoo/plan-produccion';
+
+const PERIOD_VALUES: PeriodKind[] = ['day', 'week', 'month', 'year'];
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+const params = Astro.url.searchParams;
+const periodParam = params.get('period');
+const dateParam = params.get('date');
+const initialPeriodKind: PeriodKind = PERIOD_VALUES.includes(periodParam as PeriodKind) ? (periodParam as PeriodKind) : 'month';
+const initialDate = dateParam && DATE_RE.test(dateParam) ? dateParam : getArgentinaTodayIso();
+
+let dehydratedState;
+let ssrError: string | null = null;
+try {
+  dehydratedState = await buildPlanProduccionDehydratedState(initialPeriodKind, initialDate);
+} catch (err) {
+  ssrError = err instanceof Error ? err.message : 'Error desconocido consultando Odoo';
+}
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Plan de Producción</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Planificado, Cumplimiento y Cerrado por Living (en UE) y Colchones (en unidades) — mismas
+      categorías de producto que ya usa Eficiencia (OEE). Cumplimiento y Cerrado se miden contra
+      lo planificado del período. Todavía no hay un % contra objetivo diario — ese objetivo sale
+      de "Tiempo disponible" × "Personal", que hoy vive en un Excel fuera del alcance de Odoo.
+      Solo lectura.
+    </p>
+  </header>
+
+  {
+    ssrError && (
+      <p class="mb-6 rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">
+        No se pudo precargar la data desde Odoo en el servidor ({ssrError}). El panel
+        intentará cargar los datos desde el navegador.
+      </p>
+    )
+  }
+
+  <PlanProduccionApp client:load initialPeriodKind={initialPeriodKind} initialDate={initialDate} dehydratedState={dehydratedState} />
+</div>

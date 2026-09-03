@@ -53,8 +53,8 @@ const ARGENTINA_TZ = 'America/Argentina/Buenos_Aires';
  * legitimately includes categ 16 ("Deliveries"), unlike an earlier version
  * of this file which excluded it.
  */
-const COLCHONES_CATEG_IDS = [5, 8, 9, 6, 20];
-const LIVING_CATEG_IDS = [1, 3, 16, 4, 2];
+export const COLCHONES_CATEG_IDS = [5, 8, 9, 6, 20];
+export const LIVING_CATEG_IDS = [1, 3, 16, 4, 2];
 const ALL_CATEG_IDS = [...COLCHONES_CATEG_IDS, ...LIVING_CATEG_IDS];
 
 function toIsoDate(d: Date): string {

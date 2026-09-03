@@ -81,3 +81,25 @@ export interface MaterialHistory {
   reorderPoint: number | null;
   points: MaterialMonthlyPoint[];
 }
+
+export type PlanProduccionPeriodKind = 'day' | 'week' | 'month' | 'year';
+
+export interface PlanProduccionGauge {
+  planificado: number;
+  producido: number;
+  cerrado: number;
+  cumplimientoPct: number;
+  cerradoPct: number;
+}
+
+export interface PlanProduccionResult {
+  period: { kind: PlanProduccionPeriodKind; date: string; start: string; endExclusive: string };
+  colchones: PlanProduccionGauge;
+  living: PlanProduccionGauge;
+}
+
+export interface PlanProduccionDailyRow {
+  date: string;
+  colchones: PlanProduccionGauge;
+  living: PlanProduccionGauge;
+}
