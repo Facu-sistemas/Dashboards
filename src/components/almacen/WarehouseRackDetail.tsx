@@ -57,7 +57,7 @@ function RackSideGrid({
 
   if (columnNumbers.length === 0) {
     return (
-      <div className="flex flex-col gap-2">
+      <div className="flex min-w-0 flex-col gap-2">
         <span className="text-xs font-medium uppercase tracking-wide text-slate-500">{side}</span>
         <p className="text-sm text-slate-500">Sin ubicaciones cargadas para este lado.</p>
       </div>
@@ -65,7 +65,7 @@ function RackSideGrid({
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex min-w-0 flex-col gap-2">
       <span className="text-xs font-medium uppercase tracking-wide text-slate-500">{side}</span>
       <div className="overflow-x-auto">
         <div
@@ -154,7 +154,7 @@ export default function WarehouseRackDetail({ layout, rack, selectedCode, onSele
         <h3 className="text-sm font-medium text-slate-200">Rack {rack}</h3>
       </div>
 
-      <div className="flex flex-wrap items-start gap-10">
+      <div className="flex flex-col gap-6 sm:flex-row sm:flex-wrap sm:items-start sm:gap-10">
         <RackSideGrid rack={rack} side="izquierdo" grid={izquierdo} occupied={occupied} selectedCode={selectedCode} onSelectCell={onSelectCell} />
         <RackSideGrid rack={rack} side="derecho" grid={derecho} occupied={occupied} selectedCode={selectedCode} onSelectCell={onSelectCell} />
       </div>

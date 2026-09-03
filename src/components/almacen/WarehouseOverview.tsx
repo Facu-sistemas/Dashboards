@@ -27,9 +27,9 @@ function RackBlock({ rack, active, onSelectRack }: { rack: string; active: boole
 export default function WarehouseOverview({ onSelectRack, onSelectAlmacen2 }: Props) {
   return (
     <div className="flex flex-wrap items-start gap-8">
-      <div className="flex flex-col gap-2">
+      <div className="flex w-full flex-col gap-2 sm:w-[30rem]">
         <span className="text-sm font-medium text-slate-300">Almacén 1</span>
-        <div className="relative w-[30rem] rounded border-2 border-slate-600 p-3">
+        <div className="relative rounded border-2 border-slate-600 p-3">
           <div className="flex flex-col gap-2">
             {RACK_ROW_ORDER.map((rack) => (
               <div key={rack} className="flex flex-col gap-2">
