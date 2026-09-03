@@ -6,8 +6,9 @@ import LastUpdated from '../shared/LastUpdated';
 import WarehouseOverview from './WarehouseOverview';
 import WarehouseRackDetail from './WarehouseRackDetail';
 import UbicacionDetail from './UbicacionDetail';
+import MovimientosCarousel from './MovimientosCarousel';
 import { ALMACEN_2_CODIGO, DESK_CELL } from './warehouseLayout';
-import type { UbicacionStockResult, WarehouseLayout } from './types';
+import type { MovimientoRow, UbicacionStockResult, WarehouseLayout } from './types';
 
 interface Props {
   dehydratedState?: DehydratedState;
@@ -18,6 +19,7 @@ function AlmacenInner() {
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
 
   const layoutQuery = useApiQuery<WarehouseLayout>(['almacen-layout'], '/api/almacen-layout');
+  const movimientosQuery = useApiQuery<MovimientoRow[]>(['almacen-movimientos'], '/api/almacen-movimientos');
 
   const ubicacionQuery = useApiQuery<UbicacionStockResult>(
     ['almacen-ubicacion', selectedCode],
@@ -69,6 +71,8 @@ function AlmacenInner() {
       </section>
 
       {selectedCode && <UbicacionDetail selectedCode={selectedCode} query={ubicacionQuery} />}
+
+      <MovimientosCarousel query={movimientosQuery} />
     </div>
   );
 }

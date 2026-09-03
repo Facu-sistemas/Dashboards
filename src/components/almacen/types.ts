@@ -25,3 +25,13 @@ export interface UbicacionStockResult {
   codigo: string;
   productos: UbicacionProducto[];
 }
+
+export interface MovimientoRow {
+  id: number;
+  producto: string;
+  cantidad: number;
+  unidad: string;
+  origen: string;
+  destino: string;
+  fecha: string;
+}

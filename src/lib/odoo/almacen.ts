@@ -1,4 +1,4 @@
-import { searchReadAll } from './client';
+import { searchRead, searchReadAll } from './client';
 import { withTtlCache, cacheKey } from '../cache';
 
 /**
@@ -11,6 +11,8 @@ const LOCATION_CODE_RE = /^([A-F])\.(\d{1,2})\.([A-F])$/;
 
 const LAYOUT_TTL_MS = 10 * 60 * 1000;
 const UBICACION_TTL_MS = 60 * 1000;
+const MOVIMIENTOS_TTL_MS = 60 * 1000;
+const MOVIMIENTOS_LIMIT = 10;
 
 export interface RackColumnData {
   column: number;
@@ -166,5 +168,67 @@ export async function getUbicacionStock(codigo: string): Promise<UbicacionStockR
       .sort((a, b) => b.cantidad - a.cantidad);
 
     return { codigo, productos };
+  });
+}
+
+export interface MovimientoRow {
+  id: number;
+  producto: string;
+  cantidad: number;
+  unidad: string;
+  origen: string;
+  destino: string;
+  /** ISO 8601 UTC timestamp — Odoo returns naive "YYYY-MM-DD HH:MM:SS" (implicitly UTC), converted here so the client can format it in the right timezone. */
+  fecha: string;
+}
+
+/** Strips the `WH/` / `WH/Existencias/` prefix Odoo's `complete_name` always carries, down to the short code (rack cell, "Almacen 2") or remaining location name. */
+function shortenLocation(name: string): string {
+  return name.replace(/^WH\/(Existencias\/)?/, '');
+}
+
+/**
+ * Last 10 completed (`state = 'done'`) `stock.move.line` rows touching
+ * WH/Existencias, either as source or destination — confirmed live this
+ * catches both movements into/out of the warehouse (vs. WH/PRE-PRODUCCION,
+ * suppliers, etc.) and internal rack-to-rack transfers. Reads per move
+ * line (not the aggregate `stock.move`) since that's what carries the
+ * actual completed quantity and timestamp per lot.
+ */
+export async function getUltimosMovimientos(): Promise<MovimientoRow[]> {
+  return withTtlCache('almacen:movimientos', MOVIMIENTOS_TTL_MS, async () => {
+    type Row = {
+      id: number;
+      product_id: [number, string] | false;
+      quantity: number;
+      product_uom_id: [number, string] | false;
+      location_id: [number, string] | false;
+      location_dest_id: [number, string] | false;
+      date: string;
+    };
+    const rows = await searchRead<Row>({
+      model: 'stock.move.line',
+      domain: [
+        ['state', '=', 'done'],
+        '|',
+        ['location_id.complete_name', 'like', 'WH/Existencias/%'],
+        ['location_dest_id.complete_name', 'like', 'WH/Existencias/%'],
+      ],
+      fields: ['product_id', 'quantity', 'product_uom_id', 'location_id', 'location_dest_id', 'date'],
+      order: 'date desc',
+      limit: MOVIMIENTOS_LIMIT,
+    });
+
+    return rows
+      .filter((r): r is Row & { product_id: [number, string] } => Boolean(r.product_id))
+      .map((r) => ({
+        id: r.id,
+        producto: r.product_id[1],
+        cantidad: r.quantity,
+        unidad: r.product_uom_id ? formatUom(r.product_uom_id[1]) : '',
+        origen: r.location_id ? shortenLocation(r.location_id[1]) : '—',
+        destino: r.location_dest_id ? shortenLocation(r.location_dest_id[1]) : '—',
+        fecha: new Date(`${r.date.replace(' ', 'T')}Z`).toISOString(),
+      }));
   });
 }
