@@ -11,3 +11,8 @@ npm-debug.log*
 .claude/
 desktop.ini
 Thumbs.db
+limpio.md
+
+# Original (uncompressed) source assets — not served, too large for git.
+# Optimized versions used by the site live under public/.
+raw-assets/
