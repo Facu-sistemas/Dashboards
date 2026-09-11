@@ -1,0 +1,16 @@
+---
+import BandasApp from './BandasApp';
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Calculadora de Bandas</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Rollos de corte, matelaseadora, optimización de corte y envivado a partir de las órdenes de
+      bandas pendientes en Odoo (filtro "COLCHON BANDA"), agrupadas por día de planificación. El
+      stock de rollos ya cortados se guarda en este navegador. Solo lectura.
+    </p>
+  </header>
+
+  <BandasApp client:load />
+</div>

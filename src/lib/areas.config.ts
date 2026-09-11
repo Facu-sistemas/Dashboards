@@ -127,7 +127,10 @@ export const AREAS: AreaConfig[] = [
     description: 'Calculadora de listones para carpintería',
     accent: 'amber',
     icon: ICONS.ruler,
-    tabs: [{ slug: 'calculadora-carpinteria', name: 'Calculadora Carpintería' }],
+    tabs: [
+      { slug: 'calculadora-carpinteria', name: 'Calculadora Carpintería' },
+      { slug: 'calculadora-bandas', name: 'Calculadora de Bandas' },
+    ],
   },
   {
     slug: 'comercial',

@@ -7,6 +7,7 @@ export type OdooDomainOperator =
   | '<='
   | 'like'
   | 'ilike'
+  | 'not ilike'
   | 'in'
   | 'not in'
   | 'child_of';

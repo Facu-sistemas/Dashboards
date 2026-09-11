@@ -11,6 +11,7 @@ import OeeTab from '../../components/manufactura/OeeTab.astro';
 import PlanProduccionTab from '../../components/manufactura/PlanProduccionTab.astro';
 import MapaDepositoTab from '../../components/almacen/MapaDepositoTab.astro';
 import CarpinteriaTab from '../../components/produccion/CarpinteriaTab.astro';
+import BandasTab from '../../components/produccion/BandasTab.astro';
 import TicketsSoporteTab from '../../components/calidad/TicketsSoporteTab.astro';
 import ColchonTab from '../../components/test/ColchonTab.astro';
 import { getArea } from '../../lib/areas.config';
@@ -35,6 +36,7 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
   {area.slug === 'manufactura' && tabSlug === 'plan-produccion' && <PlanProduccionTab />}
   {area.slug === 'almacen' && tabSlug === 'mapa-deposito' && <MapaDepositoTab />}
   {area.slug === 'produccion' && tabSlug === 'calculadora-carpinteria' && <CarpinteriaTab />}
+  {area.slug === 'produccion' && tabSlug === 'calculadora-bandas' && <BandasTab />}
   {area.slug === 'gestion-calidad' && tabSlug === 'tickets-soporte' && <TicketsSoporteTab />}
   {area.slug === 'test' && tabSlug === 'colchon' && <ColchonTab />}
   {!['finanzas', 'comercial', 'manufactura', 'almacen', 'produccion', 'gestion-calidad', 'test'].includes(area.slug) && (
