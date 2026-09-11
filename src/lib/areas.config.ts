@@ -95,7 +95,7 @@ export const AREAS: AreaConfig[] = [
   },
   {
     slug: 'manufactura',
-    name: 'Manufactura',
+    name: 'Producción',
     description: 'Ventas, eficiencia y plan de producción',
     accent: 'orange',
     icon: ICONS.gear,
@@ -123,8 +123,8 @@ export const AREAS: AreaConfig[] = [
   },
   {
     slug: 'produccion',
-    name: 'Producción',
-    description: 'Calculadora de listones para carpintería',
+    name: 'Herramientas de producción',
+    description: 'Calculadoras de listones de carpintería y de bandas',
     accent: 'amber',
     icon: ICONS.ruler,
     tabs: [
