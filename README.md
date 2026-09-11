@@ -13,13 +13,14 @@ búsqueda) resuelven la consulta contra Odoo en el momento vía una API route �
 
 ### Áreas y estado actual
 
-- **Finanzas** — Presupuesto de Compras (real vs. presupuestado por categoría y mes),
-  Facturación (comparativo Banco vs. Efectivo por contacto).
+- **Compras** — Presupuesto de Compras (real vs. presupuestado por categoría y mes),
+  Facturación (comparativo Banco vs. Efectivo por contacto), Consumo de Materia Prima
+  vs. Stock.
 - **Comercial** — Tendencia de Precios por producto (histórico mensual, con selección por
   búsqueda o lista), Top Clientes por monto facturado (con modo comparar entre dos
   clientes).
 - **Manufactura** — Top 10 Productos más vendidos (Colchones / Living), Lead Time de
-  Producción, Eficiencia (OEE), Consumo de Materia Prima vs. Stock.
+  Producción, Eficiencia (OEE), Plan de Producción.
 - **Almacén** — Mapa visual del depósito (racks A-F, por nivel y columna), con detalle de
   productos y cantidades al hacer click en una ubicación. *En desarrollo.*
 - **RRHH, Gerencia General, Gestión de Calidad, Mejora Continua** — Próximamente.

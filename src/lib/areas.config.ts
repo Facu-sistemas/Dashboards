@@ -59,13 +59,14 @@ const ICONS = {
 export const AREAS: AreaConfig[] = [
   {
     slug: 'finanzas',
-    name: 'Finanzas',
-    description: 'Presupuesto de compras y facturación',
+    name: 'Compras',
+    description: 'Presupuesto de compras, facturación y consumo de materia prima',
     accent: 'brand',
     icon: ICONS.barChart,
     tabs: [
       { slug: 'presupuesto-compras', name: 'Presupuesto de Compras' },
       { slug: 'facturacion', name: 'Facturación' },
+      { slug: 'consumo-mp', name: 'Consumo MP vs Stock' },
     ],
   },
   {
@@ -95,13 +96,12 @@ export const AREAS: AreaConfig[] = [
   {
     slug: 'manufactura',
     name: 'Manufactura',
-    description: 'Ventas, eficiencia y consumo de materia prima',
+    description: 'Ventas, eficiencia y plan de producción',
     accent: 'orange',
     icon: ICONS.gear,
     tabs: [
       { slug: 'top-productos', name: 'Top 10 Productos' },
       { slug: 'oee', name: 'Eficiencia (OEE)' },
-      { slug: 'consumo-mp', name: 'Consumo MP vs Stock' },
       { slug: 'plan-produccion', name: 'Plan de Producción' },
     ],
   },
