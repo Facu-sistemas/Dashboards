@@ -3,11 +3,11 @@ import AreaLayout from '../../layouts/AreaLayout.astro';
 import PlaceholderTab from '../../components/nav/PlaceholderTab.astro';
 import PresupuestoComprasTab from '../../components/finanzas/PresupuestoComprasTab.astro';
 import FacturacionTab from '../../components/finanzas/FacturacionTab.astro';
+import RawMaterialConsumptionTab from '../../components/finanzas/RawMaterialConsumptionTab.astro';
 import TendenciaPreciosTab from '../../components/comercial/TendenciaPreciosTab.astro';
 import ParetoClientesTab from '../../components/comercial/ParetoClientesTab.astro';
 import TopProductosTab from '../../components/manufactura/TopProductosTab.astro';
 import OeeTab from '../../components/manufactura/OeeTab.astro';
-import RawMaterialConsumptionTab from '../../components/manufactura/RawMaterialConsumptionTab.astro';
 import PlanProduccionTab from '../../components/manufactura/PlanProduccionTab.astro';
 import MapaDepositoTab from '../../components/almacen/MapaDepositoTab.astro';
 import CarpinteriaTab from '../../components/produccion/CarpinteriaTab.astro';
@@ -27,11 +27,11 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
 <AreaLayout areaSlug={area.slug} tabSlug={tabSlug!}>
   {area.slug === 'finanzas' && tabSlug === 'presupuesto-compras' && <PresupuestoComprasTab />}
   {area.slug === 'finanzas' && tabSlug === 'facturacion' && <FacturacionTab />}
+  {area.slug === 'finanzas' && tabSlug === 'consumo-mp' && <RawMaterialConsumptionTab />}
   {area.slug === 'comercial' && tabSlug === 'tendencia-precios' && <TendenciaPreciosTab />}
   {area.slug === 'comercial' && tabSlug === 'top-clientes' && <ParetoClientesTab />}
   {area.slug === 'manufactura' && tabSlug === 'top-productos' && <TopProductosTab />}
   {area.slug === 'manufactura' && tabSlug === 'oee' && <OeeTab />}
-  {area.slug === 'manufactura' && tabSlug === 'consumo-mp' && <RawMaterialConsumptionTab />}
   {area.slug === 'manufactura' && tabSlug === 'plan-produccion' && <PlanProduccionTab />}
   {area.slug === 'almacen' && tabSlug === 'mapa-deposito' && <MapaDepositoTab />}
   {area.slug === 'produccion' && tabSlug === 'calculadora-carpinteria' && <CarpinteriaTab />}

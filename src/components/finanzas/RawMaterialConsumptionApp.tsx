@@ -6,7 +6,7 @@ import LastUpdated from '../shared/LastUpdated';
 import RawMaterialTable from './RawMaterialTable';
 import MaterialStatRow from './MaterialStatRow';
 import MaterialHistoryChart from './MaterialHistoryChart';
-import type { ConsumptionLookbackDays, MaterialHistory, RawMaterialConsumptionResult, RawMaterialRow } from './types';
+import type { ConsumptionLookbackDays, MaterialHistory, RawMaterialConsumptionResult, RawMaterialRow } from '../manufactura/types';
 
 interface Props {
   initialCategoryId: number | null;

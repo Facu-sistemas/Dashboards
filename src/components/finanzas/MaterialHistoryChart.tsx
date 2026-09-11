@@ -1,6 +1,6 @@
 import { Bar, BarChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useChartTheme } from '../shared/useChartTheme';
-import type { MaterialMonthlyPoint } from './types';
+import type { MaterialMonthlyPoint } from '../manufactura/types';
 
 interface Props {
   points: MaterialMonthlyPoint[];

@@ -162,8 +162,8 @@ const usuario = Astro.locals.usuario;
         void bar.offsetWidth; // force reflow so the next transform change animates
 
         // Two-stage animation: an immediate, clearly-visible jump first, then
-        // a slow crawl. A fast tab-to-tab swap (Finanzas > Presupuesto to
-        // Finanzas > Facturación, both cheap SSR queries) can finish in a
+        // a slow crawl. A fast tab-to-tab swap (Compras > Presupuesto to
+        // Compras > Facturación, both cheap SSR queries) can finish in a
         // couple hundred ms — with a single 4s transition the bar barely
         // moves before the page swaps out, which reads as "nothing
         // happened." The upfront jump guarantees visible feedback even then.
