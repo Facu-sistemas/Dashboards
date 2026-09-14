@@ -29,10 +29,22 @@ export const POST: APIRoute = async (context) => {
 
   const email = `${parsed.data.username.toLowerCase()}@interno.com`;
   const supabase = createSupabaseServerClient(context);
-  const { error } = await supabase.auth.signInWithPassword({ email, password: parsed.data.password });
+  const { data: signInData, error } = await supabase.auth.signInWithPassword({ email, password: parsed.data.password });
 
   if (error) {
     return jsonResponse({ ok: false, error: 'Usuario o contraseña incorrectos' }, { status: 401 });
+  }
+
+  // dev accounts have full admin power (create/delete any account, see
+  // every area) — restrict them to one active machine at a time by
+  // revoking every other session's refresh token on each new login.
+  // `scope: 'others'` leaves the session we just created alone; any
+  // other device gets logged out the next time its cookie is revalidated
+  // (middleware calls getUser(), which re-checks against the Auth
+  // server, so a revoked session doesn't linger until token expiry).
+  const { data: perfil } = await supabase.from('perfiles').select('rol').eq('id', signInData.user.id).single();
+  if (perfil?.rol === 'dev') {
+    await supabase.auth.signOut({ scope: 'others' });
   }
 
   // Marks when THIS login happened, independent of Supabase's own

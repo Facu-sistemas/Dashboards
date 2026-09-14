@@ -90,6 +90,14 @@ async function getUid(): Promise<number> {
   return uidPromise;
 }
 
+// This generic RPC endpoint (unlike an authenticated web session) never
+// picks up the calling user's language automatically — translated fields
+// (like product names) silently fall back to the DB's base language
+// (en_US) otherwise. Frontera Living's Odoo is operated entirely in
+// es_AR, so every read needs that language pinned explicitly to match
+// what staff actually see in the Odoo UI.
+const CONTEXT = { lang: 'es_AR' };
+
 async function executeKw<T>(model: string, method: 'search_read' | 'read_group' | 'search_count', args: unknown[], kwargs: Record<string, unknown>): Promise<T> {
   const config = getOdooConfig();
   const uid = await getUid();
@@ -100,7 +108,7 @@ async function executeKw<T>(model: string, method: 'search_read' | 'read_group' 
     model,
     method,
     args,
-    kwargs,
+    { ...kwargs, context: { ...CONTEXT, ...(kwargs.context as Record<string, unknown> | undefined) } },
   ]);
 }
 

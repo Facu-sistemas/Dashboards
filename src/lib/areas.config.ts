@@ -65,6 +65,7 @@ export const AREAS: AreaConfig[] = [
     icon: ICONS.barChart,
     tabs: [
       { slug: 'presupuesto-compras', name: 'Presupuesto de Compras' },
+      { slug: 'presupuesto-dinamico', name: 'Presupuesto de Compras (BOM)' },
       { slug: 'facturacion', name: 'Facturación' },
       { slug: 'consumo-mp', name: 'Consumo MP vs Stock' },
     ],

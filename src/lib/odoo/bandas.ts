@@ -69,6 +69,19 @@ export interface BandaPlanRow {
   cantidad: number;
 }
 
+/**
+ * Odoo's many2one display label is `[referencia interna] Nombre` whenever the
+ * product has an internal reference set. That reference can go stale (product
+ * renamed, reference left untouched) — parsing the raw label then picks up
+ * whatever height/code is in the outdated reference instead of the current
+ * name. Stripping the bracketed prefix keeps every downstream regex
+ * (extractAlto, extractMedida, extractCodigo) anchored to the actual name.
+ */
+function stripReferencePrefix(display: string): string {
+  const m = display.match(/^\[[^\]]*\]\s*(.*)$/);
+  return m ? m[1]! : display;
+}
+
 /** Raw (fecha, producto, cantidad) rows for one planning day — the same 3 columns the manual Excel export used, now straight from Odoo. */
 export async function getBandasPlanificacion(dateIso: string): Promise<BandaPlanRow[]> {
   const nextDay = addDaysIso(dateIso, 1);
@@ -79,5 +92,5 @@ export async function getBandasPlanificacion(dateIso: string): Promise<BandaPlan
   });
 
   const fecha = dateIso === SIN_AGENDAR_DATE ? 'Sin agendar' : formatLabel(dateIso);
-  return rows.map((r) => ({ fecha, producto: r.product_id[1], cantidad: r.product_qty }));
+  return rows.map((r) => ({ fecha, producto: stripReferencePrefix(r.product_id[1]), cantidad: r.product_qty }));
 }
