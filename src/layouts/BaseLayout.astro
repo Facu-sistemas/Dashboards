@@ -50,6 +50,9 @@ const commitMessage = import.meta.env.VERCEL_GIT_COMMIT_MESSAGE?.split('\n')[0];
       {
         usuario && (
           <>
+            <span class="rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-300 shadow-sm">
+              {usuario.username}
+            </span>
             {usuario.rol === 'dev' && (
               <a
                 href="/admin/usuarios"
