@@ -1,13 +1,14 @@
-import { searchReadAll, readGroup } from './client';
+import { searchReadAll } from './client';
 import { rangePresetStartDate } from '../date';
+import { normalizeName } from '../bom-csv';
 import { COLCHONES_CONFIG, LIVING_CONFIG, type CategoryRankingConfig } from './top-products';
-import type { OdooDomain, OdooReadGroupResult } from './types';
+import type { OdooDomain } from './types';
 
 export type BusinessUnit = 'colchones' | 'living';
 
 export interface ModelSalesShare {
-  templateId: number;
-  templateName: string;
+  baseNameKey: string;
+  baseName: string;
   unitsSold: number;
   /** 0-100 share of units sold within this business unit, over the last 12 months. */
   sharePct: number;
@@ -18,14 +19,37 @@ function configFor(unit: BusinessUnit): CategoryRankingConfig {
 }
 
 /**
- * % of participation of each active, BOM-explodable model within its
- * business unit, from real units sold over the last 12 months — per
- * INSTRUCCIONES_Dashboard_Presupuesto_Dinamico.md section 3, step 2.
- * `eligibleTemplateIds` restricts the mix to models that are both active
- * (regla 4.3) and have a usable BOM (regla 4.2) — callers pass the set
- * from bom-explosion.ts's getActiveModelsWithBom().
+ * The finished, sellable product is almost never the same `product.template`
+ * the BOM is defined against — confirmed live (2026-09): "ONIX SOFA 1 CPO
+ * (-76)" (the BOM's own template) has ZERO direct sales; customers instead
+ * buy one of ~30 separate per-color/fabric templates, each its own
+ * `product.template`, named "ONIX SOFA 1 CPO (-76) - FLOYD 21/39/021
+ * GRAPHITE" etc. Splitting on " - " and keeping the prefix recovers the
+ * shared base name — summing across all of ONIX's color templates in a
+ * ~12-month window gave 53 units, matching Marlynet's reference worked
+ * example ("60 unidades", the small gap being a different window
+ * boundary) closely enough to confirm this is the right relationship.
  */
-export async function getModelSalesMix(unit: BusinessUnit, eligibleTemplateIds: Set<number>): Promise<ModelSalesShare[]> {
+function baseNameOf(fullName: string): string {
+  return fullName.split(' - ')[0]!.trim();
+}
+
+/**
+ * % of participation of each active model — rolled up to its BOM's "modelo
+ * base" name, not Odoo's per-color `product.template` — within its
+ * business unit, from real units sold over the last 12 months, per
+ * INSTRUCCIONES_Dashboard_Presupuesto_Dinamico.md section 3, step 2.
+ * `eligibleBaseNameKeys` restricts the mix to models that are both active
+ * (regla 4.3) and have a usable BOM (regla 4.2) — callers pass the set of
+ * normalized keys from bom-csv.ts's getBomByModeloBaseKey().
+ */
+export interface ModelSalesMixResult {
+  shares: ModelSalesShare[];
+  /** Base names with real sales in the window whose normalized key isn't in eligibleBaseNameKeys — a genuine gap (their sales volume is entirely absent from the mix, not just zeroed), not just an inactive/discontinued model. */
+  unmatchedBaseNames: string[];
+}
+
+export async function getModelSalesMix(unit: BusinessUnit, eligibleBaseNameKeys: Set<string>): Promise<ModelSalesMixResult> {
   const config = configFor(unit);
   const start = rangePresetStartDate('last-12-months')!;
 
@@ -35,22 +59,14 @@ export async function getModelSalesMix(unit: BusinessUnit, eligibleTemplateIds: 
     ['order_id.state', '=', 'sale'],
     ['order_id.date_order', '>=', start],
   ];
-
-  type GroupRow = OdooReadGroupResult & { product_id: [number, string] | false; product_uom_qty: number };
-  const groups = (await readGroup({
+  const lines = await searchReadAll<{ product_id: [number, string]; product_uom_qty: number }>({
     model: 'sale.order.line',
     domain,
-    fields: ['product_uom_qty'],
-    groupBy: ['product_id'],
-  })) as GroupRow[];
+    fields: ['product_id', 'product_uom_qty'],
+  });
+  if (lines.length === 0) return { shares: [], unmatchedBaseNames: [] };
 
-  const variantTotals = groups
-    .filter((g): g is GroupRow & { product_id: [number, string] } => Boolean(g.product_id))
-    .map((g) => ({ variantId: g.product_id[0], unitsSold: g.product_uom_qty }));
-
-  if (variantTotals.length === 0) return [];
-
-  const variantIds = variantTotals.map((v) => v.variantId);
+  const variantIds = [...new Set(lines.map((l) => l.product_id[0]))];
   const variants = await searchReadAll<{ id: number; product_tmpl_id: [number, string] }>({
     model: 'product.product',
     domain: [['id', 'in', variantIds]],
@@ -58,35 +74,48 @@ export async function getModelSalesMix(unit: BusinessUnit, eligibleTemplateIds: 
   });
   const templateIdByVariant = new Map(variants.map((v) => [v.id, v.product_tmpl_id[0]]));
 
-  const qtyByTemplate = new Map<number, number>();
-  for (const { variantId, unitsSold } of variantTotals) {
-    const templateId = templateIdByVariant.get(variantId);
-    if (templateId === undefined || !eligibleTemplateIds.has(templateId)) continue; // regla 4.3 + 4.2 — inactive or no usable BOM
-    qtyByTemplate.set(templateId, (qtyByTemplate.get(templateId) ?? 0) + unitsSold);
-  }
-
-  const totalUnits = [...qtyByTemplate.values()].reduce((a, b) => a + b, 0);
-  if (totalUnits === 0) return [];
-
-  const templateIds = [...qtyByTemplate.keys()];
-  const templates = await searchReadAll<{ id: number; name: string }>({
+  const templateIds = [...new Set(variants.map((v) => v.product_tmpl_id[0]))];
+  const templates = await searchReadAll<{ id: number; name: string; active: boolean }>({
     model: 'product.template',
     domain: [['id', 'in', templateIds]],
-    fields: ['name'],
+    fields: ['name', 'active'],
   });
-  const nameByTemplate = new Map(templates.map((t) => [t.id, t.name]));
+  const templateById = new Map(templates.map((t) => [t.id, t]));
 
-  return templateIds
-    .map((id) => {
-      const unitsSold = qtyByTemplate.get(id)!;
-      return {
-        templateId: id,
-        templateName: nameByTemplate.get(id) ?? `#${id}`,
-        unitsSold,
-        sharePct: (unitsSold / totalUnits) * 100,
-      };
-    })
+  const qtyByBaseKey = new Map<string, number>();
+  const displayNameByBaseKey = new Map<string, string>();
+  const unmatchedNames = new Map<string, string>(); // baseKey -> display name, for sold-but-not-in-BOM models
+  for (const line of lines) {
+    const templateId = templateIdByVariant.get(line.product_id[0]);
+    if (templateId === undefined) continue;
+    const tmpl = templateById.get(templateId);
+    if (!tmpl?.active) continue; // regla 4.3 — inactive
+
+    const baseName = baseNameOf(tmpl.name);
+    const baseKey = normalizeName(baseName);
+    if (!eligibleBaseNameKeys.has(baseKey)) {
+      unmatchedNames.set(baseKey, baseName); // regla 4.2 — no usable BOM found for this sold model
+      continue;
+    }
+
+    qtyByBaseKey.set(baseKey, (qtyByBaseKey.get(baseKey) ?? 0) + line.product_uom_qty);
+    if (!displayNameByBaseKey.has(baseKey)) displayNameByBaseKey.set(baseKey, baseName);
+  }
+
+  const unmatchedBaseNames = [...unmatchedNames.values()].sort();
+  const totalUnits = [...qtyByBaseKey.values()].reduce((a, b) => a + b, 0);
+  if (totalUnits === 0) return { shares: [], unmatchedBaseNames };
+
+  const shares = [...qtyByBaseKey.entries()]
+    .map(([baseKey, unitsSold]) => ({
+      baseNameKey: baseKey,
+      baseName: displayNameByBaseKey.get(baseKey)!,
+      unitsSold,
+      sharePct: (unitsSold / totalUnits) * 100,
+    }))
     .sort((a, b) => b.unitsSold - a.unitsSold);
+
+  return { shares, unmatchedBaseNames };
 }
 
 /**

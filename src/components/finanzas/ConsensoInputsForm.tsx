@@ -12,18 +12,18 @@ const UNIT_LABELS: Record<BusinessUnit, string> = { colchones: 'Colchones', livi
 
 const numberFmt = new Intl.NumberFormat('es-AR');
 
-async function postInput(body: unknown): Promise<string | null> {
+async function sendInput(method: 'POST' | 'DELETE', body: unknown): Promise<string | null> {
   try {
     const res = await fetch('/api/presupuesto-dinamico-inputs', {
-      method: 'POST',
+      method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
     const data = await res.json();
-    if (!res.ok || !data.ok) return data.error ?? 'No se pudo guardar';
+    if (!res.ok || !data.ok) return data.error ?? (method === 'DELETE' ? 'No se pudo borrar' : 'No se pudo guardar');
     return null;
   } catch {
-    return 'Error de red al guardar';
+    return 'Error de red';
   }
 }
 
@@ -44,6 +44,8 @@ export default function ConsensoInputsForm({ year, months, inputs, onSaved }: Pr
   const [savingTc, setSavingTc] = useState(false);
   const [errorTc, setErrorTc] = useState<string | null>(null);
 
+  const [deletingKey, setDeletingKey] = useState<string | null>(null);
+
   async function guardarConsenso() {
     const value = Number(unidades);
     if (!Number.isFinite(value) || value < 0) {
@@ -52,7 +54,7 @@ export default function ConsensoInputsForm({ year, months, inputs, onSaved }: Pr
     }
     setSavingConsenso(true);
     setErrorConsenso(null);
-    const error = await postInput({ type: 'consenso', mes: mesConsenso, unidadNegocio, unidades: value });
+    const error = await sendInput('POST', { type: 'consenso', mes: mesConsenso, unidadNegocio, unidades: value });
     setSavingConsenso(false);
     if (error) setErrorConsenso(error);
     else {
@@ -69,7 +71,7 @@ export default function ConsensoInputsForm({ year, months, inputs, onSaved }: Pr
     }
     setSavingTc(true);
     setErrorTc(null);
-    const error = await postInput({ type: 'tc', mes: mesTc, tc: value });
+    const error = await sendInput('POST', { type: 'tc', mes: mesTc, tc: value });
     setSavingTc(false);
     if (error) setErrorTc(error);
     else {
@@ -78,10 +80,34 @@ export default function ConsensoInputsForm({ year, months, inputs, onSaved }: Pr
     }
   }
 
+  async function borrarConsenso(mes: string, unidadNegocio: BusinessUnit) {
+    const key = `consenso-${mes}-${unidadNegocio}`;
+    setDeletingKey(key);
+    setErrorConsenso(null);
+    const error = await sendInput('DELETE', { type: 'consenso', mes, unidadNegocio });
+    setDeletingKey(null);
+    if (error) setErrorConsenso(error);
+    else onSaved();
+  }
+
+  async function borrarTc(mes: string) {
+    const key = `tc-${mes}`;
+    setDeletingKey(key);
+    setErrorTc(null);
+    const error = await sendInput('DELETE', { type: 'tc', mes });
+    setDeletingKey(null);
+    if (error) setErrorTc(error);
+    else onSaved();
+  }
+
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <div className="flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-900 p-4">
         <h4 className="text-sm font-medium text-slate-300">Consenso de unidades</h4>
+        <p className="text-xs text-slate-500">
+          Los meses ya cerrados se completan solos con las unidades realmente vendidas —
+          esto es solo para el mes en curso y meses futuros, salvo que quieras forzar un valor distinto.
+        </p>
         <div className="flex flex-wrap items-end gap-2">
           <select value={mesConsenso} onChange={(e) => setMesConsenso(e.target.value)} className="rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm text-slate-100">
             {months.map((m) => (
@@ -113,11 +139,25 @@ export default function ConsensoInputsForm({ year, months, inputs, onSaved }: Pr
 
         <ul className="mt-1 flex flex-col gap-1 text-xs text-slate-400">
           {inputs.consenso.length === 0 && <li className="text-slate-600">Sin consenso cargado para {year}.</li>}
-          {inputs.consenso.map((c) => (
-            <li key={`${c.mes}-${c.unidadNegocio}`}>
-              {c.mes} · {UNIT_LABELS[c.unidadNegocio]}: {numberFmt.format(c.unidades)} u.
-            </li>
-          ))}
+          {inputs.consenso.map((c) => {
+            const key = `consenso-${c.mes}-${c.unidadNegocio}`;
+            return (
+              <li key={key} className="flex items-center justify-between gap-2">
+                <span>
+                  {c.mes} · {UNIT_LABELS[c.unidadNegocio]}: {numberFmt.format(c.unidades)} u.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => borrarConsenso(c.mes, c.unidadNegocio)}
+                  disabled={deletingKey === key}
+                  className="shrink-0 text-slate-600 hover:text-red-400 disabled:opacity-50"
+                  title="Borrar"
+                >
+                  {deletingKey === key ? '…' : '✕'}
+                </button>
+              </li>
+            );
+          })}
         </ul>
       </div>
 
@@ -151,9 +191,23 @@ export default function ConsensoInputsForm({ year, months, inputs, onSaved }: Pr
 
         <ul className="mt-1 flex flex-col gap-1 text-xs text-slate-400">
           {inputs.tc.length === 0 && <li className="text-slate-600">Sin TC asumido cargado para {year}.</li>}
-          {inputs.tc.map((t) => (
-            <li key={t.mes}>{t.mes}: ${numberFmt.format(t.tc)}</li>
-          ))}
+          {inputs.tc.map((t) => {
+            const key = `tc-${t.mes}`;
+            return (
+              <li key={key} className="flex items-center justify-between gap-2">
+                <span>{t.mes}: ${numberFmt.format(t.tc)}</span>
+                <button
+                  type="button"
+                  onClick={() => borrarTc(t.mes)}
+                  disabled={deletingKey === key}
+                  className="shrink-0 text-slate-600 hover:text-red-400 disabled:opacity-50"
+                  title="Borrar"
+                >
+                  {deletingKey === key ? '…' : '✕'}
+                </button>
+              </li>
+            );
+          })}
         </ul>
       </div>
     </div>

@@ -1,9 +1,9 @@
 import { searchReadAll } from './client';
 import { getFronteraCompany } from './reference';
 import { getUsdToArsRate } from './currency';
-import { getBomExplosion, getActiveModelsWithBom } from './bom-explosion';
+import { getBomByModeloBaseKey } from '../bom-csv';
 import { getModelSalesMix, getMonthlyUnitsSold, type BusinessUnit, type ModelSalesShare } from './sales-mix';
-import { getInsumoCosts, type InsumoCost } from './insumo-costs';
+import { getInsumoCosts, resolveInsumoProductIds, type InsumoCost } from './insumo-costs';
 import { getHistoricalUsdArsRates } from './fx-historical';
 import { withTtlCache, cacheKey } from '../cache';
 import { monthsBetween, monthBounds, lastMonthKeys, currentMonthKey } from '../date';
@@ -25,14 +25,12 @@ const REAL_COMPRAS_TTL_MS = 2 * 60 * 1000;
 // Regla 4.4 — generic shared component detection & redistribution.
 // A component qualifies as a "generic" candidate purely by BOM shape
 // (referenced by many models, always ~1 per unit); confirming it's a
-// TRUE generic (not a real, priced sub-assembly like a $600k upholstered
-// "TAP ..." component that happens to also be used at qty≈1 everywhere)
-// requires cost === 0, which is why this check lives here and not in
-// bom-explosion.ts (which has no cost data). Confirmed live (2026-09):
-// with a >=15-reference threshold, exactly two products in this catalog
-// have cost 0 AND match the shape — "CORTE DE TELA 1" (4890 refs, the
-// doc's own worked example) and "ETIQUETA BORDADA CALM" (36 refs).
-const GENERIC_MIN_TEMPLATE_REFERENCES = 15;
+// TRUE generic (not a real, priced material that happens to be used at
+// qty≈1 everywhere) requires cost === 0. Confirmed live (2026-09) against
+// the flattened BOM CSV: with a >=15-reference threshold, "CORTE DE TELA
+// 1" (the doc's own worked example) and "ETIQUETA BORDADA CALM" both
+// match cost=0 + the qty≈1 shape.
+const GENERIC_MIN_MODEL_REFERENCES = 15;
 const GENERIC_QTY_TOLERANCE = 0.05;
 
 // How many fully-closed months of real spend/sales feed the empirical
@@ -95,10 +93,10 @@ export interface CategoryGroup {
   annual: InsumoMonthFigure;
 }
 
-export type GapReason = 'sin-costo' | 'componente-generico-sin-repartir' | 'no-es-materia-prima' | 'posible-bom-circular';
+export type GapReason = 'sin-costo' | 'componente-generico-sin-repartir' | 'no-es-materia-prima' | 'insumo-no-encontrado';
 
 export interface GapInsumo {
-  productId: number;
+  productId: number | null;
   productName: string;
   reason: GapReason;
 }
@@ -111,6 +109,8 @@ export interface PresupuestoDinamicoResult {
   missingConsensoMonths: string[];
   missingTcMonths: string[];
   monthlyComplianceSummary: { month: string; compliancePct: number | null }[];
+  /** "Modelo (base)" names from the BOM CSV that have real sales but couldn't be matched to any live Odoo product.template by name — their contribution is silently absent from Presupuestado, not just a $0 gap row, so this needs separate visibility. */
+  modelosSinBomReconocido: string[];
 }
 
 export interface FueraDeAlcanceCategoryRow {
@@ -408,11 +408,65 @@ async function redistributeGenericBudgets(params: {
 }
 
 /**
+ * "Consenso de unidades" for already-CLOSED months isn't actually a guess
+ * — real units sold already happened, and getMonthlyUnitsSold (the same
+ * finished-model sale.order.line query the mix calculation itself uses)
+ * IS that number, by business unit. Using it here means the dashboard
+ * needs zero manual entry for the past — only the still-open current
+ * month and future months (nothing sold yet) genuinely require a
+ * human-entered plan. An explicit manual entry (typed into the Compras
+ * form) always wins over the derived value, even for a closed month, in
+ * case Compras deliberately wants to override it.
+ *
+ * Deliberately NOT sourced from OEE's mrp.production `qty_produced`
+ * (oee.ts) — confirmed live that figure sums across the ENTIRE Colchones/
+ * Living category tree, including every intermediate manufacturing order
+ * (foam blocks, bases, etc.), not just finished units. January 2026 came
+ * back as 7,221 "units" whose top entries were "ESPUMA CORONA..." and
+ * "BASE OLIMPO..." — component-stage production, not finished sillones/
+ * colchones sold. Using that here would double-count: once via an
+ * already-inflated unit count, and again via this module's own recursive
+ * BOM explosion re-deriving the same component-level needs from scratch.
+ */
+async function buildEffectiveConsenso(
+  months: string[],
+  manualConsensoByMonthUnit: Map<string, number>,
+  currentMonth: string
+): Promise<{ effective: Map<string, number>; missingConsensoMonths: Set<string> }> {
+  const closedMonths = months.filter((m) => m < currentMonth);
+  const [colchonesSold, livingSold] = closedMonths.length
+    ? await Promise.all([getMonthlyUnitsSold('colchones', closedMonths), getMonthlyUnitsSold('living', closedMonths)])
+    : [new Map<string, number>(), new Map<string, number>()];
+  const soldByUnit: Record<BusinessUnit, Map<string, number>> = { colchones: colchonesSold, living: livingSold };
+
+  const effective = new Map(manualConsensoByMonthUnit);
+  for (const month of closedMonths) {
+    for (const unit of ['colchones', 'living'] as const) {
+      const key = `${month}|${unit}`;
+      if (effective.has(key)) continue; // manual override wins
+      effective.set(key, soldByUnit[unit].get(month) ?? 0);
+    }
+  }
+
+  const missingConsensoMonths = new Set<string>();
+  for (const month of months) {
+    const hasColchones = effective.has(`${month}|colchones`);
+    const hasLiving = effective.has(`${month}|living`);
+    if (!hasColchones || !hasLiving) missingConsensoMonths.add(month);
+  }
+
+  return { effective, missingConsensoMonths };
+}
+
+/**
  * The full Presupuestado (BOM-driven) vs. Real dashboard data for one
  * year, per INSTRUCCIONES_Dashboard_Presupuesto_Dinamico.md sections 3-5.
  * `consensoByMonthUnit` (key `${month}|colchones`/`${month}|living`) and
- * `tcAsumidoByMonth` (key month) are business inputs that don't live in
- * Odoo — callers read them from Supabase and pass them in here.
+ * `tcAsumidoByMonth` (key month) are the MANUAL business inputs that don't
+ * live in Odoo — callers read them from Supabase and pass them in here.
+ * For already-closed months, real units sold fill in automatically (see
+ * buildEffectiveConsenso) — manual entry is only actually needed for the
+ * current/future months.
  */
 export async function getPresupuestoDinamicoData(
   year: number,
@@ -422,38 +476,55 @@ export async function getPresupuestoDinamicoData(
   const months = monthsBetween(`${year}-01`, `${year}-12`);
   const currentMonth = currentMonthKey();
 
-  const missingConsensoMonths = new Set<string>();
-  for (const month of months) {
-    const hasColchones = consensoByMonthUnit.has(`${month}|colchones`);
-    const hasLiving = consensoByMonthUnit.has(`${month}|living`);
-    if (!hasColchones || !hasLiving) missingConsensoMonths.add(month);
-  }
+  const { effective: effectiveConsensoByMonthUnit, missingConsensoMonths } = await buildEffectiveConsenso(
+    months,
+    consensoByMonthUnit,
+    currentMonth
+  );
 
-  const [bomExplosion, spotFx, realLines] = await Promise.all([
-    getBomExplosion(),
+  const [bomByModel, spotFx, realLines] = await Promise.all([
+    getBomByModeloBaseKey(),
     getUsdToArsRate(),
     fetchRealPurchaseLines(year),
   ]);
 
-  const eligibleTemplateIds = new Set(bomExplosion.byTemplateId.keys());
+  const eligibleBaseNameKeys = new Set(bomByModel.keys());
   const [colchonesMix, livingMix] = await Promise.all([
-    getModelSalesMix('colchones', eligibleTemplateIds),
-    getModelSalesMix('living', eligibleTemplateIds),
+    getModelSalesMix('colchones', eligibleBaseNameKeys),
+    getModelSalesMix('living', eligibleBaseNameKeys),
   ]);
-  const mixByUnit: Record<BusinessUnit, ModelSalesShare[]> = { colchones: colchonesMix, living: livingMix };
+  const mixByUnit: Record<BusinessUnit, ModelSalesShare[]> = { colchones: colchonesMix.shares, living: livingMix.shares };
+  const modelosSinBomReconocido = [...new Set([...colchonesMix.unmatchedBaseNames, ...livingMix.unmatchedBaseNames])].sort();
+
+  // Resolve every insumo name the sold-and-matched models' BOM rows
+  // reference to a live Odoo product_id — regla 4.1 ("cruzar por
+  // product_id, nunca por texto"): from here on, every join uses the id.
+  const referencedInsumoKeys = new Set<string>();
+  for (const mix of [colchonesMix.shares, livingMix.shares]) {
+    for (const model of mix) {
+      for (const row of bomByModel.get(model.baseNameKey) ?? []) referencedInsumoKeys.add(row.insumoKey);
+    }
+  }
+  const productIdByInsumoKey = await resolveInsumoProductIds([...referencedInsumoKeys]);
+  const unresolvedInsumoNames = new Map<string, string>(); // insumoKey -> display name
 
   // Step 1-3 of section 3: consenso × mix × BOM, accumulated per insumo/month.
   const neededByProductMonth = new Map<string, number>(); // key `${productId}|${month}`
   for (const month of months) {
     if (missingConsensoMonths.has(month)) continue; // presupuestado stays null for this month, see below
     for (const unit of ['colchones', 'living'] as const) {
-      const unidades = consensoByMonthUnit.get(`${month}|${unit}`)!;
+      const unidades = effectiveConsensoByMonthUnit.get(`${month}|${unit}`)!;
       for (const model of mixByUnit[unit]) {
         const modelUnits = unidades * (model.sharePct / 100);
         if (modelUnits === 0) continue;
-        for (const leaf of bomExplosion.byTemplateId.get(model.templateId) ?? []) {
-          const key = `${leaf.productId}|${month}`;
-          neededByProductMonth.set(key, (neededByProductMonth.get(key) ?? 0) + modelUnits * leaf.qtyPerUnit);
+        for (const row of bomByModel.get(model.baseNameKey) ?? []) {
+          const productId = productIdByInsumoKey.get(row.insumoKey);
+          if (productId === undefined) {
+            unresolvedInsumoNames.set(row.insumoKey, row.insumoNombre);
+            continue;
+          }
+          const key = `${productId}|${month}`;
+          neededByProductMonth.set(key, (neededByProductMonth.get(key) ?? 0) + modelUnits * row.qty);
         }
       }
     }
@@ -462,29 +533,30 @@ export async function getPresupuestoDinamicoData(
   const presupuestadoProductIds = new Set([...neededByProductMonth.keys()].map((k) => Number(k.split('|')[0])));
   const parentById = await getCategoryParentMap();
 
-  const allCostLookupIds = [...new Set([...presupuestadoProductIds, ...realLines.involvedProductIds, ...bomExplosion.possibleCircularComponentIds])];
+  const allCostLookupIds = [...new Set([...presupuestadoProductIds, ...realLines.involvedProductIds])];
   const costs = await getInsumoCosts(allCostLookupIds);
 
-  // Regla 4.4 — detect generic-shaped leaf components (referenced by many
-  // models at qty≈1) that also have zero cost, confirming they're a true
-  // shared placeholder and not a real, priced sub-assembly that merely
-  // happens to be used once per unit (see bom-explosion.ts's doc comment
-  // for the "TAP ONIX RINCONERO" case this used to misfire on).
-  const templateCountByLeaf = new Map<number, { count: number; allNearlyOne: boolean }>();
-  for (const leaves of bomExplosion.byTemplateId.values()) {
-    for (const leaf of leaves) {
-      const stat = templateCountByLeaf.get(leaf.productId) ?? { count: 0, allNearlyOne: true };
+  // Regla 4.4 — detect generic-shaped insumos (referenced by many models
+  // at qty≈1) that also have zero cost, confirming they're a true shared
+  // placeholder and not a real, priced material that merely happens to be
+  // used once per unit.
+  const shapeStatsByInsumoKey = new Map<string, { count: number; allNearlyOne: boolean }>();
+  for (const rows of bomByModel.values()) {
+    for (const row of rows) {
+      const stat = shapeStatsByInsumoKey.get(row.insumoKey) ?? { count: 0, allNearlyOne: true };
       stat.count += 1;
-      if (Math.abs(leaf.qtyPerUnit - 1) > GENERIC_QTY_TOLERANCE) stat.allNearlyOne = false;
-      templateCountByLeaf.set(leaf.productId, stat);
+      if (Math.abs(row.qty - 1) > GENERIC_QTY_TOLERANCE) stat.allNearlyOne = false;
+      shapeStatsByInsumoKey.set(row.insumoKey, stat);
     }
   }
+  const insumoKeyByProductId = new Map([...productIdByInsumoKey.entries()].map(([k, id]) => [id, k]));
   const genericProductIds = new Set<number>();
   for (const productId of presupuestadoProductIds) {
     const cost = costs.get(productId);
     if (!cost || cost.hasCost) continue;
-    const stat = templateCountByLeaf.get(productId);
-    if (stat && stat.count >= GENERIC_MIN_TEMPLATE_REFERENCES && stat.allNearlyOne) genericProductIds.add(productId);
+    const insumoKey = insumoKeyByProductId.get(productId);
+    const stat = insumoKey ? shapeStatsByInsumoKey.get(insumoKey) : undefined;
+    if (stat && stat.count >= GENERIC_MIN_MODEL_REFERENCES && stat.allNearlyOne) genericProductIds.add(productId);
   }
 
   // Step 4 of section 3: cost the presupuestado quantities, converting
@@ -518,7 +590,7 @@ export async function getPresupuestoDinamicoData(
   const { redistributedProductIds } = await redistributeGenericBudgets({
     genericProductIds,
     costs,
-    consensoByMonthUnit,
+    consensoByMonthUnit: effectiveConsensoByMonthUnit,
     months,
     missingConsensoMonths,
     presupuestadoByProductMonth,
@@ -529,20 +601,23 @@ export async function getPresupuestoDinamicoData(
   // riding on this heuristic rather than a direct BOM cost), no cost
   // loaded, BOM pointing outside Materia Prima, or a circular branch that
   // got cut short. Deduped by productId, first reason wins.
-  const gapsById = new Map<number, GapInsumo>();
-  function addGap(productId: number, reason: GapReason) {
-    if (gapsById.has(productId)) return;
-    const cost = costs.get(productId);
-    gapsById.set(productId, { productId, productName: cost?.productName ?? `#${productId}`, reason });
+  const gapsById = new Map<string, GapInsumo>();
+  function addGap(dedupeKey: string, productId: number | null, productName: string, reason: GapReason) {
+    if (gapsById.has(dedupeKey)) return;
+    gapsById.set(dedupeKey, { productId, productName, reason });
   }
-  for (const id of genericProductIds) addGap(id, 'componente-generico-sin-repartir');
-  for (const id of bomExplosion.possibleCircularComponentIds) addGap(id, 'posible-bom-circular');
+  for (const id of genericProductIds) {
+    addGap(`p${id}`, id, costs.get(id)?.productName ?? `#${id}`, 'componente-generico-sin-repartir');
+  }
+  for (const [insumoKey, insumoName] of unresolvedInsumoNames) {
+    addGap(`u${insumoKey}`, null, insumoName, 'insumo-no-encontrado');
+  }
   for (const productId of presupuestadoProductIds) {
     if (genericProductIds.has(productId)) continue;
     const cost = costs.get(productId);
-    if (!cost) addGap(productId, 'sin-costo');
-    else if (!isMateriaPrima(cost.categId, parentById)) addGap(productId, 'no-es-materia-prima');
-    else if (!cost.hasCost) addGap(productId, 'sin-costo');
+    if (!cost) addGap(`p${productId}`, productId, `#${productId}`, 'sin-costo');
+    else if (!isMateriaPrima(cost.categId, parentById)) addGap(`p${productId}`, productId, cost.productName, 'no-es-materia-prima');
+    else if (!cost.hasCost) addGap(`p${productId}`, productId, cost.productName, 'sin-costo');
   }
 
   // Real, restricted to Materia Prima insumos (the counterpart of the
@@ -644,6 +719,7 @@ export async function getPresupuestoDinamicoData(
     missingConsensoMonths: [...missingConsensoMonths].sort(),
     missingTcMonths: [...missingTcMonths].sort(),
     monthlyComplianceSummary,
+    modelosSinBomReconocido,
   };
 }
 
@@ -673,8 +749,8 @@ export async function getFueraDeAlcance(year: number): Promise<FueraDeAlcanceRes
   return { year, months, categories };
 }
 
-/** Confirms the year's BOM/sales-mix universe has active, BOM-explodable models — cheap sanity check for the UI's "no models found" empty state. */
+/** Confirms the BOM CSV actually has data — cheap sanity check for the UI's "no models found" empty state. */
 export async function hasEligibleModels(): Promise<boolean> {
-  const models = await getActiveModelsWithBom();
-  return models.length > 0;
+  const bomByModel = await getBomByModeloBaseKey();
+  return bomByModel.size > 0;
 }

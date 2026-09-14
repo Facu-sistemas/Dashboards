@@ -25,10 +25,10 @@ export interface CategoryGroup {
   annual: InsumoMonthFigure;
 }
 
-export type GapReason = 'sin-costo' | 'componente-generico-sin-repartir' | 'no-es-materia-prima' | 'posible-bom-circular';
+export type GapReason = 'sin-costo' | 'componente-generico-sin-repartir' | 'no-es-materia-prima' | 'insumo-no-encontrado';
 
 export interface GapInsumo {
-  productId: number;
+  productId: number | null;
   productName: string;
   reason: GapReason;
 }
@@ -41,6 +41,7 @@ export interface PresupuestoDinamicoResult {
   missingConsensoMonths: string[];
   missingTcMonths: string[];
   monthlyComplianceSummary: { month: string; compliancePct: number | null }[];
+  modelosSinBomReconocido: string[];
 }
 
 export interface FueraDeAlcanceCategoryRow {

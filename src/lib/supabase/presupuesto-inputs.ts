@@ -67,6 +67,18 @@ export async function upsertTcAsumido(userId: string, mes: string, tc: number): 
   if (error) throw new Error(error.message);
 }
 
+export async function deleteConsensoUnidades(mes: string, unidadNegocio: BusinessUnit): Promise<void> {
+  const admin = getSupabaseAdminClient();
+  const { error } = await admin.from('presupuesto_consenso_unidades').delete().eq('mes', mes).eq('unidad_negocio', unidadNegocio);
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteTcAsumido(mes: string): Promise<void> {
+  const admin = getSupabaseAdminClient();
+  const { error } = await admin.from('presupuesto_tc_asumido').delete().eq('mes', mes);
+  if (error) throw new Error(error.message);
+}
+
 export function consensoByMonthUnitMap(rows: ConsensoUnidadesRow[]): Map<string, number> {
   return new Map(rows.map((r) => [`${r.mes}|${r.unidadNegocio}`, r.unidades]));
 }

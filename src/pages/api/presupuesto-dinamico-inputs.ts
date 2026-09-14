@@ -1,6 +1,13 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { getConsensoUnidades, getTcAsumido, upsertConsensoUnidades, upsertTcAsumido } from '../../lib/supabase/presupuesto-inputs';
+import {
+  getConsensoUnidades,
+  getTcAsumido,
+  upsertConsensoUnidades,
+  upsertTcAsumido,
+  deleteConsensoUnidades,
+  deleteTcAsumido,
+} from '../../lib/supabase/presupuesto-inputs';
 import { handleApiRoute, jsonResponse, ApiValidationError } from '../../lib/api-helpers';
 
 export const prerender = false;
@@ -23,6 +30,19 @@ const tcSchema = z.object({
 });
 
 const postSchema = z.union([consensoSchema, tcSchema]);
+
+const deleteConsensoSchema = z.object({
+  type: z.literal('consenso'),
+  mes: mesSchema,
+  unidadNegocio: z.enum(['colchones', 'living']),
+});
+
+const deleteTcSchema = z.object({
+  type: z.literal('tc'),
+  mes: mesSchema,
+});
+
+const deleteSchema = z.union([deleteConsensoSchema, deleteTcSchema]);
 
 function requireComprasAccess(context: { locals: App.Locals }): Response | null {
   if (!context.locals.usuario?.areasPermitidas.includes('finanzas')) {
@@ -71,5 +91,32 @@ export const POST: APIRoute = async (context) => {
       await upsertTcAsumido(userId, parsed.data.mes, parsed.data.tc);
     }
     return { saved: true };
+  });
+};
+
+// DELETE /api/presupuesto-dinamico-inputs — borra un valor de consenso de unidades o de TC asumido.
+export const DELETE: APIRoute = async (context) => {
+  const denied = requireComprasAccess(context);
+  if (denied) return denied;
+
+  return handleApiRoute(async () => {
+    let body: unknown;
+    try {
+      body = await context.request.json();
+    } catch {
+      throw new ApiValidationError('JSON inválido');
+    }
+
+    const parsed = deleteSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new ApiValidationError(parsed.error.issues.map((i) => i.message).join('; '));
+    }
+
+    if (parsed.data.type === 'consenso') {
+      await deleteConsensoUnidades(parsed.data.mes, parsed.data.unidadNegocio);
+    } else {
+      await deleteTcAsumido(parsed.data.mes);
+    }
+    return { deleted: true };
   });
 };

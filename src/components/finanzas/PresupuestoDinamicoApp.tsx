@@ -159,6 +159,7 @@ function PresupuestoDinamicoInner({ initialYear }: { initialYear: number }) {
             gaps={data?.gaps ?? []}
             missingConsensoMonths={displayMissingConsensoMonths}
             missingTcMonths={displayMissingTcMonths}
+            modelosSinBomReconocido={data?.modelosSinBomReconocido ?? []}
           />
         )}
       </section>

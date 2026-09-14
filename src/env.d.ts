@@ -16,6 +16,8 @@ interface ImportMetaEnv {
   readonly VERCEL_GIT_COMMIT_SHA?: string;
   readonly VERCEL_GIT_COMMIT_MESSAGE?: string;
   readonly VERCEL_GIT_COMMIT_REF?: string;
+  /** Deployment hostname (no protocol) — used to build an absolute URL for server-side same-origin fetches (e.g. reading public/BOM_crudo.csv, since a filesystem read isn't guaranteed to see public/ on Vercel's serverless runtime). */
+  readonly VERCEL_URL?: string;
 }
 
 interface ImportMeta {
