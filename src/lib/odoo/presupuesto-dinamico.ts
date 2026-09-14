@@ -2,6 +2,7 @@ import { searchReadAll } from './client';
 import { getFronteraCompany } from './reference';
 import { getUsdToArsRate } from './currency';
 import { getBomByModeloBaseKey } from '../bom-csv';
+import { getProduccionConsenso } from '../consenso-csv';
 import { getModelSalesMix, getMonthlyUnitsSold, type BusinessUnit, type ModelSalesShare } from './sales-mix';
 import { getInsumoCosts, resolveInsumoProductIds, type InsumoCost } from './insumo-costs';
 import { getHistoricalUsdArsRates } from './fx-historical';
@@ -408,45 +409,61 @@ async function redistributeGenericBudgets(params: {
 }
 
 /**
- * "Consenso de unidades" for already-CLOSED months isn't actually a guess
- * — real units sold already happened, and getMonthlyUnitsSold (the same
- * finished-model sale.order.line query the mix calculation itself uses)
- * IS that number, by business unit. Using it here means the dashboard
- * needs zero manual entry for the past — only the still-open current
- * month and future months (nothing sold yet) genuinely require a
- * human-entered plan. An explicit manual entry (typed into the Compras
- * form) always wins over the derived value, even for a closed month, in
- * case Compras deliberately wants to override it.
+ * "Consenso de unidades", layered from most to least authoritative:
+ *
+ * 1. Manual entry (Supabase, typed into the Compras form) — an explicit
+ *    override always wins, for any month.
+ * 2. The real "Producción Consensuado" plan (consenso-csv.ts) — confirmed
+ *    live (2026-09) this is the dominant input: loading January's real
+ *    values (6,480 colchones / 792 sillones) instead of a guess moved
+ *    TDI's presupuestado from 4% to 60% of Marlynet's reference number.
+ *    Applies to ANY month it covers, past or future — it's Producción's
+ *    own forward plan, which is exactly what "presupuestado" is supposed
+ *    to project from, not a backward-looking actual.
+ * 3. Real units sold (getMonthlyUnitsSold) — last-resort fallback, only
+ *    for already-CLOSED months the CSV doesn't cover, so the dashboard
+ *    still shows something better than a gap for old data the planning
+ *    sheet doesn't reach back to.
  *
  * Deliberately NOT sourced from OEE's mrp.production `qty_produced`
- * (oee.ts) — confirmed live that figure sums across the ENTIRE Colchones/
- * Living category tree, including every intermediate manufacturing order
- * (foam blocks, bases, etc.), not just finished units. January 2026 came
- * back as 7,221 "units" whose top entries were "ESPUMA CORONA..." and
- * "BASE OLIMPO..." — component-stage production, not finished sillones/
- * colchones sold. Using that here would double-count: once via an
- * already-inflated unit count, and again via this module's own recursive
- * BOM explosion re-deriving the same component-level needs from scratch.
+ * (oee.ts) for tier 3 — confirmed live that figure sums across the ENTIRE
+ * Colchones/Living category tree, including every intermediate
+ * manufacturing order (foam blocks, bases, etc.), not just finished
+ * units — January 2026 came back as 7,221 "units" whose top entries were
+ * "ESPUMA CORONA..." and "BASE OLIMPO...", component-stage production.
  */
 async function buildEffectiveConsenso(
   months: string[],
   manualConsensoByMonthUnit: Map<string, number>,
   currentMonth: string
 ): Promise<{ effective: Map<string, number>; missingConsensoMonths: Set<string> }> {
+  const effective = new Map<string, number>();
+
+  // Tier 3: real sales, closed months only — the weakest source, applied first so anything better overwrites it.
   const closedMonths = months.filter((m) => m < currentMonth);
   const [colchonesSold, livingSold] = closedMonths.length
     ? await Promise.all([getMonthlyUnitsSold('colchones', closedMonths), getMonthlyUnitsSold('living', closedMonths)])
     : [new Map<string, number>(), new Map<string, number>()];
   const soldByUnit: Record<BusinessUnit, Map<string, number>> = { colchones: colchonesSold, living: livingSold };
-
-  const effective = new Map(manualConsensoByMonthUnit);
   for (const month of closedMonths) {
     for (const unit of ['colchones', 'living'] as const) {
-      const key = `${month}|${unit}`;
-      if (effective.has(key)) continue; // manual override wins
-      effective.set(key, soldByUnit[unit].get(month) ?? 0);
+      const sold = soldByUnit[unit].get(month);
+      if (sold !== undefined) effective.set(`${month}|${unit}`, sold);
     }
   }
+
+  // Tier 2: the real Producción Consensuado plan, for any month it covers.
+  const produccionConsenso = await getProduccionConsenso();
+  const produccionByUnit: Record<BusinessUnit, Map<string, number>> = produccionConsenso;
+  for (const month of months) {
+    for (const unit of ['colchones', 'living'] as const) {
+      const planned = produccionByUnit[unit].get(month);
+      if (planned !== undefined) effective.set(`${month}|${unit}`, planned);
+    }
+  }
+
+  // Tier 1: manual override, always wins.
+  for (const [key, value] of manualConsensoByMonthUnit) effective.set(key, value);
 
   const missingConsensoMonths = new Set<string>();
   for (const month of months) {
@@ -464,9 +481,9 @@ async function buildEffectiveConsenso(
  * `consensoByMonthUnit` (key `${month}|colchones`/`${month}|living`) and
  * `tcAsumidoByMonth` (key month) are the MANUAL business inputs that don't
  * live in Odoo — callers read them from Supabase and pass them in here.
- * For already-closed months, real units sold fill in automatically (see
- * buildEffectiveConsenso) — manual entry is only actually needed for the
- * current/future months.
+ * They're the last-resort override; see buildEffectiveConsenso for the
+ * full priority order (manual > Producción Consensuado CSV > real sales
+ * fallback for closed months) — manual entry is rarely actually needed.
  */
 export async function getPresupuestoDinamicoData(
   year: number,
