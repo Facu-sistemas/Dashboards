@@ -1,0 +1,40 @@
+---
+import PresupuestoDinamicoApp from './PresupuestoDinamicoApp';
+import { buildPresupuestoDinamicoDehydratedState } from '../../lib/presupuesto-dinamico-ssr';
+
+const params = Astro.url.searchParams;
+const yearParam = params.get('year');
+const currentYear = new Date().getUTCFullYear();
+const initialYear = yearParam && /^\d{4}$/.test(yearParam) ? Number(yearParam) : currentYear;
+
+let dehydratedState;
+let ssrError: string | null = null;
+try {
+  dehydratedState = await buildPresupuestoDinamicoDehydratedState(initialYear);
+} catch (err) {
+  ssrError = err instanceof Error ? err.message : 'Error desconocido consultando Odoo';
+}
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Presupuesto de Compras (BOM) — Presupuestado vs. Real</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Explota el plan de ventas contra la Lista de Materiales de cada modelo para proyectar la
+      compra de materia prima, y la compara contra lo efectivamente comprado en Odoo. Datos en
+      vivo, solo lectura — salvo el consenso de unidades y el TC asumido, que son inputs de
+      negocio editables acá mismo.
+    </p>
+  </header>
+
+  {
+    ssrError && (
+      <p class="mb-6 rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">
+        No se pudo precargar la data desde Odoo en el servidor ({ssrError}). El panel
+        intentará cargar los datos desde el navegador.
+      </p>
+    )
+  }
+
+  <PresupuestoDinamicoApp client:load initialYear={initialYear} dehydratedState={dehydratedState} />
+</div>

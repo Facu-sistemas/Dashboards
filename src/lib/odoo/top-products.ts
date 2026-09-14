@@ -18,7 +18,7 @@ export interface TopProductsResult {
   living: TopProductRow[];
 }
 
-interface CategoryRankingConfig {
+export interface CategoryRankingConfig {
   rootCategId: number;
   excludeCategIds: number[];
 }
@@ -26,8 +26,11 @@ interface CategoryRankingConfig {
 // Confirmed live against Odoo (2026-08): all six excluded ids are leaf
 // categories with no children of their own, so a plain `not in` is
 // sufficient — no need for a recursive "not descendant of" domain.
-const COLCHONES_CONFIG: CategoryRankingConfig = { rootCategId: 5, excludeCategIds: [8, 6, 45] };
-const LIVING_CONFIG: CategoryRankingConfig = { rootCategId: 1, excludeCategIds: [4, 16, 46] };
+// Exported for reuse by sales-mix.ts (Compras' presupuesto dinámico
+// dashboard needs the same Colchones/Living root category split for its
+// model sales-mix calculation) — do not fork a second copy of these ids.
+export const COLCHONES_CONFIG: CategoryRankingConfig = { rootCategId: 5, excludeCategIds: [8, 6, 45] };
+export const LIVING_CONFIG: CategoryRankingConfig = { rootCategId: 1, excludeCategIds: [4, 16, 46] };
 
 interface VariantGroup {
   variantId: number;
