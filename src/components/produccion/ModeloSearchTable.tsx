@@ -48,58 +48,73 @@ export default function ModeloSearchTable({ selectedModelo, onSelect, onDataUpda
         className="rounded border border-slate-700 bg-slate-950 px-3 py-1.5 text-sm text-slate-100 placeholder:text-slate-600 focus:border-brand-500 focus:outline-none"
       />
 
-      <div className="max-h-96 overflow-y-auto rounded border border-slate-800">
-        <table className="w-full border-collapse text-sm">
-          <tbody>
-            {query.isLoading ? (
-              <tr>
-                <td className="py-6 text-center text-slate-500">Cargando…</td>
-              </tr>
-            ) : items.length === 0 ? (
-              <tr>
-                <td className="py-6 text-center text-slate-500">Sin resultados.</td>
-              </tr>
-            ) : (
-              items.map((m) => (
-                <tr
-                  key={m.name}
-                  onClick={() => onSelect(m.name)}
-                  className={`cursor-pointer border-b border-slate-800/60 last:border-0 hover:bg-slate-800/60 ${
-                    selectedModelo === m.name ? 'bg-brand-500/10' : ''
-                  }`}
-                >
-                  <td className="py-2 px-3 text-slate-200">{m.name}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="flex items-center justify-between text-xs text-slate-500">
-        <span>{total} modelos</span>
-        <div className="flex items-center gap-2">
+      {query.isError ? (
+        <div className="flex items-center justify-between gap-3 rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">
+          <span>No se pudo cargar la lista de modelos desde Odoo.</span>
           <button
             type="button"
-            disabled={page === 0}
-            onClick={() => setPage((p) => p - 1)}
-            className="rounded border border-slate-700 px-2 py-1 disabled:opacity-40"
+            onClick={() => query.refetch()}
+            className="shrink-0 rounded border border-red-800 px-2 py-1 text-xs text-red-300 hover:bg-red-900/40"
           >
-            Anterior
-          </button>
-          <span>
-            Página {page + 1} de {totalPages}
-          </span>
-          <button
-            type="button"
-            disabled={page + 1 >= totalPages}
-            onClick={() => setPage((p) => p + 1)}
-            className="rounded border border-slate-700 px-2 py-1 disabled:opacity-40"
-          >
-            Siguiente
+            Reintentar
           </button>
         </div>
-      </div>
+      ) : (
+        <>
+          <div className="max-h-96 overflow-y-auto rounded border border-slate-800">
+            <table className="w-full border-collapse text-sm">
+              <tbody>
+                {query.isLoading ? (
+                  <tr>
+                    <td className="py-6 text-center text-slate-500">Cargando…</td>
+                  </tr>
+                ) : items.length === 0 ? (
+                  <tr>
+                    <td className="py-6 text-center text-slate-500">Sin resultados.</td>
+                  </tr>
+                ) : (
+                  items.map((m) => (
+                    <tr
+                      key={m.name}
+                      onClick={() => onSelect(m.name)}
+                      className={`cursor-pointer border-b border-slate-800/60 last:border-0 hover:bg-slate-800/60 ${
+                        selectedModelo === m.name ? 'bg-brand-500/10' : ''
+                      }`}
+                    >
+                      <td className="py-2 px-3 text-slate-200">{m.name}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex items-center justify-between text-xs text-slate-500">
+            <span>{total} modelos</span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={page === 0}
+                onClick={() => setPage((p) => p - 1)}
+                className="rounded border border-slate-700 px-2 py-1 disabled:opacity-40"
+              >
+                Anterior
+              </button>
+              <span>
+                Página {page + 1} de {totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={page + 1 >= totalPages}
+                onClick={() => setPage((p) => p + 1)}
+                className="rounded border border-slate-700 px-2 py-1 disabled:opacity-40"
+              >
+                Siguiente
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
