@@ -1,5 +1,5 @@
 import { searchRead } from './client';
-import { withTtlCache } from '../cache';
+import { OdooError } from './types';
 
 /**
  * The BOM-de-listones table ("Bom_liston" in the sidebar, under Fabricación
@@ -17,7 +17,6 @@ import { withTtlCache } from '../cache';
  * shape hasn't changed.
  */
 const DASHBOARD_ID = 37;
-const DASHBOARD_TTL_MS = 5 * 60 * 1000;
 
 // Columns confirmed live: A=MODELO_SILLON, B=MEDIDA_LISTON, C=LARGO_LISTON_CM, E=CANTIDAD, F=COLOR (D is a blank spacer).
 const COL_MODELO = 'A';
@@ -81,7 +80,20 @@ function resolveColor(medida: string, largoCm: number, negro: Set<string>): List
 
 /** Parses every data row out of the embedded spreadsheet, normalizing medida casing (the sheet has a mix of "1x2"/"1X2"), and drops any "NO TRAER" medida+largo combo entirely. */
 function parseBomListonSheet(snapshotBase64: string): BomListonRow[] {
-  const doc = JSON.parse(Buffer.from(snapshotBase64, 'base64').toString('utf8')) as SheetDoc;
+  let doc: SheetDoc;
+  try {
+    doc = JSON.parse(Buffer.from(snapshotBase64, 'base64').toString('utf8')) as SheetDoc;
+  } catch (err) {
+    // The embedded-spreadsheet format is undocumented/internal (see the
+    // doc comment above) — a parse failure here almost always means an
+    // Odoo upgrade changed the snapshot's shape, not a transient glitch.
+    // Surface that clearly instead of letting a raw JSON.parse error (or
+    // worse, a silently empty list) reach the user.
+    throw new OdooError('No se pudo leer la planilla de listones (formato inesperado) — puede haber cambiado tras una actualización de Odoo', err);
+  }
+  if (!Array.isArray(doc.sheets)) {
+    throw new OdooError('No se pudo leer la planilla de listones (formato inesperado) — puede haber cambiado tras una actualización de Odoo');
+  }
   const sheet = doc.sheets.find((s) => s.name !== COLOR_SHEET_NAME) ?? doc.sheets[0];
   const cells = sheet?.cells ?? {};
   const colorSheet = doc.sheets.find((s) => s.name === COLOR_SHEET_NAME);
@@ -109,18 +121,30 @@ function parseBomListonSheet(snapshotBase64: string): BomListonRow[] {
   return rows;
 }
 
+/**
+ * No caching here on purpose (past a version that wrapped this in a
+ * 5-minute TTL cache): a full page refresh must always reflect the
+ * latest edits to the Odoo spreadsheet, and this is a single-row,
+ * single-field read — cheap enough that there's no real cost to hitting
+ * Odoo fresh every time. `searchRead` still de-dupes genuinely
+ * simultaneous calls (e.g. the modelo list and a selected receta on the
+ * same page load) via client.ts's own short-burst cache.
+ */
 async function getBomListonRows(): Promise<BomListonRow[]> {
-  return withTtlCache('carpinteria:bom-liston-sheet', DASHBOARD_TTL_MS, async () => {
-    const records = await searchRead<{ spreadsheet_snapshot: string }>({
-      model: 'spreadsheet.dashboard',
-      domain: [['id', '=', DASHBOARD_ID]],
-      fields: ['spreadsheet_snapshot'],
-      limit: 1,
-    });
-    const snapshot = records[0]?.spreadsheet_snapshot;
-    if (!snapshot) return [];
-    return parseBomListonSheet(snapshot);
+  const records = await searchRead<{ spreadsheet_snapshot: string }>({
+    model: 'spreadsheet.dashboard',
+    domain: [['id', '=', DASHBOARD_ID]],
+    fields: ['spreadsheet_snapshot'],
+    limit: 1,
   });
+  const snapshot = records[0]?.spreadsheet_snapshot;
+  if (!snapshot) {
+    // Distinguish "the integration is broken" (record renamed/deleted,
+    // field cleared, permissions changed) from "genuinely no rows yet" —
+    // an empty recipe sheet still has a snapshot with an empty cell map.
+    throw new OdooError(`No se encontró la planilla de listones en Odoo (spreadsheet.dashboard id=${DASHBOARD_ID})`);
+  }
+  return parseBomListonSheet(snapshot);
 }
 
 export interface ModeloCarpinteriaOption {
