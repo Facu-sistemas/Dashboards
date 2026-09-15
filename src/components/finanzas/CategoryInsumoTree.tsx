@@ -9,10 +9,10 @@ interface Props {
   year: number;
 }
 
-function FigureCells({ figure, onDrillDown }: { figure: InsumoMonthFigure; onDrillDown?: () => void }) {
+function FigureCells({ figure, onDrillDown, divider }: { figure: InsumoMonthFigure; onDrillDown?: () => void; divider?: boolean }) {
   return (
     <>
-      <td className="py-1.5 pr-3 text-right text-slate-300">
+      <td className={`py-1.5 pr-3 text-right text-slate-300 ${divider ? 'border-l border-slate-800' : ''}`}>
         {figure.presupuestado === null ? (
           <span className="text-slate-600">—</span>
         ) : onDrillDown ? (
@@ -60,23 +60,23 @@ export default function CategoryInsumoTree({ categories, months, year }: Props) 
         <thead>
           <tr className="border-b border-slate-800 text-left text-xs uppercase tracking-wide text-slate-500">
             <th className="sticky left-0 bg-slate-900 py-2 pr-4 font-medium">Categoría / Insumo</th>
-            {months.map((m) => (
-              <th key={m} colSpan={3} className="py-2 pr-4 font-medium">
+            {months.map((m, i) => (
+              <th key={m} colSpan={3} className={`py-2 pr-4 text-center font-medium ${i > 0 ? 'border-l border-slate-800' : ''}`}>
                 {monthLabel(m)}
               </th>
             ))}
-            <th colSpan={3} className="py-2 font-medium">Anual</th>
+            <th colSpan={3} className="border-l border-slate-800 py-2 text-center font-medium">Anual</th>
           </tr>
           <tr className="border-b border-slate-800 text-right text-[11px] uppercase tracking-wide text-slate-600">
             <th className="sticky left-0 bg-slate-900 py-1.5 pr-4 text-left font-normal"></th>
-            {months.map((m) => (
+            {months.map((m, i) => (
               <Fragment key={m}>
-                <th className="py-1.5 pr-3 font-normal">Presup.</th>
+                <th className={`py-1.5 pr-3 font-normal ${i > 0 ? 'border-l border-slate-800' : ''}`}>Presup.</th>
                 <th className="py-1.5 pr-3 font-normal">Real</th>
                 <th className="py-1.5 pr-4 font-normal">%</th>
               </Fragment>
             ))}
-            <th className="py-1.5 pr-3 font-normal">Presup.</th>
+            <th className="border-l border-slate-800 py-1.5 pr-3 font-normal">Presup.</th>
             <th className="py-1.5 pr-3 font-normal">Real</th>
             <th className="py-1.5 pr-4 font-normal">%</th>
           </tr>
@@ -98,20 +98,21 @@ export default function CategoryInsumoTree({ categories, months, year }: Props) 
                       <span className="text-xs font-normal text-slate-500">({cat.insumos.length})</span>
                     </button>
                   </td>
-                  {months.map((m) => (
-                    <FigureCells key={`${cat.categoryId}-${m}`} figure={cat.months[m]!} />
+                  {months.map((m, i) => (
+                    <FigureCells key={`${cat.categoryId}-${m}`} figure={cat.months[m]!} divider={i > 0} />
                   ))}
-                  <FigureCells figure={cat.annual} />
+                  <FigureCells figure={cat.annual} divider />
                 </tr>
 
                 {isExpanded &&
                   cat.insumos.map((insumo) => (
                     <tr key={`insumo-${insumo.productId}`} className="border-b border-slate-800/40 last:border-0">
                       <td className="sticky left-0 bg-slate-900 py-1.5 pr-4 pl-6 text-slate-300">{insumo.productName}</td>
-                      {months.map((m) => (
+                      {months.map((m, i) => (
                         <FigureCells
                           key={`${insumo.productId}-${m}`}
                           figure={insumo.months[m]!}
+                          divider={i > 0}
                           onDrillDown={
                             insumo.months[m]!.presupuestado !== null
                               ? () => setDrillDown({ productId: insumo.productId, productName: insumo.productName, month: m })
@@ -119,7 +120,7 @@ export default function CategoryInsumoTree({ categories, months, year }: Props) 
                           }
                         />
                       ))}
-                      <FigureCells figure={insumo.annual} />
+                      <FigureCells figure={insumo.annual} divider />
                     </tr>
                   ))}
               </Fragment>
