@@ -886,16 +886,17 @@ export async function getFueraDeAlcance(year: number): Promise<FueraDeAlcanceRes
 
 /**
  * Drops every short-TTL cache entry this dashboard's data passes through
- * (real purchase-line enrichment, the BOM/Producción CSVs, the insumo
- * name index, the spot FX rate), for the UI's manual "Recalcular" action.
- * Every one of these already expires on its own within minutes — this
- * only lets a user force that now instead of waiting it out, e.g. right
- * after confirming a purchase order or updating a cost in Odoo.
+ * (real purchase-line enrichment, the insumo name index, the spot FX
+ * rate), for the UI's manual "Recalcular" action. Every one of these
+ * already expires on its own within minutes — this only lets a user force
+ * that now instead of waiting it out, e.g. right after confirming a
+ * purchase order or updating a cost in Odoo. The BOM/Producción CSVs
+ * aren't in here — they're bundled at build time (bom-csv.ts,
+ * consenso-csv.ts), not fetched/cached at request time, so a new number
+ * there needs a redeploy, not a recalculate.
  */
 export function invalidatePresupuestoDinamicoCache(): void {
   invalidateByPrefix('presupuesto-dinamico:real-range');
-  invalidateByPrefix('bom-csv:rows');
-  invalidateByPrefix('consenso-csv:produccion');
   invalidateByPrefix('insumo-costs:name-index');
   invalidateByPrefix('fx:usd-ars:latest');
 }

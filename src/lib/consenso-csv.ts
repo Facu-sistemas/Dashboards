@@ -1,5 +1,3 @@
-import { withTtlCache } from './cache';
-
 /**
  * Real "unidades consensuadas" — Producción's own forward plan for
  * Colchones/Sillones, from the same validated planning spreadsheet
@@ -18,24 +16,46 @@ import { withTtlCache } from './cache';
  * (an all-caps label row with empty month columns) rather than matching
  * the row label alone, to never silently grab the wrong block.
  *
- * This is a year-specific file, named "Proyeccion ventas {año}.csv" — when
- * a new year's version is dropped into public/ following that same naming
- * convention, set env var PROYECCION_VENTAS_YEAR (no code change/deploy
- * needed); if it's ever named differently, CSV_PUBLIC_PATH below still
- * needs a manual edit.
+ * This is a year-specific file, named "Proyeccion ventas {año}.csv", read
+ * from `src/data/` (NOT `public/`) via Vite's `import.meta.glob` — every
+ * matching file gets bundled at build time and the right one is picked at
+ * runtime by PROYECCION_VENTAS_YEAR (default 2026, see .env.example).
+ * Deliberately NOT a runtime `fetch()` of the site's own `public/` origin
+ * (what this used to do, same pattern as bom-csv.ts): confirmed live
+ * (2026-09-15) that self-fetch silently returns something that isn't the
+ * CSV in production — most likely Vercel's deployment-protection
+ * challenge page, HTTP 200 with HTML, not an error the fetch code could
+ * catch — and the parser below has no way to tell that apart from a
+ * genuinely empty file. Every month came back "missing consenso" with no
+ * error anywhere. A build-time import removes the self-fetch entirely, so
+ * there's nothing left to be protected, redirected, or time out.
+ *
+ * To add next year's file: drop "Proyeccion ventas {año}.csv" into
+ * `src/data/` and set PROYECCION_VENTAS_YEAR — no other code change.
  */
 const PROYECCION_YEAR = Number(import.meta.env.PROYECCION_VENTAS_YEAR) || 2026;
-const CSV_PUBLIC_PATH = `/Proyeccion ventas ${PROYECCION_YEAR}.csv`;
-const CSV_TTL_MS = 10 * 60 * 1000;
 const TARGET_SECTION = 'PRODUCCION CONSENSUADO';
 const SILLONES_ROW_LABEL = 'CONSENSUADO SILLONES EQUIVALENTE';
 const COLCHONES_ROW_LABEL = 'CONSENSUADO COLCHONES UNIDAD';
 const MONTH_COLUMN_INDEX_START = 3; // column 3 = ENERO, ... column 14 = DICIEMBRE
 
-function getSiteOrigin(): string {
-  const vercelUrl = import.meta.env.VERCEL_URL as string | undefined;
-  if (vercelUrl) return `https://${vercelUrl}`;
-  return 'http://localhost:4321';
+// Eager + raw: every "Proyeccion ventas *.csv" under src/data/ is bundled
+// as a plain string at build time, keyed by its file path.
+const PROYECCION_FILES = import.meta.glob('../data/Proyeccion ventas *.csv', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>;
+
+function getProyeccionCsvText(): string {
+  const path = Object.keys(PROYECCION_FILES).find((p) => p.endsWith(`Proyeccion ventas ${PROYECCION_YEAR}.csv`));
+  if (!path) {
+    const available = Object.keys(PROYECCION_FILES).join(', ') || '(ninguno)';
+    throw new Error(
+      `No se encontró "Proyeccion ventas ${PROYECCION_YEAR}.csv" en src/data/ (PROYECCION_VENTAS_YEAR=${PROYECCION_YEAR}). Archivos disponibles: ${available}`
+    );
+  }
+  return PROYECCION_FILES[path]!;
 }
 
 function parseNumberEsAr(raw: string): number | null {
@@ -45,23 +65,15 @@ function parseNumberEsAr(raw: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+let cachedConsenso: { colchones: Map<string, number>; living: Map<string, number> } | undefined;
+
 /** Returns `${YYYY-MM}` -> unidades, keyed `colchones`/`living`, only for months the CSV actually has a value for. */
-async function fetchProduccionConsenso(): Promise<{ colchones: Map<string, number>; living: Map<string, number> }> {
+function parseProduccionConsenso(): { colchones: Map<string, number>; living: Map<string, number> } {
   const colchones = new Map<string, number>();
   const living = new Map<string, number>();
 
-  const url = `${getSiteOrigin()}${encodeURI(CSV_PUBLIC_PATH)}`;
-  let res: Response;
-  try {
-    res = await fetch(url);
-  } catch (err) {
-    throw new Error(`No se pudo leer la Proyección de Ventas (${url})`, { cause: err });
-  }
-  if (!res.ok) throw new Error(`No se pudo leer la Proyección de Ventas (${url}): HTTP ${res.status}`);
-  const text = await res.text();
-
   let currentSection = '';
-  for (const line of text.split(/\r?\n/)) {
+  for (const line of getProyeccionCsvText().split(/\r?\n/)) {
     if (!line.trim()) continue;
     const fields = line.split(';');
     const label = (fields[1] ?? '').trim();
@@ -91,6 +103,8 @@ async function fetchProduccionConsenso(): Promise<{ colchones: Map<string, numbe
   return { colchones, living };
 }
 
+/** Synchronous in practice (the CSV is bundled at build time) — kept async so callers don't need to change when this stops being a network fetch. */
 export async function getProduccionConsenso(): Promise<{ colchones: Map<string, number>; living: Map<string, number> }> {
-  return withTtlCache('consenso-csv:produccion', CSV_TTL_MS, fetchProduccionConsenso);
+  if (!cachedConsenso) cachedConsenso = parseProduccionConsenso();
+  return cachedConsenso;
 }

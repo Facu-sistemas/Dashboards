@@ -1,4 +1,4 @@
-import { withTtlCache } from './cache';
+import bomCsvRaw from '../data/BOM_crudo.csv?raw';
 
 /**
  * The real "Presupuestado" BOM source — NOT Odoo's live `mrp.bom` (see
@@ -13,20 +13,24 @@ import { withTtlCache } from './cache';
  * Marlynet's validated reference numbers — e.g. VORANOL 3011 (POLIOL) =
  * 4,209.8242g for model "ONIX, SOFA-1CPO(-76)" matches her worked example
  * exactly) is a pre-flattened Modelo→Insumo→Cantidad export someone
- * already resolved down to real base materials. It lives in `public/`
- * (served as a static asset) rather than being read from disk, because a
- * server-side filesystem read isn't guaranteed to see `public/` files on
- * Vercel's serverless runtime — fetching it over HTTP from the site's own
- * origin is the one access path guaranteed to work in both dev and prod.
+ * already resolved down to real base materials.
+ *
+ * It lives under `src/data/` (NOT `public/`) and is pulled in with Vite's
+ * `?raw` import instead of a runtime fetch, on purpose: this dashboard
+ * used to self-fetch it over HTTP from the site's own origin (via
+ * VERCEL_URL) — confirmed live (2026-09-15) that self-fetch silently
+ * degrades in production, most likely because that URL sits behind
+ * Vercel's deployment protection, so the "response" is a 200 OK HTML
+ * challenge page instead of the CSV. The parser below has no way to tell
+ * that apart from a genuinely empty file (every line just fails the
+ * "does this look like a data row" check and gets skipped) — presupuestado
+ * silently came out $0 for every insumo, with no error anywhere, while
+ * Real (sourced straight from Odoo, no self-fetch involved) kept working
+ * fine. A build-time import removes the whole class of failure: the CSV
+ * becomes part of the server bundle itself, so there's no self-fetch left
+ * to protect, redirect, or time out — it isn't just this file that would
+ * have kept regressing.
  */
-const CSV_PUBLIC_PATH = '/BOM_crudo.csv';
-const CSV_TTL_MS = 10 * 60 * 1000;
-
-function getSiteOrigin(): string {
-  const vercelUrl = import.meta.env.VERCEL_URL as string | undefined;
-  if (vercelUrl) return `https://${vercelUrl}`;
-  return 'http://localhost:4321';
-}
 
 export interface BomCsvRow {
   modeloBase: string;
@@ -97,19 +101,11 @@ function splitCsvLine(line: string): string[] {
   return fields;
 }
 
-async function fetchCsvRows(): Promise<BomCsvRow[]> {
-  const url = `${getSiteOrigin()}${CSV_PUBLIC_PATH}`;
-  let res: Response;
-  try {
-    res = await fetch(url);
-  } catch (err) {
-    throw new Error(`No se pudo leer la Lista de Materiales (${url})`, { cause: err });
-  }
-  if (!res.ok) throw new Error(`No se pudo leer la Lista de Materiales (${url}): HTTP ${res.status}`);
-  const text = await res.text();
+let cachedRows: BomCsvRow[] | undefined;
 
+function parseCsvRows(): BomCsvRow[] {
   const rows: BomCsvRow[] = [];
-  for (const line of text.split(/\r?\n/)) {
+  for (const line of bomCsvRaw.split(/\r?\n/)) {
     if (!line.trim()) continue;
     const fields = splitCsvLine(line);
     if (fields.length < 4) continue;
@@ -134,8 +130,10 @@ async function fetchCsvRows(): Promise<BomCsvRow[]> {
   return rows;
 }
 
+/** Synchronous in practice (bomCsvRaw is bundled at build time) — kept async so callers don't need to change when this stops being a network fetch. Parses once per server instance and reuses the result; a new deploy is required to pick up an updated CSV, same as any other bundled source. */
 export async function getBomCsvRows(): Promise<BomCsvRow[]> {
-  return withTtlCache('bom-csv:rows', CSV_TTL_MS, fetchCsvRows);
+  if (!cachedRows) cachedRows = parseCsvRows();
+  return cachedRows;
 }
 
 /** Every CSV row, grouped by normalized "modelo base" — the BOM lookup this whole feature is built on. */
