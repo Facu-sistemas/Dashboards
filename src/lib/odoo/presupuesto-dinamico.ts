@@ -6,7 +6,7 @@ import { getProduccionConsenso } from '../consenso-csv';
 import { getModelSalesMix, getMonthlyUnitsSold, type BusinessUnit, type ModelSalesShare } from './sales-mix';
 import { getInsumoCosts, resolveInsumoProductIds, type InsumoCost } from './insumo-costs';
 import { getHistoricalUsdArsRates } from './fx-historical';
-import { withTtlCache, cacheKey } from '../cache';
+import { withTtlCache, cacheKey, invalidateByPrefix } from '../cache';
 import { monthsBetween, monthBounds, lastMonthKeys, currentMonthKey } from '../date';
 import type { OdooDomain } from './types';
 
@@ -112,6 +112,25 @@ export interface PresupuestoDinamicoResult {
   monthlyComplianceSummary: { month: string; compliancePct: number | null }[];
   /** "Modelo (base)" names from the BOM CSV that have real sales but couldn't be matched to any live Odoo product.template by name — their contribution is silently absent from Presupuestado, not just a $0 gap row, so this needs separate visibility. */
   modelosSinBomReconocido: string[];
+}
+
+export type InsumoBreakdownSource = 'bom' | 'reparto-generico';
+
+/** One contributor to an insumo's Presupuestado figure for a single month — either a model's own BOM consumption, or a share of a redistributed generic (regla 4.4). `detail` is a ready-to-render string built server-side, since the two sources have genuinely different units (kg/m²/etc. of BOM vs. a % share of a $ pool) and forcing them into shared numeric fields would misrepresent one or the other. */
+export interface InsumoBreakdownEntry {
+  source: InsumoBreakdownSource;
+  label: string;
+  businessUnit: BusinessUnit;
+  detail: string;
+  subtotalArs: number;
+}
+
+export interface InsumoBreakdownResult {
+  productId: number;
+  productName: string;
+  month: string;
+  entries: InsumoBreakdownEntry[];
+  totalArs: number;
 }
 
 export interface FueraDeAlcanceCategoryRow {
@@ -329,9 +348,11 @@ async function redistributeGenericBudgets(params: {
   months: string[];
   missingConsensoMonths: Set<string>;
   presupuestadoByProductMonth: Map<string, number>;
-}): Promise<{ redistributedProductIds: Set<number> }> {
-  const { genericProductIds, costs, consensoByMonthUnit, months, missingConsensoMonths, presupuestadoByProductMonth } = params;
+  breakdownTarget?: { productId: number; month: string };
+}): Promise<{ redistributedProductIds: Set<number>; breakdownEntries: InsumoBreakdownEntry[] }> {
+  const { genericProductIds, costs, consensoByMonthUnit, months, missingConsensoMonths, presupuestadoByProductMonth, breakdownTarget } = params;
   const redistributedProductIds = new Set<number>();
+  const breakdownEntries: InsumoBreakdownEntry[] = [];
 
   const genericNamesPresent = new Set(
     [...genericProductIds].map((id) => costs.get(id)?.productName?.trim().toUpperCase()).filter((n): n is string => Boolean(n))
@@ -398,14 +419,25 @@ async function redistributeGenericBudgets(params: {
 
         for (const [productId, share] of mix) {
           const key = `${productId}|${month}`;
-          presupuestadoByProductMonth.set(key, (presupuestadoByProductMonth.get(key) ?? 0) + genericBudget * share);
+          const shareAmount = genericBudget * share;
+          presupuestadoByProductMonth.set(key, (presupuestadoByProductMonth.get(key) ?? 0) + shareAmount);
           redistributedProductIds.add(productId);
+
+          if (breakdownTarget && productId === breakdownTarget.productId && month === breakdownTarget.month) {
+            breakdownEntries.push({
+              source: 'reparto-generico',
+              label: `Reparto de "${config.genericProductName}"`,
+              businessUnit: unit,
+              detail: `${(share * 100).toFixed(1)}% del mix histórico de compras · ${unidades.toFixed(0)} u de ${unit === 'colchones' ? 'Colchones' : 'Living'} consensuadas`,
+              subtotalArs: shareAmount,
+            });
+          }
         }
       }
     }
   }
 
-  return { redistributedProductIds };
+  return { redistributedProductIds, breakdownEntries };
 }
 
 /**
@@ -485,11 +517,12 @@ async function buildEffectiveConsenso(
  * full priority order (manual > Producción Consensuado CSV > real sales
  * fallback for closed months) — manual entry is rarely actually needed.
  */
-export async function getPresupuestoDinamicoData(
+async function computeCore(
   year: number,
   consensoByMonthUnit: Map<string, number>,
-  tcAsumidoByMonth: Map<string, number>
-): Promise<PresupuestoDinamicoResult> {
+  tcAsumidoByMonth: Map<string, number>,
+  breakdownTarget?: { productId: number; month: string }
+): Promise<{ result: PresupuestoDinamicoResult; breakdownEntries: InsumoBreakdownEntry[]; breakdownProductName: string }> {
   const months = monthsBetween(`${year}-01`, `${year}-12`);
   const currentMonth = currentMonthKey();
 
@@ -526,7 +559,12 @@ export async function getPresupuestoDinamicoData(
   const unresolvedInsumoNames = new Map<string, string>(); // insumoKey -> display name
 
   // Step 1-3 of section 3: consenso × mix × BOM, accumulated per insumo/month.
+  // When breakdownTarget is set, also keep each individual model's raw
+  // contribution to that one (productId, month) — the aggregate map above
+  // only keeps the sum, which is all the main table needs, but a drill-down
+  // needs the per-model detail before it's collapsed.
   const neededByProductMonth = new Map<string, number>(); // key `${productId}|${month}`
+  const rawBomBreakdown: { modelBaseName: string; unit: BusinessUnit; modelUnits: number; qtyPerUnit: number; udm: string; totalQty: number }[] = [];
   for (const month of months) {
     if (missingConsensoMonths.has(month)) continue; // presupuestado stays null for this month, see below
     for (const unit of ['colchones', 'living'] as const) {
@@ -542,6 +580,10 @@ export async function getPresupuestoDinamicoData(
           }
           const key = `${productId}|${month}`;
           neededByProductMonth.set(key, (neededByProductMonth.get(key) ?? 0) + modelUnits * row.qty);
+
+          if (breakdownTarget && productId === breakdownTarget.productId && month === breakdownTarget.month) {
+            rawBomBreakdown.push({ modelBaseName: model.baseName, unit, modelUnits, qtyPerUnit: row.qty, udm: row.udm, totalQty: modelUnits * row.qty });
+          }
         }
       }
     }
@@ -604,13 +646,14 @@ export async function getPresupuestoDinamicoData(
     presupuestadoByProductMonth.set(key, qty * priceArs);
   }
 
-  const { redistributedProductIds } = await redistributeGenericBudgets({
+  const { redistributedProductIds, breakdownEntries: repartoBreakdown } = await redistributeGenericBudgets({
     genericProductIds,
     costs,
     consensoByMonthUnit: effectiveConsensoByMonthUnit,
     months,
     missingConsensoMonths,
     presupuestadoByProductMonth,
+    breakdownTarget,
   });
 
   // Gaps: generics (regla 4.4 — listed regardless of whether they were
@@ -728,15 +771,90 @@ export async function getPresupuestoDinamicoData(
     return { month, compliancePct };
   });
 
+  // Assemble the drill-down for breakdownTarget, if requested. BOM-sourced
+  // raw contributions only carry quantities at this point — the per-model
+  // unit cost is derived from the aggregate (qty × price = presupuestado,
+  // already computed above), not recomputed, so it can never drift from
+  // what the main table shows for that cell.
+  let breakdownEntries: InsumoBreakdownEntry[] = [];
+  let breakdownProductName = '';
+  if (breakdownTarget) {
+    const key = `${breakdownTarget.productId}|${breakdownTarget.month}`;
+    const aggregatedSubtotal = presupuestadoByProductMonth.get(key);
+    const aggregatedQty = neededByProductMonth.get(key);
+    const unitCostArs = aggregatedSubtotal !== undefined && aggregatedQty ? aggregatedSubtotal / aggregatedQty : undefined;
+
+    const bomEntries: InsumoBreakdownEntry[] = rawBomBreakdown.map((raw) => ({
+      source: 'bom',
+      label: raw.modelBaseName,
+      businessUnit: raw.unit,
+      detail: `${raw.modelUnits.toFixed(1)} u × ${raw.qtyPerUnit} ${raw.udm}/u = ${raw.totalQty.toFixed(3)} ${raw.udm}`,
+      subtotalArs: unitCostArs !== undefined ? raw.totalQty * unitCostArs : 0,
+    }));
+
+    breakdownEntries = [...bomEntries, ...repartoBreakdown].sort((a, b) => b.subtotalArs - a.subtotalArs);
+    breakdownProductName = costs.get(breakdownTarget.productId)?.productName ?? `#${breakdownTarget.productId}`;
+  }
+
   return {
-    year,
-    months,
-    categories,
-    gaps: [...gapsById.values()],
-    missingConsensoMonths: [...missingConsensoMonths].sort(),
-    missingTcMonths: [...missingTcMonths].sort(),
-    monthlyComplianceSummary,
-    modelosSinBomReconocido,
+    result: {
+      year,
+      months,
+      categories,
+      gaps: [...gapsById.values()],
+      missingConsensoMonths: [...missingConsensoMonths].sort(),
+      missingTcMonths: [...missingTcMonths].sort(),
+      monthlyComplianceSummary,
+      modelosSinBomReconocido,
+    },
+    breakdownEntries,
+    breakdownProductName,
+  };
+}
+
+/**
+ * The full Presupuestado (BOM-driven) vs. Real dashboard data for one
+ * year, per INSTRUCCIONES_Dashboard_Presupuesto_Dinamico.md sections 3-5.
+ * `consensoByMonthUnit` (key `${month}|colchones`/`${month}|living`) and
+ * `tcAsumidoByMonth` (key month) are the MANUAL business inputs that don't
+ * live in Odoo — callers read them from Supabase and pass them in here.
+ * They're the last-resort override; see buildEffectiveConsenso for the
+ * full priority order (manual > Producción Consensuado CSV > real sales
+ * fallback for closed months) — manual entry is rarely actually needed.
+ */
+export async function getPresupuestoDinamicoData(
+  year: number,
+  consensoByMonthUnit: Map<string, number>,
+  tcAsumidoByMonth: Map<string, number>
+): Promise<PresupuestoDinamicoResult> {
+  return (await computeCore(year, consensoByMonthUnit, tcAsumidoByMonth)).result;
+}
+
+/**
+ * Drill-down for one insumo/month cell: every model's own BOM contribution
+ * plus its share of any redistributed generic (regla 4.4), so Compras can
+ * see exactly how a Presupuestado number was built instead of trusting the
+ * final $ figure blind. Recomputes the same core pass as
+ * getPresupuestoDinamicoData (same cached sub-fetches, so this is cheap
+ * relative to the first call in a burst) rather than caching the full
+ * per-model detail for every insumo/month up front — that detail is large
+ * (~634 insumos × ~12 months × however many models touch each one) and
+ * almost never looked at, so it isn't worth carrying in the main response.
+ */
+export async function getInsumoBreakdown(
+  year: number,
+  consensoByMonthUnit: Map<string, number>,
+  tcAsumidoByMonth: Map<string, number>,
+  productId: number,
+  month: string
+): Promise<InsumoBreakdownResult> {
+  const { breakdownEntries, breakdownProductName } = await computeCore(year, consensoByMonthUnit, tcAsumidoByMonth, { productId, month });
+  return {
+    productId,
+    productName: breakdownProductName || `#${productId}`,
+    month,
+    entries: breakdownEntries,
+    totalArs: breakdownEntries.reduce((sum, e) => sum + e.subtotalArs, 0),
   };
 }
 
@@ -764,6 +882,22 @@ export async function getFueraDeAlcance(year: number): Promise<FueraDeAlcanceRes
 
   const categories = [...categoryGroups.values()].sort((a, b) => b.annual - a.annual);
   return { year, months, categories };
+}
+
+/**
+ * Drops every short-TTL cache entry this dashboard's data passes through
+ * (real purchase-line enrichment, the BOM/Producción CSVs, the insumo
+ * name index, the spot FX rate), for the UI's manual "Recalcular" action.
+ * Every one of these already expires on its own within minutes — this
+ * only lets a user force that now instead of waiting it out, e.g. right
+ * after confirming a purchase order or updating a cost in Odoo.
+ */
+export function invalidatePresupuestoDinamicoCache(): void {
+  invalidateByPrefix('presupuesto-dinamico:real-range');
+  invalidateByPrefix('bom-csv:rows');
+  invalidateByPrefix('consenso-csv:produccion');
+  invalidateByPrefix('insumo-costs:name-index');
+  invalidateByPrefix('fx:usd-ars:latest');
 }
 
 /** Confirms the BOM CSV actually has data — cheap sanity check for the UI's "no models found" empty state. */

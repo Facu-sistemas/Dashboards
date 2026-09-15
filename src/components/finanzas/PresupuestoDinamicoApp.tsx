@@ -28,6 +28,7 @@ function PresupuestoDinamicoInner({ initialYear }: { initialYear: number }) {
   const [year, setYear] = useState(initialYear);
   const [monthFilter, setMonthFilter] = useState(''); // '' = todo el año; else "01".."12"
   const [showInputs, setShowInputs] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
 
   const resumenQuery = useApiQuery<PresupuestoDinamicoResult>(
     ['presupuesto-dinamico-resumen', year],
@@ -44,6 +45,25 @@ function PresupuestoDinamicoInner({ initialYear }: { initialYear: number }) {
   );
 
   const data = resumenQuery.data;
+
+  // "Recalcular": forces the server past its short in-memory TTL cache
+  // (2-10 min depending on the sub-fetch — see cache.ts) instead of making
+  // the user wait it out, e.g. right after confirming a purchase order or
+  // fixing a cost in Odoo. The first request just discards its result —
+  // its only job is to clear the cache — the refetches after it are what
+  // actually update the UI, through react-query's normal state so
+  // `dataUpdatedAt` (LastUpdated) stays accurate.
+  async function handleRecalcular() {
+    setRecalculating(true);
+    try {
+      await fetch(`/api/presupuesto-dinamico-resumen?${new URLSearchParams({ year: String(year), force: 'true' })}`, {
+        headers: { Accept: 'application/json' },
+      });
+      await Promise.all([resumenQuery.refetch(), fueraDeAlcanceQuery.refetch()]);
+    } finally {
+      setRecalculating(false);
+    }
+  }
 
   // "Mes" narrows which month columns render, decoupled from "Año" (a
   // month number persists across year switches instead of resetting) —
@@ -102,6 +122,14 @@ function PresupuestoDinamicoInner({ initialYear }: { initialYear: number }) {
           >
             {showInputs ? 'Ocultar' : 'Cargar'} consenso / TC
           </button>
+          <button
+            type="button"
+            onClick={handleRecalcular}
+            disabled={recalculating}
+            className="rounded border border-slate-700 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {recalculating ? 'Recalculando…' : 'Recalcular'}
+          </button>
           <LastUpdated dataUpdatedAt={resumenQuery.dataUpdatedAt} />
         </div>
       </div>
@@ -146,7 +174,7 @@ function PresupuestoDinamicoInner({ initialYear }: { initialYear: number }) {
         {resumenQuery.isLoading ? (
           <div className="h-64 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
         ) : (
-          <CategoryInsumoTree categories={data?.categories ?? []} months={displayMonths} />
+          <CategoryInsumoTree categories={data?.categories ?? []} months={displayMonths} year={year} />
         )}
       </section>
 

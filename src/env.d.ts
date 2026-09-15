@@ -11,6 +11,8 @@ interface ImportMetaEnv {
   readonly PUBLIC_SUPABASE_URL: string;
   readonly PUBLIC_SUPABASE_ANON_KEY: string;
   readonly SUPABASE_SERVICE_ROLE_KEY: string;
+  /** Which year's "Proyeccion ventas {año}.csv" (public/) to read — see src/lib/consenso-csv.ts. Defaults to 2026 if unset. */
+  readonly PROYECCION_VENTAS_YEAR?: string;
   // Vercel's own System Environment Variables — present automatically on
   // every deployment (build + runtime), absent in local `astro dev`.
   readonly VERCEL_GIT_COMMIT_SHA?: string;

@@ -53,3 +53,10 @@ export function cacheKey(namespace: string, params: Record<string, unknown>): st
     .join('&');
   return `${namespace}::${sorted}`;
 }
+
+/** Drops every cached entry whose key starts with `prefix` — for an explicit "Recalcular" action that needs to bypass the TTL instead of waiting it out. Doesn't touch `inflight`: a request already in flight keeps running and populates a fresh entry on its own. */
+export function invalidateByPrefix(prefix: string): void {
+  for (const key of store.keys()) {
+    if (key.startsWith(prefix)) store.delete(key);
+  }
+}

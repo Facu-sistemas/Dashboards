@@ -44,6 +44,24 @@ export interface PresupuestoDinamicoResult {
   modelosSinBomReconocido: string[];
 }
 
+export type InsumoBreakdownSource = 'bom' | 'reparto-generico';
+
+export interface InsumoBreakdownEntry {
+  source: InsumoBreakdownSource;
+  label: string;
+  businessUnit: BusinessUnit;
+  detail: string;
+  subtotalArs: number;
+}
+
+export interface InsumoBreakdownResult {
+  productId: number;
+  productName: string;
+  month: string;
+  entries: InsumoBreakdownEntry[];
+  totalArs: number;
+}
+
 export interface FueraDeAlcanceCategoryRow {
   categoryId: number;
   categoryName: string;

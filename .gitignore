@@ -3,6 +3,7 @@ dist/
 .astro/
 .vercel/
 .env
+.env2
 .env.*
 !.env.example
 npm-debug.log*
@@ -16,3 +17,8 @@ limpio.md
 # Original (uncompressed) source assets — not served, too large for git.
 # Optimized versions used by the site live under public/.
 raw-assets/
+
+# Work in progress on a separate mrp fix (another session) — not ready to
+# commit, keep it out of git entirely until that work is done.
+deploy_mrp_fixes/
+scripts/

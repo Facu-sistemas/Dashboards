@@ -18,12 +18,14 @@ import { withTtlCache } from './cache';
  * (an all-caps label row with empty month columns) rather than matching
  * the row label alone, to never silently grab the wrong block.
  *
- * This is a year-specific file (named "Proyeccion ventas 2026.csv") —
- * PROYECCION_YEAR must be updated (and the file replaced in public/)
- * whenever a new year's version is dropped in.
+ * This is a year-specific file, named "Proyeccion ventas {año}.csv" — when
+ * a new year's version is dropped into public/ following that same naming
+ * convention, set env var PROYECCION_VENTAS_YEAR (no code change/deploy
+ * needed); if it's ever named differently, CSV_PUBLIC_PATH below still
+ * needs a manual edit.
  */
-const CSV_PUBLIC_PATH = '/Proyeccion ventas 2026.csv';
-const PROYECCION_YEAR = 2026;
+const PROYECCION_YEAR = Number(import.meta.env.PROYECCION_VENTAS_YEAR) || 2026;
+const CSV_PUBLIC_PATH = `/Proyeccion ventas ${PROYECCION_YEAR}.csv`;
 const CSV_TTL_MS = 10 * 60 * 1000;
 const TARGET_SECTION = 'PRODUCCION CONSENSUADO';
 const SILLONES_ROW_LABEL = 'CONSENSUADO SILLONES EQUIVALENTE';
