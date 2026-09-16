@@ -1,4 +1,5 @@
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib';
+import { LOGO_GRIS_PNG_BASE64 } from './logos';
 
 /**
  * Server-side PDF generator for the "etiqueta de corte" — printed on a
@@ -55,6 +56,13 @@ const GAP_AFTER_TITLE = 7.5;
 const GAP_AFTER_MODELOS = 4.5;
 const GAP_AFTER_META = 7.5;
 const GAP_BEFORE_TABLE = 21;
+
+// Floats small in the top-right corner so it never eats into the
+// label's data columns — the whole point on a 10x10cm etiqueta where
+// every millimeter of width is already spoken for. The gris logo is a
+// wide wordmark (not the tall icon-only mark), so the budget is set on
+// width and height follows from its aspect ratio.
+const LOGO_WIDTH = 46;
 
 const MIN_ROW_HEIGHT = 12;
 const MAX_ROW_HEIGHT = 19.5;
@@ -115,6 +123,8 @@ function drawHeader(
   page: PDFPage,
   font: PDFFont,
   boldFont: PDFFont,
+  logo: PDFImage,
+  logoHeight: number,
   modelosLines: string[],
   fecha: string,
   linea: string,
@@ -124,10 +134,17 @@ function drawHeader(
   let y = PAGE_SIZE - MARGIN - TITLE_FONT_SIZE;
   page.drawText('FRONTERA LIVING', { x: MARGIN, y, size: TITLE_FONT_SIZE, font: boldFont, color: rgb(0.1, 0.1, 0.1) });
 
+  page.drawImage(logo, {
+    x: PAGE_SIZE - MARGIN - LOGO_WIDTH,
+    y: PAGE_SIZE - MARGIN - logoHeight,
+    width: LOGO_WIDTH,
+    height: logoHeight,
+  });
+
   if (pageCount > 1) {
     const label = `${pageIndex + 1}/${pageCount}`;
     page.drawText(label, {
-      x: PAGE_SIZE - MARGIN - font.widthOfTextAtSize(label, PAGE_INDEX_FONT_SIZE),
+      x: PAGE_SIZE - MARGIN - LOGO_WIDTH - 4 - font.widthOfTextAtSize(label, PAGE_INDEX_FONT_SIZE),
       y,
       size: PAGE_INDEX_FONT_SIZE,
       font,
@@ -223,6 +240,8 @@ export async function generateEtiquetaPdf(input: EtiquetaInput): Promise<Uint8Ar
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const boldFont = await doc.embedFont(StandardFonts.HelveticaBold);
+  const logo = await doc.embedPng(Buffer.from(LOGO_GRIS_PNG_BASE64, 'base64'));
+  const logoHeight = (LOGO_WIDTH * logo.height) / logo.width;
 
   // "NO TRAER" rows are kept in the recipe/pedido for stock-counting
   // purposes, but never printed on the physical label.
@@ -257,7 +276,7 @@ export async function generateEtiquetaPdf(input: EtiquetaInput): Promise<Uint8Ar
 
   for (let pageIndex = 0; pageIndex < pageCount; pageIndex++) {
     const page = doc.addPage([PAGE_SIZE, PAGE_SIZE]);
-    const tableTop = drawHeader(page, font, boldFont, modelosLines, input.fecha, input.linea, pageIndex, pageCount);
+    const tableTop = drawHeader(page, font, boldFont, logo, logoHeight, modelosLines, input.fecha, input.linea, pageIndex, pageCount);
 
     const start = pageIndex * rowsPerPage;
     const slice1x2 = filas1x2.slice(start, start + rowsPerPage);

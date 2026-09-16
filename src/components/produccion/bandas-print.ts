@@ -1,10 +1,13 @@
 import { ANCHO_ROLLO, MIN_ROLLO_GRANDE, SEG_ROLLO_CHICO, fmtTiempo, type CorteRow, type EnvivadoRow, type MatelRow, type OptimizacionTela } from '../../lib/bandas-calc';
+import { LOGO_LARGE_PNG_BASE64 } from '../../lib/logos';
 
 /** Builds a standalone printable document per tab (plain inline CSS — this opens in its own window, no Tailwind available there) and triggers the print dialog. Mirrors the original tool's per-solapa print buttons. */
 
 const BASE_STYLE = `
   body { font-family: Arial, sans-serif; padding: 2rem; font-size: 15px; color: #1a1a1a; }
-  h2 { font-size: 20px; font-weight: 700; margin-bottom: 1rem; border-bottom: 2px solid #1D9E75; padding-bottom: 6px; color: #1D9E75; }
+  .print-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; border-bottom: 2px solid #1D9E75; padding-bottom: 6px; }
+  .print-header img { height: 42px; width: auto; }
+  h2 { font-size: 20px; font-weight: 700; color: #1D9E75; }
   .tiempo-box { background: #f0fdf8; border: 1px solid #9FE1CB; border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1.25rem; }
   .tiempo-box-titulo { font-size: 11px; font-weight: 700; color: #0F6E56; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
   .tiempo-box-valor { font-size: 28px; font-weight: 700; color: #0F6E56; }
@@ -61,7 +64,7 @@ function openPrintWindow(titulo: string, bodyHtml: string) {
   if (!win) return;
   win.document.write(`<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>${titulo}</title><style>${BASE_STYLE}</style></head>
-<body><h2>${titulo}</h2>${bodyHtml}<script>window.onload=()=>{ window.print(); }<\/script></body></html>`);
+<body><div class="print-header"><h2>${titulo}</h2><img src="data:image/png;base64,${LOGO_LARGE_PNG_BASE64}" alt="Frontera Living" /></div>${bodyHtml}<script>window.onload=()=>{ window.print(); }<\/script></body></html>`);
   win.document.close();
 }
 
