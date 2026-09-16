@@ -131,6 +131,7 @@ export const AREAS: AreaConfig[] = [
     tabs: [
       { slug: 'calculadora-carpinteria', name: 'Calculadora Carpintería' },
       { slug: 'calculadora-bandas', name: 'Calculadora de Bandas' },
+      { slug: 'optimizador-multicorte', name: 'Optimizador Multicorte' },
     ],
   },
   {
