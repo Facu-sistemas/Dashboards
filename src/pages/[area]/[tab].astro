@@ -4,6 +4,7 @@ import PlaceholderTab from '../../components/nav/PlaceholderTab.astro';
 import PresupuestoComprasTab from '../../components/finanzas/PresupuestoComprasTab.astro';
 import FacturacionTab from '../../components/finanzas/FacturacionTab.astro';
 import RawMaterialConsumptionTab from '../../components/finanzas/RawMaterialConsumptionTab.astro';
+import PoliticaVsRealTab from '../../components/finanzas/PoliticaVsRealTab.astro';
 import TendenciaPreciosTab from '../../components/comercial/TendenciaPreciosTab.astro';
 import ParetoClientesTab from '../../components/comercial/ParetoClientesTab.astro';
 import PresupuestoDinamicoTab from '../../components/finanzas/PresupuestoDinamicoTab.astro';
@@ -31,6 +32,7 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
   {area.slug === 'finanzas' && tabSlug === 'presupuesto-compras' && <PresupuestoComprasTab />}
   {area.slug === 'finanzas' && tabSlug === 'facturacion' && <FacturacionTab />}
   {area.slug === 'finanzas' && tabSlug === 'consumo-mp' && <RawMaterialConsumptionTab />}
+  {area.slug === 'finanzas' && tabSlug === 'politica-vs-real' && <PoliticaVsRealTab />}
   {area.slug === 'finanzas' && tabSlug === 'presupuesto-dinamico' && <PresupuestoDinamicoTab />}
   {area.slug === 'comercial' && tabSlug === 'tendencia-precios' && <TendenciaPreciosTab />}
   {area.slug === 'comercial' && tabSlug === 'top-clientes' && <ParetoClientesTab />}

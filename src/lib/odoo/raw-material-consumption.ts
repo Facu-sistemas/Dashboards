@@ -4,7 +4,7 @@ import { withTtlCache } from '../cache';
 import { lastMonthKeys, monthBounds } from '../date';
 import type { OdooDomain, OdooReadGroupResult } from './types';
 
-const MATERIA_PRIMA_CATEG_ID = 14;
+export const MATERIA_PRIMA_CATEG_ID = 14;
 export type ConsumptionLookbackDays = 30 | 60 | 90 | 180;
 const DEFAULT_LOOKBACK_DAYS: ConsumptionLookbackDays = 90;
 const HISTORY_MONTHS = 6;
@@ -147,7 +147,7 @@ function consumptionMoveDomain(companyId: number, materialIds: number[], start: 
 }
 
 /** Average daily consumption from actual raw-material-consumption moves, over the given lookback window. */
-async function fetchAverageDailyConsumption(
+export async function fetchAverageDailyConsumption(
   materialIds: number[],
   companyId: number,
   lookbackDays: ConsumptionLookbackDays

@@ -68,6 +68,7 @@ export const AREAS: AreaConfig[] = [
       { slug: 'presupuesto-dinamico', name: 'Presupuesto de Compras (BOM)' },
       { slug: 'facturacion', name: 'Facturación' },
       { slug: 'consumo-mp', name: 'Consumo MP vs Stock' },
+      { slug: 'politica-vs-real', name: 'Política vs Real' },
     ],
   },
   {

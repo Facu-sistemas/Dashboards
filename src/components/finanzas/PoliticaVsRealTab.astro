@@ -1,0 +1,33 @@
+---
+import PoliticaVsRealApp from './PoliticaVsRealApp';
+import { buildPoliticaVsRealDehydratedState } from '../../lib/politica-vs-real-ssr';
+
+let dehydratedState;
+let ssrError: string | null = null;
+try {
+  dehydratedState = await buildPoliticaVsRealDehydratedState();
+} catch (err) {
+  ssrError = err instanceof Error ? err.message : 'Error desconocido consultando Odoo';
+}
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Política vs Real</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      ¿El capital inmovilizado en materia prima está alineado con la política de inventario, o hay
+      rubros con exceso de capital parado o riesgo real de quiebre de stock? Solo lectura.
+    </p>
+  </header>
+
+  {
+    ssrError && (
+      <p class="mb-6 rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">
+        No se pudo precargar la data desde Odoo en el servidor ({ssrError}). El panel intentará cargar
+        los datos desde el navegador.
+      </p>
+    )
+  }
+
+  <PoliticaVsRealApp client:load dehydratedState={dehydratedState} />
+</div>
