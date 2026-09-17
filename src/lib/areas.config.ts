@@ -152,7 +152,10 @@ export const AREAS: AreaConfig[] = [
     description: 'Experimentos y prototipos',
     accent: 'purple',
     icon: ICONS.flask,
-    tabs: [{ slug: 'colchon', name: 'Colchón' }],
+    tabs: [
+      { slug: 'conversor', name: 'Conversor' },
+      { slug: 'colchon', name: 'Colchón' },
+    ],
   },
 ];
 
