@@ -132,22 +132,16 @@ export async function getPlanProduccionSheetData(): Promise<ObjetivoSheetData> {
   });
 }
 
-/** Objetivo for a whole period = the running total as of the last day inside it (each month's counter starts fresh, no cross-month carryover). */
-export function objetivoForPeriod(map: ObjetivoAcumuladoPorDia, start: string, endExclusive: string): number {
-  let latestDate: string | null = null;
-  let latestValue = 0;
-  for (const [date, value] of map) {
-    if (date >= start && date < endExclusive && (latestDate === null || date > latestDate)) {
-      latestDate = date;
-      latestValue = value;
-    }
-  }
-  return latestValue;
-}
-
-/** Per-day target = that day's cumulative total minus the previous day's (within the same month) — day 1 of a month is its own full value. */
-export function objetivoPerDay(map: ObjetivoAcumuladoPorDia, start: string, endExclusive: string): Map<string, number> {
-  const dates = [...map.keys()].filter((d) => d >= start && d < endExclusive).sort();
+/**
+ * Per-day target = that day's cumulative total minus the previous day's
+ * (within the same month) — day 1 of a month is its own full value.
+ * Computed over the FULL sheet (not pre-filtered to a range) so a range
+ * that starts mid-month — a week or a single day that isn't the 1st —
+ * still nets out the correct delta against the prior day, instead of
+ * treating its own cumulative total as the whole day's target.
+ */
+function allDailyDeltas(map: ObjetivoAcumuladoPorDia): Map<string, number> {
+  const dates = [...map.keys()].sort();
   const perDay = new Map<string, number>();
   let prevDate: string | null = null;
   let prevValue = 0;
@@ -159,4 +153,20 @@ export function objetivoPerDay(map: ObjetivoAcumuladoPorDia, start: string, endE
     prevValue = value;
   }
   return perDay;
+}
+
+/** Per-day target within [start, endExclusive) — see `allDailyDeltas`. */
+export function objetivoPerDay(map: ObjetivoAcumuladoPorDia, start: string, endExclusive: string): Map<string, number> {
+  const perDay = new Map<string, number>();
+  for (const [date, delta] of allDailyDeltas(map)) {
+    if (date >= start && date < endExclusive) perDay.set(date, delta);
+  }
+  return perDay;
+}
+
+/** Objetivo for a whole period = sum of that period's per-day targets (correct for any range, not just whole months — see `allDailyDeltas`). */
+export function objetivoForPeriod(map: ObjetivoAcumuladoPorDia, start: string, endExclusive: string): number {
+  let total = 0;
+  for (const [, delta] of objetivoPerDay(map, start, endExclusive)) total += delta;
+  return total;
 }

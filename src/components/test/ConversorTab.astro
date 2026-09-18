@@ -1,5 +1,6 @@
 ---
 import ConversorExcelCsv from './ConversorExcelCsv';
+import MarkdownAPdf from './MarkdownAPdf';
 ---
 
 <div>
@@ -11,4 +12,15 @@ import ConversorExcelCsv from './ConversorExcelCsv';
   </header>
 
   <ConversorExcelCsv client:only="react" />
+
+  <hr class="my-8 border-slate-800" />
+
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Markdown a PDF</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Pegá texto en Markdown y descargalo como PDF, listo para compartir.
+    </p>
+  </header>
+
+  <MarkdownAPdf client:only="react" />
 </div>

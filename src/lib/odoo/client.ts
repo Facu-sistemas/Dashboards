@@ -132,6 +132,7 @@ export async function searchRead<T extends Record<string, unknown>>(
         limit: params.limit,
         offset: params.offset,
         order: params.order,
+        context: params.context,
       }
     )
   );

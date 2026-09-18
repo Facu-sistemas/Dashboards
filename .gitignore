@@ -22,3 +22,5 @@ raw-assets/
 # commit, keep it out of git entirely until that work is done.
 deploy_mrp_fixes/
 scripts/
+tmp/
+public/data

@@ -42,3 +42,10 @@ Las llamadas a Odoo deben hacerse siempre desde el backend/servidor (o una funci
 ## 5. Reglas para salidas de reportes, sea el formato que sea
 
 Necesito que todo documento que se importa de la web lleve el logo de la empresa en algun lado y ponga fecha y hora como informacion tambien. El logo se encuentra a disposicion en Public/. Se usa siempre el logo gris a menos que se haga un excepcion, en todas las hojas fecha y hora del momento en que se imprimio o genero.
+
+---
+
+## 6. Cuenta de la pagina para testear graficamente o corroborar datos
+
+Dentro de .env vas a encontrar 2 variables llamadas user_page y pass_page, citando esas 2
+variables vas poder iniciar sesion y hacer, consultar, lo que necesites.
