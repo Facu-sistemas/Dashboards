@@ -43,18 +43,25 @@ export default function VentasGerenciaKpiCard({ label, real, objetivoProrrateado
     </>
   );
 
-  const baseClass = `rounded-lg border p-4 text-left ${destacado ? 'border-brand-500/50 bg-brand-500/5' : 'border-slate-800 bg-slate-900'}`;
+  const baseClass = `rounded-lg border p-4 ${destacado ? 'border-brand-500/50 bg-brand-500/5' : 'border-slate-800 bg-slate-900'}`;
 
   if (!clickable) return <div className={baseClass}>{card}</div>;
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => setExpanded((e) => !e)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          setExpanded((v) => !v);
+        }
+      }}
       title={expanded ? 'Ver redondeado' : 'Ver monto exacto'}
-      className={`${baseClass} w-full cursor-pointer transition-colors hover:border-brand-500/60 hover:bg-slate-800/60`}
+      className={`${baseClass} cursor-pointer select-none transition-colors hover:border-brand-500/60 hover:bg-slate-800/60`}
     >
       {card}
-    </button>
+    </div>
   );
 }
