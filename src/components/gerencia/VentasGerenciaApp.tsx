@@ -5,6 +5,7 @@ import { useApiQuery } from '../dashboard/useApiQuery';
 import LastUpdated from '../shared/LastUpdated';
 import VentasGerenciaKpiCard from './VentasGerenciaKpiCard';
 import VentasGerenciaChart from './VentasGerenciaChart';
+import DesvioMensualChart from './DesvioMensualChart';
 import PeriodPicker, { idxsForPeriodo } from './PeriodPicker';
 import CumplimientoBars from './CumplimientoBars';
 
@@ -64,6 +65,11 @@ function pctOf(real: number, objetivoProrr: number): number | null {
   return objetivoProrr > 0 ? (real / objetivoProrr) * 100 : null;
 }
 
+/** Serie mensual (12 meses) del total equivalente en sillones, real u objetivo. */
+function eqSillonesMonthly(sillones: number[], colchones: number[], block: number[]): number[] {
+  return sillones.map((_, i) => eqSillones(sillones[i] ?? 0, colchones[i] ?? 0, block[i] ?? 0));
+}
+
 function VentasGerenciaInner() {
   const query = useApiQuery<VentasGerenciaResult>(['ventas-gerencia'], '/api/ventas-gerencia');
   const data = query.data;
@@ -102,6 +108,8 @@ function VentasGerenciaInner() {
             real: eqSillones(sillones.real, colchones.real, block.real),
             obj: eqObjetivoProrrateado(data.objetivo, data.diasTranscurridos, data.diasTotal, idxs),
           };
+          const eqRealMonthly = eqSillonesMonthly(data.real.sillones, data.real.colchones, data.real.block);
+          const eqObjMonthly = eqSillonesMonthly(data.objetivo.sillones, data.objetivo.colchones, data.objetivo.block);
 
           return (
             <>
@@ -124,11 +132,27 @@ function VentasGerenciaInner() {
                 nota="Barra hasta 180% · línea = 100% · Reventa se mide en $ y no forma parte del total equivalente en unidades."
               />
 
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <VentasGerenciaChart title="Sillones eq." real={data.real.sillones} objetivo={data.objetivo.sillones} nMeses={nMeses} />
-                <VentasGerenciaChart title="Colchones" real={data.real.colchones} objetivo={data.objetivo.colchones} nMeses={nMeses} />
-                <VentasGerenciaChart title="Block (kg)" real={data.real.block} objetivo={data.objetivo.block} nMeses={nMeses} />
-                <VentasGerenciaChart title="Reventa ($)" real={data.real.reventa} objetivo={data.objetivo.reventa} nMeses={nMeses} format="currency" />
+              <div className="flex flex-col gap-4">
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <VentasGerenciaChart title="Sillones eq." real={data.real.sillones} objetivo={data.objetivo.sillones} nMeses={nMeses} />
+                  <DesvioMensualChart title="Sillones eq." real={data.real.sillones} objetivo={data.objetivo.sillones} diasTranscurridos={data.diasTranscurridos} diasTotal={data.diasTotal} nMeses={nMeses} />
+                </div>
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <VentasGerenciaChart title="Colchones" real={data.real.colchones} objetivo={data.objetivo.colchones} nMeses={nMeses} />
+                  <DesvioMensualChart title="Colchones" real={data.real.colchones} objetivo={data.objetivo.colchones} diasTranscurridos={data.diasTranscurridos} diasTotal={data.diasTotal} nMeses={nMeses} />
+                </div>
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <VentasGerenciaChart title="Block (kg)" real={data.real.block} objetivo={data.objetivo.block} nMeses={nMeses} />
+                  <DesvioMensualChart title="Block (kg)" real={data.real.block} objetivo={data.objetivo.block} diasTranscurridos={data.diasTranscurridos} diasTotal={data.diasTotal} nMeses={nMeses} />
+                </div>
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <VentasGerenciaChart title="Reventa ($)" real={data.real.reventa} objetivo={data.objetivo.reventa} nMeses={nMeses} format="currency" />
+                  <DesvioMensualChart title="Reventa ($)" real={data.real.reventa} objetivo={data.objetivo.reventa} diasTranscurridos={data.diasTranscurridos} diasTotal={data.diasTotal} nMeses={nMeses} format="currency" />
+                </div>
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <VentasGerenciaChart title="Total equivalente (sillones)" real={eqRealMonthly} objetivo={eqObjMonthly} nMeses={nMeses} />
+                  <DesvioMensualChart title="Total equivalente (sillones)" real={eqRealMonthly} objetivo={eqObjMonthly} diasTranscurridos={data.diasTranscurridos} diasTotal={data.diasTotal} nMeses={nMeses} />
+                </div>
               </div>
             </>
           );
