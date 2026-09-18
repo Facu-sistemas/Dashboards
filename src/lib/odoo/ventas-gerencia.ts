@@ -28,11 +28,19 @@ import type { OdooDomain } from './types';
  *
  * Category ids confirmed live in Odoo (2026-09-18) via `product.category`.
  * Block (kg) = "PI / Block Espuma" (id 26, under "PI" id 15 — Producto
- * Intermedio, the foam block sold by weight before being cut). Reventa $ =
- * "Reventa" (id 11, root) — third-party goods (almohadas, mesas,
- * poltronas, colchones/sillones "de reventa", masajeadores) tracked only
- * in $, never in units, matching the sheet's own "Reventa en $" row —
- * confirmed live within ~1.5% of the reference total.
+ * Intermedio, the foam block sold by weight before being cut).
+ *
+ * Reventa $ = "Reventa" (id 11, root) — third-party goods (almohadas,
+ * mesas, poltronas, colchones/sillones "de reventa", masajeadores) —
+ * but deliberately sourced from posted customer INVOICES
+ * (`account.move.line`, by `invoice_date`), not from `sale.order.line`
+ * like the other three. Confirmed live: the historical reference sheet's
+ * own code literally reuses Facturación's Reventa row for Ventas
+ * (`R.vRev = R.fpRev` in public/data/tabla.gs) — these resale items are
+ * apparently invoiced well after the order date, so bucketing by
+ * `sale.order.date_order` landed ~23% off (Agosto: sale-order-based gave
+ * $17,8M vs. the reference's $14,49M); bucketing by `invoice_date`
+ * instead gives $14,56M — within 0,5%.
  */
 const SILLONES_CATEG_IDS = [3, 2, 16]; // Lean, Tradicional, Deliveries
 const COLCHONES_CATEG_ID = 5;
@@ -84,6 +92,29 @@ async function monthlyQtyByCategory(domain: OdooDomain, start: string, endExclus
 
 function toMonthlyArray(byMonth: Map<string, number>, months: string[]): number[] {
   return months.map((m) => byMonth.get(m) ?? 0);
+}
+
+type InvoiceLine = { invoice_date: string; price_subtotal: number };
+
+/** Reventa $ — facturado (no vendido), ver el comentario grande de arriba del archivo. */
+async function monthlyInvoicedByCategory(categId: number, start: string, endExclusive: string): Promise<Map<string, number>> {
+  const lines = await searchReadAll<InvoiceLine>({
+    model: 'account.move.line',
+    domain: [
+      ['move_id.move_type', '=', 'out_invoice'],
+      ['move_id.state', '=', 'posted'],
+      ['product_id.categ_id', 'child_of', categId],
+      ['move_id.invoice_date', '>=', start],
+      ['move_id.invoice_date', '<', endExclusive],
+    ],
+    fields: ['invoice_date', 'price_subtotal'],
+  });
+  const byMonth = new Map<string, number>();
+  for (const line of lines) {
+    const month = line.invoice_date.slice(0, 7);
+    byMonth.set(month, (byMonth.get(month) ?? 0) + line.price_subtotal);
+  }
+  return byMonth;
 }
 
 type SillonLine = { order_id: [number, string]; product_id: [number, string]; product_uom_qty: number };
@@ -146,7 +177,7 @@ export async function getVentasGerencia(): Promise<VentasGerenciaResult> {
       'product_uom_qty'
     ),
     monthlyQtyByCategory([...baseDomain, ['product_id.categ_id', 'child_of', BLOCK_CATEG_ID]], start, endExclusive, 'product_uom_qty'),
-    monthlyQtyByCategory([...baseDomain, ['product_id.categ_id', 'child_of', REVENTA_CATEG_ID]], start, endExclusive, 'price_subtotal'),
+    monthlyInvoicedByCategory(REVENTA_CATEG_ID, start, endExclusive),
     getObjetivosGerencia(),
     getDiasHabiles(year),
   ]);
