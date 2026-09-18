@@ -14,16 +14,16 @@ import { OdooError } from './types';
  * checking the cell shape hasn't changed.
  */
 
-interface SheetCell {
+export interface SheetCell {
   content?: string;
 }
 
-interface Sheet {
+export interface Sheet {
   name?: string;
   cells?: Record<string, SheetCell>;
 }
 
-interface SheetDoc {
+export interface SheetDoc {
   sheets: Sheet[];
 }
 
@@ -43,9 +43,42 @@ export async function fetchSpreadsheetSnapshot(dashboardId: number, label: strin
   if (!snapshot) {
     throw new OdooError(`No se encontró "${label}" en Odoo (spreadsheet.dashboard id=${dashboardId})`);
   }
+  return decodeSnapshot(snapshot, label);
+}
+
+/**
+ * Some `spreadsheet.dashboard` records (e.g. id 40, "Reunión de equipo de
+ * gestión") never populate their own `spreadsheet_snapshot` — confirmed
+ * live (2026-09): it reads `false` even though the dashboard has real,
+ * manually-typed content. The content only becomes a static, formula-free
+ * blob on `spreadsheet.dashboard.share` (Odoo's "share this dashboard"
+ * feature) — its `spreadsheet_binary_data` field, NOT `spreadsheet_snapshot`
+ * (also false there). Read the MOST RECENT share for the given dashboard
+ * (whoever maintains the dashboard re-shares it to "freeze" a new copy —
+ * there is no live/formula read path for this kind of dashboard), rather
+ * than a hardcoded access_token, since the token rotates each time a new
+ * share is created.
+ */
+export async function fetchLatestDashboardShareSnapshot(dashboardId: number, label: string): Promise<SheetDoc> {
+  const records = await searchRead<{ spreadsheet_binary_data: string; spreadsheet_snapshot: string; spreadsheet_data: string }>({
+    model: 'spreadsheet.dashboard.share',
+    domain: [['dashboard_id', '=', dashboardId]],
+    fields: ['spreadsheet_binary_data', 'spreadsheet_snapshot', 'spreadsheet_data'],
+    order: 'id desc',
+    limit: 1,
+  });
+  const record = records[0];
+  const raw = record?.spreadsheet_snapshot || record?.spreadsheet_binary_data || record?.spreadsheet_data;
+  if (!raw) {
+    throw new OdooError(`No se encontró "${label}" en Odoo (spreadsheet.dashboard.share para dashboard_id=${dashboardId}) — hace falta generar un share del tablero en Odoo al menos una vez`);
+  }
+  return decodeSnapshot(raw, label);
+}
+
+function decodeSnapshot(raw: string, label: string): SheetDoc {
   let doc: SheetDoc;
   try {
-    doc = JSON.parse(Buffer.from(snapshot, 'base64').toString('utf8')) as SheetDoc;
+    doc = JSON.parse(Buffer.from(raw, 'base64').toString('utf8')) as SheetDoc;
   } catch (err) {
     throw new OdooError(`No se pudo leer "${label}" (formato inesperado) — puede haber cambiado tras una actualización de Odoo`, err);
   }
@@ -55,7 +88,7 @@ export async function fetchSpreadsheetSnapshot(dashboardId: number, label: strin
   return doc;
 }
 
-function colLetterToIndex(letters: string): number {
+export function colLetterToIndex(letters: string): number {
   let n = 0;
   for (const c of letters) n = n * 26 + (c.charCodeAt(0) - 64);
   return n - 1;

@@ -81,10 +81,10 @@ export const AREAS: AreaConfig[] = [
   {
     slug: 'gerencia-general',
     name: 'Gerencia General',
-    description: 'Próximamente',
+    description: 'Ventas, producción y facturación real vs. objetivo',
     accent: 'amber',
     icon: ICONS.building,
-    tabs: [{ slug: 'inicio', name: 'Inicio' }],
+    tabs: [{ slug: 'ventas', name: 'Ventas' }],
   },
   {
     slug: 'gestion-calidad',
