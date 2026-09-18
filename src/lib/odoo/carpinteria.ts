@@ -124,27 +124,41 @@ function parseBomListonSheet(snapshotBase64: string): BomListonRow[] {
 /**
  * No caching here on purpose (past a version that wrapped this in a
  * 5-minute TTL cache): a full page refresh must always reflect the
- * latest edits to the Odoo spreadsheet, and this is a single-row,
- * single-field read — cheap enough that there's no real cost to hitting
- * Odoo fresh every time. `searchRead` still de-dupes genuinely
- * simultaneous calls (e.g. the modelo list and a selected receta on the
- * same page load) via client.ts's own short-burst cache.
+ * latest edits to the Odoo spreadsheet, and this is a single-row read —
+ * cheap enough that there's no real cost to hitting Odoo fresh every
+ * time. `searchRead` still de-dupes genuinely simultaneous calls (e.g.
+ * the modelo list and a selected receta on the same page load, or the
+ * "forzar sincronización" button's own 3 parallel invalidations) via
+ * client.ts's own short-burst cache — same params, one HTTP round trip.
+ *
+ * `write_date` rides along on the same read so the "forzar
+ * sincronización" button can tell the user WHEN the sheet was last
+ * edited in Odoo, not just that a refetch happened.
  */
-async function getBomListonRows(): Promise<BomListonRow[]> {
-  const records = await searchRead<{ spreadsheet_snapshot: string }>({
+async function getBomListonSheet(): Promise<{ rows: BomListonRow[]; writeDate: string }> {
+  const records = await searchRead<{ spreadsheet_snapshot: string; write_date: string }>({
     model: 'spreadsheet.dashboard',
     domain: [['id', '=', DASHBOARD_ID]],
-    fields: ['spreadsheet_snapshot'],
+    fields: ['spreadsheet_snapshot', 'write_date'],
     limit: 1,
   });
-  const snapshot = records[0]?.spreadsheet_snapshot;
-  if (!snapshot) {
+  const record = records[0];
+  if (!record?.spreadsheet_snapshot) {
     // Distinguish "the integration is broken" (record renamed/deleted,
     // field cleared, permissions changed) from "genuinely no rows yet" —
     // an empty recipe sheet still has a snapshot with an empty cell map.
     throw new OdooError(`No se encontró la planilla de listones en Odoo (spreadsheet.dashboard id=${DASHBOARD_ID})`);
   }
-  return parseBomListonSheet(snapshot);
+  return { rows: parseBomListonSheet(record.spreadsheet_snapshot), writeDate: record.write_date };
+}
+
+async function getBomListonRows(): Promise<BomListonRow[]> {
+  return (await getBomListonSheet()).rows;
+}
+
+/** Odoo's raw UTC datetime string ("YYYY-MM-DD HH:mm:ss") for when the listones sheet was last saved — lets the "forzar sincronización" button show what it actually pulled, not just that it tried. */
+export async function getBomListonWriteDate(): Promise<string> {
+  return (await getBomListonSheet()).writeDate;
 }
 
 export interface ModeloCarpinteriaOption {

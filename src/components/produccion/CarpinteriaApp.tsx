@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { DehydratedState } from '@tanstack/react-query';
+import { useQueryClient, type DehydratedState } from '@tanstack/react-query';
 import QueryProvider from '../QueryProvider';
 import { useApiQuery } from '../dashboard/useApiQuery';
 import ModeloSearchTable from './ModeloSearchTable';
@@ -12,6 +12,24 @@ interface Props {
 }
 
 const numberFmt = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 });
+
+// timeZone pinned for the same reason as LastUpdated.tsx: this renders once
+// during SSR (server's local time) and again on hydration (browser's local
+// time) — without an explicit zone the two passes can disagree and React
+// flags a hydration mismatch.
+const writeDateFmt = new Intl.DateTimeFormat('es-AR', {
+  timeZone: 'America/Argentina/Buenos_Aires',
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+/** Odoo stores write_date as UTC with no timezone suffix ("YYYY-MM-DD HH:mm:ss") — append one explicitly or `Date` parses it as local time. */
+function formatOdooWriteDate(raw: string): string {
+  return writeDateFmt.format(new Date(`${raw.replace(' ', 'T')}Z`));
+}
 
 function pedidoKey(medida: string, largoCm: number): string {
   return `${medida}|${largoCm}`;
@@ -31,12 +49,36 @@ function CarpinteriaInner() {
   const [generandoEtiqueta, setGenerandoEtiqueta] = useState(false);
   const [etiquetaError, setEtiquetaError] = useState<string | null>(null);
   const [listUpdatedAt, setListUpdatedAt] = useState<number>(0);
+  const [sincronizando, setSincronizando] = useState(false);
+  const queryClient = useQueryClient();
 
   const recetaQuery = useApiQuery<RecetaListonRow[]>(
     ['carpinteria-receta', selected ?? null],
     selected ? `/api/carpinteria-receta?modelo=${encodeURIComponent(selected)}` : '',
     { enabled: selected !== null }
   );
+
+  const syncInfoQuery = useApiQuery<{ writeDate: string }>(['carpinteria-sync-info'], '/api/carpinteria-sync-info');
+
+  /**
+   * react-query treats data younger than staleTime (10s, see QueryProvider)
+   * as fresh and won't refetch on its own — someone editing the Odoo sheet
+   * and then flipping back to this tab needs a way to force a real refetch
+   * without waiting or hitting F5. Odoo itself has no cache on this read
+   * (see carpinteria.ts), so this always lands on the latest sheet content.
+   */
+  async function forzarSincronizacion() {
+    setSincronizando(true);
+    try {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['carpinteria-modelos'] }),
+        queryClient.invalidateQueries({ queryKey: ['carpinteria-receta'] }),
+        queryClient.invalidateQueries({ queryKey: ['carpinteria-sync-info'] }),
+      ]);
+    } finally {
+      setSincronizando(false);
+    }
+  }
 
   const cantidad = Number(cantidadInput);
   const cantidadValida = cantidadInput.trim() !== '' && Number.isFinite(cantidad) && cantidad > 0;
@@ -119,7 +161,35 @@ function CarpinteriaInner() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        {syncInfoQuery.data?.writeDate && (
+          <p className="text-xs text-slate-500">
+            Planilla editada por última vez en Odoo: <span className="text-slate-400">{formatOdooWriteDate(syncInfoQuery.data.writeDate)}</span>
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={forzarSincronizacion}
+          disabled={sincronizando}
+          className="flex items-center gap-1.5 rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 transition-colors hover:border-brand-500 hover:text-brand-400 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={`h-3.5 w-3.5 ${sincronizando ? 'animate-spin' : ''}`}
+          >
+            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+            <path d="M3 3v5h5" />
+            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+            <path d="M16 16h5v5" />
+          </svg>
+          {sincronizando ? 'Sincronizando…' : 'Forzar sincronización'}
+        </button>
         <LastUpdated dataUpdatedAt={recetaQuery.dataUpdatedAt || listUpdatedAt} />
       </div>
 
