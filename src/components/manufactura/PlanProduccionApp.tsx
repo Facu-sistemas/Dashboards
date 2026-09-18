@@ -34,9 +34,16 @@ function PlanProduccionInner({ initialPeriodKind, initialDate }: { initialPeriod
   );
 
   const diariaQuery = useApiQuery<PlanProduccionDailyRow[]>(
-    ['plan-produccion-diaria', date.slice(0, 7)],
-    `/api/plan-produccion-diaria?${new URLSearchParams({ date })}`
+    ['plan-produccion-diaria', periodKind, date],
+    `/api/plan-produccion-diaria?${new URLSearchParams({ period: periodKind, date })}`
   );
+
+  const trendTitle =
+    periodKind === 'year'
+      ? `Tendencia mensual ${date.slice(0, 4)}`
+      : periodKind === 'month'
+        ? `Tendencia diaria ${date.slice(0, 7)}`
+        : `Tendencia diaria — semana ${dateToWeekValue(date)}`;
 
   return (
     <div className="flex flex-col gap-6">
@@ -140,8 +147,8 @@ function PlanProduccionInner({ initialPeriodKind, initialDate }: { initialPeriod
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <PlanProduccionTrendChart title={`Living — Tendencia ${date.slice(0, 7)}`} rows={diariaQuery.data ?? EMPTY_DIARIA} pick={(r) => r.living} />
-          <PlanProduccionTrendChart title={`Colchones — Tendencia ${date.slice(0, 7)}`} rows={diariaQuery.data ?? EMPTY_DIARIA} pick={(r) => r.colchones} />
+          <PlanProduccionTrendChart title={`Living — ${trendTitle}`} rows={diariaQuery.data ?? EMPTY_DIARIA} pick={(r) => r.living} monthly={periodKind === 'year'} />
+          <PlanProduccionTrendChart title={`Colchones — ${trendTitle}`} rows={diariaQuery.data ?? EMPTY_DIARIA} pick={(r) => r.colchones} monthly={periodKind === 'year'} />
         </div>
       )}
     </div>

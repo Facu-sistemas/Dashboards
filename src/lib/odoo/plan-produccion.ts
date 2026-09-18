@@ -158,10 +158,39 @@ export async function getPlanProduccion(periodKind: PeriodKind, anchorIso: strin
   };
 }
 
-/** Same 3 gauges, one row per calendar day of the month the anchor date falls in — for the "Tendencia" chart. */
-export async function getPlanProduccionDiaria(anchorIso: string): Promise<PlanProduccionDailyRow[]> {
+function sumGauges(gauges: PlanProduccionGauge[], objetivo: number): PlanProduccionGauge {
+  let planificado = 0;
+  let producido = 0;
+  let cerrado = 0;
+  for (const g of gauges) {
+    planificado += g.planificado;
+    producido += g.producido;
+    cerrado += g.cerrado;
+  }
+  return buildGauge(planificado, producido, cerrado, objetivo);
+}
+
+/**
+ * Date range the "Tendencia" chart covers for a given period selection —
+ * kept in sync with what the gauges above show for that same period, so
+ * the chart is never showing a different span than what's selected:
+ * day/week both zoom to the ISO week (a single day's trend alone isn't
+ * useful), month shows its own days, year aggregates by month.
+ */
+function trendBounds(periodKind: PeriodKind, anchorIso: string): { start: string; endExclusive: string } {
+  if (periodKind === 'year') return periodBounds('year', anchorIso);
+  if (periodKind === 'month') return monthBounds(anchorIso.slice(0, 7));
+  return periodBounds('week', anchorIso);
+}
+
+/**
+ * Rows for the "Tendencia" chart, scoped to the selected period: daily
+ * rows for day/week/month, one row per month (aggregated) for year — see
+ * `trendBounds`.
+ */
+export async function getPlanProduccionDiaria(periodKind: PeriodKind, anchorIso: string): Promise<PlanProduccionDailyRow[]> {
   const { companyId } = await getFronteraCompany();
-  const { start, endExclusive } = monthBounds(anchorIso.slice(0, 7));
+  const { start, endExclusive } = trendBounds(periodKind, anchorIso);
 
   const [colchonesPlanned, colchonesClosed, livingPlanned, livingClosed, sheet] = await Promise.all([
     fetchPlannedRows(COLCHONES_CATEG_IDS, companyId, start, endExclusive, false),
@@ -193,9 +222,22 @@ export async function getPlanProduccionDiaria(anchorIso: string): Promise<PlanPr
   const colchonesObjetivoByDay = objetivoPerDay(sheet.colchones, start, endExclusive);
   const livingObjetivoByDay = objetivoPerDay(sheet.living, start, endExclusive);
 
-  return everyDay(start, endExclusive).map((date) => ({
+  const dailyRows = everyDay(start, endExclusive).map((date) => ({
     date,
     colchones: sameDayGauge(colchonesPlannedByDay.get(date) ?? [], colchonesClosedByDay.get(date) ?? [], colchonesObjetivoByDay.get(date) ?? 0, (r) => r.product_qty),
     living: sameDayGauge(livingPlannedByDay.get(date) ?? [], livingClosedByDay.get(date) ?? [], livingObjetivoByDay.get(date) ?? 0, ueOf),
   }));
+
+  if (periodKind !== 'year') return dailyRows;
+
+  const year = Number(start.slice(0, 4));
+  return Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`).map((monthKey) => {
+    const { start: mStart, endExclusive: mEnd } = monthBounds(monthKey);
+    const rowsInMonth = dailyRows.filter((r) => r.date >= mStart && r.date < mEnd);
+    return {
+      date: mStart,
+      colchones: sumGauges(rowsInMonth.map((r) => r.colchones), objetivoForPeriod(sheet.colchones, mStart, mEnd)),
+      living: sumGauges(rowsInMonth.map((r) => r.living), objetivoForPeriod(sheet.living, mStart, mEnd)),
+    };
+  });
 }

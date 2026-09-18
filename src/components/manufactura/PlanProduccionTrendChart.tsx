@@ -6,14 +6,18 @@ interface Props {
   title: string;
   rows: PlanProduccionDailyRow[];
   pick: (row: PlanProduccionDailyRow) => PlanProduccionGauge;
+  /** Rows are one-per-month (year view) instead of one-per-day — changes the x-axis label format. */
+  monthly?: boolean;
 }
 
 // timeZone: 'UTC' is load-bearing — see monthOptions.ts for why.
 const dayLabelFmt = new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: '2-digit', timeZone: 'UTC' });
+const monthLabelFmt = new Intl.DateTimeFormat('es-AR', { month: 'short', timeZone: 'UTC' });
 
-function dayLabel(dateIso: string): string {
+function dayLabel(dateIso: string, monthly: boolean): string {
   const [y, m, d] = dateIso.split('-').map(Number);
-  return dayLabelFmt.format(new Date(Date.UTC(y!, m! - 1, d!)));
+  const utcDate = new Date(Date.UTC(y!, m! - 1, d!));
+  return monthly ? monthLabelFmt.format(utcDate) : dayLabelFmt.format(utcDate);
 }
 
 // Always show at least up to 150% so lines that spike above 100% (common
@@ -23,13 +27,13 @@ function pctDomainMax(dataMax: number): number {
   return Math.max(150, dataMax);
 }
 
-export default function PlanProduccionTrendChart({ title, rows, pick }: Props) {
+export default function PlanProduccionTrendChart({ title, rows, pick, monthly = false }: Props) {
   const chartTheme = useChartTheme();
 
   const data = rows.map((r) => {
     const g = pick(r);
     return {
-      day: dayLabel(r.date),
+      day: dayLabel(r.date, monthly),
       planificadoPct: g.planificadoPct,
       cumplimientoPct: g.cumplimientoPct,
       cerradoPct: g.cerradoPct,

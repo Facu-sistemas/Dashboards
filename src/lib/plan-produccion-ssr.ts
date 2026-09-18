@@ -11,8 +11,8 @@ export async function buildPlanProduccionDehydratedState(periodKind: PeriodKind,
       queryFn: () => getPlanProduccion(periodKind, date),
     }),
     queryClient.query({
-      queryKey: ['plan-produccion-diaria', date.slice(0, 7)],
-      queryFn: () => getPlanProduccionDiaria(date),
+      queryKey: ['plan-produccion-diaria', periodKind, date],
+      queryFn: () => getPlanProduccionDiaria(periodKind, date),
     }),
   ]);
 
