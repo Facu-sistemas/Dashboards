@@ -64,11 +64,10 @@ export const AREAS: AreaConfig[] = [
     accent: 'brand',
     icon: ICONS.barChart,
     tabs: [
-      { slug: 'presupuesto-compras', name: 'Presupuesto de Compras' },
       { slug: 'presupuesto-dinamico', name: 'Presupuesto de Compras (BOM)' },
       { slug: 'facturacion', name: 'Facturación' },
-      { slug: 'consumo-mp', name: 'Consumo MP vs Stock' },
       { slug: 'politica-vs-real', name: 'Política vs Real' },
+      { slug: 'consumo-mp', name: 'Consumo MP vs Stock' },
     ],
   },
   {
@@ -102,9 +101,9 @@ export const AREAS: AreaConfig[] = [
     accent: 'orange',
     icon: ICONS.gear,
     tabs: [
-      { slug: 'top-productos', name: 'Top 10 Productos' },
       { slug: 'oee', name: 'Eficiencia (OEE)' },
       { slug: 'plan-produccion', name: 'Plan de Producción' },
+      { slug: 'top-productos', name: 'Top 10 Productos' },
     ],
   },
   {

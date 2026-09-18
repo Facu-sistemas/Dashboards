@@ -1,7 +1,6 @@
 ---
 import AreaLayout from '../../layouts/AreaLayout.astro';
 import PlaceholderTab from '../../components/nav/PlaceholderTab.astro';
-import PresupuestoComprasTab from '../../components/finanzas/PresupuestoComprasTab.astro';
 import FacturacionTab from '../../components/finanzas/FacturacionTab.astro';
 import RawMaterialConsumptionTab from '../../components/finanzas/RawMaterialConsumptionTab.astro';
 import PoliticaVsRealTab from '../../components/finanzas/PoliticaVsRealTab.astro';
@@ -30,7 +29,6 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
 ---
 
 <AreaLayout areaSlug={area.slug} tabSlug={tabSlug!}>
-  {area.slug === 'finanzas' && tabSlug === 'presupuesto-compras' && <PresupuestoComprasTab />}
   {area.slug === 'finanzas' && tabSlug === 'facturacion' && <FacturacionTab />}
   {area.slug === 'finanzas' && tabSlug === 'consumo-mp' && <RawMaterialConsumptionTab />}
   {area.slug === 'finanzas' && tabSlug === 'politica-vs-real' && <PoliticaVsRealTab />}
