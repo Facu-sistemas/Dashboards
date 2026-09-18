@@ -1,3 +1,6 @@
+import { useState } from 'react';
+import { formatCompactCurrency, formatNumber } from './format';
+
 interface Props {
   label: string;
   real: number;
@@ -7,11 +10,10 @@ interface Props {
   destacado?: boolean;
 }
 
-const money = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
-const plain = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
+const fullMoney = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
 
 function fmt(v: number, format: 'currency' | 'number') {
-  return format === 'currency' ? money.format(v) : plain.format(v);
+  return format === 'currency' ? formatCompactCurrency(v) : formatNumber(v);
 }
 
 /**
@@ -21,6 +23,7 @@ function fmt(v: number, format: 'currency' | 'number') {
  * pace", not "hit the full monthly target early".
  */
 export default function VentasGerenciaKpiCard({ label, real, objetivoProrrateado, format = 'number', unidad, destacado }: Props) {
+  const [expanded, setExpanded] = useState(false);
   const pct = objetivoProrrateado > 0 ? (real / objetivoProrrateado) * 100 : null;
   const badgeColor = pct === null ? 'bg-slate-800 text-slate-400' : pct >= 100 ? 'bg-status-green/15 text-status-green' : pct >= 85 ? 'bg-status-yellow/15 text-status-yellow' : 'bg-status-red/15 text-status-red';
 
@@ -28,13 +31,30 @@ export default function VentasGerenciaKpiCard({ label, real, objetivoProrrateado
   const umbral = Math.abs(objetivoProrrateado) * 0.005;
   const gapLine = objetivoProrrateado <= 0 ? null : gap > umbral ? { text: `Faltan recuperar ${fmt(gap, format)}${unidad ? ` ${unidad}` : ''}`, tone: 'text-status-red' } : gap < -umbral ? { text: `Adelantado ${fmt(-gap, format)}${unidad ? ` ${unidad}` : ''}`, tone: 'text-status-green' } : { text: 'En línea con el objetivo', tone: 'text-status-green' };
 
-  return (
-    <div className={`rounded-lg border p-4 ${destacado ? 'border-brand-500/50 bg-brand-500/5' : 'border-slate-800 bg-slate-900'}`}>
+  const clickable = format === 'currency';
+
+  const card = (
+    <>
       <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-1 text-xl font-semibold text-slate-100">{fmt(real, format)}</p>
+      <p className="mt-1 text-xl font-semibold text-slate-100">{clickable && expanded ? fullMoney.format(real) : fmt(real, format)}</p>
       <p className="mt-0.5 text-xs text-slate-500">objetivo {fmt(objetivoProrrateado, format)}</p>
       {pct !== null && <span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${badgeColor}`}>{pct >= 100 ? '▲' : '▼'} {pct.toFixed(1)}%</span>}
       {gapLine && <p className={`mt-2 border-t border-dashed border-slate-800 pt-2 text-xs font-semibold ${gapLine.tone}`}>{gapLine.text}</p>}
-    </div>
+    </>
+  );
+
+  const baseClass = `rounded-lg border p-4 text-left ${destacado ? 'border-brand-500/50 bg-brand-500/5' : 'border-slate-800 bg-slate-900'}`;
+
+  if (!clickable) return <div className={baseClass}>{card}</div>;
+
+  return (
+    <button
+      type="button"
+      onClick={() => setExpanded((e) => !e)}
+      title={expanded ? 'Ver redondeado' : 'Ver monto exacto'}
+      className={`${baseClass} w-full cursor-pointer transition-colors hover:border-brand-500/60 hover:bg-slate-800/60`}
+    >
+      {card}
+    </button>
   );
 }
