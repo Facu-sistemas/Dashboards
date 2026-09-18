@@ -1,7 +1,8 @@
 import { searchReadAll } from './client';
 import { getFronteraCompany } from './reference';
-import { COLCHONES_CATEG_IDS, LIVING_CATEG_IDS } from './oee';
+import { COLCHONES_CATEG_IDS, LIVING_CATEG_IDS, getArgentinaTodayIso } from './oee';
 import { getObjetivosGerencia } from './gerencia-objetivos';
+import { getDiasHabiles } from './business-calendar';
 
 /**
  * "Producción" (Gerencia General) — real figures come from `mrp.production`
@@ -52,27 +53,28 @@ function toMonthlyArray(byMonth: Map<string, number>, months: string[]): number[
 }
 
 export async function getProduccionGerencia(): Promise<ProduccionGerenciaResult> {
-  const now = new Date();
-  const year = now.getUTCFullYear();
+  const today = getArgentinaTodayIso();
+  const year = Number(today.slice(0, 4));
+  const mesesConDatos = Number(today.slice(5, 7));
   const months = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
   const start = `${year}-01-01`;
   const endExclusive = `${year + 1}-01-01`;
-  const mesesConDatos = now.getUTCMonth() + 1;
 
   const { companyId } = await getFronteraCompany();
 
-  const [sillonesByMonth, colchonesByMonth, objetivos] = await Promise.all([
+  const [sillonesByMonth, colchonesByMonth, objetivos, diasHabiles] = await Promise.all([
     monthlyProducedByCategory(LIVING_CATEG_IDS, companyId, start, endExclusive),
     monthlyProducedByCategory(COLCHONES_CATEG_IDS, companyId, start, endExclusive),
     getObjetivosGerencia(),
+    getDiasHabiles(year),
   ]);
 
   return {
     year,
     months,
     mesesConDatos,
-    diasTranscurridos: objetivos.diasTranscurridos,
-    diasTotal: objetivos.diasTotal,
+    diasTranscurridos: diasHabiles.diasTranscurridos,
+    diasTotal: diasHabiles.diasTotal,
     real: {
       sillones: toMonthlyArray(sillonesByMonth, months),
       colchones: toMonthlyArray(colchonesByMonth, months),

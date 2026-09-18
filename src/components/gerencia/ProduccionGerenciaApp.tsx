@@ -6,6 +6,7 @@ import LastUpdated from '../shared/LastUpdated';
 import VentasGerenciaKpiCard from './VentasGerenciaKpiCard';
 import VentasGerenciaChart from './VentasGerenciaChart';
 import PeriodPicker, { idxsForPeriodo } from './PeriodPicker';
+import CumplimientoBars from './CumplimientoBars';
 
 interface Props {
   dehydratedState?: DehydratedState;
@@ -57,6 +58,10 @@ function eqObjetivoProrrateado(objetivo: ProduccionGerenciaResult['objetivo'], d
   return total;
 }
 
+function pctOf(real: number, objetivoProrr: number): number | null {
+  return objetivoProrr > 0 ? (real / objetivoProrr) * 100 : null;
+}
+
 function ProduccionGerenciaInner() {
   const query = useApiQuery<ProduccionGerenciaResult>(['produccion-gerencia'], '/api/produccion-gerencia');
   const data = query.data;
@@ -86,34 +91,38 @@ function ProduccionGerenciaInner() {
       {query.isLoading || !data ? (
         <div className="h-64 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
       ) : (
-        <>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <VentasGerenciaKpiCard
-              label="Sillones eq."
-              real={sum(data.real.sillones, idxs)}
-              objetivoProrrateado={objetivoProrrateado(data.objetivo.sillones, data.diasTranscurridos, data.diasTotal, idxs)}
-              unidad="u"
-            />
-            <VentasGerenciaKpiCard
-              label="Colchones"
-              real={sum(data.real.colchones, idxs)}
-              objetivoProrrateado={objetivoProrrateado(data.objetivo.colchones, data.diasTranscurridos, data.diasTotal, idxs)}
-              unidad="u"
-            />
-            <VentasGerenciaKpiCard
-              label="Total eq. sillones"
-              real={eqSillones(sum(data.real.sillones, idxs), sum(data.real.colchones, idxs))}
-              objetivoProrrateado={eqObjetivoProrrateado(data.objetivo, data.diasTranscurridos, data.diasTotal, idxs)}
-              unidad="u eq."
-              destacado
-            />
-          </div>
+        (() => {
+          const sillones = { real: sum(data.real.sillones, idxs), obj: objetivoProrrateado(data.objetivo.sillones, data.diasTranscurridos, data.diasTotal, idxs) };
+          const colchones = { real: sum(data.real.colchones, idxs), obj: objetivoProrrateado(data.objetivo.colchones, data.diasTranscurridos, data.diasTotal, idxs) };
+          const totalEq = {
+            real: eqSillones(sillones.real, colchones.real),
+            obj: eqObjetivoProrrateado(data.objetivo, data.diasTranscurridos, data.diasTotal, idxs),
+          };
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <VentasGerenciaChart title="Sillones eq." real={data.real.sillones} objetivo={data.objetivo.sillones} nMeses={nMeses} />
-            <VentasGerenciaChart title="Colchones" real={data.real.colchones} objetivo={data.objetivo.colchones} nMeses={nMeses} />
-          </div>
-        </>
+          return (
+            <>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <VentasGerenciaKpiCard label="Sillones eq." real={sillones.real} objetivoProrrateado={sillones.obj} unidad="u" />
+                <VentasGerenciaKpiCard label="Colchones" real={colchones.real} objetivoProrrateado={colchones.obj} unidad="u" />
+                <VentasGerenciaKpiCard label="Total eq. sillones" real={totalEq.real} objetivoProrrateado={totalEq.obj} unidad="u eq." destacado />
+              </div>
+
+              <CumplimientoBars
+                rows={[
+                  { label: 'Sillones eq.', pct: pctOf(sillones.real, sillones.obj), real: sillones.real, objetivo: sillones.obj },
+                  { label: 'Colchones', pct: pctOf(colchones.real, colchones.obj), real: colchones.real, objetivo: colchones.obj },
+                  { label: 'Total equivalente (unid.)', pct: pctOf(totalEq.real, totalEq.obj), real: totalEq.real, objetivo: totalEq.obj, destacado: true },
+                ]}
+                nota="Barra hasta 180% · línea = 100% · Total equivalente = sillones + colchones/10."
+              />
+
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <VentasGerenciaChart title="Sillones eq." real={data.real.sillones} objetivo={data.objetivo.sillones} nMeses={nMeses} />
+                <VentasGerenciaChart title="Colchones" real={data.real.colchones} objetivo={data.objetivo.colchones} nMeses={nMeses} />
+              </div>
+            </>
+          );
+        })()
       )}
     </div>
   );

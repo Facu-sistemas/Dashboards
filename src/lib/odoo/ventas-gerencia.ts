@@ -1,6 +1,8 @@
 import { searchReadAll } from './client';
 import { LIVING_CONFIG } from './top-products';
 import { getObjetivosGerencia } from './gerencia-objetivos';
+import { getDiasHabiles } from './business-calendar';
+import { getArgentinaTodayIso } from './oee';
 import type { OdooDomain } from './types';
 
 /**
@@ -35,15 +37,7 @@ export interface VentasGerenciaResult {
   year: number;
   /** 12 "YYYY-MM" keys, Ene..Dic of `year`. */
   months: string[];
-  /**
-   * How many months (from Enero) actually happened already — computed from
-   * the server clock, NOT from the Odoo dashboard's own "días hábiles
-   * transcurridos" column. Confirmed live (2026-09-18): that column comes
-   * back fully populated for Oct/Nov/Dic (not blank, unlike the static
-   * Google Sheets export it mirrors), so trusting it as a "has this month
-   * happened yet" signal silently pulls future months' full objetivo into
-   * the prorated total.
-   */
+  /** How many months (from Enero) actually happened already, per Argentina's wall-clock today. */
   mesesConDatos: number;
   diasTranscurridos: number[];
   diasTotal: number[];
@@ -87,16 +81,16 @@ function toMonthlyArray(byMonth: Map<string, number>, months: string[]): number[
 }
 
 export async function getVentasGerencia(): Promise<VentasGerenciaResult> {
-  const now = new Date();
-  const year = now.getUTCFullYear();
+  const today = getArgentinaTodayIso();
+  const year = Number(today.slice(0, 4));
+  const mesesConDatos = Number(today.slice(5, 7));
   const months = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
   const start = `${year}-01-01`;
   const endExclusive = `${year + 1}-01-01`;
-  const mesesConDatos = now.getUTCMonth() + 1;
 
   const baseDomain: OdooDomain = [['order_id.state', '=', 'sale']];
 
-  const [sillonesByMonth, colchonesByMonth, blockByMonth, reventaByMonth, objetivos] = await Promise.all([
+  const [sillonesByMonth, colchonesByMonth, blockByMonth, reventaByMonth, objetivos, diasHabiles] = await Promise.all([
     monthlyQtyByCategory(
       [...baseDomain, ['product_id.categ_id', 'child_of', LIVING_CONFIG.rootCategId], ['product_id.categ_id', 'not in', LIVING_CONFIG.excludeCategIds]],
       start,
@@ -112,14 +106,15 @@ export async function getVentasGerencia(): Promise<VentasGerenciaResult> {
     monthlyQtyByCategory([...baseDomain, ['product_id.categ_id', 'child_of', BLOCK_CATEG_ID]], start, endExclusive, 'product_uom_qty'),
     monthlyQtyByCategory([...baseDomain, ['product_id.categ_id', 'child_of', REVENTA_CATEG_ID]], start, endExclusive, 'price_subtotal'),
     getObjetivosGerencia(),
+    getDiasHabiles(year),
   ]);
 
   return {
     year,
     months,
     mesesConDatos,
-    diasTranscurridos: objetivos.diasTranscurridos,
-    diasTotal: objetivos.diasTotal,
+    diasTranscurridos: diasHabiles.diasTranscurridos,
+    diasTotal: diasHabiles.diasTotal,
     real: {
       sillones: toMonthlyArray(sillonesByMonth, months),
       colchones: toMonthlyArray(colchonesByMonth, months),

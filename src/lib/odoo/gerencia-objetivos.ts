@@ -21,9 +21,7 @@ const MONTH_COL_START = 2; // column C (0-indexed) = Enero
 const MONTH_COL_END = 13; // column N = Diciembre
 
 export interface ObjetivosGerencia {
-  /** 12 entries, Ene..Dic. */
-  diasTranscurridos: number[];
-  diasTotal: number[];
+  /** 12 entries, Ene..Dic, salvo que se indique lo contrario. */
   ventas: { sillones: number[]; colchones: number[]; block: number[]; reventa: number[] };
   produccion: { sillones: number[]; colchones: number[] };
   facturacionUnidades: { sillones: number[]; colchones: number[]; block: number[] };
@@ -112,8 +110,11 @@ export async function getObjetivosGerencia(): Promise<ObjetivosGerencia> {
   const produccionStart = sectionStart(rows, 'produccion consensuado');
   const facturacionStart = sectionStart(rows, 'facturacion consensuado');
 
-  const diasTranscurridos = values(find(rows, 0, rows.length, 'dias habil trascurrido en el mes'));
-  const diasTotal = values(find(rows, 0, rows.length, 'dias habil del mes'));
+  // Los "días hábiles transcurridos/del mes" de esta planilla (filas
+  // "Dias habil trascurrido en el mes" / "dias habil del mes") NO se usan
+  // — confirmado en vivo que pueden estar desactualizados (ver
+  // business-calendar.ts). Ese cálculo ahora es dinámico, desde el
+  // calendario laboral oficial de la compañía en Odoo.
 
   // VENTAS CONSENSUADO block: from the top (no header row precedes it in
   // this dashboard) up to "PRODUCCION CONSENSUADO".
@@ -133,8 +134,6 @@ export async function getObjetivosGerencia(): Promise<ObjetivosGerencia> {
   const facturacionPesos = values(find(rows, facturacionStart, rows.length, 'concensuado en $', 'consensuado en $'));
 
   return {
-    diasTranscurridos,
-    diasTotal,
     ventas: { sillones: ventasSillones, colchones: ventasColchones, block: ventasBlock, reventa: ventasReventa },
     produccion: { sillones: produccionSillones, colchones: produccionColchones },
     facturacionUnidades: { sillones: facturacionSillones, colchones: facturacionColchones, block: facturacionBlock },
