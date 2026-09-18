@@ -8,6 +8,7 @@ import VentasGerenciaChart from './VentasGerenciaChart';
 import DesvioMensualChart from './DesvioMensualChart';
 import PeriodPicker, { idxsForPeriodo } from './PeriodPicker';
 import CumplimientoBars from './CumplimientoBars';
+import DiasHabilesStrip from './DiasHabilesStrip';
 
 interface Props {
   dehydratedState?: DehydratedState;
@@ -86,6 +87,8 @@ function ProduccionGerenciaInner() {
         </div>
         {data && <PeriodPicker nMeses={nMeses} periodo={periodo} onChange={setPeriodo} />}
       </div>
+
+      {data && <DiasHabilesStrip diasTranscurridos={data.diasTranscurridos} diasTotal={data.diasTotal} idxs={idxs} />}
 
       {query.isError && (
         <p className="rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">
