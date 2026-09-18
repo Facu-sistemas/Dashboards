@@ -23,6 +23,8 @@ export interface SearchReadParams {
   limit?: number;
   offset?: number;
   order?: string;
+  /** Merged over the client's default `{ lang: 'es_AR' }` — e.g. `{ active_test: false }` to include archived/inactive records (excluded by default). */
+  context?: Record<string, unknown>;
 }
 
 export interface ReadGroupParams {

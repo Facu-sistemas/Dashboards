@@ -1,5 +1,6 @@
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useChartTheme } from '../shared/useChartTheme';
+import { formatValue } from './format';
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
@@ -13,12 +14,9 @@ interface Props {
   format?: 'currency' | 'number';
 }
 
-const moneyCompact = new Intl.NumberFormat('es-AR', { notation: 'compact', style: 'currency', currency: 'ARS', maximumFractionDigits: 1 });
-const plain = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
-
 function fmtGap(v: number, format: 'currency' | 'number') {
   const sign = v >= 0 ? '+' : '';
-  return sign + (format === 'currency' ? moneyCompact.format(v) : plain.format(v));
+  return sign + formatValue(v, format);
 }
 
 /**

@@ -1,3 +1,5 @@
+import { formatValue } from './format';
+
 interface Row {
   label: string;
   pct: number | null;
@@ -14,13 +16,6 @@ interface Props {
 }
 
 const MAX_PCT = 180;
-
-const money = new Intl.NumberFormat('es-AR', { notation: 'compact', style: 'currency', currency: 'ARS', maximumFractionDigits: 1 });
-const plain = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
-
-function fmt(v: number, format: 'currency' | 'number') {
-  return format === 'currency' ? money.format(v) : plain.format(v);
-}
 
 function colorFor(pct: number | null): string {
   if (pct === null) return 'bg-slate-700';
@@ -66,7 +61,7 @@ export default function CumplimientoBars({ rows, nota }: Props) {
               </div>
               <div className={`w-12 shrink-0 text-right text-xs font-bold ${textColorFor(row.pct)}`}>{row.pct === null ? '—' : `${row.pct.toFixed(0)}%`}</div>
               <div className="hidden w-32 shrink-0 text-right text-[10px] text-slate-500 sm:block">
-                {fmt(row.real, row.format ?? 'number')} / {fmt(row.objetivo, row.format ?? 'number')}
+                {formatValue(row.real, row.format ?? 'number')} / {formatValue(row.objetivo, row.format ?? 'number')}
               </div>
             </div>
           );

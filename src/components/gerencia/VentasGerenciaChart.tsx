@@ -1,5 +1,6 @@
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useChartTheme } from '../shared/useChartTheme';
+import { formatValue as fmt } from './format';
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
@@ -9,13 +10,6 @@ interface Props {
   objetivo: number[];
   nMeses: number;
   format?: 'currency' | 'number';
-}
-
-const money = new Intl.NumberFormat('es-AR', { notation: 'compact', style: 'currency', currency: 'ARS', maximumFractionDigits: 1 });
-const plain = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
-
-function fmt(v: number, format: 'currency' | 'number') {
-  return format === 'currency' ? money.format(v) : plain.format(v);
 }
 
 export default function VentasGerenciaChart({ title, real, objetivo, nMeses, format = 'number' }: Props) {
