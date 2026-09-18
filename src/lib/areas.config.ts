@@ -84,7 +84,10 @@ export const AREAS: AreaConfig[] = [
     description: 'Ventas, producción y facturación real vs. objetivo',
     accent: 'amber',
     icon: ICONS.building,
-    tabs: [{ slug: 'ventas', name: 'Ventas' }],
+    tabs: [
+      { slug: 'ventas', name: 'Ventas' },
+      { slug: 'produccion', name: 'Producción' },
+    ],
   },
   {
     slug: 'gestion-calidad',

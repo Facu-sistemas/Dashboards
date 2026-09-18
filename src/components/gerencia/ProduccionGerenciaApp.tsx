@@ -11,32 +11,30 @@ interface Props {
   dehydratedState?: DehydratedState;
 }
 
-interface VentasGerenciaResult {
+interface ProduccionGerenciaResult {
   year: number;
   months: string[];
   mesesConDatos: number;
   diasTranscurridos: number[];
   diasTotal: number[];
-  real: { sillones: number[]; colchones: number[]; block: number[]; reventa: number[] };
-  objetivo: { sillones: number[]; colchones: number[]; block: number[]; reventa: number[] };
+  real: { sillones: number[]; colchones: number[] };
+  objetivo: { sillones: number[]; colchones: number[] };
 }
 
-// Sillón equivalente: 1 sillón = 3 colchones = 60kg de block, mismo factor
-// que usa el tablero original (public/data/index.html, EQ_COL/EQ_BLO) para
-// la KPI "Total eq. sillones". La reventa se mide en $ y queda afuera del
-// equivalente en unidades.
-const EQ_COL = 3;
-const EQ_BLO = 60;
+// Producción usa una relación colchón/sillón distinta de Ventas/Facturación
+// (1 sillón = 10 colchones, no 3) — misma convención que el tablero
+// original (public/data/index.html, EQ_COL_PROD), surge de las propias
+// filas "Consensuado equivalente Unidades" de la planilla de objetivos.
+const EQ_COL_PROD = 10;
 
-function eqSillones(sillones: number, colchones: number, block: number): number {
-  return sillones + colchones / EQ_COL + block / EQ_BLO;
+function eqSillones(sillones: number, colchones: number): number {
+  return sillones + colchones / EQ_COL_PROD;
 }
 
 function sum(arr: number[], idxs: number[]): number {
   return idxs.reduce((a, i) => a + (arr[i] ?? 0), 0);
 }
 
-/** Objetivo prorrateado a días hábiles transcurridos, sumado sobre los meses elegidos — mismo cálculo que objProp() en tabla.gs. */
 function objetivoProrrateado(objetivoMensual: number[], diasTranscurridos: number[], diasTotal: number[], idxs: number[]): number {
   let total = 0;
   for (const i of idxs) {
@@ -48,19 +46,19 @@ function objetivoProrrateado(objetivoMensual: number[], diasTranscurridos: numbe
   return total;
 }
 
-function eqObjetivoProrrateado(objetivo: VentasGerenciaResult['objetivo'], diasTranscurridos: number[], diasTotal: number[], idxs: number[]): number {
+function eqObjetivoProrrateado(objetivo: ProduccionGerenciaResult['objetivo'], diasTranscurridos: number[], diasTotal: number[], idxs: number[]): number {
   let total = 0;
   for (const i of idxs) {
     const dt = diasTranscurridos[i] ?? 0;
     const dm = diasTotal[i] ?? 0;
     if (!dm) continue;
-    total += eqSillones(objetivo.sillones[i] ?? 0, objetivo.colchones[i] ?? 0, objetivo.block[i] ?? 0) * (dt / dm);
+    total += eqSillones(objetivo.sillones[i] ?? 0, objetivo.colchones[i] ?? 0) * (dt / dm);
   }
   return total;
 }
 
-function VentasGerenciaInner() {
-  const query = useApiQuery<VentasGerenciaResult>(['ventas-gerencia'], '/api/ventas-gerencia');
+function ProduccionGerenciaInner() {
+  const query = useApiQuery<ProduccionGerenciaResult>(['produccion-gerencia'], '/api/produccion-gerencia');
   const data = query.data;
   const nMeses = data?.mesesConDatos ?? 12;
   const [periodo, setPeriodo] = useState('ACU');
@@ -72,7 +70,7 @@ function VentasGerenciaInner() {
       <div className="flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-900 p-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <p className="text-xs text-slate-400">
-            {data?.year ?? ''} · unidades/$ reales desde Odoo (pedidos confirmados), objetivo desde el tablero de gestión de Odoo.
+            {data?.year ?? ''} · unidades reales terminadas en planta (Odoo, mrp.production), objetivo desde el tablero de gestión de Odoo.
           </p>
           <LastUpdated dataUpdatedAt={query.dataUpdatedAt} />
         </div>
@@ -89,7 +87,7 @@ function VentasGerenciaInner() {
         <div className="h-64 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <VentasGerenciaKpiCard
               label="Sillones eq."
               real={sum(data.real.sillones, idxs)}
@@ -103,20 +101,8 @@ function VentasGerenciaInner() {
               unidad="u"
             />
             <VentasGerenciaKpiCard
-              label="Block (kg)"
-              real={sum(data.real.block, idxs)}
-              objetivoProrrateado={objetivoProrrateado(data.objetivo.block, data.diasTranscurridos, data.diasTotal, idxs)}
-              unidad="kg"
-            />
-            <VentasGerenciaKpiCard
-              label="Reventa $"
-              real={sum(data.real.reventa, idxs)}
-              objetivoProrrateado={objetivoProrrateado(data.objetivo.reventa, data.diasTranscurridos, data.diasTotal, idxs)}
-              format="currency"
-            />
-            <VentasGerenciaKpiCard
               label="Total eq. sillones"
-              real={eqSillones(sum(data.real.sillones, idxs), sum(data.real.colchones, idxs), sum(data.real.block, idxs))}
+              real={eqSillones(sum(data.real.sillones, idxs), sum(data.real.colchones, idxs))}
               objetivoProrrateado={eqObjetivoProrrateado(data.objetivo, data.diasTranscurridos, data.diasTotal, idxs)}
               unidad="u eq."
               destacado
@@ -126,8 +112,6 @@ function VentasGerenciaInner() {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <VentasGerenciaChart title="Sillones eq." real={data.real.sillones} objetivo={data.objetivo.sillones} nMeses={nMeses} />
             <VentasGerenciaChart title="Colchones" real={data.real.colchones} objetivo={data.objetivo.colchones} nMeses={nMeses} />
-            <VentasGerenciaChart title="Block (kg)" real={data.real.block} objetivo={data.objetivo.block} nMeses={nMeses} />
-            <VentasGerenciaChart title="Reventa ($)" real={data.real.reventa} objetivo={data.objetivo.reventa} nMeses={nMeses} format="currency" />
           </div>
         </>
       )}
@@ -136,10 +120,10 @@ function VentasGerenciaInner() {
 }
 
 /** Entry point mounted as an Astro client island (`client:load`), same pattern as the other tabs. */
-export default function VentasGerenciaApp({ dehydratedState }: Props) {
+export default function ProduccionGerenciaApp({ dehydratedState }: Props) {
   return (
     <QueryProvider dehydratedState={dehydratedState}>
-      <VentasGerenciaInner />
+      <ProduccionGerenciaInner />
     </QueryProvider>
   );
 }
