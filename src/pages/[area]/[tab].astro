@@ -19,6 +19,7 @@ import ColchonTab from '../../components/test/ColchonTab.astro';
 import ConversorTab from '../../components/test/ConversorTab.astro';
 import VentasTab from '../../components/gerencia/VentasTab.astro';
 import ProduccionGerenciaTab from '../../components/gerencia/ProduccionTab.astro';
+import ClientesActivosTab from '../../components/gerencia/ClientesActivosTab.astro';
 import { getArea } from '../../lib/areas.config';
 
 export const prerender = false;
@@ -49,6 +50,7 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
   {area.slug === 'test' && tabSlug === 'conversor' && <ConversorTab />}
   {area.slug === 'gerencia-general' && tabSlug === 'ventas' && <VentasTab />}
   {area.slug === 'gerencia-general' && tabSlug === 'produccion' && <ProduccionGerenciaTab />}
+  {area.slug === 'gerencia-general' && tabSlug === 'clientes-activos' && <ClientesActivosTab />}
   {!['finanzas', 'comercial', 'manufactura', 'almacen', 'produccion', 'gestion-calidad', 'test', 'gerencia-general'].includes(area.slug) && (
     <PlaceholderTab areaName={area.name} />
   )}
