@@ -94,7 +94,7 @@ export interface ClientesActivosResult {
  * `rows` viene ordenado por cantidad de facturas descendente — el Top 10
  * se obtiene simplemente tomando los primeros 10 en el cliente.
  */
-export async function getClientesActivos(periodo: ClientesActivosPeriodo): Promise<ClientesActivosResult> {
+export async function getClientesActivos(periodo: ClientesActivosPeriodo, incluirTodasNC: boolean = false): Promise<ClientesActivosResult> {
   const { companyId } = await getFronteraCompany();
   const desde = desdeFecha(periodo);
 
@@ -113,7 +113,7 @@ export async function getClientesActivos(periodo: ClientesActivosPeriodo): Promi
       fields: ['amount_total'],
       groupBy: ['partner_id'],
     }) as Promise<GroupRow[]>,
-    getIgnoredCreditNoteMoveIds(companyId, desde),
+    incluirTodasNC ? Promise.resolve([]) : getIgnoredCreditNoteMoveIds(companyId, desde),
   ]);
 
   const creditNoteDomain: OdooDomain = [
@@ -306,7 +306,7 @@ type MonthGroupRow = OdooReadGroupResult & {
  * tendencia, no un corte puntual. `notasCreditoMonto` ya excluye las
  * categorías que no son devolución real (ver IGNORED_PATTERNS).
  */
-export async function getTendenciaMensual(): Promise<TendenciaMensualRow[]> {
+export async function getTendenciaMensual(incluirTodasNC: boolean = false): Promise<TendenciaMensualRow[]> {
   const { companyId } = await getFronteraCompany();
   const months = lastMonthKeys(TENDENCIA_MENSUAL_MESES);
   const rangeStart = monthBounds(months[0]!).start;
@@ -324,7 +324,7 @@ export async function getTendenciaMensual(): Promise<TendenciaMensualRow[]> {
       groupBy: ['partner_id', 'invoice_date:month'],
       lazy: false,
     }) as Promise<MonthGroupRow[]>,
-    getIgnoredCreditNoteMoveIds(companyId, rangeStart),
+    incluirTodasNC ? Promise.resolve([]) : getIgnoredCreditNoteMoveIds(companyId, rangeStart),
   ]);
 
   const creditNoteDomain: OdooDomain = [

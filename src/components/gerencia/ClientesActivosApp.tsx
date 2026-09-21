@@ -36,11 +36,12 @@ function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActi
   const [periodo, setPeriodo] = useState<ClientesActivosPeriodo>(initialPeriodo);
   const [condicion, setCondicion] = useState(CONDICION_DEFAULT);
   const [montoMinimo, setMontoMinimo] = useState(MONTO_MINIMO_DEFAULT);
+  const [todasNC, setTodasNC] = useState(false);
   const [sortBy, setSortBy] = useState<ClientesActivosSortBy>('facturado');
 
   const query = useApiQuery<ClientesActivosResult>(
-    ['clientes-activos', periodo],
-    `/api/clientes-activos?periodo=${periodo}`
+    ['clientes-activos', periodo, todasNC],
+    `/api/clientes-activos?periodo=${periodo}&todasNC=${todasNC}`
   );
   const ultimasVentasQuery = useApiQuery<UltimaVentaRow[]>(
     ['clientes-activos-ultimas-ventas'],
@@ -102,6 +103,19 @@ function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActi
             />
           </label>
 
+          <label
+            className="flex items-center gap-2 pb-1.5 text-sm text-slate-300"
+            title="Tildado: suma todas las notas de crédito, incluidas Acuerdo comercial/Descuento/Publicidad. Destildado (default): solo las que no tienen ninguna de esas categorías."
+          >
+            <input
+              type="checkbox"
+              checked={todasNC}
+              onChange={(e) => setTodasNC(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-brand-500 focus:ring-brand-500"
+            />
+            Traer todas las NC
+          </label>
+
           {query.data && (
             <p className="pb-1.5 text-xs text-slate-500">
               Desde <span className="text-slate-300">{formatFecha(query.data.hasta)}</span> hasta{' '}
@@ -153,7 +167,7 @@ function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActi
           <h3 className="text-sm font-medium text-slate-300">Tendencia mensual</h3>
           <p className="text-xs text-slate-500">Últimos 6 meses calendario — independiente del período elegido arriba.</p>
         </div>
-        <TendenciaMensualSection />
+        <TendenciaMensualSection todasNC={todasNC} />
       </section>
 
       <section className="flex flex-col gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">

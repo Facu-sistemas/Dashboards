@@ -4,7 +4,7 @@ import { handleApiRoute } from '../../lib/api-helpers';
 
 export const prerender = false;
 
-// GET /api/clientes-activos-tendencia
-export const GET: APIRoute = async () => {
-  return handleApiRoute(() => getTendenciaMensual());
+// GET /api/clientes-activos-tendencia?todasNC=true
+export const GET: APIRoute = async ({ url }) => {
+  return handleApiRoute(() => getTendenciaMensual(url.searchParams.get('todasNC') === 'true'));
 };
