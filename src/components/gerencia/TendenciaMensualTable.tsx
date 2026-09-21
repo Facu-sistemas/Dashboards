@@ -1,4 +1,3 @@
-import { useApiQuery } from '../dashboard/useApiQuery';
 import { formatCompactCurrency, formatNumber } from './format';
 import type { TendenciaMensualRow } from '../../lib/odoo/clientes-activos';
 
@@ -23,18 +22,12 @@ function Variacion({ actual, anterior }: { actual: number; anterior: number | nu
   );
 }
 
-/** Tabla de tendencia mes a mes (últimos 6 meses calendario) — independiente del período elegido en el resto del tab, para ver la evolución en vez de un corte puntual. */
-export default function TendenciaMensualTable() {
-  const query = useApiQuery<TendenciaMensualRow[]>(['clientes-activos-tendencia'], '/api/clientes-activos-tendencia');
+interface Props {
+  rows: TendenciaMensualRow[];
+}
 
-  if (query.isLoading) {
-    return <div className="h-40 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />;
-  }
-  if (query.isError) {
-    return <p className="text-sm text-red-400">No se pudo cargar la tendencia mensual.</p>;
-  }
-
-  const rows = query.data ?? [];
+/** Detalle exacto mes a mes — el gráfico de al lado (TendenciaMensualChart) es para ver la forma de la tendencia de un vistazo. */
+export default function TendenciaMensualTable({ rows }: Props) {
   if (rows.length === 0) return null;
 
   return (

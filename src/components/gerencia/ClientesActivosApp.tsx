@@ -5,7 +5,7 @@ import { useApiQuery } from '../dashboard/useApiQuery';
 import LastUpdated from '../shared/LastUpdated';
 import ClientesActivosTable, { type ClientesActivosSortBy } from './ClientesActivosTable';
 import UltimasVentasCarousel from './UltimasVentasCarousel';
-import TendenciaMensualTable from './TendenciaMensualTable';
+import TendenciaMensualSection from './TendenciaMensualSection';
 import { formatCompactCurrency, formatNumber } from './format';
 import type { ClientesActivosPeriodo, ClientesActivosResult, UltimaVentaRow } from '../../lib/odoo/clientes-activos';
 
@@ -140,7 +140,7 @@ function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActi
           <h3 className="text-sm font-medium text-slate-300">Tendencia mensual</h3>
           <p className="text-xs text-slate-500">Últimos 6 meses calendario — independiente del período elegido arriba.</p>
         </div>
-        <TendenciaMensualTable />
+        <TendenciaMensualSection />
       </section>
 
       <section className="flex flex-col gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
