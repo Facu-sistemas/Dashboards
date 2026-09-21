@@ -63,7 +63,7 @@ function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActi
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
-        <div className="flex flex-wrap items-end gap-4">
+        <div className="flex flex-wrap items-end gap-6">
           <label className="flex flex-col gap-1 text-sm text-slate-300">
             Período
             <select
@@ -104,8 +104,8 @@ function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActi
 
           {query.data && (
             <p className="pb-1.5 text-xs text-slate-500">
-              Desde <span className="text-slate-300">{formatFecha(query.data.desde)}</span> hasta{' '}
-              <span className="text-slate-300">{formatFecha(query.data.hasta)}</span>
+              Desde <span className="text-slate-300">{formatFecha(query.data.hasta)}</span> hasta{' '}
+              <span className="text-slate-300">{formatFecha(query.data.desde)}</span>
             </p>
           )}
         </div>
