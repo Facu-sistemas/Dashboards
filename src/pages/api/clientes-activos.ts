@@ -6,7 +6,7 @@ import { handleApiRoute, ApiValidationError } from '../../lib/api-helpers';
 export const prerender = false;
 
 const querySchema = z.object({
-  periodo: z.enum(['30d', '6m', '9m']).default('30d'),
+  periodo: z.enum(['30d', '3m', '6m', '9m']).default('30d'),
 });
 
 // GET /api/clientes-activos?periodo=6m

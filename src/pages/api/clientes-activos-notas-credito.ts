@@ -7,7 +7,7 @@ export const prerender = false;
 
 const querySchema = z.object({
   partnerId: z.coerce.number().int().positive(),
-  periodo: z.enum(['30d', '6m', '9m']),
+  periodo: z.enum(['30d', '3m', '6m', '9m']),
 });
 
 // GET /api/clientes-activos-notas-credito?partnerId=123&periodo=6m

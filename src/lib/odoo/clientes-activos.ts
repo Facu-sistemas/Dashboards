@@ -4,12 +4,12 @@ import { lastMonthKeys, monthBounds, addDaysIso } from '../date';
 import { getArgentinaTodayIso } from './oee';
 import type { OdooDomain, OdooReadGroupResult } from './types';
 
-/** '30d' = ventana exacta de los últimos 30 días (no alineada a mes) — default. '6m'/'9m' siguen alineados a mes, como antes. */
-export type ClientesActivosPeriodo = '30d' | '6m' | '9m';
+/** '30d' = ventana exacta de los últimos 30 días (no alineada a mes) — default, agregada además de las opciones de mes que ya existían. '3m'/'6m'/'9m' siguen alineadas a mes, como antes. */
+export type ClientesActivosPeriodo = '30d' | '3m' | '6m' | '9m';
 
 function desdeFecha(periodo: ClientesActivosPeriodo): string {
   if (periodo === '30d') return addDaysIso(getArgentinaTodayIso(), -30);
-  const meses = periodo === '6m' ? 6 : 9;
+  const meses = periodo === '3m' ? 3 : periodo === '6m' ? 6 : 9;
   return monthBounds(lastMonthKeys(meses)[0]!).start;
 }
 

@@ -38,7 +38,7 @@ export default function UltimasVentasCarousel({ ventas }: Props) {
       </div>
       <style>{`
         .ticker-track {
-          animation: ticker-scroll 30s linear infinite;
+          animation: ticker-scroll 70s linear infinite;
         }
         @keyframes ticker-scroll {
           from { transform: translateX(0); }

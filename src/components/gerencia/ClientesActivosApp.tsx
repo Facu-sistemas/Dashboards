@@ -15,6 +15,7 @@ interface Props {
 
 const PERIODO_OPTIONS: { value: ClientesActivosPeriodo; label: string }[] = [
   { value: '30d', label: 'Últimos 30 días' },
+  { value: '3m', label: 'Últimos 3 meses' },
   { value: '6m', label: 'Últimos 6 meses' },
   { value: '9m', label: 'Últimos 9 meses' },
 ];

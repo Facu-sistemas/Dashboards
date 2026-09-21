@@ -3,7 +3,7 @@ import ClientesActivosApp from './ClientesActivosApp';
 import { buildClientesActivosDehydratedState } from '../../lib/clientes-activos-ssr';
 import type { ClientesActivosPeriodo } from '../../lib/odoo/clientes-activos';
 
-const PERIODO_VALUES: ClientesActivosPeriodo[] = ['30d', '6m', '9m'];
+const PERIODO_VALUES: ClientesActivosPeriodo[] = ['30d', '3m', '6m', '9m'];
 
 const params = Astro.url.searchParams;
 const periodoParam = params.get('periodo');
