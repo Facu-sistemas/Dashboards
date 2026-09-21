@@ -1,20 +1,20 @@
 ---
 import ClientesActivosApp from './ClientesActivosApp';
 import { buildClientesActivosDehydratedState } from '../../lib/clientes-activos-ssr';
-import type { ClientesActivosMeses } from '../../lib/odoo/clientes-activos';
+import type { ClientesActivosPeriodo } from '../../lib/odoo/clientes-activos';
 
-const MESES_VALUES: ClientesActivosMeses[] = [3, 6, 9];
+const PERIODO_VALUES: ClientesActivosPeriodo[] = ['30d', '6m', '9m'];
 
 const params = Astro.url.searchParams;
-const mesesParam = Number(params.get('meses'));
-const initialMeses: ClientesActivosMeses = MESES_VALUES.includes(mesesParam as ClientesActivosMeses)
-  ? (mesesParam as ClientesActivosMeses)
-  : 3;
+const periodoParam = params.get('periodo');
+const initialPeriodo: ClientesActivosPeriodo = PERIODO_VALUES.includes(periodoParam as ClientesActivosPeriodo)
+  ? (periodoParam as ClientesActivosPeriodo)
+  : '30d';
 
 let dehydratedState;
 let ssrError: string | null = null;
 try {
-  dehydratedState = await buildClientesActivosDehydratedState(initialMeses);
+  dehydratedState = await buildClientesActivosDehydratedState(initialPeriodo);
 } catch (err) {
   ssrError = err instanceof Error ? err.message : 'Error desconocido consultando Odoo';
 }
@@ -39,5 +39,5 @@ try {
     )
   }
 
-  <ClientesActivosApp client:load initialMeses={initialMeses} dehydratedState={dehydratedState} />
+  <ClientesActivosApp client:load initialPeriodo={initialPeriodo} dehydratedState={dehydratedState} />
 </div>

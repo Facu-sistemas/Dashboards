@@ -6,30 +6,30 @@ import LastUpdated from '../shared/LastUpdated';
 import ClientesActivosTable, { type ClientesActivosSortBy } from './ClientesActivosTable';
 import UltimasVentasCarousel from './UltimasVentasCarousel';
 import { formatCompactCurrency, formatNumber } from './format';
-import type { ClientesActivosMeses, ClientesActivosResult, UltimaVentaRow } from '../../lib/odoo/clientes-activos';
+import type { ClientesActivosPeriodo, ClientesActivosResult, UltimaVentaRow } from '../../lib/odoo/clientes-activos';
 
 interface Props {
-  initialMeses: ClientesActivosMeses;
+  initialPeriodo: ClientesActivosPeriodo;
   dehydratedState?: DehydratedState;
 }
 
-const MESES_OPTIONS: { value: ClientesActivosMeses; label: string }[] = [
-  { value: 3, label: 'Últimos 3 meses' },
-  { value: 6, label: 'Últimos 6 meses' },
-  { value: 9, label: 'Últimos 9 meses' },
+const PERIODO_OPTIONS: { value: ClientesActivosPeriodo; label: string }[] = [
+  { value: '30d', label: 'Últimos 30 días' },
+  { value: '6m', label: 'Últimos 6 meses' },
+  { value: '9m', label: 'Últimos 9 meses' },
 ];
 
 const CONDICION_DEFAULT = 10;
 const CONDICION_MIN = 1;
 
-function ClientesActivosInner({ initialMeses }: { initialMeses: ClientesActivosMeses }) {
-  const [meses, setMeses] = useState<ClientesActivosMeses>(initialMeses);
+function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActivosPeriodo }) {
+  const [periodo, setPeriodo] = useState<ClientesActivosPeriodo>(initialPeriodo);
   const [condicion, setCondicion] = useState(CONDICION_DEFAULT);
   const [sortBy, setSortBy] = useState<ClientesActivosSortBy>('facturado');
 
   const query = useApiQuery<ClientesActivosResult>(
-    ['clientes-activos', meses],
-    `/api/clientes-activos?meses=${meses}`
+    ['clientes-activos', periodo],
+    `/api/clientes-activos?periodo=${periodo}`
   );
   const ultimasVentasQuery = useApiQuery<UltimaVentaRow[]>(
     ['clientes-activos-ultimas-ventas'],
@@ -56,11 +56,11 @@ function ClientesActivosInner({ initialMeses }: { initialMeses: ClientesActivosM
           <label className="flex flex-col gap-1 text-sm text-slate-300">
             Período
             <select
-              value={meses}
-              onChange={(e) => setMeses(Number(e.target.value) as ClientesActivosMeses)}
+              value={periodo}
+              onChange={(e) => setPeriodo(e.target.value as ClientesActivosPeriodo)}
               className="min-w-[10rem] rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-slate-100 focus:border-brand-500 focus:outline-none"
             >
-              {MESES_OPTIONS.map((o) => (
+              {PERIODO_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
                 </option>
@@ -112,7 +112,7 @@ function ClientesActivosInner({ initialMeses }: { initialMeses: ClientesActivosM
         {query.isLoading ? (
           <div className="h-64 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
         ) : (
-          <ClientesActivosTable rows={top10} meses={meses} sortBy={sortBy} onSortByChange={setSortBy} />
+          <ClientesActivosTable rows={top10} periodo={periodo} sortBy={sortBy} onSortByChange={setSortBy} />
         )}
       </section>
 
@@ -123,7 +123,7 @@ function ClientesActivosInner({ initialMeses }: { initialMeses: ClientesActivosM
         {query.isLoading ? (
           <div className="h-64 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
         ) : (
-          <ClientesActivosTable rows={rows} meses={meses} sortBy={sortBy} onSortByChange={setSortBy} scrollable />
+          <ClientesActivosTable rows={rows} periodo={periodo} sortBy={sortBy} onSortByChange={setSortBy} scrollable />
         )}
       </section>
     </div>
@@ -131,10 +131,10 @@ function ClientesActivosInner({ initialMeses }: { initialMeses: ClientesActivosM
 }
 
 /** Entry point mounted as an Astro client island (`client:load`), same pattern as the other Gerencia tabs. */
-export default function ClientesActivosApp({ dehydratedState, initialMeses }: Props) {
+export default function ClientesActivosApp({ dehydratedState, initialPeriodo }: Props) {
   return (
     <QueryProvider dehydratedState={dehydratedState}>
-      <ClientesActivosInner initialMeses={initialMeses} />
+      <ClientesActivosInner initialPeriodo={initialPeriodo} />
     </QueryProvider>
   );
 }

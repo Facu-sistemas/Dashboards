@@ -1,11 +1,15 @@
 import { readGroup, searchRead } from './client';
 import { getFronteraCompany } from './reference';
-import { lastMonthKeys, monthBounds } from '../date';
+import { lastMonthKeys, monthBounds, addDaysIso } from '../date';
+import { getArgentinaTodayIso } from './oee';
 import type { OdooDomain, OdooReadGroupResult } from './types';
 
-export type ClientesActivosMeses = 3 | 6 | 9;
+/** '30d' = ventana exacta de los últimos 30 días (no alineada a mes) — default. '6m'/'9m' siguen alineados a mes, como antes. */
+export type ClientesActivosPeriodo = '30d' | '6m' | '9m';
 
-function desdeFecha(meses: ClientesActivosMeses): string {
+function desdeFecha(periodo: ClientesActivosPeriodo): string {
+  if (periodo === '30d') return addDaysIso(getArgentinaTodayIso(), -30);
+  const meses = periodo === '6m' ? 6 : 9;
   return monthBounds(lastMonthKeys(meses)[0]!).start;
 }
 
@@ -44,7 +48,7 @@ export interface ClienteActivoRow {
 }
 
 export interface ClientesActivosResult {
-  meses: ClientesActivosMeses;
+  periodo: ClientesActivosPeriodo;
   desde: string;
   rows: ClienteActivoRow[];
 }
@@ -52,15 +56,16 @@ export interface ClientesActivosResult {
 /**
  * Un cliente se considera "activo" si tuvo al menos una factura de cliente
  * posteada (account.move, move_type 'out_invoice', state 'posted') dentro
- * de los últimos `meses` (3/6/9) — misma noción de "facturación" que
- * pareto-clients.ts, scopeada a Frontera Living S.A. (no a "Presupuesto").
+ * del `periodo` elegido (últimos 30 días exactos, o 6/9 meses alineados a
+ * mes) — misma noción de "facturación" que pareto-clients.ts, scopeada a
+ * Frontera Living S.A. (no a "Presupuesto").
  *
  * `rows` viene ordenado por cantidad de facturas descendente — el Top 10
  * se obtiene simplemente tomando los primeros 10 en el cliente.
  */
-export async function getClientesActivos(meses: ClientesActivosMeses): Promise<ClientesActivosResult> {
+export async function getClientesActivos(periodo: ClientesActivosPeriodo): Promise<ClientesActivosResult> {
   const { companyId } = await getFronteraCompany();
-  const desde = desdeFecha(meses);
+  const desde = desdeFecha(periodo);
 
   const domain: OdooDomain = [
     ['move_type', '=', 'out_invoice'],
@@ -117,7 +122,7 @@ export async function getClientesActivos(meses: ClientesActivosMeses): Promise<C
     })
     .sort((a, b) => b.invoiceCount - a.invoiceCount);
 
-  return { meses, desde, rows };
+  return { periodo, desde, rows };
 }
 
 export interface NotaCreditoRow {
@@ -134,10 +139,10 @@ export interface NotaCreditoRow {
 /** Detalle de las notas de crédito (una por una) de un cliente puntual en el período — para el desplegable de la tabla, cargado bajo demanda al expandir una fila. */
 export async function getNotasCreditoCliente(
   partnerId: number,
-  meses: ClientesActivosMeses
+  periodo: ClientesActivosPeriodo
 ): Promise<NotaCreditoRow[]> {
   const { companyId } = await getFronteraCompany();
-  const desde = desdeFecha(meses);
+  const desde = desdeFecha(periodo);
 
   type MoveRow = { id: number; name: string; invoice_date: string; amount_total: number; ref: string | false };
   const moves = await searchRead<MoveRow>({

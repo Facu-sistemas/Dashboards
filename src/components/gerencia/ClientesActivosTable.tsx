@@ -1,5 +1,5 @@
 import { Fragment, useState } from 'react';
-import type { ClienteActivoRow as ClienteActivoRowType, ClientesActivosMeses } from '../../lib/odoo/clientes-activos';
+import type { ClienteActivoRow as ClienteActivoRowType, ClientesActivosPeriodo } from '../../lib/odoo/clientes-activos';
 import ClienteActivoTableRow from './ClienteActivoRow';
 import NotasCreditoDetailRow from './NotasCreditoDetailRow';
 
@@ -9,7 +9,7 @@ const COLUMN_COUNT = 5;
 
 interface Props {
   rows: ClienteActivoRowType[];
-  meses: ClientesActivosMeses;
+  periodo: ClientesActivosPeriodo;
   sortBy: ClientesActivosSortBy;
   onSortByChange: (sortBy: ClientesActivosSortBy) => void;
   /** Envuelve la tabla en un contenedor de altura fija con scroll interno — para la lista completa, que puede tener muchas filas. */
@@ -39,7 +39,7 @@ function SortableHeader({
   );
 }
 
-export default function ClientesActivosTable({ rows, meses, sortBy, onSortByChange, scrollable }: Props) {
+export default function ClientesActivosTable({ rows, periodo, sortBy, onSortByChange, scrollable }: Props) {
   const [expandedPartnerId, setExpandedPartnerId] = useState<number | null>(null);
 
   if (rows.length === 0) {
@@ -68,7 +68,7 @@ export default function ClientesActivosTable({ rows, meses, sortBy, onSortByChan
                 expanded={expanded}
                 onToggleCreditNotes={() => setExpandedPartnerId(expanded ? null : r.partnerId)}
               />
-              {expanded && <NotasCreditoDetailRow partnerId={r.partnerId} meses={meses} colSpan={COLUMN_COUNT} />}
+              {expanded && <NotasCreditoDetailRow partnerId={r.partnerId} periodo={periodo} colSpan={COLUMN_COUNT} />}
             </Fragment>
           );
         })}
