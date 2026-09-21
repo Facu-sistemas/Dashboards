@@ -14,24 +14,53 @@ function desdeFecha(periodo: ClientesActivosPeriodo): string {
 }
 
 /**
- * "N/C ACUERDO COMERCIAL COLCHONE" / "... SILLONES" — notas de crédito que
- * no son una devolución real sino un acuerdo comercial pagado por fuera
- * (en efectivo), confirmado en vivo con el cliente el 2026-09-20. No deben
- * contarse en `creditNoteCount`/`creditNoteAmount` (inflarían la alerta de
+ * Notas de crédito que no son una devolución real, identificadas por el
+ * nombre del producto de la línea — no deben contarse en
+ * `creditNoteCount`/`creditNoteAmount` (inflarían la alerta de
  * "devoluciones" con algo que no es tal), pero siguen apareciendo en el
- * detalle de `getNotasCreditoCliente` — ahí el front las resalta en vez de
- * ocultarlas, para que se puedan ver a simple vista.
+ * detalle de `getNotasCreditoCliente` con su categoría marcada, para
+ * poder verlas a simple vista en vez de ocultarlas.
+ *
+ * - "N/C ACUERDO COMERCIAL COLCHONE"/"...SILLONES": acuerdo comercial
+ *   pagado por fuera (en efectivo) — confirmado en vivo con el cliente
+ *   el 2026-09-20.
+ * - "NOTA DE CREDITO POR DESCUENTO": descuento comercial, no devolución.
+ * - "PUBLICIDAD Y PROPAGANDA": nota de crédito por publicidad, no
+ *   devolución — confirmado en vivo con el cliente el 2026-09-21.
  */
-async function getAcuerdoComercialMoveIds(companyId: number, desde: string): Promise<number[]> {
+export type NotaCreditoCategoria = 'acuerdo_comercial' | 'descuento' | 'publicidad' | null;
+
+const IGNORED_PATTERNS: { categoria: Exclude<NotaCreditoCategoria, null>; pattern: string }[] = [
+  { categoria: 'acuerdo_comercial', pattern: 'ACUERDO COMERCIAL' },
+  { categoria: 'descuento', pattern: 'NOTA DE CREDITO POR DESCUENTO' },
+  { categoria: 'publicidad', pattern: 'PUBLICIDAD Y PROPAGANDA' },
+];
+
+function categoriaDeProductos(productos: string[]): NotaCreditoCategoria {
+  const upper = productos.map((p) => p.toUpperCase());
+  for (const { categoria, pattern } of IGNORED_PATTERNS) {
+    if (upper.some((p) => p.includes(pattern))) return categoria;
+  }
+  return null;
+}
+
+/** Odoo domain OR: N condiciones necesitan (N-1) operadores '|' en notación prefija antes de ellas. */
+function orDomain(conditions: OdooDomain): OdooDomain {
+  if (conditions.length <= 1) return conditions;
+  return [...new Array(conditions.length - 1).fill('|' as const), ...conditions];
+}
+
+async function getIgnoredCreditNoteMoveIds(companyId: number, desde: string): Promise<number[]> {
+  const domain: OdooDomain = [
+    ['move_type', '=', 'out_refund'],
+    ['state', '=', 'posted'],
+    ['company_id', '=', companyId],
+    ['invoice_date', '>=', desde],
+    ...orDomain(IGNORED_PATTERNS.map(({ pattern }) => ['invoice_line_ids.product_id.name', 'ilike', pattern])),
+  ];
   const rows = await searchRead<{ id: number }>({
     model: 'account.move',
-    domain: [
-      ['move_type', '=', 'out_refund'],
-      ['state', '=', 'posted'],
-      ['company_id', '=', companyId],
-      ['invoice_date', '>=', desde],
-      ['invoice_line_ids.product_id.name', 'ilike', 'ACUERDO COMERCIAL'],
-    ],
+    domain,
     fields: ['id'],
   });
   return rows.map((r) => r.id);
@@ -75,14 +104,14 @@ export async function getClientesActivos(periodo: ClientesActivosPeriodo): Promi
   ];
 
   type GroupRow = OdooReadGroupResult & { partner_id: [number, string] | false; amount_total: number };
-  const [invoiceGroups, acuerdoComercialIds] = await Promise.all([
+  const [invoiceGroups, ignoredIds] = await Promise.all([
     readGroup({
       model: 'account.move',
       domain,
       fields: ['amount_total'],
       groupBy: ['partner_id'],
     }) as Promise<GroupRow[]>,
-    getAcuerdoComercialMoveIds(companyId, desde),
+    getIgnoredCreditNoteMoveIds(companyId, desde),
   ]);
 
   const creditNoteDomain: OdooDomain = [
@@ -91,8 +120,8 @@ export async function getClientesActivos(periodo: ClientesActivosPeriodo): Promi
     ['company_id', '=', companyId],
     ['invoice_date', '>=', desde],
   ];
-  if (acuerdoComercialIds.length > 0) {
-    creditNoteDomain.push(['id', 'not in', acuerdoComercialIds]);
+  if (ignoredIds.length > 0) {
+    creditNoteDomain.push(['id', 'not in', ignoredIds]);
   }
   const creditNoteGroups = (await readGroup({
     model: 'account.move',
@@ -134,6 +163,8 @@ export interface NotaCreditoRow {
   motivo: string | null;
   /** "<producto> x<cantidad>" por cada línea con producto — vacío si la NC no referencia ningún producto puntual. */
   productos: string[];
+  /** No-null cuando esta NC es una de las categorías "no es una devolución real" — ver IGNORED_PATTERNS arriba. */
+  categoria: NotaCreditoCategoria;
 }
 
 /** Detalle de las notas de crédito (una por una) de un cliente puntual en el período — para el desplegable de la tabla, cargado bajo demanda al expandir una fila. */
@@ -178,14 +209,18 @@ export async function getNotasCreditoCliente(
     productosByMove.set(moveId, list);
   }
 
-  return moves.map((m) => ({
-    id: m.id,
-    name: m.name,
-    invoiceDate: m.invoice_date,
-    amount: m.amount_total,
-    motivo: m.ref || null,
-    productos: productosByMove.get(m.id) ?? [],
-  }));
+  return moves.map((m) => {
+    const productos = productosByMove.get(m.id) ?? [];
+    return {
+      id: m.id,
+      name: m.name,
+      invoiceDate: m.invoice_date,
+      amount: m.amount_total,
+      motivo: m.ref || null,
+      productos,
+      categoria: categoriaDeProductos(productos),
+    };
+  });
 }
 
 const ULTIMAS_VENTAS_LIMIT = 10;
@@ -244,4 +279,95 @@ export async function getUltimasVentas(): Promise<UltimaVentaRow[]> {
       invoiceDate: r.invoice_date,
       horaConfirmacion: writeDateToHoraArgentina(r.write_date),
     }));
+}
+
+const TENDENCIA_MENSUAL_MESES = 6;
+
+export interface TendenciaMensualRow {
+  month: string; // YYYY-MM
+  clientesActivos: number;
+  facturas: number;
+  facturado: number;
+  notasCreditoMonto: number;
+}
+
+type MonthGroupRow = OdooReadGroupResult & {
+  partner_id: [number, string] | false;
+  amount_total: number;
+  __range?: Record<string, { from: string | false; to: string | false }>;
+};
+
+/**
+ * Evolución mes a mes de los últimos `TENDENCIA_MENSUAL_MESES` meses
+ * calendario completos (independiente del `periodo` elegido en el resto
+ * del tab, que puede ser una ventana corta como "30 días") — para ver la
+ * tendencia, no un corte puntual. `notasCreditoMonto` ya excluye las
+ * categorías que no son devolución real (ver IGNORED_PATTERNS).
+ */
+export async function getTendenciaMensual(): Promise<TendenciaMensualRow[]> {
+  const { companyId } = await getFronteraCompany();
+  const months = lastMonthKeys(TENDENCIA_MENSUAL_MESES);
+  const rangeStart = monthBounds(months[0]!).start;
+
+  const [invoiceGroups, ignoredIds] = await Promise.all([
+    readGroup({
+      model: 'account.move',
+      domain: [
+        ['move_type', '=', 'out_invoice'],
+        ['state', '=', 'posted'],
+        ['company_id', '=', companyId],
+        ['invoice_date', '>=', rangeStart],
+      ],
+      fields: ['amount_total'],
+      groupBy: ['partner_id', 'invoice_date:month'],
+      lazy: false,
+    }) as Promise<MonthGroupRow[]>,
+    getIgnoredCreditNoteMoveIds(companyId, rangeStart),
+  ]);
+
+  const creditNoteDomain: OdooDomain = [
+    ['move_type', '=', 'out_refund'],
+    ['state', '=', 'posted'],
+    ['company_id', '=', companyId],
+    ['invoice_date', '>=', rangeStart],
+  ];
+  if (ignoredIds.length > 0) creditNoteDomain.push(['id', 'not in', ignoredIds]);
+
+  const creditNoteGroups = (await readGroup({
+    model: 'account.move',
+    domain: creditNoteDomain,
+    fields: ['amount_total'],
+    groupBy: ['invoice_date:month'],
+    lazy: false,
+  })) as MonthGroupRow[];
+
+  const byMonth = new Map<string, { partners: Set<number>; facturas: number; facturado: number }>();
+  for (const g of invoiceGroups) {
+    const monthFrom = g.__range?.['invoice_date:month']?.from;
+    if (!monthFrom) continue;
+    const month = monthFrom.slice(0, 7);
+    const bucket = byMonth.get(month) ?? { partners: new Set<number>(), facturas: 0, facturado: 0 };
+    if (g.partner_id) bucket.partners.add(g.partner_id[0]);
+    bucket.facturas += g.__count;
+    bucket.facturado += g.amount_total;
+    byMonth.set(month, bucket);
+  }
+
+  const creditNoteByMonth = new Map<string, number>();
+  for (const g of creditNoteGroups) {
+    const monthFrom = g.__range?.['invoice_date:month']?.from;
+    if (!monthFrom) continue;
+    creditNoteByMonth.set(monthFrom.slice(0, 7), g.amount_total);
+  }
+
+  return months.map((month) => {
+    const b = byMonth.get(month);
+    return {
+      month,
+      clientesActivos: b?.partners.size ?? 0,
+      facturas: b?.facturas ?? 0,
+      facturado: b?.facturado ?? 0,
+      notasCreditoMonto: creditNoteByMonth.get(month) ?? 0,
+    };
+  });
 }

@@ -5,6 +5,7 @@ import { useApiQuery } from '../dashboard/useApiQuery';
 import LastUpdated from '../shared/LastUpdated';
 import ClientesActivosTable, { type ClientesActivosSortBy } from './ClientesActivosTable';
 import UltimasVentasCarousel from './UltimasVentasCarousel';
+import TendenciaMensualTable from './TendenciaMensualTable';
 import { formatCompactCurrency, formatNumber } from './format';
 import type { ClientesActivosPeriodo, ClientesActivosResult, UltimaVentaRow } from '../../lib/odoo/clientes-activos';
 
@@ -20,12 +21,15 @@ const PERIODO_OPTIONS: { value: ClientesActivosPeriodo; label: string }[] = [
   { value: '9m', label: 'Últimos 9 meses' },
 ];
 
-const CONDICION_DEFAULT = 10;
+const CONDICION_DEFAULT = 1;
 const CONDICION_MIN = 1;
+const MONTO_MINIMO_DEFAULT = 1_000_000;
+const MONTO_MINIMO_MIN = 0;
 
 function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActivosPeriodo }) {
   const [periodo, setPeriodo] = useState<ClientesActivosPeriodo>(initialPeriodo);
   const [condicion, setCondicion] = useState(CONDICION_DEFAULT);
+  const [montoMinimo, setMontoMinimo] = useState(MONTO_MINIMO_DEFAULT);
   const [sortBy, setSortBy] = useState<ClientesActivosSortBy>('facturado');
 
   const query = useApiQuery<ClientesActivosResult>(
@@ -38,12 +42,12 @@ function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActi
   );
 
   const rows = useMemo(() => {
-    const activos = (query.data?.rows ?? []).filter((r) => r.invoiceCount >= condicion);
+    const activos = (query.data?.rows ?? []).filter((r) => r.invoiceCount >= condicion && r.amount >= montoMinimo);
     const sorted = [...activos].sort((a, b) =>
       sortBy === 'facturado' ? b.amount - a.amount : b.invoiceCount - a.invoiceCount
     );
     return sorted;
-  }, [query.data, condicion, sortBy]);
+  }, [query.data, condicion, montoMinimo, sortBy]);
 
   const top10 = rows.slice(0, 10);
   const totalActivos = rows.length;
@@ -77,6 +81,18 @@ function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActi
               value={condicion}
               onChange={(e) => setCondicion(Math.max(CONDICION_MIN, Number(e.target.value) || CONDICION_MIN))}
               className="w-28 rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-slate-100 focus:border-brand-500 focus:outline-none"
+            />
+          </label>
+
+          <label className="flex flex-col gap-1 text-sm text-slate-300">
+            Monto mínimo facturado
+            <input
+              type="number"
+              min={MONTO_MINIMO_MIN}
+              step={100_000}
+              value={montoMinimo}
+              onChange={(e) => setMontoMinimo(Math.max(MONTO_MINIMO_MIN, Number(e.target.value) || MONTO_MINIMO_MIN))}
+              className="w-36 rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-slate-100 focus:border-brand-500 focus:outline-none"
             />
           </label>
         </div>
@@ -118,6 +134,14 @@ function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActi
       </section>
 
       {!ultimasVentasQuery.isLoading && <UltimasVentasCarousel ventas={ultimasVentasQuery.data ?? []} />}
+
+      <section className="flex flex-col gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
+        <div>
+          <h3 className="text-sm font-medium text-slate-300">Tendencia mensual</h3>
+          <p className="text-xs text-slate-500">Últimos 6 meses calendario — independiente del período elegido arriba.</p>
+        </div>
+        <TendenciaMensualTable />
+      </section>
 
       <section className="flex flex-col gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
         <h3 className="text-sm font-medium text-slate-300">Todos los clientes activos ({formatNumber(totalActivos)})</h3>
