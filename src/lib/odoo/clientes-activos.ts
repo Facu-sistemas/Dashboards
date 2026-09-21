@@ -79,6 +79,8 @@ export interface ClienteActivoRow {
 export interface ClientesActivosResult {
   periodo: ClientesActivosPeriodo;
   desde: string;
+  /** Siempre "hoy" (no hay tope superior en el filtro) — calculado en el servidor, no en el navegador, para no arriesgar un mismatch de hidratación por zona horaria. */
+  hasta: string;
   rows: ClienteActivoRow[];
 }
 
@@ -151,7 +153,7 @@ export async function getClientesActivos(periodo: ClientesActivosPeriodo): Promi
     })
     .sort((a, b) => b.invoiceCount - a.invoiceCount);
 
-  return { periodo, desde, rows };
+  return { periodo, desde, hasta: getArgentinaTodayIso(), rows };
 }
 
 export interface NotaCreditoRow {

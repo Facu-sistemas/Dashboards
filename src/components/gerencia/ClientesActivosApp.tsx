@@ -26,6 +26,12 @@ const CONDICION_MIN = 1;
 const MONTO_MINIMO_DEFAULT = 1_000_000;
 const MONTO_MINIMO_MIN = 0;
 
+/** "YYYY-MM-DD" -> "DD/MM/AAAA", sin pasar por Date/Intl (misma razón que format.ts: evitar diferencias SSR/cliente). */
+function formatFecha(iso: string): string {
+  const [year, month, day] = iso.split('-');
+  return `${day}/${month}/${year}`;
+}
+
 function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActivosPeriodo }) {
   const [periodo, setPeriodo] = useState<ClientesActivosPeriodo>(initialPeriodo);
   const [condicion, setCondicion] = useState(CONDICION_DEFAULT);
@@ -95,6 +101,13 @@ function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActi
               className="w-36 rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-slate-100 focus:border-brand-500 focus:outline-none"
             />
           </label>
+
+          {query.data && (
+            <p className="pb-1.5 text-xs text-slate-500">
+              Desde <span className="text-slate-300">{formatFecha(query.data.desde)}</span> hasta{' '}
+              <span className="text-slate-300">{formatFecha(query.data.hasta)}</span>
+            </p>
+          )}
         </div>
         <LastUpdated dataUpdatedAt={query.dataUpdatedAt} />
       </div>
