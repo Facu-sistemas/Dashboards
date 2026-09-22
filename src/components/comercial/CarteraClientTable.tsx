@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { computeMovimiento, type Categoria, type ClienteStat, type Estado, type Movimiento, type Snapshot } from './cartera-clientes-calc';
 import { formatCompactCurrency } from '../gerencia/format';
+import { imprimirCarteraClientes } from './cartera-clientes-print';
 
 interface Props {
   snap: Snapshot;
@@ -123,6 +124,16 @@ export default function CarteraClientTable({ snap, snapPrev, clients, vendors }:
   const clampedPage = Math.min(page, totalPages - 1);
   const pageRows = rows.slice(clampedPage * PAGE_SIZE, clampedPage * PAGE_SIZE + PAGE_SIZE);
 
+  const filtrosLabel = useMemo(() => {
+    const parts: string[] = [];
+    if (fVend) parts.push(`Vendedor: ${fVend}`);
+    if (fEstado.size > 0) parts.push(`Estado: ${[...fEstado].join(', ')}`);
+    if (fCat.size > 0) parts.push(`Categoría: ${[...fCat].join(', ')}`);
+    if (fMov.size > 0) parts.push(`Movimiento: ${[...fMov].join(', ')}`);
+    if (search) parts.push(`Búsqueda: "${search}"`);
+    return parts.length > 0 ? parts.join(' · ') : 'Todos los clientes, sin filtros';
+  }, [fVend, fEstado, fCat, fMov, search]);
+
   function onHeaderClick(k: SortKey) {
     setPage(0);
     setSort((prev) => (prev.k === k ? { k, dir: (prev.dir * -1) as 1 | -1 } : { k, dir: -1 }));
@@ -205,6 +216,15 @@ export default function CarteraClientTable({ snap, snapPrev, clients, vendors }:
             </option>
           ))}
         </select>
+
+        <button
+          type="button"
+          onClick={() => imprimirCarteraClientes(rows, clients, vendors, filtrosLabel)}
+          className="ml-auto rounded border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 hover:border-brand-500/60 hover:text-slate-100"
+          title="Abre una vista imprimible con los clientes filtrados — desde ahí, 'Guardar como PDF' en el diálogo de impresión"
+        >
+          Imprimir / PDF
+        </button>
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-900">
