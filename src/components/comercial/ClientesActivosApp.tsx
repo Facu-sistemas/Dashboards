@@ -7,7 +7,7 @@ import ClientesActivosTable, { type ClientesActivosSortBy } from './ClientesActi
 import UltimasVentasCarousel from './UltimasVentasCarousel';
 import TendenciaMensualSection from './TendenciaMensualSection';
 import { formatCompactCurrency, formatNumber } from '../gerencia/format';
-import type { ClientesActivosPeriodo, ClientesActivosResult, UltimaVentaRow } from '../../lib/odoo/clientes-activos';
+import type { ClientesActivosFuente, ClientesActivosPeriodo, ClientesActivosResult, UltimaVentaRow } from '../../lib/odoo/clientes-activos';
 
 interface Props {
   initialPeriodo: ClientesActivosPeriodo;
@@ -20,6 +20,18 @@ const PERIODO_OPTIONS: { value: ClientesActivosPeriodo; label: string }[] = [
   { value: '6m', label: 'Últimos 6 meses' },
   { value: '9m', label: 'Últimos 9 meses' },
 ];
+
+const FUENTE_OPTIONS: { value: ClientesActivosFuente; label: string }[] = [
+  { value: 'pedidos', label: 'Notas de venta' },
+  { value: 'facturas', label: 'Facturas' },
+];
+
+/** Textos que cambian según la fuente — "pedido/vendido" no es lo mismo que "factura/facturado". */
+function labelsFuente(fuente: ClientesActivosFuente) {
+  return fuente === 'pedidos'
+    ? { cantidad: 'pedidos', monto: 'vendido', condicion: 'Condición (pedidos mín.)', montoMinimo: 'Monto mínimo vendido', kpiMonto: 'Vendido en el período' }
+    : { cantidad: 'facturas', monto: 'facturado', condicion: 'Condición (facturas mín.)', montoMinimo: 'Monto mínimo facturado', kpiMonto: 'Facturado en el período' };
+}
 
 const CONDICION_DEFAULT = 1;
 const CONDICION_MIN = 1;
@@ -42,10 +54,12 @@ function formatFecha(iso: string): string {
 
 function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActivosPeriodo }) {
   const [periodo, setPeriodo] = useState<ClientesActivosPeriodo>(initialPeriodo);
+  const [fuente, setFuente] = useState<ClientesActivosFuente>('pedidos');
   const [condicion, setCondicion] = useState(CONDICION_DEFAULT);
   const [montoMinimo, setMontoMinimo] = useState(MONTO_MINIMO_DEFAULT);
   const [todasNC, setTodasNC] = useState(false);
   const [sortBy, setSortBy] = useState<ClientesActivosSortBy>('facturado');
+  const labels = labelsFuente(fuente);
   // Vacío = "todas las compañías" (mismo criterio que Salud de la Cartera) — no se puede saber
   // qué compañías existen hasta que la primera respuesta trae `companies`, así que arranca vacío
   // y el fetch inicial (sin `companies` en la URL) ya le pide a Odoo "todas" por default.
@@ -53,12 +67,12 @@ function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActi
   const companiesParam = [...selectedCompanies].sort((a, b) => a - b).join(',');
 
   const query = useApiQuery<ClientesActivosResult>(
-    ['clientes-activos', periodo, todasNC, companiesParam],
-    `/api/clientes-activos?periodo=${periodo}&todasNC=${todasNC}&companies=${companiesParam}`
+    ['clientes-activos', periodo, todasNC, companiesParam, fuente],
+    `/api/clientes-activos?periodo=${periodo}&todasNC=${todasNC}&companies=${companiesParam}&fuente=${fuente}`
   );
   const ultimasVentasQuery = useApiQuery<UltimaVentaRow[]>(
-    ['clientes-activos-ultimas-ventas', companiesParam],
-    `/api/clientes-activos-ultimas-ventas?companies=${companiesParam}`
+    ['clientes-activos-ultimas-ventas', companiesParam, fuente],
+    `/api/clientes-activos-ultimas-ventas?companies=${companiesParam}&fuente=${fuente}`
   );
 
   const companies = query.data?.companies ?? [];
@@ -109,6 +123,21 @@ function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActi
           )}
 
           <label className="flex flex-col gap-1 text-sm text-slate-300">
+            Fuente
+            <select
+              value={fuente}
+              onChange={(e) => setFuente(e.target.value as ClientesActivosFuente)}
+              className="min-w-[9rem] rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-slate-100 focus:border-brand-500 focus:outline-none"
+            >
+              {FUENTE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex flex-col gap-1 text-sm text-slate-300">
             Período
             <select
               value={periodo}
@@ -124,7 +153,7 @@ function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActi
           </label>
 
           <label className="flex flex-col gap-1 text-sm text-slate-300">
-            Condición (facturas mín.)
+            {labels.condicion}
             <input
               type="number"
               min={CONDICION_MIN}
@@ -135,7 +164,7 @@ function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActi
           </label>
 
           <label className="flex flex-col gap-1 text-sm text-slate-300">
-            Monto mínimo facturado
+            {labels.montoMinimo}
             <input
               type="text"
               inputMode="numeric"
@@ -145,18 +174,20 @@ function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActi
             />
           </label>
 
-          <label
-            className="flex items-center gap-2 pb-1.5 text-sm text-slate-300"
-            title="Tildado: suma todas las notas de crédito, incluidas Acuerdo comercial/Descuento/Publicidad. Destildado (default): solo las que no tienen ninguna de esas categorías."
-          >
-            <input
-              type="checkbox"
-              checked={todasNC}
-              onChange={(e) => setTodasNC(e.target.checked)}
-              className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-brand-500 focus:ring-brand-500"
-            />
-            Traer todas las NC
-          </label>
+          {fuente === 'facturas' && (
+            <label
+              className="flex items-center gap-2 pb-1.5 text-sm text-slate-300"
+              title="Tildado: suma todas las notas de crédito, incluidas Acuerdo comercial/Descuento/Publicidad. Destildado (default): solo las que no tienen ninguna de esas categorías."
+            >
+              <input
+                type="checkbox"
+                checked={todasNC}
+                onChange={(e) => setTodasNC(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-700 bg-slate-950 text-brand-500 focus:ring-brand-500"
+              />
+              Traer todas las NC
+            </label>
+          )}
 
           {query.data && (
             <p className="pb-1.5 text-xs text-slate-500">
@@ -177,19 +208,21 @@ function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActi
       {query.isLoading ? (
         <div className="h-24 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className={`grid grid-cols-1 gap-4 ${fuente === 'facturas' ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
           <div className="rounded-lg border border-slate-800 bg-slate-900 p-4">
             <p className="text-xs uppercase tracking-wide text-slate-500">Clientes activos</p>
             <p className="mt-1 text-2xl font-semibold text-slate-100">{formatNumber(totalActivos)}</p>
           </div>
           <div className="rounded-lg border border-slate-800 bg-slate-900 p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Facturado en el período</p>
+            <p className="text-xs uppercase tracking-wide text-slate-500">{labels.kpiMonto}</p>
             <p className="mt-1 text-2xl font-semibold text-slate-100">{formatCompactCurrency(totalFacturado)}</p>
           </div>
-          <div className="rounded-lg border border-slate-800 bg-slate-900 p-4">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Con notas de crédito</p>
-            <p className="mt-1 text-2xl font-semibold text-amber-400">{formatNumber(totalConDevoluciones)}</p>
-          </div>
+          {fuente === 'facturas' && (
+            <div className="rounded-lg border border-slate-800 bg-slate-900 p-4">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Con notas de crédito</p>
+              <p className="mt-1 text-2xl font-semibold text-amber-400">{formatNumber(totalConDevoluciones)}</p>
+            </div>
+          )}
         </div>
       )}
 
@@ -202,6 +235,7 @@ function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActi
             rows={top10}
             periodo={periodo}
             companiesParam={companiesParam}
+            fuente={fuente}
             sortBy={sortBy}
             onSortByChange={setSortBy}
           />
@@ -215,7 +249,7 @@ function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActi
           <h3 className="text-sm font-medium text-slate-300">Tendencia mensual</h3>
           <p className="text-xs text-slate-500">Últimos 6 meses calendario — independiente del período elegido arriba.</p>
         </div>
-        <TendenciaMensualSection todasNC={todasNC} companiesParam={companiesParam} />
+        <TendenciaMensualSection todasNC={todasNC} companiesParam={companiesParam} fuente={fuente} />
       </section>
 
       <section className="flex flex-col gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
@@ -227,6 +261,7 @@ function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActi
             rows={rows}
             periodo={periodo}
             companiesParam={companiesParam}
+            fuente={fuente}
             sortBy={sortBy}
             onSortByChange={setSortBy}
             scrollable

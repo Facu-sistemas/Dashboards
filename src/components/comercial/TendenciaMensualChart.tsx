@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useChartTheme } from '../shared/useChartTheme';
 import { formatCompactCurrency, formatNumber } from '../gerencia/format';
-import type { TendenciaMensualRow } from '../../lib/odoo/clientes-activos';
+import type { ClientesActivosFuente, TendenciaMensualRow } from '../../lib/odoo/clientes-activos';
 
 interface Props {
   rows: TendenciaMensualRow[];
+  fuente: ClientesActivosFuente;
 }
 
 // timeZone: 'UTC' — mismo motivo que en los demás gráficos mensuales del proyecto (monthOptions.ts).
@@ -19,21 +20,22 @@ function monthLabel(monthKey: string): string {
 
 type Metrica = 'clientes' | 'facturado';
 
-const METRICA_OPTIONS: { value: Metrica; label: string }[] = [
-  { value: 'clientes', label: 'Clientes activos' },
-  { value: 'facturado', label: 'Facturado' },
-];
-
 /**
  * Un solo toggle arriba en vez de barra+línea superpuestas: mezclar clientes
  * (decenas) y facturado (miles de millones) en dos ejes hacía que la línea
  * del que quedaba en el eje secundario se viera "para todos lados" sin
  * aportar nada — más claro mostrar una métrica genuina a la vez.
  */
-export default function TendenciaMensualChart({ rows }: Props) {
+export default function TendenciaMensualChart({ rows, fuente }: Props) {
   const chartTheme = useChartTheme();
   const [metrica, setMetrica] = useState<Metrica>('clientes');
   if (rows.length === 0) return null;
+
+  const montoLabel = fuente === 'pedidos' ? 'Vendido' : 'Facturado';
+  const METRICA_OPTIONS: { value: Metrica; label: string }[] = [
+    { value: 'clientes', label: 'Clientes activos' },
+    { value: 'facturado', label: montoLabel },
+  ];
 
   const data = rows.map((r) => ({
     month: monthLabel(r.month),

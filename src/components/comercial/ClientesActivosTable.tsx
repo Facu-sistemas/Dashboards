@@ -1,17 +1,17 @@
 import { Fragment, useState } from 'react';
-import type { ClienteActivoRow as ClienteActivoRowType, ClientesActivosPeriodo } from '../../lib/odoo/clientes-activos';
+import type { ClienteActivoRow as ClienteActivoRowType, ClientesActivosFuente, ClientesActivosPeriodo } from '../../lib/odoo/clientes-activos';
 import ClienteActivoTableRow from './ClienteActivoRow';
 import NotasCreditoDetailRow from './NotasCreditoDetailRow';
 
 export type ClientesActivosSortBy = 'facturas' | 'facturado';
-
-const COLUMN_COUNT = 5;
 
 interface Props {
   rows: ClienteActivoRowType[];
   periodo: ClientesActivosPeriodo;
   /** Ids de compañía seleccionados, coma-separados — vacío = todas. Se reenvía tal cual al detalle de NC para que coincida con el filtro de arriba. */
   companiesParam: string;
+  /** 'pedidos' oculta la columna NC — las notas de crédito son un concepto de facturación, no aplica a pedidos. */
+  fuente: ClientesActivosFuente;
   sortBy: ClientesActivosSortBy;
   onSortByChange: (sortBy: ClientesActivosSortBy) => void;
   /** Envuelve la tabla en un contenedor de altura fija con scroll interno — para la lista completa, que puede tener muchas filas. */
@@ -41,8 +41,10 @@ function SortableHeader({
   );
 }
 
-export default function ClientesActivosTable({ rows, periodo, companiesParam, sortBy, onSortByChange, scrollable }: Props) {
+export default function ClientesActivosTable({ rows, periodo, companiesParam, fuente, sortBy, onSortByChange, scrollable }: Props) {
   const [expandedPartnerId, setExpandedPartnerId] = useState<number | null>(null);
+  const showNC = fuente === 'facturas';
+  const columnCount = showNC ? 5 : 4;
 
   if (rows.length === 0) {
     return <p className="py-8 text-center text-sm text-slate-500">Sin clientes activos en este período.</p>;
@@ -54,9 +56,17 @@ export default function ClientesActivosTable({ rows, periodo, companiesParam, so
         <tr className="border-b border-slate-800 text-left text-xs uppercase tracking-wide text-slate-500">
           <th className="py-2 pr-3 font-medium">#</th>
           <th className="py-2 pr-4 font-medium">Cliente</th>
-          <SortableHeader label="Facturas" active={sortBy === 'facturas'} onClick={() => onSortByChange('facturas')} />
-          <SortableHeader label="Facturado" active={sortBy === 'facturado'} onClick={() => onSortByChange('facturado')} />
-          <th className="py-2 text-right font-medium">NC</th>
+          <SortableHeader
+            label={fuente === 'pedidos' ? 'Pedidos' : 'Facturas'}
+            active={sortBy === 'facturas'}
+            onClick={() => onSortByChange('facturas')}
+          />
+          <SortableHeader
+            label={fuente === 'pedidos' ? 'Vendido' : 'Facturado'}
+            active={sortBy === 'facturado'}
+            onClick={() => onSortByChange('facturado')}
+          />
+          {showNC && <th className="py-2 text-right font-medium">NC</th>}
         </tr>
       </thead>
       <tbody>
@@ -67,11 +77,12 @@ export default function ClientesActivosTable({ rows, periodo, companiesParam, so
               <ClienteActivoTableRow
                 row={r}
                 rank={i + 1}
+                showNC={showNC}
                 expanded={expanded}
                 onToggleCreditNotes={() => setExpandedPartnerId(expanded ? null : r.partnerId)}
               />
-              {expanded && (
-                <NotasCreditoDetailRow partnerId={r.partnerId} periodo={periodo} companiesParam={companiesParam} colSpan={COLUMN_COUNT} />
+              {expanded && showNC && (
+                <NotasCreditoDetailRow partnerId={r.partnerId} periodo={periodo} companiesParam={companiesParam} colSpan={columnCount} />
               )}
             </Fragment>
           );

@@ -40,6 +40,25 @@ function desdeFecha(periodo: ClientesActivosPeriodo): string {
 }
 
 /**
+ * 'pedidos' = `sale.order` confirmado (state='sale'), por `date_order` —
+ * "ingreso de pedido", el momento en que se cierra la venta, sin esperar a
+ * que se facture. Default, pedido en vivo el 2026-09-22: lo que más se va a
+ * usar para este análisis, porque una factura puede llegar semanas después
+ * del pedido. No tiene noción de "nota de crédito" (eso es un concepto de
+ * facturación) — en este modo `creditNoteCount`/`creditNoteAmount` van
+ * siempre en 0 y el front oculta esa columna.
+ *
+ * 'facturas' = el comportamiento original, `account.move` posted
+ * (out_invoice), por `invoice_date` — con notas de crédito.
+ *
+ * Compañía "Presupuesto" casi no usa `sale.order` (2 pedidos en toda la
+ * base, contra >10k de Frontera Living) — a diferencia de las facturas,
+ * donde infla el total ~25% (ver pareto-clients.ts) — así que el modo
+ * "pedidos" de paso esquiva casi todo ese problema.
+ */
+export type ClientesActivosFuente = 'pedidos' | 'facturas';
+
+/**
  * Notas de crédito que no son una devolución real, identificadas por el
  * nombre del producto de la línea — no deben contarse en
  * `creditNoteCount`/`creditNoteAmount` (inflarían la alerta de
@@ -97,13 +116,14 @@ export interface ClienteActivoRow {
   partnerName: string;
   invoiceCount: number;
   amount: number;
-  /** Notas de crédito (account.move, move_type 'out_refund', posted) del mismo cliente en el período — devoluciones/reembolsos, no se restan de invoiceCount ni amount, se muestran como alerta aparte. */
+  /** Notas de crédito (account.move, move_type 'out_refund', posted) del mismo cliente en el período — devoluciones/reembolsos, no se restan de invoiceCount ni amount, se muestran como alerta aparte. Siempre 0 en fuente 'pedidos' (no aplica). */
   creditNoteCount: number;
   creditNoteAmount: number;
 }
 
 export interface ClientesActivosResult {
   periodo: ClientesActivosPeriodo;
+  fuente: ClientesActivosFuente;
   desde: string;
   /** Siempre "hoy" (no hay tope superior en el filtro) — calculado en el servidor, no en el navegador, para no arriesgar un mismatch de hidratación por zona horaria. */
   hasta: string;
@@ -112,23 +132,42 @@ export interface ClientesActivosResult {
   rows: ClienteActivoRow[];
 }
 
-/**
- * Un cliente se considera "activo" si tuvo al menos una factura de cliente
- * posteada (account.move, move_type 'out_invoice', state 'posted') dentro
- * del `periodo` elegido (ventana de días exactos — ver `PERIODO_DIAS`) —
- * misma noción de "facturación" que pareto-clients.ts. `companyIds` filtra
- * por compañía (default: todas, igual que Salud de la Cartera) — pasalo
- * explícito para acotar a una sola.
- *
- * `rows` viene ordenado por cantidad de facturas descendente — el Top 10
- * se obtiene simplemente tomando los primeros 10 en el cliente.
- */
-export async function getClientesActivos(
+type GroupRow = OdooReadGroupResult & { partner_id: [number, string] | false; amount_total: number };
+
+async function getClientesActivosPedidos(
   periodo: ClientesActivosPeriodo,
-  incluirTodasNC: boolean = false,
-  companyIds?: number[]
-): Promise<ClientesActivosResult> {
-  const { ids, companies } = await resolveCompanyIds(companyIds);
+  ids: number[]
+): Promise<ClienteActivoRow[]> {
+  const desde = desdeFecha(periodo);
+  const groups = (await readGroup({
+    model: 'sale.order',
+    domain: [
+      ['state', '=', 'sale'],
+      ['company_id', 'in', ids],
+      ['date_order', '>=', desde],
+    ],
+    fields: ['amount_total'],
+    groupBy: ['partner_id'],
+  })) as GroupRow[];
+
+  return groups
+    .filter((g): g is GroupRow & { partner_id: [number, string] } => Boolean(g.partner_id))
+    .map((g) => ({
+      partnerId: g.partner_id[0],
+      partnerName: g.partner_id[1],
+      invoiceCount: g.__count,
+      amount: g.amount_total,
+      creditNoteCount: 0,
+      creditNoteAmount: 0,
+    }))
+    .sort((a, b) => b.invoiceCount - a.invoiceCount);
+}
+
+async function getClientesActivosFacturas(
+  periodo: ClientesActivosPeriodo,
+  incluirTodasNC: boolean,
+  ids: number[]
+): Promise<ClienteActivoRow[]> {
   const desde = desdeFecha(periodo);
 
   const domain: OdooDomain = [
@@ -138,7 +177,6 @@ export async function getClientesActivos(
     ['invoice_date', '>=', desde],
   ];
 
-  type GroupRow = OdooReadGroupResult & { partner_id: [number, string] | false; amount_total: number };
   const [invoiceGroups, ignoredIds] = await Promise.all([
     readGroup({
       model: 'account.move',
@@ -171,7 +209,7 @@ export async function getClientesActivos(
     creditNotesByPartner.set(g.partner_id[0], { count: g.__count, amount: g.amount_total });
   }
 
-  const rows: ClienteActivoRow[] = invoiceGroups
+  return invoiceGroups
     .filter((g): g is GroupRow & { partner_id: [number, string] } => Boolean(g.partner_id))
     .map((g) => {
       const creditNote = creditNotesByPartner.get(g.partner_id[0]);
@@ -185,8 +223,31 @@ export async function getClientesActivos(
       };
     })
     .sort((a, b) => b.invoiceCount - a.invoiceCount);
+}
 
-  return { periodo, desde, hasta: getArgentinaTodayIso(), companies, rows };
+/**
+ * Un cliente se considera "activo" si tuvo al menos un pedido confirmado
+ * (`fuente='pedidos'`, default) o una factura posteada (`fuente='facturas'`)
+ * dentro del `periodo` elegido (ventana de días exactos — ver
+ * `PERIODO_DIAS`). `companyIds` filtra por compañía (default: todas, igual
+ * que Salud de la Cartera) — pasalo explícito para acotar a una sola.
+ *
+ * `rows` viene ordenado por cantidad descendente — el Top 10 se obtiene
+ * simplemente tomando los primeros 10 en el cliente.
+ */
+export async function getClientesActivos(
+  periodo: ClientesActivosPeriodo,
+  incluirTodasNC: boolean = false,
+  companyIds?: number[],
+  fuente: ClientesActivosFuente = 'pedidos'
+): Promise<ClientesActivosResult> {
+  const { ids, companies } = await resolveCompanyIds(companyIds);
+  const rows =
+    fuente === 'pedidos'
+      ? await getClientesActivosPedidos(periodo, ids)
+      : await getClientesActivosFacturas(periodo, incluirTodasNC, ids);
+
+  return { periodo, fuente, desde: desdeFecha(periodo), hasta: getArgentinaTodayIso(), companies, rows };
 }
 
 export interface NotaCreditoRow {
@@ -202,7 +263,7 @@ export interface NotaCreditoRow {
   categoria: NotaCreditoCategoria;
 }
 
-/** Detalle de las notas de crédito (una por una) de un cliente puntual en el período — para el desplegable de la tabla, cargado bajo demanda al expandir una fila. */
+/** Detalle de las notas de crédito (una por una) de un cliente puntual en el período — solo tiene sentido en fuente 'facturas'. Para el desplegable de la tabla, cargado bajo demanda al expandir una fila. */
 export async function getNotasCreditoCliente(
   partnerId: number,
   periodo: ClientesActivosPeriodo,
@@ -266,13 +327,13 @@ export interface UltimaVentaRow {
   partnerName: string;
   amount: number;
   invoiceDate: string; // YYYY-MM-DD
-  /** Hora local (America/Argentina/Buenos_Aires, UTC-3 fijo) en la que se posteó la factura ("HH:MM") — calculada acá, no en el navegador, para no depender de la zona horaria del cliente. */
+  /** Hora local (America/Argentina/Buenos_Aires, UTC-3 fijo) en la que se confirmó el pedido o se posteó la factura ("HH:MM") — calculada acá, no en el navegador, para no depender de la zona horaria del cliente. */
   horaConfirmacion: string;
 }
 
-/** Odoo guarda `write_date` en UTC — Argentina es UTC-3 todo el año (sin horario de verano), así que restar 3 horas alcanza sin tocar Date/Intl del lado del navegador. */
-function writeDateToHoraArgentina(writeDate: string): string {
-  const [, timePart] = writeDate.split(' ');
+/** Odoo guarda sus Datetime en UTC — Argentina es UTC-3 todo el año (sin horario de verano), así que restar 3 horas alcanza sin tocar Date/Intl del lado del navegador. */
+function utcDatetimeToHoraArgentina(datetime: string): string {
+  const [, timePart] = datetime.split(' ');
   const [hh, mm] = (timePart ?? '00:00:00').split(':').map(Number);
   const totalMinutes = (((hh! * 60 + mm! - 180) % 1440) + 1440) % 1440;
   const hours = Math.floor(totalMinutes / 60);
@@ -281,12 +342,36 @@ function writeDateToHoraArgentina(writeDate: string): string {
 }
 
 /**
- * Las últimas facturas de cliente posteadas, sin importar el período elegido
- * en el resto del tab — "pulso en vivo" del negocio para el carrusel, no
- * una agregación. Independiente de `getClientesActivos`.
+ * Las últimas ventas (pedidos confirmados o facturas posteadas, según
+ * `fuente`), sin importar el período elegido en el resto del tab — "pulso
+ * en vivo" del negocio para el carrusel, no una agregación. Independiente
+ * de `getClientesActivos`.
  */
-export async function getUltimasVentas(companyIds?: number[]): Promise<UltimaVentaRow[]> {
+export async function getUltimasVentas(companyIds?: number[], fuente: ClientesActivosFuente = 'pedidos'): Promise<UltimaVentaRow[]> {
   const { ids } = await resolveCompanyIds(companyIds);
+
+  if (fuente === 'pedidos') {
+    type Row = { partner_id: [number, string] | false; amount_total: number; date_order: string };
+    const rows = await searchRead<Row>({
+      model: 'sale.order',
+      domain: [
+        ['state', '=', 'sale'],
+        ['company_id', 'in', ids],
+      ],
+      fields: ['partner_id', 'amount_total', 'date_order'],
+      order: 'date_order desc, id desc',
+      limit: ULTIMAS_VENTAS_LIMIT,
+    });
+    return rows
+      .filter((r): r is Row & { partner_id: [number, string] } => Boolean(r.partner_id))
+      .map((r) => ({
+        partnerId: r.partner_id[0],
+        partnerName: r.partner_id[1],
+        amount: r.amount_total,
+        invoiceDate: r.date_order.slice(0, 10),
+        horaConfirmacion: utcDatetimeToHoraArgentina(r.date_order),
+      }));
+  }
 
   type Row = {
     partner_id: [number, string] | false;
@@ -313,7 +398,7 @@ export async function getUltimasVentas(companyIds?: number[]): Promise<UltimaVen
       partnerName: r.partner_id[1],
       amount: r.amount_total,
       invoiceDate: r.invoice_date,
-      horaConfirmacion: writeDateToHoraArgentina(r.write_date),
+      horaConfirmacion: utcDatetimeToHoraArgentina(r.write_date),
     }));
 }
 
@@ -324,6 +409,7 @@ export interface TendenciaMensualRow {
   clientesActivos: number;
   facturas: number;
   facturado: number;
+  /** Siempre 0 en fuente 'pedidos' (no aplica) — el front oculta la columna en ese modo. */
   notasCreditoMonto: number;
 }
 
@@ -338,12 +424,54 @@ type MonthGroupRow = OdooReadGroupResult & {
  * calendario completos (independiente del `periodo` elegido en el resto
  * del tab, que puede ser una ventana corta como "30 días") — para ver la
  * tendencia, no un corte puntual. `notasCreditoMonto` ya excluye las
- * categorías que no son devolución real (ver IGNORED_PATTERNS).
+ * categorías que no son devolución real (ver IGNORED_PATTERNS), y solo
+ * aplica en fuente 'facturas'.
  */
-export async function getTendenciaMensual(incluirTodasNC: boolean = false, companyIds?: number[]): Promise<TendenciaMensualRow[]> {
+export async function getTendenciaMensual(
+  incluirTodasNC: boolean = false,
+  companyIds?: number[],
+  fuente: ClientesActivosFuente = 'pedidos'
+): Promise<TendenciaMensualRow[]> {
   const { ids } = await resolveCompanyIds(companyIds);
   const months = lastMonthKeys(TENDENCIA_MENSUAL_MESES);
   const rangeStart = monthBounds(months[0]!).start;
+
+  if (fuente === 'pedidos') {
+    const groups = (await readGroup({
+      model: 'sale.order',
+      domain: [
+        ['state', '=', 'sale'],
+        ['company_id', 'in', ids],
+        ['date_order', '>=', rangeStart],
+      ],
+      fields: ['amount_total'],
+      groupBy: ['partner_id', 'date_order:month'],
+      lazy: false,
+    })) as MonthGroupRow[];
+
+    const byMonth = new Map<string, { partners: Set<number>; pedidos: number; vendido: number }>();
+    for (const g of groups) {
+      const monthFrom = g.__range?.['date_order:month']?.from;
+      if (!monthFrom) continue;
+      const month = monthFrom.slice(0, 7);
+      const bucket = byMonth.get(month) ?? { partners: new Set<number>(), pedidos: 0, vendido: 0 };
+      if (g.partner_id) bucket.partners.add(g.partner_id[0]);
+      bucket.pedidos += g.__count;
+      bucket.vendido += g.amount_total;
+      byMonth.set(month, bucket);
+    }
+
+    return months.map((month) => {
+      const b = byMonth.get(month);
+      return {
+        month,
+        clientesActivos: b?.partners.size ?? 0,
+        facturas: b?.pedidos ?? 0,
+        facturado: b?.vendido ?? 0,
+        notasCreditoMonto: 0,
+      };
+    });
+  }
 
   const [invoiceGroups, ignoredIds] = await Promise.all([
     readGroup({
