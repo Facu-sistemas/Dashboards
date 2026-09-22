@@ -45,7 +45,7 @@ function CheckGroup<T extends string>({
   label: string;
 }) {
   return (
-    <details className="relative">
+    <details className="relative" name="cartera-filtros">
       <summary className="cursor-pointer list-none rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-300 hover:border-brand-500/60">
         {label}
         {selected.size > 0 ? ` (${selected.size})` : ''}
