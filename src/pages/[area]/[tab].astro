@@ -6,6 +6,7 @@ import RawMaterialConsumptionTab from '../../components/finanzas/RawMaterialCons
 import PoliticaVsRealTab from '../../components/finanzas/PoliticaVsRealTab.astro';
 import TendenciaPreciosTab from '../../components/comercial/TendenciaPreciosTab.astro';
 import ParetoClientesTab from '../../components/comercial/ParetoClientesTab.astro';
+import CarteraClientesTab from '../../components/comercial/CarteraClientesTab.astro';
 import PresupuestoDinamicoTab from '../../components/finanzas/PresupuestoDinamicoTab.astro';
 import TopProductosTab from '../../components/manufactura/TopProductosTab.astro';
 import OeeTab from '../../components/manufactura/OeeTab.astro';
@@ -38,6 +39,7 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
   {area.slug === 'finanzas' && tabSlug === 'presupuesto-dinamico' && <PresupuestoDinamicoTab />}
   {area.slug === 'comercial' && tabSlug === 'tendencia-precios' && <TendenciaPreciosTab />}
   {area.slug === 'comercial' && tabSlug === 'top-clientes' && <ParetoClientesTab />}
+  {area.slug === 'comercial' && tabSlug === 'salud-cartera' && <CarteraClientesTab />}
   {area.slug === 'manufactura' && tabSlug === 'top-productos' && <TopProductosTab />}
   {area.slug === 'manufactura' && tabSlug === 'oee' && <OeeTab />}
   {area.slug === 'manufactura' && tabSlug === 'plan-produccion' && <PlanProduccionTab />}

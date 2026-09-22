@@ -1,0 +1,33 @@
+---
+import CarteraClientesApp from './CarteraClientesApp';
+import { buildCarteraClientesDehydratedState } from '../../lib/cartera-clientes-ssr';
+
+let dehydratedState;
+let ssrError: string | null = null;
+try {
+  dehydratedState = await buildCarteraClientesDehydratedState();
+} catch (err) {
+  ssrError = err instanceof Error ? err.message : 'Error desconocido consultando Odoo';
+}
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Salud de la Cartera</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Valor (Pareto A/B/C), Estado (Activo/Dormido/Perdido/Nuevo) y Evolución de la cartera de
+      clientes, a partir de facturas emitidas y confirmadas. Solo lectura.
+    </p>
+  </header>
+
+  {
+    ssrError && (
+      <p class="mb-6 rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">
+        No se pudo precargar la data desde Odoo en el servidor ({ssrError}). El panel intentará cargar
+        los datos desde el navegador.
+      </p>
+    )
+  }
+
+  <CarteraClientesApp client:load dehydratedState={dehydratedState} />
+</div>
