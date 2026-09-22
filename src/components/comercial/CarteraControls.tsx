@@ -1,4 +1,5 @@
 import type { Controles, ParetoMode } from './cartera-clientes-calc';
+import type { CarteraCompany } from '../../lib/odoo/cartera-clientes';
 
 interface Props {
   controles: Controles;
@@ -6,6 +7,9 @@ interface Props {
   minDate: string;
   maxDate: string;
   defaults: Controles;
+  companies: CarteraCompany[];
+  selectedCompanies: Set<number>;
+  onCompaniesChange: (idxs: Set<number>) => void;
 }
 
 const PARETO_OPTIONS: { value: ParetoMode; label: string }[] = [
@@ -17,11 +21,43 @@ const PARETO_OPTIONS: { value: ParetoMode; label: string }[] = [
 
 const COMPARE_OPTIONS = [90, 180, 365];
 
-export default function CarteraControls({ controles, onChange, minDate, maxDate, defaults }: Props) {
+export default function CarteraControls({
+  controles,
+  onChange,
+  minDate,
+  maxDate,
+  defaults,
+  companies,
+  selectedCompanies,
+  onCompaniesChange,
+}: Props) {
   const set = <K extends keyof Controles>(k: K, v: Controles[K]) => onChange({ ...controles, [k]: v });
+
+  function toggleCompany(idx: number) {
+    const next = new Set(selectedCompanies);
+    if (next.has(idx)) {
+      if (next.size === 1) return; // never let the last company be unchecked — an empty selection isn't a meaningful state
+      next.delete(idx);
+    } else {
+      next.add(idx);
+    }
+    onCompaniesChange(next);
+  }
 
   return (
     <div className="flex flex-wrap items-end gap-5 rounded-lg border border-slate-800 bg-slate-900 p-4">
+      <div className="flex flex-col gap-1 text-sm text-slate-300">
+        Empresa
+        <div className="flex items-center gap-3 rounded border border-slate-700 bg-slate-950 px-2 py-1.5">
+          {companies.map((c, idx) => (
+            <label key={c.id} className="flex items-center gap-1.5 text-xs text-slate-300">
+              <input type="checkbox" checked={selectedCompanies.has(idx)} onChange={() => toggleCompany(idx)} />
+              {c.name}
+            </label>
+          ))}
+        </div>
+      </div>
+
       <label className="flex flex-col gap-1 text-sm text-slate-300">
         Fecha de corte
         <input

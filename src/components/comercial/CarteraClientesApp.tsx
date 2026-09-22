@@ -13,6 +13,7 @@ import {
   CONTROLES_DEFAULT,
   compareCutoff,
   computeSnapshot,
+  filterRecordsByCompanies,
   groupByClient,
   minMaxDate,
   objetivoMonthlySeries,
@@ -29,8 +30,17 @@ function CarteraClientesInner() {
   const query = useApiQuery<CarteraClientesData>(['cartera-clientes'], '/api/cartera-clientes');
   const data = query.data;
 
-  const { minDate, maxDate } = useMemo(() => minMaxDate(data?.records ?? []), [data]);
-  const byClient = useMemo(() => groupByClient(data?.records ?? []), [data]);
+  // Empty selection = "unset" (mirrors cutoffStr below) — falls back to every company until the user touches a checkbox.
+  const [selectedCompaniesRaw, setSelectedCompanies] = useState<Set<number>>(() => new Set());
+  const allCompanyIdxs = useMemo(() => new Set((data?.companies ?? []).map((_, idx) => idx)), [data]);
+  const selectedCompanies = selectedCompaniesRaw.size > 0 ? selectedCompaniesRaw : allCompanyIdxs;
+
+  const filteredRecords = useMemo(
+    () => filterRecordsByCompanies(data?.records ?? [], selectedCompanies),
+    [data, selectedCompanies]
+  );
+  const { minDate, maxDate } = useMemo(() => minMaxDate(filteredRecords), [filteredRecords]);
+  const byClient = useMemo(() => groupByClient(filteredRecords), [filteredRecords]);
 
   // cutoffStr starts empty (real maxDate isn't known until the query lands) — every read below falls
   // back to maxDate, so an unset control transparently behaves as "today" without a render-time state sync.
@@ -59,7 +69,7 @@ function CarteraClientesInner() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-slate-500">
-          {(data?.records.length ?? 0).toLocaleString('es-AR')} registros · {(data?.clients.length ?? 0).toLocaleString('es-AR')} clientes históricos
+          {filteredRecords.length.toLocaleString('es-AR')} registros · {byClient.size.toLocaleString('es-AR')} clientes históricos
         </p>
         <LastUpdated dataUpdatedAt={query.dataUpdatedAt} />
       </div>
@@ -74,7 +84,16 @@ function CarteraClientesInner() {
         <div className="h-24 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
       ) : (
         <>
-          <CarteraControls controles={controles} onChange={setControles} minDate={minDate} maxDate={maxDate} defaults={defaults} />
+          <CarteraControls
+            controles={controles}
+            onChange={setControles}
+            minDate={minDate}
+            maxDate={maxDate}
+            defaults={defaults}
+            companies={data.companies}
+            selectedCompanies={selectedCompanies}
+            onCompaniesChange={setSelectedCompanies}
+          />
 
           <CarteraObjetivos
             snap={snap}
@@ -107,7 +126,7 @@ function CarteraClientesInner() {
 
           <section>
             <h3 className="mb-3 text-sm font-medium text-slate-200">Composición e Índice de Salud</h3>
-            <CarteraCharts snap={snap} trail={trail} records={data.records} />
+            <CarteraCharts snap={snap} trail={trail} records={filteredRecords} />
           </section>
 
           <section>

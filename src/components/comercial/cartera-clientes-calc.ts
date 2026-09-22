@@ -48,6 +48,11 @@ const parseD = (s: string) => new Date(s + 'T00:00:00');
 export const daysBetween = (a: Date, b: Date) => Math.round((b.getTime() - a.getTime()) / 86400000);
 const addDays = (d: Date, n: number) => new Date(d.getTime() + n * 86400000);
 
+/** Keeps only records whose company is in `companyIdxs` — applied before `groupByClient` so every downstream calc (snapshot, Pareto, ISC) reflects just the selected company/companies. */
+export function filterRecordsByCompanies(records: CarteraRecord[], companyIdxs: Set<number>): CarteraRecord[] {
+  return records.filter((r) => companyIdxs.has(r[5]));
+}
+
 /** Groups raw records by client, sorted ascending by date — built once per dataset. */
 export function groupByClient(records: CarteraRecord[]): Map<number, CarteraRecord[]> {
   const byClient = new Map<number, CarteraRecord[]>();
