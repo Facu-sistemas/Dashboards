@@ -1,5 +1,5 @@
 import type { UltimaVentaRow } from '../../lib/odoo/clientes-activos';
-import { formatCompactCurrency } from './format';
+import { formatCompactCurrency } from '../gerencia/format';
 
 interface Props {
   ventas: UltimaVentaRow[];

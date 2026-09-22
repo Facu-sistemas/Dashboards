@@ -4,7 +4,13 @@ import { handleApiRoute } from '../../lib/api-helpers';
 
 export const prerender = false;
 
-// GET /api/clientes-activos-ultimas-ventas
-export const GET: APIRoute = async () => {
-  return handleApiRoute(() => getUltimasVentas());
+// GET /api/clientes-activos-ultimas-ventas?companies=1,2
+export const GET: APIRoute = async ({ url }) => {
+  return handleApiRoute(() => {
+    const companiesParam = url.searchParams.get('companies');
+    const companyIds = companiesParam
+      ? companiesParam.split(',').map(Number).filter((n) => Number.isFinite(n))
+      : undefined;
+    return getUltimasVentas(companyIds);
+  });
 };

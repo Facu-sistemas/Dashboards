@@ -1,4 +1,4 @@
-import type { Controles, ParetoMode } from './cartera-clientes-calc';
+import { todayIso, type Controles, type ParetoMode } from './cartera-clientes-calc';
 import type { CarteraCompany } from '../../lib/odoo/cartera-clientes';
 
 interface Props {
@@ -20,6 +20,14 @@ const PARETO_OPTIONS: { value: ParetoMode; label: string }[] = [
 ];
 
 const COMPARE_OPTIONS = [90, 180, 365];
+
+const milesFmt = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
+
+/** Solo dígitos del texto tipeado, como número — vacío/no numérico da 0. */
+function parseMiles(s: string): number {
+  const digits = s.replace(/\D/g, '');
+  return digits ? Number(digits) : 0;
+}
 
 export default function CarteraControls({
   controles,
@@ -63,9 +71,9 @@ export default function CarteraControls({
         <input
           type="date"
           min={minDate}
-          max={maxDate}
+          max={todayIso() > maxDate ? todayIso() : maxDate}
           value={controles.cutoffStr}
-          onChange={(e) => set('cutoffStr', e.target.value || maxDate)}
+          onChange={(e) => set('cutoffStr', e.target.value || todayIso())}
           className="rounded border border-slate-700 bg-slate-950 px-2 py-1.5 font-mono text-xs text-slate-100 focus:border-brand-500 focus:outline-none"
         />
       </label>
@@ -85,11 +93,10 @@ export default function CarteraControls({
       <label className="flex flex-col gap-1 text-sm text-slate-300">
         Monto mínimo ($)
         <input
-          type="number"
-          step={500000}
-          min={0}
-          value={controles.montoMinimo}
-          onChange={(e) => set('montoMinimo', Math.max(0, Number(e.target.value) || 0))}
+          type="text"
+          inputMode="numeric"
+          value={milesFmt.format(controles.montoMinimo)}
+          onChange={(e) => set('montoMinimo', Math.max(0, parseMiles(e.target.value)))}
           className="w-32 rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-slate-100 focus:border-brand-500 focus:outline-none"
         />
       </label>

@@ -6,7 +6,7 @@ import LastUpdated from '../shared/LastUpdated';
 import ClientesActivosTable, { type ClientesActivosSortBy } from './ClientesActivosTable';
 import UltimasVentasCarousel from './UltimasVentasCarousel';
 import TendenciaMensualSection from './TendenciaMensualSection';
-import { formatCompactCurrency, formatNumber } from './format';
+import { formatCompactCurrency, formatNumber } from '../gerencia/format';
 import type { ClientesActivosPeriodo, ClientesActivosResult, UltimaVentaRow } from '../../lib/odoo/clientes-activos';
 
 interface Props {
@@ -26,6 +26,14 @@ const CONDICION_MIN = 1;
 const MONTO_MINIMO_DEFAULT = 1_000_000;
 const MONTO_MINIMO_MIN = 0;
 
+const milesFmt = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
+
+/** Solo dígitos del texto tipeado, como número — vacío/no numérico da 0. Mismo criterio que CarteraControls.tsx. */
+function parseMiles(s: string): number {
+  const digits = s.replace(/\D/g, '');
+  return digits ? Number(digits) : 0;
+}
+
 /** "YYYY-MM-DD" -> "DD/MM/AAAA", sin pasar por Date/Intl (misma razón que format.ts: evitar diferencias SSR/cliente). */
 function formatFecha(iso: string): string {
   const [year, month, day] = iso.split('-');
@@ -38,15 +46,36 @@ function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActi
   const [montoMinimo, setMontoMinimo] = useState(MONTO_MINIMO_DEFAULT);
   const [todasNC, setTodasNC] = useState(false);
   const [sortBy, setSortBy] = useState<ClientesActivosSortBy>('facturado');
+  // Vacío = "todas las compañías" (mismo criterio que Salud de la Cartera) — no se puede saber
+  // qué compañías existen hasta que la primera respuesta trae `companies`, así que arranca vacío
+  // y el fetch inicial (sin `companies` en la URL) ya le pide a Odoo "todas" por default.
+  const [selectedCompanies, setSelectedCompanies] = useState<Set<number>>(() => new Set());
+  const companiesParam = [...selectedCompanies].sort((a, b) => a - b).join(',');
 
   const query = useApiQuery<ClientesActivosResult>(
-    ['clientes-activos', periodo, todasNC],
-    `/api/clientes-activos?periodo=${periodo}&todasNC=${todasNC}`
+    ['clientes-activos', periodo, todasNC, companiesParam],
+    `/api/clientes-activos?periodo=${periodo}&todasNC=${todasNC}&companies=${companiesParam}`
   );
   const ultimasVentasQuery = useApiQuery<UltimaVentaRow[]>(
-    ['clientes-activos-ultimas-ventas'],
-    '/api/clientes-activos-ultimas-ventas'
+    ['clientes-activos-ultimas-ventas', companiesParam],
+    `/api/clientes-activos-ultimas-ventas?companies=${companiesParam}`
   );
+
+  const companies = query.data?.companies ?? [];
+  function toggleCompany(idx: number) {
+    setSelectedCompanies((prev) => {
+      const base = prev.size > 0 ? prev : new Set(companies.map((c) => c.id));
+      const next = new Set(base);
+      if (next.has(idx)) {
+        if (next.size === 1) return prev; // nunca destildar la última — una selección vacía no es un estado válido
+        next.delete(idx);
+      } else {
+        next.add(idx);
+      }
+      return next;
+    });
+  }
+  const isCompanySelected = (id: number) => selectedCompanies.size === 0 || selectedCompanies.has(id);
 
   const rows = useMemo(() => {
     const activos = (query.data?.rows ?? []).filter((r) => r.invoiceCount >= condicion && r.amount >= montoMinimo);
@@ -65,6 +94,20 @@ function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActi
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
         <div className="flex flex-wrap items-end gap-6">
+          {companies.length > 0 && (
+            <div className="flex flex-col gap-1 text-sm text-slate-300">
+              Empresa
+              <div className="flex items-center gap-3 rounded border border-slate-700 bg-slate-950 px-2 py-1.5">
+                {companies.map((c) => (
+                  <label key={c.id} className="flex items-center gap-1.5 text-xs text-slate-300">
+                    <input type="checkbox" checked={isCompanySelected(c.id)} onChange={() => toggleCompany(c.id)} />
+                    {c.name}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
           <label className="flex flex-col gap-1 text-sm text-slate-300">
             Período
             <select
@@ -94,11 +137,10 @@ function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActi
           <label className="flex flex-col gap-1 text-sm text-slate-300">
             Monto mínimo facturado
             <input
-              type="number"
-              min={MONTO_MINIMO_MIN}
-              step={100_000}
-              value={montoMinimo}
-              onChange={(e) => setMontoMinimo(Math.max(MONTO_MINIMO_MIN, Number(e.target.value) || MONTO_MINIMO_MIN))}
+              type="text"
+              inputMode="numeric"
+              value={milesFmt.format(montoMinimo)}
+              onChange={(e) => setMontoMinimo(Math.max(MONTO_MINIMO_MIN, parseMiles(e.target.value)))}
               className="w-36 rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-slate-100 focus:border-brand-500 focus:outline-none"
             />
           </label>
@@ -118,8 +160,8 @@ function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActi
 
           {query.data && (
             <p className="pb-1.5 text-xs text-slate-500">
-              Desde <span className="text-slate-300">{formatFecha(query.data.hasta)}</span> hasta{' '}
-              <span className="text-slate-300">{formatFecha(query.data.desde)}</span>
+              Desde <span className="text-slate-300">{formatFecha(query.data.desde)}</span> hasta{' '}
+              <span className="text-slate-300">{formatFecha(query.data.hasta)}</span>
             </p>
           )}
         </div>
@@ -156,7 +198,13 @@ function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActi
         {query.isLoading ? (
           <div className="h-64 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
         ) : (
-          <ClientesActivosTable rows={top10} periodo={periodo} sortBy={sortBy} onSortByChange={setSortBy} />
+          <ClientesActivosTable
+            rows={top10}
+            periodo={periodo}
+            companiesParam={companiesParam}
+            sortBy={sortBy}
+            onSortByChange={setSortBy}
+          />
         )}
       </section>
 
@@ -167,7 +215,7 @@ function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActi
           <h3 className="text-sm font-medium text-slate-300">Tendencia mensual</h3>
           <p className="text-xs text-slate-500">Últimos 6 meses calendario — independiente del período elegido arriba.</p>
         </div>
-        <TendenciaMensualSection todasNC={todasNC} />
+        <TendenciaMensualSection todasNC={todasNC} companiesParam={companiesParam} />
       </section>
 
       <section className="flex flex-col gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
@@ -175,14 +223,21 @@ function ClientesActivosInner({ initialPeriodo }: { initialPeriodo: ClientesActi
         {query.isLoading ? (
           <div className="h-64 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
         ) : (
-          <ClientesActivosTable rows={rows} periodo={periodo} sortBy={sortBy} onSortByChange={setSortBy} scrollable />
+          <ClientesActivosTable
+            rows={rows}
+            periodo={periodo}
+            companiesParam={companiesParam}
+            sortBy={sortBy}
+            onSortByChange={setSortBy}
+            scrollable
+          />
         )}
       </section>
     </div>
   );
 }
 
-/** Entry point mounted as an Astro client island (`client:load`), same pattern as the other Gerencia tabs. */
+/** Entry point mounted as an Astro client island (`client:load`), same pattern as the other Comercial/Gerencia tabs. */
 export default function ClientesActivosApp({ dehydratedState, initialPeriodo }: Props) {
   return (
     <QueryProvider dehydratedState={dehydratedState}>

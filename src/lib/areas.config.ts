@@ -87,7 +87,6 @@ export const AREAS: AreaConfig[] = [
     tabs: [
       { slug: 'ventas', name: 'Ventas' },
       { slug: 'produccion', name: 'Producción' },
-      { slug: 'clientes-activos', name: 'Clientes Activos' },
     ],
   },
   {
@@ -146,6 +145,7 @@ export const AREAS: AreaConfig[] = [
     icon: ICONS.cart,
     tabs: [
       { slug: 'salud-cartera', name: 'Salud de la Cartera' },
+      { slug: 'clientes-activos', name: 'Clientes Activos' },
       { slug: 'tendencia-precios', name: 'Tendencia de Precios' },
       { slug: 'top-clientes', name: 'Top Clientes' },
     ],

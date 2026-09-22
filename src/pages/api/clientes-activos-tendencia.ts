@@ -4,7 +4,13 @@ import { handleApiRoute } from '../../lib/api-helpers';
 
 export const prerender = false;
 
-// GET /api/clientes-activos-tendencia?todasNC=true
+// GET /api/clientes-activos-tendencia?todasNC=true&companies=1,2
 export const GET: APIRoute = async ({ url }) => {
-  return handleApiRoute(() => getTendenciaMensual(url.searchParams.get('todasNC') === 'true'));
+  return handleApiRoute(() => {
+    const companiesParam = url.searchParams.get('companies');
+    const companyIds = companiesParam
+      ? companiesParam.split(',').map(Number).filter((n) => Number.isFinite(n))
+      : undefined;
+    return getTendenciaMensual(url.searchParams.get('todasNC') === 'true', companyIds);
+  });
 };

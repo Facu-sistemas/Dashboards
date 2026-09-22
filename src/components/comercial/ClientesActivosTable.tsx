@@ -10,6 +10,8 @@ const COLUMN_COUNT = 5;
 interface Props {
   rows: ClienteActivoRowType[];
   periodo: ClientesActivosPeriodo;
+  /** Ids de compañía seleccionados, coma-separados — vacío = todas. Se reenvía tal cual al detalle de NC para que coincida con el filtro de arriba. */
+  companiesParam: string;
   sortBy: ClientesActivosSortBy;
   onSortByChange: (sortBy: ClientesActivosSortBy) => void;
   /** Envuelve la tabla en un contenedor de altura fija con scroll interno — para la lista completa, que puede tener muchas filas. */
@@ -39,7 +41,7 @@ function SortableHeader({
   );
 }
 
-export default function ClientesActivosTable({ rows, periodo, sortBy, onSortByChange, scrollable }: Props) {
+export default function ClientesActivosTable({ rows, periodo, companiesParam, sortBy, onSortByChange, scrollable }: Props) {
   const [expandedPartnerId, setExpandedPartnerId] = useState<number | null>(null);
 
   if (rows.length === 0) {
@@ -68,7 +70,9 @@ export default function ClientesActivosTable({ rows, periodo, sortBy, onSortByCh
                 expanded={expanded}
                 onToggleCreditNotes={() => setExpandedPartnerId(expanded ? null : r.partnerId)}
               />
-              {expanded && <NotasCreditoDetailRow partnerId={r.partnerId} periodo={periodo} colSpan={COLUMN_COUNT} />}
+              {expanded && (
+                <NotasCreditoDetailRow partnerId={r.partnerId} periodo={periodo} companiesParam={companiesParam} colSpan={COLUMN_COUNT} />
+              )}
             </Fragment>
           );
         })}

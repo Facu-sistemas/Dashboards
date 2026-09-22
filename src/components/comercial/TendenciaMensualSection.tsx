@@ -6,13 +6,15 @@ import type { TendenciaMensualRow } from '../../lib/odoo/clientes-activos';
 interface Props {
   /** Mismo checkbox "Traer todas las NC" del resto del tab — si está tildado, la columna de notas de crédito suma todas, no solo las que no tienen categoría. */
   todasNC: boolean;
+  /** Mismo filtro de Empresa del resto del tab, coma-separado — vacío = todas. */
+  companiesParam: string;
 }
 
 /** Un solo fetch compartido por el gráfico (forma de la tendencia) y la tabla (números exactos, incluidas las notas de crédito). */
-export default function TendenciaMensualSection({ todasNC }: Props) {
+export default function TendenciaMensualSection({ todasNC, companiesParam }: Props) {
   const query = useApiQuery<TendenciaMensualRow[]>(
-    ['clientes-activos-tendencia', todasNC],
-    `/api/clientes-activos-tendencia?todasNC=${todasNC}`
+    ['clientes-activos-tendencia', todasNC, companiesParam],
+    `/api/clientes-activos-tendencia?todasNC=${todasNC}&companies=${companiesParam}`
   );
 
   if (query.isLoading) {

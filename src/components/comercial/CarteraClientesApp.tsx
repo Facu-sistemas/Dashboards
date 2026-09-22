@@ -17,6 +17,7 @@ import {
   groupByClient,
   minMaxDate,
   objetivoMonthlySeries,
+  todayIso,
   trailingSnapshots,
   type Controles,
 } from './cartera-clientes-calc';
@@ -42,10 +43,10 @@ function CarteraClientesInner() {
   const { minDate, maxDate } = useMemo(() => minMaxDate(filteredRecords), [filteredRecords]);
   const byClient = useMemo(() => groupByClient(filteredRecords), [filteredRecords]);
 
-  // cutoffStr starts empty (real maxDate isn't known until the query lands) — every read below falls
-  // back to maxDate, so an unset control transparently behaves as "today" without a render-time state sync.
+  // cutoffStr starts empty — every read below falls back to hoy (Argentina), so an unset control
+  // transparently behaves as "today" without a render-time state sync.
   const [controlesRaw, setControles] = useState<Controles>(() => ({ ...CONTROLES_DEFAULT, cutoffStr: '' }));
-  const controles: Controles = { ...controlesRaw, cutoffStr: controlesRaw.cutoffStr || maxDate };
+  const controles: Controles = { ...controlesRaw, cutoffStr: controlesRaw.cutoffStr || todayIso() };
 
   const compareCutoffStr = compareCutoff(controles.cutoffStr, controles.compareDays);
 
@@ -63,7 +64,7 @@ function CarteraClientesInner() {
     [byClient, minDate, maxDate, controles.periodoActivo, controles.montoMinimo, controles.umbralDormido, controles.paretoMode]
   );
 
-  const defaults: Controles = { ...CONTROLES_DEFAULT, cutoffStr: maxDate };
+  const defaults: Controles = { ...CONTROLES_DEFAULT, cutoffStr: todayIso() };
 
   return (
     <div className="flex flex-col gap-6">

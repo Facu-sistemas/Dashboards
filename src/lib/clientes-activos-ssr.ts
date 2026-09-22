@@ -9,17 +9,20 @@ export async function buildClientesActivosDehydratedState(periodo: ClientesActiv
   // `todasNC` del lado del cliente (ClientesActivosApp.tsx) — tiene que
   // matchear la query key exacta que arma el cliente o la hidratación no
   // encuentra los datos precargados y vuelve a pedirlos desde cero.
+  // companyIds queda sin pasar (undefined) tanto acá como en el estado inicial
+  // del cliente (selección vacía = "todas") — tiene que matchear para que la
+  // hidratación encuentre los datos precargados en vez de volver a pedirlos.
   await Promise.all([
     queryClient.query({
-      queryKey: ['clientes-activos', periodo, false],
+      queryKey: ['clientes-activos', periodo, false, ''],
       queryFn: () => getClientesActivos(periodo, false),
     }),
     queryClient.query({
-      queryKey: ['clientes-activos-ultimas-ventas'],
+      queryKey: ['clientes-activos-ultimas-ventas', ''],
       queryFn: () => getUltimasVentas(),
     }),
     queryClient.query({
-      queryKey: ['clientes-activos-tendencia', false],
+      queryKey: ['clientes-activos-tendencia', false, ''],
       queryFn: () => getTendenciaMensual(false),
     }),
   ]);

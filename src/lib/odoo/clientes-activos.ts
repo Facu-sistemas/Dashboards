@@ -1,16 +1,42 @@
 import { readGroup, searchRead } from './client';
-import { getFronteraCompany } from './reference';
-import { lastMonthKeys, monthBounds, addDaysIso } from '../date';
+import { addDaysIso, lastMonthKeys, monthBounds } from '../date';
 import { getArgentinaTodayIso } from './oee';
 import type { OdooDomain, OdooReadGroupResult } from './types';
 
-/** '30d' = ventana exacta de los últimos 30 días (no alineada a mes) — default, agregada además de las opciones de mes que ya existían. '3m'/'6m'/'9m' siguen alineadas a mes, como antes. */
+export interface ClientesActivosCompany {
+  id: number;
+  name: string;
+}
+
+/** Todas las compañías de Odoo (Frontera Living S.A. + Presupuesto) — igual que cartera-clientes.ts, para que el filtro de Empresa sea consistente entre los dos reportes que Comercial compara entre sí. */
+export async function getClientesActivosCompanies(): Promise<ClientesActivosCompany[]> {
+  const rows = await searchRead<{ id: number; name: string }>({
+    model: 'res.company',
+    fields: ['name'],
+    order: 'id asc',
+  });
+  return rows.map((r) => ({ id: r.id, name: r.name }));
+}
+
+async function resolveCompanyIds(companyIds: number[] | undefined): Promise<{ ids: number[]; companies: ClientesActivosCompany[] }> {
+  const companies = await getClientesActivosCompanies();
+  const ids = companyIds && companyIds.length > 0 ? companyIds : companies.map((c) => c.id);
+  return { ids, companies };
+}
+
+/**
+ * '30d'/'3m'/'6m'/'9m' son ventanas de días EXACTOS (30/90/180/270) contadas
+ * desde hoy hacia atrás — no meses calendario. Alineado a propósito con
+ * "Período activo (días)" de Salud de la Cartera (cartera-clientes-calc.ts,
+ * default 90) para que ambos reportes puedan compararse con el mismo
+ * parámetro exacto en vez de un mes calendario que varía entre 28 y 31 días.
+ */
 export type ClientesActivosPeriodo = '30d' | '3m' | '6m' | '9m';
 
+const PERIODO_DIAS: Record<ClientesActivosPeriodo, number> = { '30d': 30, '3m': 90, '6m': 180, '9m': 270 };
+
 function desdeFecha(periodo: ClientesActivosPeriodo): string {
-  if (periodo === '30d') return addDaysIso(getArgentinaTodayIso(), -30);
-  const meses = periodo === '3m' ? 3 : periodo === '6m' ? 6 : 9;
-  return monthBounds(lastMonthKeys(meses)[0]!).start;
+  return addDaysIso(getArgentinaTodayIso(), -PERIODO_DIAS[periodo]);
 }
 
 /**
@@ -50,11 +76,11 @@ function orDomain(conditions: OdooDomain): OdooDomain {
   return [...new Array(conditions.length - 1).fill('|' as const), ...conditions];
 }
 
-async function getIgnoredCreditNoteMoveIds(companyId: number, desde: string): Promise<number[]> {
+async function getIgnoredCreditNoteMoveIds(companyIds: number[], desde: string): Promise<number[]> {
   const domain: OdooDomain = [
     ['move_type', '=', 'out_refund'],
     ['state', '=', 'posted'],
-    ['company_id', '=', companyId],
+    ['company_id', 'in', companyIds],
     ['invoice_date', '>=', desde],
     ...orDomain(IGNORED_PATTERNS.map(({ pattern }) => ['invoice_line_ids.product_id.name', 'ilike', pattern])),
   ];
@@ -81,27 +107,34 @@ export interface ClientesActivosResult {
   desde: string;
   /** Siempre "hoy" (no hay tope superior en el filtro) — calculado en el servidor, no en el navegador, para no arriesgar un mismatch de hidratación por zona horaria. */
   hasta: string;
+  /** Todas las compañías existentes en Odoo, para que el tab arme el filtro de Empresa — no solo las seleccionadas. */
+  companies: ClientesActivosCompany[];
   rows: ClienteActivoRow[];
 }
 
 /**
  * Un cliente se considera "activo" si tuvo al menos una factura de cliente
  * posteada (account.move, move_type 'out_invoice', state 'posted') dentro
- * del `periodo` elegido (últimos 30 días exactos, o 6/9 meses alineados a
- * mes) — misma noción de "facturación" que pareto-clients.ts, scopeada a
- * Frontera Living S.A. (no a "Presupuesto").
+ * del `periodo` elegido (ventana de días exactos — ver `PERIODO_DIAS`) —
+ * misma noción de "facturación" que pareto-clients.ts. `companyIds` filtra
+ * por compañía (default: todas, igual que Salud de la Cartera) — pasalo
+ * explícito para acotar a una sola.
  *
  * `rows` viene ordenado por cantidad de facturas descendente — el Top 10
  * se obtiene simplemente tomando los primeros 10 en el cliente.
  */
-export async function getClientesActivos(periodo: ClientesActivosPeriodo, incluirTodasNC: boolean = false): Promise<ClientesActivosResult> {
-  const { companyId } = await getFronteraCompany();
+export async function getClientesActivos(
+  periodo: ClientesActivosPeriodo,
+  incluirTodasNC: boolean = false,
+  companyIds?: number[]
+): Promise<ClientesActivosResult> {
+  const { ids, companies } = await resolveCompanyIds(companyIds);
   const desde = desdeFecha(periodo);
 
   const domain: OdooDomain = [
     ['move_type', '=', 'out_invoice'],
     ['state', '=', 'posted'],
-    ['company_id', '=', companyId],
+    ['company_id', 'in', ids],
     ['invoice_date', '>=', desde],
   ];
 
@@ -113,13 +146,13 @@ export async function getClientesActivos(periodo: ClientesActivosPeriodo, inclui
       fields: ['amount_total'],
       groupBy: ['partner_id'],
     }) as Promise<GroupRow[]>,
-    incluirTodasNC ? Promise.resolve([]) : getIgnoredCreditNoteMoveIds(companyId, desde),
+    incluirTodasNC ? Promise.resolve([]) : getIgnoredCreditNoteMoveIds(ids, desde),
   ]);
 
   const creditNoteDomain: OdooDomain = [
     ['move_type', '=', 'out_refund'],
     ['state', '=', 'posted'],
-    ['company_id', '=', companyId],
+    ['company_id', 'in', ids],
     ['invoice_date', '>=', desde],
   ];
   if (ignoredIds.length > 0) {
@@ -153,7 +186,7 @@ export async function getClientesActivos(periodo: ClientesActivosPeriodo, inclui
     })
     .sort((a, b) => b.invoiceCount - a.invoiceCount);
 
-  return { periodo, desde, hasta: getArgentinaTodayIso(), rows };
+  return { periodo, desde, hasta: getArgentinaTodayIso(), companies, rows };
 }
 
 export interface NotaCreditoRow {
@@ -172,9 +205,10 @@ export interface NotaCreditoRow {
 /** Detalle de las notas de crédito (una por una) de un cliente puntual en el período — para el desplegable de la tabla, cargado bajo demanda al expandir una fila. */
 export async function getNotasCreditoCliente(
   partnerId: number,
-  periodo: ClientesActivosPeriodo
+  periodo: ClientesActivosPeriodo,
+  companyIds?: number[]
 ): Promise<NotaCreditoRow[]> {
-  const { companyId } = await getFronteraCompany();
+  const { ids } = await resolveCompanyIds(companyIds);
   const desde = desdeFecha(periodo);
 
   type MoveRow = { id: number; name: string; invoice_date: string; amount_total: number; ref: string | false };
@@ -183,7 +217,7 @@ export async function getNotasCreditoCliente(
     domain: [
       ['move_type', '=', 'out_refund'],
       ['state', '=', 'posted'],
-      ['company_id', '=', companyId],
+      ['company_id', 'in', ids],
       ['partner_id', '=', partnerId],
       ['invoice_date', '>=', desde],
     ],
@@ -251,8 +285,8 @@ function writeDateToHoraArgentina(writeDate: string): string {
  * en el resto del tab — "pulso en vivo" del negocio para el carrusel, no
  * una agregación. Independiente de `getClientesActivos`.
  */
-export async function getUltimasVentas(): Promise<UltimaVentaRow[]> {
-  const { companyId } = await getFronteraCompany();
+export async function getUltimasVentas(companyIds?: number[]): Promise<UltimaVentaRow[]> {
+  const { ids } = await resolveCompanyIds(companyIds);
 
   type Row = {
     partner_id: [number, string] | false;
@@ -265,7 +299,7 @@ export async function getUltimasVentas(): Promise<UltimaVentaRow[]> {
     domain: [
       ['move_type', '=', 'out_invoice'],
       ['state', '=', 'posted'],
-      ['company_id', '=', companyId],
+      ['company_id', 'in', ids],
     ],
     fields: ['partner_id', 'amount_total', 'invoice_date', 'write_date'],
     order: 'invoice_date desc, id desc',
@@ -306,8 +340,8 @@ type MonthGroupRow = OdooReadGroupResult & {
  * tendencia, no un corte puntual. `notasCreditoMonto` ya excluye las
  * categorías que no son devolución real (ver IGNORED_PATTERNS).
  */
-export async function getTendenciaMensual(incluirTodasNC: boolean = false): Promise<TendenciaMensualRow[]> {
-  const { companyId } = await getFronteraCompany();
+export async function getTendenciaMensual(incluirTodasNC: boolean = false, companyIds?: number[]): Promise<TendenciaMensualRow[]> {
+  const { ids } = await resolveCompanyIds(companyIds);
   const months = lastMonthKeys(TENDENCIA_MENSUAL_MESES);
   const rangeStart = monthBounds(months[0]!).start;
 
@@ -317,20 +351,20 @@ export async function getTendenciaMensual(incluirTodasNC: boolean = false): Prom
       domain: [
         ['move_type', '=', 'out_invoice'],
         ['state', '=', 'posted'],
-        ['company_id', '=', companyId],
+        ['company_id', 'in', ids],
         ['invoice_date', '>=', rangeStart],
       ],
       fields: ['amount_total'],
       groupBy: ['partner_id', 'invoice_date:month'],
       lazy: false,
     }) as Promise<MonthGroupRow[]>,
-    incluirTodasNC ? Promise.resolve([]) : getIgnoredCreditNoteMoveIds(companyId, rangeStart),
+    incluirTodasNC ? Promise.resolve([]) : getIgnoredCreditNoteMoveIds(ids, rangeStart),
   ]);
 
   const creditNoteDomain: OdooDomain = [
     ['move_type', '=', 'out_refund'],
     ['state', '=', 'posted'],
-    ['company_id', '=', companyId],
+    ['company_id', 'in', ids],
     ['invoice_date', '>=', rangeStart],
   ];
   if (ignoredIds.length > 0) creditNoteDomain.push(['id', 'not in', ignoredIds]);

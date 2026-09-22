@@ -15,11 +15,16 @@ export interface Controles {
 
 export const CONTROLES_DEFAULT: Omit<Controles, 'cutoffStr'> = {
   periodoActivo: 90,
-  montoMinimo: 10_000_000,
+  montoMinimo: 1_000_000,
   umbralDormido: 180,
   paretoMode: 'all',
-  compareDays: 180,
+  compareDays: 365,
 };
+
+/** "Hoy" en horario argentino (UTC-3 fijo) — mismo criterio que el resto del dashboard, sin depender de la zona horaria del navegador. Es el default y el tope del control "Fecha de corte". */
+export function todayIso(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date());
+}
 
 export interface ClienteStat {
   ci: number;

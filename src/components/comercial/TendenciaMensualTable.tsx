@@ -1,4 +1,4 @@
-import { formatCompactCurrency, formatNumber } from './format';
+import { formatCompactCurrency, formatNumber } from '../gerencia/format';
 import type { TendenciaMensualRow } from '../../lib/odoo/clientes-activos';
 
 // timeZone: 'UTC' — mismo motivo que en los demás gráficos mensuales del proyecto (monthOptions.ts): un "YYYY-MM" no tiene hora, y sin fijar la zona el mes puede leerse corrido en Argentina.

@@ -1,10 +1,11 @@
 import { useApiQuery } from '../dashboard/useApiQuery';
-import { formatCompactCurrency } from './format';
+import { formatCompactCurrency } from '../gerencia/format';
 import type { ClientesActivosPeriodo, NotaCreditoCategoria, NotaCreditoRow } from '../../lib/odoo/clientes-activos';
 
 interface Props {
   partnerId: number;
   periodo: ClientesActivosPeriodo;
+  companiesParam: string;
   colSpan: number;
 }
 
@@ -22,10 +23,10 @@ const CATEGORIA_INFO: Record<Exclude<NotaCreditoCategoria, null>, { label: strin
 };
 
 /** Sub-fila expandible con el detalle de notas de crédito de un cliente, cargada bajo demanda al abrirla. */
-export default function NotasCreditoDetailRow({ partnerId, periodo, colSpan }: Props) {
+export default function NotasCreditoDetailRow({ partnerId, periodo, companiesParam, colSpan }: Props) {
   const query = useApiQuery<NotaCreditoRow[]>(
-    ['notas-credito-cliente', partnerId, periodo],
-    `/api/clientes-activos-notas-credito?partnerId=${partnerId}&periodo=${periodo}`
+    ['notas-credito-cliente', partnerId, periodo, companiesParam],
+    `/api/clientes-activos-notas-credito?partnerId=${partnerId}&periodo=${periodo}&companies=${companiesParam}`
   );
 
   return (
