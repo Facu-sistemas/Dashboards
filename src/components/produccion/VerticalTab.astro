@@ -1,0 +1,17 @@
+---
+import VerticalApp from './VerticalApp';
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Optimizador Vertical</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Plan de corte de poliéster para la cortadora vertical, a partir de la demanda pendiente en Odoo
+      (filtro "SILLON POLIESTER ALMOHADON") y la base técnica de cortes/blocks ("Bom_poliester_soft").
+      El sobrante que queda al cerrar el día se guarda para descontarlo automáticamente al planificar el
+      día siguiente.
+    </p>
+  </header>
+
+  <VerticalApp client:load />
+</div>
