@@ -5,9 +5,13 @@ import { getCarteraClientes } from './odoo/cartera-clientes';
 export async function buildCarteraClientesDehydratedState(): Promise<DehydratedState> {
   const queryClient = new QueryClient();
 
+  // 'pedidos' es el mismo default con el que arranca el estado del lado del
+  // cliente (CarteraClientesApp.tsx) — tiene que matchear la query key
+  // exacta que arma el cliente o la hidratación no encuentra los datos
+  // precargados y vuelve a pedirlos desde cero.
   await queryClient.query({
-    queryKey: ['cartera-clientes'],
-    queryFn: () => getCarteraClientes(),
+    queryKey: ['cartera-clientes', 'pedidos'],
+    queryFn: () => getCarteraClientes('pedidos'),
   });
 
   return dehydrate(queryClient);

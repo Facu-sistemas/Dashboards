@@ -21,14 +21,15 @@ import {
   trailingSnapshots,
   type Controles,
 } from './cartera-clientes-calc';
-import type { CarteraClientesData } from '../../lib/odoo/cartera-clientes';
+import type { CarteraClientesData, CarteraFuente } from '../../lib/odoo/cartera-clientes';
 
 interface Props {
   dehydratedState?: DehydratedState;
 }
 
 function CarteraClientesInner() {
-  const query = useApiQuery<CarteraClientesData>(['cartera-clientes'], '/api/cartera-clientes');
+  const [fuente, setFuente] = useState<CarteraFuente>('pedidos');
+  const query = useApiQuery<CarteraClientesData>(['cartera-clientes', fuente], `/api/cartera-clientes?fuente=${fuente}`);
   const data = query.data;
 
   // Empty selection = "unset" (mirrors cutoffStr below) — falls back to every company until the user touches a checkbox.
@@ -94,6 +95,8 @@ function CarteraClientesInner() {
             companies={data.companies}
             selectedCompanies={selectedCompanies}
             onCompaniesChange={setSelectedCompanies}
+            fuente={fuente}
+            onFuenteChange={setFuente}
           />
 
           <CarteraObjetivos

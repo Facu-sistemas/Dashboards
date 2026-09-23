@@ -1,5 +1,5 @@
 import { todayIso, type Controles, type ParetoMode } from './cartera-clientes-calc';
-import type { CarteraCompany } from '../../lib/odoo/cartera-clientes';
+import type { CarteraCompany, CarteraFuente } from '../../lib/odoo/cartera-clientes';
 
 interface Props {
   controles: Controles;
@@ -10,6 +10,8 @@ interface Props {
   companies: CarteraCompany[];
   selectedCompanies: Set<number>;
   onCompaniesChange: (idxs: Set<number>) => void;
+  fuente: CarteraFuente;
+  onFuenteChange: (fuente: CarteraFuente) => void;
 }
 
 const PARETO_OPTIONS: { value: ParetoMode; label: string }[] = [
@@ -17,6 +19,11 @@ const PARETO_OPTIONS: { value: ParetoMode; label: string }[] = [
   { value: '12', label: 'Últimos 12 meses' },
   { value: 'ytd', label: 'Año en curso' },
   { value: 'all', label: 'Histórico completo' },
+];
+
+const FUENTE_OPTIONS: { value: CarteraFuente; label: string }[] = [
+  { value: 'pedidos', label: 'Notas de venta' },
+  { value: 'facturas', label: 'Facturas' },
 ];
 
 const COMPARE_OPTIONS = [90, 180, 365];
@@ -38,6 +45,8 @@ export default function CarteraControls({
   companies,
   selectedCompanies,
   onCompaniesChange,
+  fuente,
+  onFuenteChange,
 }: Props) {
   const set = <K extends keyof Controles>(k: K, v: Controles[K]) => onChange({ ...controles, [k]: v });
 
@@ -65,6 +74,21 @@ export default function CarteraControls({
           ))}
         </div>
       </div>
+
+      <label className="flex flex-col gap-1 text-sm text-slate-300">
+        Fuente
+        <select
+          value={fuente}
+          onChange={(e) => onFuenteChange(e.target.value as CarteraFuente)}
+          className="min-w-[9rem] rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-slate-100 focus:border-brand-500 focus:outline-none"
+        >
+          {FUENTE_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </label>
 
       <label className="flex flex-col gap-1 text-sm text-slate-300">
         Fecha de corte
