@@ -95,7 +95,13 @@ function orDomain(conditions: OdooDomain): OdooDomain {
   return [...new Array(conditions.length - 1).fill('|' as const), ...conditions];
 }
 
-async function getIgnoredCreditNoteMoveIds(companyIds: number[], desde: string): Promise<number[]> {
+/**
+ * Exportada para reuso por facturacion-gerencia.ts: esas mismas notas de
+ * crédito "no son una devolución real" (acuerdo comercial pagado por
+ * fuera, descuento comercial, publicidad) no deben restarse de la
+ * facturación real tampoco — mismo criterio, una sola fuente de verdad.
+ */
+export async function getIgnoredCreditNoteMoveIds(companyIds: number[], desde: string): Promise<number[]> {
   const domain: OdooDomain = [
     ['move_type', '=', 'out_refund'],
     ['state', '=', 'posted'],
