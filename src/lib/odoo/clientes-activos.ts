@@ -53,8 +53,8 @@ function desdeFecha(periodo: ClientesActivosPeriodo): string {
  *
  * Compañía "Presupuesto" casi no usa `sale.order` (2 pedidos en toda la
  * base, contra >10k de Frontera Living) — a diferencia de las facturas,
- * donde infla el total ~25% (ver pareto-clients.ts) — así que el modo
- * "pedidos" de paso esquiva casi todo ese problema.
+ * donde infla el total ~25% — así que el modo "pedidos" de paso esquiva
+ * casi todo ese problema.
  */
 export type ClientesActivosFuente = 'pedidos' | 'facturas';
 

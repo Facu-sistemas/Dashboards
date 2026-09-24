@@ -24,28 +24,3 @@ export interface SellableProductPage {
   total: number;
 }
 
-export type ParetoRange = 'all' | 'this-year' | 'last-12-months' | 'last-6-months';
-
-export interface ParetoClientRow {
-  partnerId: number;
-  partnerName: string;
-  amount: number;
-  unitsSold: number;
-  cumulativePct: number;
-}
-
-export interface ParetoClientsResult {
-  rows: ParetoClientRow[];
-  grandTotal: number;
-}
-
-export interface ClientMonthlyPoint {
-  month: string; // YYYY-MM
-  amount: number;
-}
-
-export interface ClientMonthlySeries {
-  partnerId: number;
-  partnerName: string;
-  points: ClientMonthlyPoint[];
-}

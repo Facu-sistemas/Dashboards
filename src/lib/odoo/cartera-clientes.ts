@@ -46,9 +46,7 @@ export type CarteraFuente = 'pedidos' | 'facturas';
 
 /**
  * "Facturación"/"Ventas" (según `fuente`) — across every company in Odoo
- * (Frontera Living S.A. and Presupuesto), a diferencia de
- * pareto-clients.ts, que solo mira Frontera Living S.A. porque
- * "Presupuesto" no es venta real ahí. Acá la elección de qué compañía(s)
+ * (Frontera Living S.A. and Presupuesto). Acá la elección de qué compañía(s)
  * incluir queda en manos del usuario vía un filtro en el tab (default:
  * ambas). En fuente 'pedidos' esto casi no importa — "Presupuesto" tiene
  * prácticamente cero pedidos cargados (visto en vivo: 2 contra >10k de
