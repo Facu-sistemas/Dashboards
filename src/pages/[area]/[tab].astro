@@ -19,6 +19,7 @@ import VerticalTab from '../../components/produccion/VerticalTab.astro';
 import TicketsSoporteTab from '../../components/calidad/TicketsSoporteTab.astro';
 import ColchonTab from '../../components/test/ColchonTab.astro';
 import ConversorTab from '../../components/test/ConversorTab.astro';
+import VacacionesTab from '../../components/rrhh/VacacionesTab.astro';
 import VentasTab from '../../components/gerencia/VentasTab.astro';
 import ProduccionGerenciaTab from '../../components/gerencia/ProduccionTab.astro';
 import FacturacionGerenciaTab from '../../components/gerencia/FacturacionTab.astro';
@@ -55,7 +56,8 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
   {area.slug === 'gerencia-general' && tabSlug === 'produccion' && <ProduccionGerenciaTab />}
   {area.slug === 'gerencia-general' && tabSlug === 'facturacion' && <FacturacionGerenciaTab />}
   {area.slug === 'comercial' && tabSlug === 'clientes-activos' && <ClientesActivosTab />}
-  {!['finanzas', 'comercial', 'manufactura', 'almacen', 'produccion', 'gestion-calidad', 'test', 'gerencia-general'].includes(area.slug) && (
-    <PlaceholderTab areaName={area.name} />
-  )}
+  {area.slug === 'rrhh' && tabSlug === 'vacaciones' && <VacacionesTab />}
+  {!['finanzas', 'comercial', 'manufactura', 'almacen', 'produccion', 'gestion-calidad', 'test', 'gerencia-general', 'rrhh'].includes(
+    area.slug
+  ) && <PlaceholderTab areaName={area.name} />}
 </AreaLayout>

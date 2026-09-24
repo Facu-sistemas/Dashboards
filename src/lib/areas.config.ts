@@ -73,10 +73,10 @@ export const AREAS: AreaConfig[] = [
   {
     slug: 'rrhh',
     name: 'RRHH',
-    description: 'Próximamente',
+    description: 'Vacaciones y datos de empleados',
     accent: 'purple',
     icon: ICONS.people,
-    tabs: [{ slug: 'inicio', name: 'Inicio' }],
+    tabs: [{ slug: 'vacaciones', name: 'Vacaciones' }],
   },
   {
     slug: 'gerencia-general',
