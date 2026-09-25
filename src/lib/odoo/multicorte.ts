@@ -141,9 +141,22 @@ function parseNumber(raw: string, field: string, row: Record<string, string>): n
   return n;
 }
 
+/**
+ * `nombre_producto` (colchón terminado, ej. "POCKET SUREN 200X200X28EURO P")
+ * → `nombre_placa` que le corresponde + `cant_placas`, el multiplicador
+ * colchón→placa. Solo se usa para la carga manual (el demand feed de Odoo ya
+ * viene denominado en placas, ver comentario de `getMulticorteDemanda`).
+ */
+export interface ProductoPlacaSpec {
+  nombreProducto: string;
+  nombrePlaca: string;
+  cantPlacas: number;
+}
+
 export interface BaseTecnicaMulticorte {
   placas: PlacaSpec[];
   blocks: BlockSpec[];
+  productos: ProductoPlacaSpec[];
 }
 
 export async function getMulticorteBaseTecnica(): Promise<BaseTecnicaMulticorte> {
@@ -151,18 +164,33 @@ export async function getMulticorteBaseTecnica(): Promise<BaseTecnicaMulticorte>
 
   const colchonRows = parseHeaderedSheet(doc, SHEET_COLCHONES, MULTICORTE_DASHBOARD_LABEL);
   const byPlaca = new Map<string, PlacaSpec>();
+  const byProducto = new Map<string, ProductoPlacaSpec>();
   for (const r of colchonRows) {
     const nombrePlaca = r.nombre_placa?.trim();
-    if (!nombrePlaca || byPlaca.has(nombrePlaca)) continue;
-    byPlaca.set(nombrePlaca, {
-      nombrePlaca,
-      colorBlock: (r.color_block ?? '').trim().toLowerCase(),
-      corteAnchoCm: parseNumber(r.corte_ancho_cm ?? '', 'corte_ancho_cm', r),
-      corteLargoCm: parseNumber(r.corte_largo_cm ?? '', 'corte_largo_cm', r),
-      corteAltoCm: parseNumber(r.corte_alto_cm ?? '', 'corte_alto_cm', r),
-    });
+    if (!nombrePlaca) continue;
+
+    if (!byPlaca.has(nombrePlaca)) {
+      byPlaca.set(nombrePlaca, {
+        nombrePlaca,
+        colorBlock: (r.color_block ?? '').trim().toLowerCase(),
+        corteAnchoCm: parseNumber(r.corte_ancho_cm ?? '', 'corte_ancho_cm', r),
+        corteLargoCm: parseNumber(r.corte_largo_cm ?? '', 'corte_largo_cm', r),
+        corteAltoCm: parseNumber(r.corte_alto_cm ?? '', 'corte_alto_cm', r),
+      });
+    }
+
+    // cant_placas is best-effort here (unlike the fields above, it's new to
+    // this codepath and wasn't previously validated) — a row with a blank/bad
+    // value just doesn't get a manual-paste mapping, it must not break the
+    // live Odoo-demand plan that the rest of this function still serves.
+    const nombreProducto = r.nombre_producto?.trim();
+    const cantPlacasRaw = Number((r.cant_placas ?? '').replace(',', '.'));
+    if (nombreProducto && Number.isFinite(cantPlacasRaw) && cantPlacasRaw > 0 && !byProducto.has(nombreProducto)) {
+      byProducto.set(nombreProducto, { nombreProducto, nombrePlaca, cantPlacas: cantPlacasRaw });
+    }
   }
   const placas = [...byPlaca.values()];
+  const productos = [...byProducto.values()];
 
   const blockRows = parseHeaderedSheet(doc, SHEET_BLOCKS, MULTICORTE_DASHBOARD_LABEL);
   const blocks: BlockSpec[] = blockRows
@@ -174,5 +202,5 @@ export async function getMulticorteBaseTecnica(): Promise<BaseTecnicaMulticorte>
       altoBlockCm: parseNumber(r.alto_block_cm ?? '', 'alto_block_cm', r),
     }));
 
-  return { placas, blocks };
+  return { placas, blocks, productos };
 }

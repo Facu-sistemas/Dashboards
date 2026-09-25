@@ -4,6 +4,7 @@ import QueryProvider from '../QueryProvider';
 import { useApiQuery } from '../dashboard/useApiQuery';
 import LastUpdated from '../shared/LastUpdated';
 import { analizarSobrantes, tieneRetazosDisponibles, type Bloque } from '../../lib/multicorte-calc';
+import { parseManualDemanda } from '../../lib/multicorte-manual-parse';
 import MulticorteBlockVisual from './MulticorteBlockVisual';
 
 interface Props {
@@ -112,8 +113,47 @@ function MulticorteInner() {
   const [diaFiltro, setDiaFiltro] = useState('Todos');
   const planPath = diaFiltro === 'Todos' ? '/api/multicorte-plan' : `/api/multicorte-plan?date=${diaFiltro}`;
   const planQuery = useApiQuery<PlanResponse>(['multicorte-plan', diaFiltro], planPath);
-  const bloques = planQuery.data?.bloques ?? [];
-  const sinMatch = planQuery.data?.sinMatch ?? [];
+
+  const [manualMode, setManualMode] = useState(false);
+  const [manualText, setManualText] = useState('');
+  const [manualResult, setManualResult] = useState<PlanResponse | null>(null);
+  const [manualLineasInvalidas, setManualLineasInvalidas] = useState<string[]>([]);
+  const [manualLoading, setManualLoading] = useState(false);
+  const [manualError, setManualError] = useState<string | null>(null);
+  const [manualUpdatedAt, setManualUpdatedAt] = useState<number | undefined>(undefined);
+
+  async function calcularManual() {
+    const { demanda, erroresLinea } = parseManualDemanda(manualText);
+    setManualLineasInvalidas(erroresLinea);
+    if (demanda.length === 0) {
+      setManualError('Pegá al menos una fila con producto y cantidad (columnas separadas por tabulación, como al copiar de Excel).');
+      setManualResult(null);
+      return;
+    }
+    setManualError(null);
+    setManualLoading(true);
+    try {
+      const res = await fetch('/api/multicorte-plan-manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ demanda }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body.ok) throw new Error(body.error ?? 'No se pudo calcular el plan manual');
+      setManualResult(body.data as PlanResponse);
+      setManualUpdatedAt(Date.now());
+    } catch (err) {
+      setManualError(err instanceof Error ? err.message : 'No se pudo calcular el plan manual');
+      setManualResult(null);
+    } finally {
+      setManualLoading(false);
+    }
+  }
+
+  const isLoading = manualMode ? manualLoading && !manualResult : planQuery.isLoading;
+  const isError = manualMode ? !!manualError : planQuery.isError;
+  const bloques = manualMode ? manualResult?.bloques ?? [] : planQuery.data?.bloques ?? [];
+  const sinMatch = manualMode ? manualResult?.sinMatch ?? [] : planQuery.data?.sinMatch ?? [];
 
   const [colorFiltro, setColorFiltro] = useState('Todos');
   const [tipoFiltro, setTipoFiltro] = useState<TipoFiltro>('todos');
@@ -205,21 +245,32 @@ function MulticorteInner() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 text-sm text-slate-400">
-            Día de planificación:
-            <select
-              value={diaFiltro}
-              onChange={(e) => setDiaFiltro(e.target.value)}
-              className="rounded border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-sm text-slate-100 focus:border-brand-500 focus:outline-none"
-            >
-              <option value="Todos">Todos (acumulado)</option>
-              {dias.map((d) => (
-                <option key={d.date} value={d.date}>
-                  {d.label} ({d.count})
-                </option>
-              ))}
-            </select>
-          </label>
+          <button
+            type="button"
+            onClick={() => setManualMode((v) => !v)}
+            className={`rounded border px-3 py-1.5 text-xs font-semibold ${
+              manualMode ? 'border-brand-500 bg-brand-600 text-white' : 'border-slate-700 text-slate-300 hover:border-slate-500'
+            }`}
+          >
+            {manualMode ? '✓ Carga manual' : 'Carga manual'}
+          </button>
+          {!manualMode && (
+            <label className="flex items-center gap-2 text-sm text-slate-400">
+              Día de planificación:
+              <select
+                value={diaFiltro}
+                onChange={(e) => setDiaFiltro(e.target.value)}
+                className="rounded border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-sm text-slate-100 focus:border-brand-500 focus:outline-none"
+              >
+                <option value="Todos">Todos (acumulado)</option>
+                {dias.map((d) => (
+                  <option key={d.date} value={d.date}>
+                    {d.label} ({d.count})
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label className="flex items-center gap-2 text-sm text-slate-400">
             Color:
             <select
@@ -247,19 +298,61 @@ function MulticorteInner() {
               <option value="parciales">Solo parciales (con sobrante)</option>
             </select>
           </label>
-          <button
-            type="button"
-            onClick={() => void planQuery.refetch()}
-            className="inline-flex items-center gap-1.5 rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-slate-500"
-          >
-            <RefreshIcon /> Recalcular
-          </button>
+          {!manualMode && (
+            <button
+              type="button"
+              onClick={() => void planQuery.refetch()}
+              className="inline-flex items-center gap-1.5 rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-slate-500"
+            >
+              <RefreshIcon /> Recalcular
+            </button>
+          )}
         </div>
-        <LastUpdated dataUpdatedAt={planQuery.dataUpdatedAt} />
+        <LastUpdated dataUpdatedAt={manualMode ? manualUpdatedAt : planQuery.dataUpdatedAt} />
       </div>
 
-      {diasQuery.isError && <p className="text-sm text-red-400">No se pudo cargar los días de planificación desde Odoo.</p>}
-      {planQuery.isError && <p className="text-sm text-red-400">No se pudo cargar el plan desde Odoo.</p>}
+      {manualMode && (
+        <div className="flex flex-col gap-2 rounded-lg border border-slate-800 bg-slate-900/60 p-4">
+          <label className="text-xs font-semibold uppercase tracking-wide text-slate-500" htmlFor="manual-demanda">
+            Pegar demanda (columnas Producto / Cantidad, como se copian de Excel)
+          </label>
+          <textarea
+            id="manual-demanda"
+            value={manualText}
+            onChange={(e) => setManualText(e.target.value)}
+            placeholder={'PRODUCTO\tCANTIDAD\nESPUMA SENSE 100X190X24\t2\nBASE MARRON 140X190\t3'}
+            rows={8}
+            className="w-full resize-y rounded border border-slate-700 bg-slate-950 p-2.5 font-mono text-xs text-slate-100 focus:border-brand-500 focus:outline-none"
+          />
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => void calcularManual()}
+              disabled={manualLoading}
+              className="inline-flex items-center gap-1.5 rounded bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-500 disabled:opacity-50"
+            >
+              {manualLoading ? 'Calculando…' : 'Calcular plan'}
+            </button>
+            {manualError && <p className="text-sm text-red-400">{manualError}</p>}
+          </div>
+          {manualLineasInvalidas.length > 0 && (
+            <div className="text-xs text-amber-300">
+              {manualLineasInvalidas.length} línea(s) no se pudieron interpretar (revisá que cada fila tenga producto y cantidad separados por tabulación):
+              <ul className="ml-4 mt-1 list-disc">
+                {manualLineasInvalidas.slice(0, 5).map((l, i) => (
+                  <li key={i} className="truncate">
+                    {l}
+                  </li>
+                ))}
+                {manualLineasInvalidas.length > 5 && <li>...y {manualLineasInvalidas.length - 5} más</li>}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {diasQuery.isError && !manualMode && <p className="text-sm text-red-400">No se pudo cargar los días de planificación desde Odoo.</p>}
+      {!manualMode && planQuery.isError && <p className="text-sm text-red-400">No se pudo cargar el plan desde Odoo.</p>}
 
       {sinMatch.length > 0 && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-300">
@@ -273,15 +366,15 @@ function MulticorteInner() {
         </div>
       )}
 
-      {planQuery.isLoading && <div className="h-40 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />}
+      {isLoading && <div className="h-40 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />}
 
-      {!planQuery.isLoading && !planQuery.isError && bloques.length === 0 && (
+      {!isLoading && !isError && bloques.length === 0 && (
         <p className="rounded-lg border border-dashed border-slate-800 bg-slate-900/40 p-10 text-center text-sm text-slate-500">
-          No hay demanda pendiente que matchee la base técnica ahora mismo.
+          {manualMode ? 'Pegá una demanda y calculá el plan.' : 'No hay demanda pendiente que matchee la base técnica ahora mismo.'}
         </p>
       )}
 
-      {!planQuery.isLoading && grouped.length > 0 && (
+      {!isLoading && grouped.length > 0 && (
         <>
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-sm text-slate-400">

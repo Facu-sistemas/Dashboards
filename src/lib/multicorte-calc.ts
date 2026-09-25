@@ -1,4 +1,4 @@
-import type { DemandaRow, PlacaSpec, BlockSpec } from './odoo/multicorte';
+import type { DemandaRow, PlacaSpec, BlockSpec, ProductoPlacaSpec } from './odoo/multicorte';
 
 /**
  * Port of the multicorte cutting-stock optimizer (previously a Python/
@@ -709,6 +709,48 @@ function procesarOptimizacionColor(color: string, demandaPlacas: DemandaPlaca[],
   const leftoverBlocks = packLeftoverGreedy(remainingPool, blocksColorMm);
 
   return [...pureBlocks, ...leftoverBlocks].map(rawBlockToBloque);
+}
+
+export interface ResolverDemandaManualResult {
+  demandaPlacas: DemandaRow[];
+  sinMatch: string[];
+}
+
+/**
+ * Manual paste comes as finished-mattress PRODUCTO/CANTIDAD rows (what the
+ * plant actually copies out of Odoo/Excel), not the placa-level demand
+ * `getMulticorteDemanda` already produces from `mrp.production`. Resolves
+ * each row by `nombre_producto` and multiplies by `cant_placas` to get placa
+ * quantities; falls back to a direct `nombre_placa` match in case a row is
+ * already placa-denominated, then reports anything else as sinMatch.
+ */
+export function resolverDemandaManual(demandaProducto: DemandaRow[], productos: ProductoPlacaSpec[], placas: PlacaSpec[]): ResolverDemandaManualResult {
+  const porProducto = new Map<string, ProductoPlacaSpec>();
+  for (const p of productos) {
+    const key = p.nombreProducto.trim().toLowerCase();
+    if (!porProducto.has(key)) porProducto.set(key, p);
+  }
+  const nombresPlaca = new Set(placas.map((p) => p.nombrePlaca.trim().toLowerCase()));
+
+  const acumulado = new Map<string, number>();
+  const sinMatch: string[] = [];
+
+  for (const d of demandaProducto) {
+    const key = d.producto.trim().toLowerCase();
+    const prodSpec = porProducto.get(key);
+    if (prodSpec) {
+      acumulado.set(prodSpec.nombrePlaca, (acumulado.get(prodSpec.nombrePlaca) ?? 0) + d.cantidad * prodSpec.cantPlacas);
+      continue;
+    }
+    if (nombresPlaca.has(key)) {
+      acumulado.set(d.producto, (acumulado.get(d.producto) ?? 0) + d.cantidad);
+      continue;
+    }
+    sinMatch.push(d.producto);
+  }
+
+  const demandaPlacas: DemandaRow[] = [...acumulado.entries()].map(([producto, cantidad]) => ({ producto, cantidad }));
+  return { demandaPlacas, sinMatch };
 }
 
 export interface ProcesarOptimizacionResult {
