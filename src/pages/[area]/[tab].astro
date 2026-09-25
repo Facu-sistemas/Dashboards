@@ -20,6 +20,7 @@ import VerticalTab from '../../components/produccion/VerticalTab.astro';
 import TicketsSoporteTab from '../../components/calidad/TicketsSoporteTab.astro';
 import ColchonTab from '../../components/test/ColchonTab.astro';
 import ConversorTab from '../../components/test/ConversorTab.astro';
+import CumpleanosTab from '../../components/test/CumpleanosTab.astro';
 import VentasTab from '../../components/gerencia/VentasTab.astro';
 import ProduccionGerenciaTab from '../../components/gerencia/ProduccionTab.astro';
 import { getArea } from '../../lib/areas.config';
@@ -52,6 +53,7 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
   {area.slug === 'gestion-calidad' && tabSlug === 'tickets-soporte' && <TicketsSoporteTab />}
   {area.slug === 'test' && tabSlug === 'colchon' && <ColchonTab />}
   {area.slug === 'test' && tabSlug === 'conversor' && <ConversorTab />}
+  {area.slug === 'test' && tabSlug === 'cumpleanos' && <CumpleanosTab />}
   {area.slug === 'gerencia-general' && tabSlug === 'ventas' && <VentasTab />}
   {area.slug === 'gerencia-general' && tabSlug === 'produccion' && <ProduccionGerenciaTab />}
   {area.slug === 'comercial' && tabSlug === 'clientes-activos' && <ClientesActivosTab />}
