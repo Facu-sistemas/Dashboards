@@ -369,6 +369,11 @@ export interface EnvivadoRow {
 export const TIPO_NOVOL = 'NOVOL';
 export const TIPO_EURO = 'EURO P';
 
+/** Máquina envivadora usada según el tipo: EURO P se hace en la nueva, NOVOL en la vieja. */
+export function envivadoraPorTipo(tipo: string): string {
+  return tipo === TIPO_EURO ? 'Nueva' : 'Vieja';
+}
+
 /**
  * Agrupa por fecha+tela+alto+tipo — antes había una fila por cada línea de
  * Odoo (una por medida), y como todas las medidas de un mismo tela+alto

@@ -10,6 +10,7 @@ import {
   calcMatel,
   optimizarCorte,
   calcEnvivado,
+  envivadoraPorTipo,
   fmtTiempo,
   stockKey,
   SEG_ROLLO_CHICO,
@@ -414,18 +415,15 @@ function BandasInner() {
                     <Th num>Alto</Th>
                     <Th num>Rollos</Th>
                     <Th>Tipo</Th>
+                    <Th>Envivadora</Th>
                     <Th num>Tiempo por rollo</Th>
                     <Th num>Tiempo total</Th>
                   </tr>
                 </thead>
                 <tbody>
                   {envOrdenado.map((r, i) => {
-                    const mins = Math.floor(r.seg / 60);
-                    const segs = r.seg % 60;
-                    const unitStr = r.seg === 0 ? '—' : `${mins}:${String(segs).padStart(2, '0')}`;
-                    const totalMins = Math.floor(r.totalSeg / 60);
-                    const totalSegs = r.totalSeg % 60;
-                    const totalStr = r.totalSeg === 0 ? '—' : `${totalMins}:${String(totalSegs).padStart(2, '0')}`;
+                    const unitStr = r.seg === 0 ? '—' : fmtTiempo(r.seg);
+                    const totalStr = r.totalSeg === 0 ? '—' : fmtTiempo(r.totalSeg);
                     return (
                       <tr key={i} className="border-b border-slate-800/60 last:border-0">
                         <Td>
@@ -434,6 +432,7 @@ function BandasInner() {
                         <Td num>{r.alto ?? '-'}</Td>
                         <Td num>{r.rollos}</Td>
                         <Td className="text-xs">{r.tipo}</Td>
+                        <Td className="text-xs">{envivadoraPorTipo(r.tipo)}</Td>
                         <Td num>{unitStr}</Td>
                         <Td num>
                           <strong>{totalStr}</strong>
