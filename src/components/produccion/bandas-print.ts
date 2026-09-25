@@ -5,13 +5,13 @@ import { LOGO_LARGE_PNG_BASE64 } from '../../lib/logos';
 
 const BASE_STYLE = `
   body { font-family: Arial, sans-serif; padding: 2rem; font-size: 15px; color: #1a1a1a; }
-  .print-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; border-bottom: 2px solid #1D9E75; padding-bottom: 6px; }
-  .print-header img { height: 42px; width: auto; }
-  h2 { font-size: 20px; font-weight: 700; color: #1D9E75; }
-  .tiempo-box { background: #f0fdf8; border: 1px solid #9FE1CB; border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1.25rem; }
+  .print-header { margin-bottom: 0.75rem; }
+  .print-header img { height: 40px; width: auto; }
+  .tiempo-box { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; background: #f0fdf8; border: 1px solid #9FE1CB; border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1.25rem; }
   .tiempo-box-titulo { font-size: 11px; font-weight: 700; color: #0F6E56; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
   .tiempo-box-valor { font-size: 28px; font-weight: 700; color: #0F6E56; }
   .tiempo-box-calculo { font-size: 12px; color: #0F6E56; opacity: 0.8; margin-top: 3px; }
+  .box-title { display: inline-block; max-width: 100%; font-size: 26px; font-weight: 800; color: #1D9E75; text-transform: uppercase; white-space: nowrap; }
   table { width: 100%; border-collapse: collapse; font-size: 15px; }
   th { background: #f5f5f3; padding: 10px 12px; text-align: left; font-weight: 700; font-size: 13px; color: #555; text-transform: uppercase; border-bottom: 2px solid #ddd; }
   td { padding: 10px 12px; border-bottom: 1px solid #eee; }
@@ -20,7 +20,7 @@ const BASE_STYLE = `
   .tag-fecha { font-size: 13px; color: #555; background: #f5f5f3; padding: 2px 7px; border-radius: 4px; border: 1px solid #ddd; }
   .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; background: #cecbf6; color: #3c3489; }
   .table-wrap { border: 1px solid #e5e5e5; border-radius: 8px; overflow: hidden; }
-  .opt-summary-box { background: #f0fdf8; border: 1px solid #9FE1CB; border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1.25rem; }
+  .opt-summary-box { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; background: #f0fdf8; border: 1px solid #9FE1CB; border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1.25rem; }
   .opt-summary-title { font-size: 11px; font-weight: 700; color: #0F6E56; text-transform: uppercase; margin-bottom: 8px; }
   .opt-summary-grid { display: flex; gap: 2rem; flex-wrap: wrap; }
   .opt-summary-val { font-size: 26px; font-weight: 700; color: #0F6E56; }
@@ -59,40 +59,70 @@ function colorForAltoFactory(): (alto: number) => string {
   };
 }
 
+/** Odoo's placeholder for "not scheduled yet" — mirrors SIN_AGENDAR_DATE in lib/odoo/bandas.ts. */
+const SIN_AGENDAR_DATE = '2100-01-01';
+
+/** "[De dónde sale] [Nombre del día] [dia]/[mes]", e.g. "Envivado Miércoles 23/09". */
+function tituloConFecha(base: string, fechaIso: string): string {
+  if (fechaIso === SIN_AGENDAR_DATE) return `${base} — Sin agendar`;
+  const d = new Date(`${fechaIso}T00:00:00Z`);
+  const dia = d.toLocaleDateString('es-AR', { weekday: 'long', timeZone: 'UTC' });
+  const diaCap = dia.charAt(0).toUpperCase() + dia.slice(1);
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  return `${base} ${diaCap} ${dd}/${mm}`;
+}
+
+/** Achica `.box-title` de a 1px hasta que entre en una sola línea sin desbordar su caja — así el título nunca se corta ni se ve con "...". */
+const AUTOFIT_TITLE_SCRIPT = `
+  function ajustarTitulos() {
+    document.querySelectorAll('.box-title').forEach(function (el) {
+      var size = parseFloat(getComputedStyle(el).fontSize);
+      while (el.scrollWidth > el.clientWidth && size > 12) {
+        size -= 1;
+        el.style.fontSize = size + 'px';
+      }
+    });
+  }
+`;
+
 function openPrintWindow(titulo: string, bodyHtml: string) {
   const win = window.open('', '_blank');
   if (!win) return;
   win.document.write(`<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>${titulo}</title><style>${BASE_STYLE}</style></head>
-<body><div class="print-header"><h2>${titulo}</h2><img src="data:image/png;base64,${LOGO_LARGE_PNG_BASE64}" alt="Frontera Living" /></div>${bodyHtml}<script>window.onload=()=>{ window.print(); }<\/script></body></html>`);
+<body><div class="print-header"><img src="data:image/png;base64,${LOGO_LARGE_PNG_BASE64}" alt="Frontera Living" /></div>${bodyHtml}<script>${AUTOFIT_TITLE_SCRIPT}window.onload=()=>{ ajustarTitulos(); window.print(); }<\/script></body></html>`);
   win.document.close();
 }
 
-export function imprimirCorte(corte: CorteRow[], totalCorte: number) {
+export function imprimirCorte(corte: CorteRow[], totalCorte: number, fechaIso: string) {
   const segCorte = totalCorte * SEG_ROLLO_CHICO;
+  const titulo = tituloConFecha('Corte de bandas', fechaIso);
   const ordenado = [...corte].sort((a, b) => (a.tela || '').localeCompare(b.tela || '') || (a.alto || 0) - (b.alto || 0));
-  const tiempoBox = `<div class="tiempo-box"><div class="tiempo-box-titulo">Tiempo estimado de corte</div><div class="tiempo-box-valor">${fmtTiempo(segCorte)}</div><div class="tiempo-box-calculo">${totalCorte} rollos × 1 min 46 seg = ${(segCorte / 3600).toFixed(1)} hs</div></div>`;
+  const tiempoBox = `<div class="tiempo-box"><div><div class="tiempo-box-titulo">Tiempo estimado de corte</div><div class="tiempo-box-valor">${fmtTiempo(segCorte)}</div><div class="tiempo-box-calculo">${totalCorte} rollos × 1 min 46 seg = ${(segCorte / 3600).toFixed(1)} hs</div></div><div class="box-title">${titulo}</div></div>`;
   const filas = ordenado
     .map((r) => {
       const desc = r.rollosDescontados > 0 ? ` <span style="font-size:11px;color:#0F6E56;">(−${r.rollosDescontados} stock)</span>` : '';
-      return `<tr><td><span class="tag-fecha">${r.fecha}</span></td><td><span class="badge">${r.tela ?? '?'}</span></td><td class="num">${r.alto ?? '-'}</td><td class="num"><strong>${r.rollos}</strong>${desc}</td></tr>`;
+      return `<tr><td><span class="badge">${r.tela ?? '?'}</span></td><td class="num">${r.alto ?? '-'}</td><td class="num"><strong>${r.rollos}</strong>${desc}</td></tr>`;
     })
     .join('');
-  const tabla = `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Tela</th><th class="num">Alto</th><th class="num">Rollos</th></tr></thead><tbody>${filas}</tbody></table></div>`;
-  openPrintWindow('Corte de Bandas', tiempoBox + tabla);
+  const tabla = `<div class="table-wrap"><table><thead><tr><th>Tela</th><th class="num">Alto</th><th class="num">Rollos</th></tr></thead><tbody>${filas}</tbody></table></div>`;
+  openPrintWindow(titulo, tiempoBox + tabla);
 }
 
-export function imprimirMatelaseadora(matel: MatelRow[], totalGrandes: number) {
+export function imprimirMatelaseadora(matel: MatelRow[], totalGrandes: number, fechaIso: string) {
   const segMatel = totalGrandes * MIN_ROLLO_GRANDE * 60;
-  const tiempoBox = `<div class="tiempo-box"><div class="tiempo-box-titulo">Tiempo estimado matelaseadora</div><div class="tiempo-box-valor">${fmtTiempo(segMatel)}</div><div class="tiempo-box-calculo">${totalGrandes} rollos × 40 min = ${(segMatel / 3600).toFixed(1)} hs</div></div>`;
-  const filas = matel
+  const titulo = tituloConFecha('Matelaseadora', fechaIso);
+  const tiempoBox = `<div class="tiempo-box"><div><div class="tiempo-box-titulo">Tiempo estimado matelaseadora</div><div class="tiempo-box-valor">${fmtTiempo(segMatel)}</div><div class="tiempo-box-calculo">${totalGrandes} rollos × 40 min = ${(segMatel / 3600).toFixed(1)} hs</div></div><div class="box-title">${titulo}</div></div>`;
+  const ordenado = [...matel].sort((a, b) => (a.tela || '').localeCompare(b.tela || ''));
+  const filas = ordenado
     .map((r) => `<tr><td><span class="tag-fecha">${r.fecha}</span></td><td><span class="badge">${r.tela ?? '?'}</span></td><td class="num"><strong>${r.rollosGrandes}</strong></td></tr>`)
     .join('');
   const tabla = `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Tela</th><th class="num">Rollos grandes</th></tr></thead><tbody>${filas}</tbody></table></div>`;
-  openPrintWindow('Matelaseadora', tiempoBox + tabla);
+  openPrintWindow(titulo, tiempoBox + tabla);
 }
 
-export function imprimirOptimizacion(optData: OptimizacionTela[]) {
+export function imprimirOptimizacion(optData: OptimizacionTela[], fechaIso: string) {
   let totalRollos = 0;
   let totalDesp = 0;
   let totalCapacidad = 0;
@@ -103,9 +133,11 @@ export function imprimirOptimizacion(optData: OptimizacionTela[]) {
   }
   const eficiencia = totalCapacidad > 0 ? (((totalCapacidad - totalDesp) / totalCapacidad) * 100).toFixed(1) : '100';
 
-  const summary = `<div class="opt-summary-box"><div class="opt-summary-title">Resumen — rollo grande = ${ANCHO_ROLLO} cm</div><div class="opt-summary-grid"><div><div class="opt-summary-val">${totalRollos}</div><div class="opt-summary-lbl">rollos grandes</div></div><div><div class="opt-summary-val">${totalDesp} cm</div><div class="opt-summary-lbl">desperdicio total</div></div><div><div class="opt-summary-val">${eficiencia}%</div><div class="opt-summary-lbl">eficiencia</div></div></div></div>`;
+  const titulo = tituloConFecha('Optimización de corte', fechaIso);
+  const summary = `<div class="opt-summary-box"><div><div class="opt-summary-title">Resumen — rollo grande = ${ANCHO_ROLLO} cm</div><div class="opt-summary-grid"><div><div class="opt-summary-val">${totalRollos}</div><div class="opt-summary-lbl">rollos grandes</div></div><div><div class="opt-summary-val">${totalDesp} cm</div><div class="opt-summary-lbl">desperdicio total</div></div><div><div class="opt-summary-val">${eficiencia}%</div><div class="opt-summary-lbl">eficiencia</div></div></div></div><div class="box-title">${titulo}</div></div>`;
 
-  const secciones = optData
+  const secciones = [...optData]
+    .sort((a, b) => a.tela.localeCompare(b.tela))
     .map((d) => {
       const colorForAlto = colorForAltoFactory();
       const rollones = d.rollones
@@ -127,14 +159,16 @@ export function imprimirOptimizacion(optData: OptimizacionTela[]) {
     })
     .join('');
 
-  openPrintWindow('Optimización de Corte', summary + secciones);
+  openPrintWindow(titulo, summary + secciones);
 }
 
-export function imprimirEnvivado(envRows: EnvivadoRow[], totalSegEnv: number) {
+export function imprimirEnvivado(envRows: EnvivadoRow[], totalSegEnv: number, fechaIso: string) {
   const envStr = totalSegEnv > 0 ? fmtTiempo(totalSegEnv) : '—';
   const envCalc = totalSegEnv > 0 ? `${(totalSegEnv / 3600).toFixed(1)} hs totales` : 'Sin envivado';
-  const tiempoBox = `<div class="tiempo-box"><div class="tiempo-box-titulo">Tiempo total de envivado</div><div class="tiempo-box-valor">${envStr}</div><div class="tiempo-box-calculo">${envCalc}</div></div>`;
-  const filas = envRows
+  const titulo = tituloConFecha('Envivado', fechaIso);
+  const tiempoBox = `<div class="tiempo-box"><div><div class="tiempo-box-titulo">Tiempo total de envivado</div><div class="tiempo-box-valor">${envStr}</div><div class="tiempo-box-calculo">${envCalc}</div></div><div class="box-title">${titulo}</div></div>`;
+  const ordenado = [...envRows].sort((a, b) => (a.tela || '').localeCompare(b.tela || '') || (a.alto || 0) - (b.alto || 0));
+  const filas = ordenado
     .map((r) => {
       const mins = Math.floor(r.seg / 60);
       const segs = r.seg % 60;
@@ -142,9 +176,9 @@ export function imprimirEnvivado(envRows: EnvivadoRow[], totalSegEnv: number) {
       const totalMins = Math.floor(r.totalSeg / 60);
       const totalSegs = r.totalSeg % 60;
       const totalStr = r.totalSeg === 0 ? '—' : `${totalMins}:${String(totalSegs).padStart(2, '0')}`;
-      return `<tr><td><span class="tag-fecha">${r.fecha}</span></td><td style="font-size:11px;word-break:break-all">${r.producto}</td><td class="num">${r.alto ?? '-'}</td><td class="num">${r.cantidad}</td><td style="font-size:12px">${r.tipo}</td><td class="num">${unitStr}</td><td class="num"><strong>${totalStr}</strong></td></tr>`;
+      return `<tr><td><span class="badge">${r.tela ?? '?'}</span></td><td class="num">${r.alto ?? '-'}</td><td class="num">${r.rollos}</td><td style="font-size:12px">${r.tipo}</td><td class="num">${unitStr}</td><td class="num"><strong>${totalStr}</strong></td></tr>`;
     })
     .join('');
-  const tabla = `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Producto</th><th class="num">Alto</th><th class="num">Cantidad</th><th>Tipo</th><th class="num">T. unitario</th><th class="num">T. total</th></tr></thead><tbody>${filas}</tbody></table></div>`;
-  openPrintWindow('Envivado', tiempoBox + tabla);
+  const tabla = `<div class="table-wrap"><table><thead><tr><th>Color</th><th class="num">Alto</th><th class="num">Rollos</th><th>Tipo</th><th class="num">Tiempo por rollo</th><th class="num">Tiempo total</th></tr></thead><tbody>${filas}</tbody></table></div>`;
+  openPrintWindow(titulo, tiempoBox + tabla);
 }
