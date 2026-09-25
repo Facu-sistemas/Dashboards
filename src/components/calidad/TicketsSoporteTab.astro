@@ -1,18 +1,23 @@
 ---
 import TicketsSoporteApp from './TicketsSoporteApp';
 import { buildTicketsSoporteDehydratedState } from '../../lib/tickets-soporte-ssr';
-import type { CalidadRange } from './types';
+import type { CalidadRange, NotasCreditoEmpresaFilter } from './types';
 
 const RANGE_VALUES: CalidadRange[] = ['all', 'this-year', 'last-12-months', 'last-6-months'];
+const EMPRESA_VALUES: NotasCreditoEmpresaFilter[] = ['all', 'frontera', 'presupuesto'];
 
 const params = Astro.url.searchParams;
 const rangeParam = params.get('range');
 const initialRange: CalidadRange = RANGE_VALUES.includes(rangeParam as CalidadRange) ? (rangeParam as CalidadRange) : 'last-12-months';
+const empresaParam = params.get('notasCreditoEmpresa');
+const initialEmpresa: NotasCreditoEmpresaFilter = EMPRESA_VALUES.includes(empresaParam as NotasCreditoEmpresaFilter)
+  ? (empresaParam as NotasCreditoEmpresaFilter)
+  : 'all';
 
 let dehydratedState;
 let ssrError: string | null = null;
 try {
-  dehydratedState = await buildTicketsSoporteDehydratedState(initialRange);
+  dehydratedState = await buildTicketsSoporteDehydratedState(initialRange, initialEmpresa);
 } catch (err) {
   ssrError = err instanceof Error ? err.message : 'Error desconocido consultando Odoo';
 }
@@ -38,5 +43,5 @@ try {
     )
   }
 
-  <TicketsSoporteApp client:load initialRange={initialRange} dehydratedState={dehydratedState} />
+  <TicketsSoporteApp client:load initialRange={initialRange} initialNotasCreditoEmpresa={initialEmpresa} dehydratedState={dehydratedState} />
 </div>

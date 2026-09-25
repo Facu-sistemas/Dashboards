@@ -7,15 +7,16 @@ export const prerender = false;
 
 const querySchema = z.object({
   range: z.enum(['all', 'this-year', 'last-12-months', 'last-6-months']).default('last-12-months'),
+  notasCreditoEmpresa: z.enum(['all', 'frontera', 'presupuesto']).default('all'),
 });
 
-// GET /api/tickets-soporte?range=last-12-months
+// GET /api/tickets-soporte?range=last-12-months&notasCreditoEmpresa=all
 export const GET: APIRoute = async ({ url }) => {
   return handleApiRoute(() => {
     const parsed = querySchema.safeParse(Object.fromEntries(url.searchParams.entries()));
     if (!parsed.success) {
       throw new ApiValidationError(parsed.error.issues.map((i) => i.message).join('; '));
     }
-    return getTicketsSoporte(parsed.data.range);
+    return getTicketsSoporte(parsed.data.range, parsed.data.notasCreditoEmpresa);
   });
 };
