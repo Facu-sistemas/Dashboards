@@ -160,17 +160,16 @@ export function calcCorte(rows: ParsedRow[], stock: StockMap): CorteRow[] {
 /**
  * Vista de la tabla "Corte de bandas" (y su PDF) para altos con pillow — un
  * alto como 34 no se corta de un solo tirón, se arma con la receta de la
- * tabla "CORTE ALTO DE BANDA" de Odoo (ej. "8, 18, 8" para el 34). El factor
- * de esa receta es cuántas veces se repite su componente más frecuente (el
- * "8" aparece 2 veces → factor 2): `r.rollos` se multiplica por ese factor
- * antes de repartirlo entre los componentes. Los componentes resultantes se
- * fusionan con cualquier otra fila (nativa o de otra receta) que termine
- * teniendo el mismo tela+alto ese día — por eso el 18cm de dos recetas
- * distintas se suma en una sola fila, mientras que sus otros componentes
- * (7cm, 8cm, etc.) quedan separados por ser altos distintos. Los altos sin
- * receta (pillow=no) se muestran igual que antes, tal cual. Solo afecta esta
- * vista: Matelaseadora y Optimización de corte siguen trabajando con
- * `calcCorte` sin expandir, tal como se venía haciendo.
+ * tabla "CORTE ALTO DE BANDA" de Odoo (ej. "8, 18, 8" para el 34: 2 rollos
+ * de 8cm + 1 de 18cm por cada rollo de 34 — la cantidad de cada componente
+ * es literal, sin multiplicar por ningún factor extra). Los componentes
+ * resultantes se fusionan con cualquier otra fila (nativa o de otra receta)
+ * que termine teniendo el mismo tela+alto ese día — por eso el 18cm de dos
+ * recetas distintas se suma en una sola fila, mientras que sus otros
+ * componentes (7cm, 8cm, etc.) quedan separados por ser altos distintos.
+ * Los altos sin receta (pillow=no) se muestran igual que antes, tal cual.
+ * Solo afecta esta vista: Matelaseadora y Optimización de corte siguen
+ * trabajando con `calcCorte` sin expandir, tal como se venía haciendo.
  */
 export function calcCorteVisual(corte: CorteRow[], recetaPorAlto: Record<number, Record<number, number>>): CorteRow[] {
   const map = new Map<string, CorteRow>();
@@ -190,10 +189,8 @@ export function calcCorteVisual(corte: CorteRow[], recetaPorAlto: Record<number,
   for (const r of corte) {
     const receta = r.alto !== null ? recetaPorAlto[r.alto] : undefined;
     if (receta && Object.keys(receta).length > 0) {
-      const factorReceta = Math.max(...Object.values(receta));
-      const rollosBase = r.rollos * factorReceta;
       for (const [altoComponenteStr, cantidadPorUnidad] of Object.entries(receta)) {
-        add(r.fecha, r.tela, Number(altoComponenteStr), cantidadPorUnidad * rollosBase, 0);
+        add(r.fecha, r.tela, Number(altoComponenteStr), cantidadPorUnidad * r.rollos, 0);
       }
     } else {
       add(r.fecha, r.tela, r.alto, r.rollos, r.rollosDescontados);
@@ -379,19 +376,14 @@ export const TIPO_EURO = 'EURO P';
  * las sumaba todas, inflándolo. Filtra las bandas sin pillow (no llevan
  * envivado, no deben verse en el resumen ni en el PDF) — salvo que sean
  * NOVOL, que siempre se muestran aunque su alto figure como "sin pillow" en
- * la tabla. `rollos` usa la misma cantidad que "Corte de bandas": la fila
- * fecha+tela+alto de `calcCorte`, multiplicada por el mismo factor de
- * receta que aplica `calcCorteVisual` cuando ese alto tiene pillow (sin
- * expandir a los componentes — el envivado se hace sobre la pieza
- * terminada, no sobre las tiras en las que se corta después, pero la
- * cantidad real de rollos es la misma).
+ * la tabla. `rollos` es el mismo valor de la fila fecha+tela+alto en
+ * `calcCorte` (sin expandir por receta: el envivado se hace sobre la pieza
+ * terminada, no sobre las tiras en las que se corta después).
  */
 export function calcEnvivado(rows: ParsedRow[], config: BandasTablasOdoo, corte: CorteRow[]): { envRows: EnvivadoRow[]; totalSeg: number } {
   const rollosPorGrupo = new Map<string, number>();
   for (const c of corte) {
-    const receta = c.alto !== null ? config.recetaPorAlto[c.alto] : undefined;
-    const factorReceta = receta && Object.keys(receta).length > 0 ? Math.max(...Object.values(receta)) : 1;
-    rollosPorGrupo.set(`${c.fecha}||${c.tela ?? ''}||${c.alto ?? ''}`, c.rollos * factorReceta);
+    rollosPorGrupo.set(`${c.fecha}||${c.tela ?? ''}||${c.alto ?? ''}`, c.rollos);
   }
 
   const grupos = new Map<string, { fecha: string; tela: string | null; alto: number | null; tipo: string; seg: number }>();
