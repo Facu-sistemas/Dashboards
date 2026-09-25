@@ -54,6 +54,7 @@ const ICONS = {
   cart: '<rect x="6" y="7" width="12" height="7" rx="1"/><line x1="3" y1="4" x2="6" y2="4"/><line x1="6" y1="4" x2="6" y2="7"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/>',
   ruler: '<rect x="3" y="9" width="18" height="6" rx="1"/><line x1="7" y1="9" x2="7" y2="12"/><line x1="11" y1="9" x2="11" y2="15"/><line x1="15" y1="9" x2="15" y2="12"/><line x1="19" y1="9" x2="19" y2="15"/>',
   flask: '<path d="M9 3h6"/><path d="M10 3v6.5L4.6 18a2 2 0 001.7 3h11.4a2 2 0 001.7-3L14 9.5V3"/><path d="M7.5 15h9"/>',
+  coins: '<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.66 3.13 3 7 3s7-1.34 7-3V6"/><path d="M5 12v6c0 1.66 3.13 3 7 3s7-1.34 7-3v-6"/>',
 };
 
 export const AREAS: AreaConfig[] = [
@@ -112,11 +113,14 @@ export const AREAS: AreaConfig[] = [
   },
   {
     slug: 'mejora-continua',
-    name: 'Mejora Continua',
-    description: 'Próximamente',
-    accent: 'teal',
-    icon: ICONS.trendUp,
-    tabs: [{ slug: 'inicio', name: 'Inicio' }],
+    name: 'Finanzas',
+    description: 'Crédito, cheques y pedidos pendientes por cliente',
+    accent: 'emerald',
+    icon: ICONS.coins,
+    tabs: [
+      { slug: 'credito-cheques', name: 'Crédito y Cheques' },
+      { slug: 'distribucion-cheques', name: 'Distribución de Cheques' },
+    ],
   },
   {
     slug: 'almacen',

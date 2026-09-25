@@ -6,14 +6,18 @@ import LastUpdated from '../shared/LastUpdated';
 import {
   parseRows,
   calcCorte,
+  calcCorteVisual,
   calcMatel,
   optimizarCorte,
   calcEnvivado,
+  envivadoraPorTipo,
   fmtTiempo,
   stockKey,
   SEG_ROLLO_CHICO,
   MIN_ROLLO_GRANDE,
+  BANDAS_TABLAS_FALLBACK,
   type StockMap,
+  type BandasTablasOdoo,
 } from '../../lib/bandas-calc';
 import BandasStockPanel, { type StockRowInput } from './BandasStockPanel';
 import BandasOptimizacion from './BandasOptimizacion';
@@ -35,6 +39,7 @@ interface BandaPlanRow {
   fecha: string;
   producto: string;
   cantidad: number;
+  tela: string | null;
 }
 
 type TabId = 'corte' | 'matelaseadora' | 'optimizacion' | 'envivado' | 'detalle';
@@ -144,6 +149,9 @@ function BandasInner() {
 
   const { rows, warns } = useMemo(() => parseRows(planQuery.data ?? []), [planQuery.data]);
 
+  const tablasQuery = useApiQuery<BandasTablasOdoo>(['bandas-tablas-odoo'], '/api/bandas-tablas-odoo');
+  const tablas = tablasQuery.data ?? BANDAS_TABLAS_FALLBACK;
+
   const stockMap: StockMap = useMemo(() => {
     const map: StockMap = {};
     for (const r of stockRows) {
@@ -157,27 +165,39 @@ function BandasInner() {
     return map;
   }, [stockRows]);
 
+  // `corte` alimenta Matelaseadora y Optimización de corte tal cual (sin expandir por receta).
   const corte = useMemo(() => calcCorte(rows, stockMap), [rows, stockMap]);
+  // `corteVisual` es solo para la tab "Corte de bandas": los altos con pillow se expanden a la receta real de corte.
+  const corteVisual = useMemo(() => calcCorteVisual(corte, tablas.recetaPorAlto), [corte, tablas]);
   const matel = useMemo(() => calcMatel(corte), [corte]);
   const optData = useMemo(() => optimizarCorte(corte), [corte]);
-  const { envRows, totalSeg: totalSegEnv } = useMemo(() => calcEnvivado(rows), [rows]);
+  const { envRows, totalSeg: totalSegEnv } = useMemo(() => calcEnvivado(rows, tablas, corte), [rows, tablas, corte]);
 
-  const totalCorte = corte.reduce((s, r) => s + r.rollos, 0);
+  const totalCorte = corteVisual.reduce((s, r) => s + r.rollos, 0);
   const totalGrandes = matel.reduce((s, r) => s + r.rollosGrandes, 0);
   const sinMedida = rows.filter((r) => !r.largo).length;
 
   const porTela = useMemo(() => {
     const map = new Map<string, number>();
-    for (const r of corte) {
+    for (const r of corteVisual) {
       const t = r.tela || 'Sin tela';
       map.set(t, (map.get(t) ?? 0) + r.rollos);
     }
     return [...map.entries()].sort((a, b) => b[1] - a[1]);
-  }, [corte]);
+  }, [corteVisual]);
 
   const corteOrdenado = useMemo(
-    () => [...corte].sort((a, b) => (a.tela || '').localeCompare(b.tela || '') || (a.alto || 0) - (b.alto || 0)),
-    [corte],
+    () => [...corteVisual].sort((a, b) => (a.tela || '').localeCompare(b.tela || '') || (a.alto || 0) - (b.alto || 0)),
+    [corteVisual],
+  );
+
+  const matelOrdenado = useMemo(() => [...matel].sort((a, b) => (a.tela || '').localeCompare(b.tela || '')), [matel]);
+
+  const optDataOrdenado = useMemo(() => [...optData].sort((a, b) => a.tela.localeCompare(b.tela)), [optData]);
+
+  const envOrdenado = useMemo(
+    () => [...envRows].sort((a, b) => (a.tela || '').localeCompare(b.tela || '') || (a.alto || 0) - (b.alto || 0)),
+    [envRows],
   );
 
   const segCorte = totalCorte * SEG_ROLLO_CHICO;
@@ -308,11 +328,10 @@ function BandasInner() {
                   variant="blue"
                 />
               </div>
-              <PrintButton onClick={() => imprimirCorte(corte, totalCorte)} label="Imprimir corte de bandas" />
+              <PrintButton onClick={() => imprimirCorte(corteVisual, totalCorte, effectiveDate ?? '')} label="Imprimir corte de bandas" />
               <TableWrap>
                 <thead>
                   <tr>
-                    <Th>Fecha</Th>
                     <Th>Tela</Th>
                     <Th num>Alto</Th>
                     <Th num>Rollos</Th>
@@ -321,9 +340,6 @@ function BandasInner() {
                 <tbody>
                   {corteOrdenado.map((r, i) => (
                     <tr key={i} className="border-b border-slate-800/60 last:border-0">
-                      <Td>
-                        <FechaTag>{r.fecha}</FechaTag>
-                      </Td>
                       <Td>
                         <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${telaBadgeClasses(r.tela)}`}>{r.tela ?? '?'}</span>
                       </Td>
@@ -348,7 +364,7 @@ function BandasInner() {
                 valor={fmtTiempo(segMatel)}
                 calculo={`${totalGrandes} rollos × 40 min = ${(segMatel / 3600).toFixed(1)} hs`}
               />
-              <PrintButton onClick={() => imprimirMatelaseadora(matel, totalGrandes)} label="Imprimir matelaseadora" />
+              <PrintButton onClick={() => imprimirMatelaseadora(matelOrdenado, totalGrandes, effectiveDate ?? '')} label="Imprimir matelaseadora" />
               <TableWrap>
                 <thead>
                   <tr>
@@ -358,7 +374,7 @@ function BandasInner() {
                   </tr>
                 </thead>
                 <tbody>
-                  {matel.map((r, i) => (
+                  {matelOrdenado.map((r, i) => (
                     <tr key={i} className="border-b border-slate-800/60 last:border-0">
                       <Td>
                         <FechaTag>{r.fecha}</FechaTag>
@@ -378,14 +394,14 @@ function BandasInner() {
 
           {activeTab === 'optimizacion' && (
             <div className="flex flex-col gap-4">
-              <PrintButton onClick={() => imprimirOptimizacion(optData)} label="Imprimir optimización de corte" />
-              <BandasOptimizacion optData={optData} corteRows={corte} onAgregarSobrantesAlStock={agregarSobrantesAlStock} />
+              <PrintButton onClick={() => imprimirOptimizacion(optDataOrdenado, effectiveDate ?? '')} label="Imprimir optimización de corte" />
+              <BandasOptimizacion optData={optDataOrdenado} corteRows={corte} onAgregarSobrantesAlStock={agregarSobrantesAlStock} />
             </div>
           )}
 
           {activeTab === 'envivado' && (
             <div className="flex flex-col gap-4">
-              <PrintButton onClick={() => imprimirEnvivado(envRows, totalSegEnv)} label="Imprimir envivado" />
+              <PrintButton onClick={() => imprimirEnvivado(envOrdenado, totalSegEnv, effectiveDate ?? '')} label="Imprimir envivado" />
               <TiempoBox
                 titulo="Tiempo total de envivado"
                 valor={totalSegEnv > 0 ? fmtTiempo(totalSegEnv) : '—'}
@@ -395,32 +411,28 @@ function BandasInner() {
               <TableWrap>
                 <thead>
                   <tr>
-                    <Th>Fecha</Th>
-                    <Th>Producto</Th>
+                    <Th>Color</Th>
                     <Th num>Alto</Th>
-                    <Th num>Cantidad</Th>
+                    <Th num>Rollos</Th>
                     <Th>Tipo</Th>
-                    <Th num>T. unitario</Th>
-                    <Th num>T. total</Th>
+                    <Th>Envivadora</Th>
+                    <Th num>Tiempo por rollo</Th>
+                    <Th num>Tiempo total</Th>
                   </tr>
                 </thead>
                 <tbody>
-                  {envRows.map((r, i) => {
-                    const mins = Math.floor(r.seg / 60);
-                    const segs = r.seg % 60;
-                    const unitStr = r.seg === 0 ? '—' : `${mins}:${String(segs).padStart(2, '0')}`;
-                    const totalMins = Math.floor(r.totalSeg / 60);
-                    const totalSegs = r.totalSeg % 60;
-                    const totalStr = r.totalSeg === 0 ? '—' : `${totalMins}:${String(totalSegs).padStart(2, '0')}`;
+                  {envOrdenado.map((r, i) => {
+                    const unitStr = r.seg === 0 ? '—' : fmtTiempo(r.seg);
+                    const totalStr = r.totalSeg === 0 ? '—' : fmtTiempo(r.totalSeg);
                     return (
                       <tr key={i} className="border-b border-slate-800/60 last:border-0">
                         <Td>
-                          <FechaTag>{r.fecha}</FechaTag>
+                          <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${telaBadgeClasses(r.tela)}`}>{r.tela ?? '?'}</span>
                         </Td>
-                        <Td className="text-xs">{r.producto}</Td>
                         <Td num>{r.alto ?? '-'}</Td>
-                        <Td num>{r.cantidad}</Td>
+                        <Td num>{r.rollos}</Td>
                         <Td className="text-xs">{r.tipo}</Td>
+                        <Td className="text-xs">{envivadoraPorTipo(r.tipo)}</Td>
                         <Td num>{unitStr}</Td>
                         <Td num>
                           <strong>{totalStr}</strong>

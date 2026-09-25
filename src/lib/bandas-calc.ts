@@ -1,56 +1,18 @@
 /**
  * Business rules for the Bandas cutting calculator — ported from the
- * standalone "Calculadora de Rollos de Bandas" tool. `TELAS`, `MEDIDAS_LARGO`
- * and the timing constants below are curated shop-floor knowledge that has
- * no equivalent in Odoo (fabric code → color, size → meters-per-band, time
- * per cut/quilt/edge-bind) — only the raw (fecha, producto, cantidad) rows
- * come from Odoo now; everything else here is unchanged from the original.
+ * standalone "Calculadora de Rollos de Bandas" tool. `MEDIDAS_LARGO` and the
+ * timing constants below are curated shop-floor knowledge that has no
+ * equivalent in Odoo (size → meters-per-band, time per cut/quilt/edge-bind).
+ * The fabric color, en cambio, sí sale de Odoo: se resuelve del lado del
+ * servidor a partir de la lista de materiales (BOM) de cada producto contra
+ * la tabla "CODIGO DE COLORES TELAS" (ver `getBandasPlanificacion` en
+ * lib/odoo/bandas.ts) — `tela` llega ya resuelta en cada fila, no se deriva
+ * más del código del producto acá.
  * Pure/isomorphic on purpose (no Odoo, no DOM) so it runs client-side.
  */
 
-export const TELAS: Record<string, string> = {
-  BAZUL: 'AZUL',
-  BBORD: 'BORDO',
-  BGRIS: 'GRIS CLARO',
-  BMARR: 'MARRON',
-  BNEGR: 'NEGRO',
-  EAPOL: 'BORDO',
-  EARES: 'NEGRO',
-  EBABY: 'TELA INFANTIL',
-  ECOMF: 'NEGRO',
-  ECOMFY: 'GRIS OSCURO',
-  ECORO: 'NEGRO',
-  EDIAM: 'NEGRO',
-  EELIO: 'NEGRO',
-  EESME: 'NEGRO',
-  EHARM: 'GRIS OSCURO',
-  EHEFE: 'GRIS OSCURO',
-  EJENS: 'NEGRO',
-  EMARK: 'MARRON',
-  ERELA: 'NEGRO',
-  EREST: 'NEGRO',
-  ESELE: 'MARRON',
-  ESENS: 'NEGRO',
-  ESERE: 'GRIS OSCURO',
-  ESIEN: 'GRIS CLARO',
-  ETROP: 'NEGRO',
-  EVIRT: 'AZUL',
-  EZAFI: 'NEGRO',
-  FHOTE: 'NEGRO',
-  POSURE: 'NEGRO',
-  POZINU: 'GRIS OSCURO',
-  RARES: 'NEGRO',
-  RCOMF: 'NEGRO',
-  RCORO: 'NEGRO',
-  RJENS: 'NEGRO',
-  RRELA: 'NEGRO',
-  RSENS: 'NEGRO',
-  RVIRT: 'AZUL',
-  POSELE: 'MARRON',
-  TMAGN: 'GRIS OSCURO',
-};
-
-export const TELAS_LIST: string[] = [...new Set(Object.values(TELAS))].sort();
+/** Vocabulario de colores para el selector manual de stock — no participa en ningún cálculo, solo llena el <select>. */
+export const TELAS_LIST: string[] = ['AZUL', 'BORDO', 'GRIS OSCURO', 'MARRON', 'NEGRO', 'TELA INFANTIL'];
 
 export const MEDIDAS_LARGO: Record<string, number> = {
   '70X190': 5.22,
@@ -96,11 +58,6 @@ export function fmtTiempo(seg: number): string {
   return `${s} seg`;
 }
 
-export function extractCodigo(producto: string): string | null {
-  const m = producto.match(/BANDA-([A-Z]+)/);
-  return m ? m[1]! : null;
-}
-
 export function extractMedida(producto: string): string | null {
   let m = producto.match(/([0-9]{5,6})/);
   if (m) {
@@ -120,6 +77,8 @@ export interface RawRow {
   fecha: string;
   producto: string;
   cantidad: number;
+  /** Ya resuelto del lado del servidor (BOM → tabla de colores). */
+  tela: string | null;
 }
 
 export interface ParsedRow {
@@ -140,8 +99,7 @@ export function parseRows(data: RawRow[]): { rows: ParsedRow[]; warns: string[] 
     const producto = String(r.producto || '').trim().toUpperCase();
     const cantidad = Number(r.cantidad) || 0;
     if (!producto.includes('BANDA-')) continue;
-    const codigo = extractCodigo(producto);
-    const tela = codigo ? (TELAS[codigo] ?? null) : null;
+    const tela = r.tela;
     const medida = extractMedida(producto);
     const alto = extractAlto(producto);
     const largo = medida ? (MEDIDAS_LARGO[medida] ?? null) : null;
@@ -197,6 +155,49 @@ export function calcCorte(rows: ParsedRow[], stock: StockMap): CorteRow[] {
     const altoRollo = (g.alto ?? 0) * rollos;
     return { ...g, rollos, rollosDescontados, altoRollo };
   });
+}
+
+/**
+ * Vista de la tabla "Corte de bandas" (y su PDF) para altos con pillow — un
+ * alto como 34 no se corta de un solo tirón, se arma con la receta de la
+ * tabla "CORTE ALTO DE BANDA" de Odoo (ej. "8, 18, 8" para el 34: 2 rollos
+ * de 8cm + 1 de 18cm por cada rollo de 34 — la cantidad de cada componente
+ * es literal, sin multiplicar por ningún factor extra). Los componentes
+ * resultantes se fusionan con cualquier otra fila (nativa o de otra receta)
+ * que termine teniendo el mismo tela+alto ese día — por eso el 18cm de dos
+ * recetas distintas se suma en una sola fila, mientras que sus otros
+ * componentes (7cm, 8cm, etc.) quedan separados por ser altos distintos.
+ * Los altos sin receta (pillow=no) se muestran igual que antes, tal cual.
+ * Solo afecta esta vista: Matelaseadora y Optimización de corte siguen
+ * trabajando con `calcCorte` sin expandir, tal como se venía haciendo.
+ */
+export function calcCorteVisual(corte: CorteRow[], recetaPorAlto: Record<number, Record<number, number>>): CorteRow[] {
+  const map = new Map<string, CorteRow>();
+
+  const add = (fecha: string, tela: string | null, alto: number | null, rollos: number, rollosDescontados: number) => {
+    const k = `${fecha}||${tela ?? ''}||${alto ?? ''}`;
+    const existing = map.get(k);
+    if (existing) {
+      existing.rollos += rollos;
+      existing.rollosDescontados += rollosDescontados;
+      existing.altoRollo = (alto ?? 0) * existing.rollos;
+    } else {
+      map.set(k, { fecha, tela, alto, metros: 0, rollos, rollosDescontados, altoRollo: (alto ?? 0) * rollos });
+    }
+  };
+
+  for (const r of corte) {
+    const receta = r.alto !== null ? recetaPorAlto[r.alto] : undefined;
+    if (receta && Object.keys(receta).length > 0) {
+      for (const [altoComponenteStr, cantidadPorUnidad] of Object.entries(receta)) {
+        add(r.fecha, r.tela, Number(altoComponenteStr), cantidadPorUnidad * r.rollos, 0);
+      }
+    } else {
+      add(r.fecha, r.tela, r.alto, r.rollos, r.rollosDescontados);
+    }
+  }
+
+  return [...map.values()];
 }
 
 export interface MatelRow {
@@ -291,31 +292,123 @@ export function optimizarCorte(corteRows: CorteRow[]): OptimizacionTela[] {
   return resultados;
 }
 
-export function tiempoEnvivadoPorBanda(producto: string, alto: number | null): number {
-  if (producto && producto.toUpperCase().includes('NOVOL')) return 114; // 1:54
-  if (alto && alto < 29) return 0;
-  return 128; // 2:08
+/**
+ * Última foto conocida de las tablas "Corte Banda (cm)/Pillow", "TIEMPO" y
+ * "CORTE ALTO DE BANDA" del dashboard Odoo "Indicador_cierre" — se usa solo
+ * si Odoo no responde; en uso normal, `BandasTablasOdoo` llega en vivo desde
+ * `/api/bandas-tablas-odoo` (ver `getBandasTablasOdoo` en lib/odoo/bandas.ts).
+ */
+export const PILLOW_POR_ALTO_FALLBACK: Record<number, boolean> = {
+  14: false,
+  16: false,
+  20: false,
+  21: false,
+  23: false,
+  25: false,
+  27: false,
+  28: false,
+  29: false,
+  32: true,
+  34: true,
+  35: true,
+  38: true,
+};
+
+export const TIEMPO_EURO_SEG_FALLBACK = 540;
+export const TIEMPO_NOVOL_SEG_FALLBACK = 840;
+
+export const RECETA_ALTO_FALLBACK: Record<number, Record<number, number>> = {
+  32: { 7: 2, 18: 1 },
+  34: { 8: 2, 18: 1 },
+  35: { 8.5: 2, 18: 1 },
+  38: { 10: 2, 18: 1 },
+};
+
+/** Códigos de tela (componente de la BOM) → color, tal como figuran en "CODIGO DE COLORES TELAS". */
+export const COLOR_POR_CODIGO_FALLBACK: Record<string, string> = {
+  V368: 'NEGRO',
+  V406: 'GRIS OSCURO',
+  V379: 'AZUL',
+  V370: 'MARRON',
+  V377: 'BORDO',
+};
+
+export interface BandasTablasOdoo {
+  pillowPorAlto: Record<number, boolean>;
+  euroSeg: number;
+  novolSeg: number;
+  recetaPorAlto: Record<number, Record<number, number>>;
+  colorPorCodigo: Record<string, string>;
 }
 
-export interface EnvivadoRow extends ParsedRow {
+export const BANDAS_TABLAS_FALLBACK: BandasTablasOdoo = {
+  pillowPorAlto: PILLOW_POR_ALTO_FALLBACK,
+  euroSeg: TIEMPO_EURO_SEG_FALLBACK,
+  novolSeg: TIEMPO_NOVOL_SEG_FALLBACK,
+  recetaPorAlto: RECETA_ALTO_FALLBACK,
+  colorPorCodigo: COLOR_POR_CODIGO_FALLBACK,
+};
+
+/** Altos fuera de la tabla caen al mismo corte (>=29 = con pillow) que separa los valores conocidos. */
+function tienePillow(alto: number | null, pillowPorAlto: Record<number, boolean>): boolean {
+  if (alto === null) return false;
+  const conocido = pillowPorAlto[alto];
+  return conocido !== undefined ? conocido : alto >= 29;
+}
+
+export interface EnvivadoRow {
+  fecha: string;
+  tela: string | null;
+  alto: number | null;
   seg: number;
   tipo: string;
   totalSeg: number;
+  rollos: number;
 }
 
-export const TIPO_NOVOL = 'NOVOL (1:54)';
-export const TIPO_BAJO = 'Alto < 29 (sin envivado)';
-export const TIPO_STD = 'Estándar (2:08)';
+export const TIPO_NOVOL = 'NOVOL';
+export const TIPO_EURO = 'EURO P';
 
-export function calcEnvivado(rows: ParsedRow[]): { envRows: EnvivadoRow[]; totalSeg: number } {
+/** Máquina envivadora usada según el tipo: EURO P se hace en la nueva, NOVOL en la vieja. */
+export function envivadoraPorTipo(tipo: string): string {
+  return tipo === TIPO_EURO ? 'Nueva' : 'Vieja';
+}
+
+/**
+ * Agrupa por fecha+tela+alto+tipo — antes había una fila por cada línea de
+ * Odoo (una por medida), y como todas las medidas de un mismo tela+alto
+ * comparten el mismo `rollos`, se veían filas repetidas y el tiempo total
+ * las sumaba todas, inflándolo. Filtra las bandas sin pillow (no llevan
+ * envivado, no deben verse en el resumen ni en el PDF) — salvo que sean
+ * NOVOL, que siempre se muestran aunque su alto figure como "sin pillow" en
+ * la tabla. `rollos` es el mismo valor de la fila fecha+tela+alto en
+ * `calcCorte` (sin expandir por receta: el envivado se hace sobre la pieza
+ * terminada, no sobre las tiras en las que se corta después).
+ */
+export function calcEnvivado(rows: ParsedRow[], config: BandasTablasOdoo, corte: CorteRow[]): { envRows: EnvivadoRow[]; totalSeg: number } {
+  const rollosPorGrupo = new Map<string, number>();
+  for (const c of corte) {
+    rollosPorGrupo.set(`${c.fecha}||${c.tela ?? ''}||${c.alto ?? ''}`, c.rollos);
+  }
+
+  const grupos = new Map<string, { fecha: string; tela: string | null; alto: number | null; tipo: string; seg: number }>();
+  for (const r of rows) {
+    const esNovol = r.producto.toUpperCase().includes('NOVOL');
+    if (!esNovol && !tienePillow(r.alto, config.pillowPorAlto)) continue;
+    const seg = esNovol ? config.novolSeg : config.euroSeg;
+    const tipo = esNovol ? TIPO_NOVOL : TIPO_EURO;
+    const k = `${r.fecha}||${r.tela ?? ''}||${r.alto ?? ''}||${tipo}`;
+    if (!grupos.has(k)) grupos.set(k, { fecha: r.fecha, tela: r.tela, alto: r.alto, tipo, seg });
+  }
+
   let totalSeg = 0;
-  const envRows = rows.map((r) => {
-    const seg = tiempoEnvivadoPorBanda(r.producto, r.alto);
-    const tipo = r.producto.toUpperCase().includes('NOVOL') ? TIPO_NOVOL : r.alto && r.alto < 29 ? TIPO_BAJO : TIPO_STD;
-    const rowTotalSeg = seg * r.cantidad;
+  const envRows: EnvivadoRow[] = [];
+  for (const g of grupos.values()) {
+    const rollos = rollosPorGrupo.get(`${g.fecha}||${g.tela ?? ''}||${g.alto ?? ''}`) ?? 0;
+    const rowTotalSeg = g.seg * rollos;
     totalSeg += rowTotalSeg;
-    return { ...r, seg, tipo, totalSeg: rowTotalSeg };
-  });
+    envRows.push({ ...g, totalSeg: rowTotalSeg, rollos });
+  }
   return { envRows, totalSeg };
 }
 
