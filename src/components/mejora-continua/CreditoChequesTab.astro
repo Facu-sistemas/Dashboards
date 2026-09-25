@@ -1,0 +1,33 @@
+---
+import CreditoChequesApp from './CreditoChequesApp';
+import { buildCreditoClientesDehydratedState } from '../../lib/credito-clientes-ssr';
+
+let dehydratedState;
+let ssrError: string | null = null;
+try {
+  dehydratedState = await buildCreditoClientesDehydratedState();
+} catch (err) {
+  ssrError = err instanceof Error ? err.message : 'Error desconocido consultando Odoo';
+}
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Crédito y Cheques</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Total por cobrar, cheques de terceros en cartera y pedidos confirmados sin entregar, por
+      cliente. Solo lectura.
+    </p>
+  </header>
+
+  {
+    ssrError && (
+      <p class="mb-6 rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">
+        No se pudo precargar la data desde Odoo en el servidor ({ssrError}). El panel intentará cargar
+        los datos desde el navegador.
+      </p>
+    )
+  }
+
+  <CreditoChequesApp client:load dehydratedState={dehydratedState} />
+</div>

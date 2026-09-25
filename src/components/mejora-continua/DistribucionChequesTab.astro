@@ -1,0 +1,33 @@
+---
+import DistribucionChequesApp from './DistribucionChequesApp';
+import { buildCreditoClientesDehydratedState } from '../../lib/credito-clientes-ssr';
+
+let dehydratedState;
+let ssrError: string | null = null;
+try {
+  dehydratedState = await buildCreditoClientesDehydratedState();
+} catch (err) {
+  ssrError = err instanceof Error ? err.message : 'Error desconocido consultando Odoo';
+}
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Distribución de Cheques</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Matriz de todos los clientes con cheques en cartera × mes de pago futuro, para ver de un
+      vistazo la concentración de cobros esperados. Solo lectura.
+    </p>
+  </header>
+
+  {
+    ssrError && (
+      <p class="mb-6 rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">
+        No se pudo precargar la data desde Odoo en el servidor ({ssrError}). El panel intentará cargar
+        los datos desde el navegador.
+      </p>
+    )
+  }
+
+  <DistribucionChequesApp client:load dehydratedState={dehydratedState} />
+</div>

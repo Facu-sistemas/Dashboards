@@ -23,6 +23,8 @@ import ConversorTab from '../../components/test/ConversorTab.astro';
 import CumpleanosTab from '../../components/test/CumpleanosTab.astro';
 import VentasTab from '../../components/gerencia/VentasTab.astro';
 import ProduccionGerenciaTab from '../../components/gerencia/ProduccionTab.astro';
+import CreditoChequesTab from '../../components/mejora-continua/CreditoChequesTab.astro';
+import DistribucionChequesTab from '../../components/mejora-continua/DistribucionChequesTab.astro';
 import { getArea } from '../../lib/areas.config';
 
 export const prerender = false;
@@ -57,7 +59,9 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
   {area.slug === 'gerencia-general' && tabSlug === 'ventas' && <VentasTab />}
   {area.slug === 'gerencia-general' && tabSlug === 'produccion' && <ProduccionGerenciaTab />}
   {area.slug === 'comercial' && tabSlug === 'clientes-activos' && <ClientesActivosTab />}
-  {!['finanzas', 'comercial', 'manufactura', 'almacen', 'produccion', 'gestion-calidad', 'test', 'gerencia-general'].includes(area.slug) && (
+  {area.slug === 'mejora-continua' && tabSlug === 'credito-cheques' && <CreditoChequesTab />}
+  {area.slug === 'mejora-continua' && tabSlug === 'distribucion-cheques' && <DistribucionChequesTab />}
+  {!['finanzas', 'comercial', 'manufactura', 'almacen', 'produccion', 'gestion-calidad', 'test', 'gerencia-general', 'mejora-continua'].includes(area.slug) && (
     <PlaceholderTab areaName={area.name} />
   )}
 </AreaLayout>
