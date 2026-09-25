@@ -160,6 +160,7 @@ export const AREAS: AreaConfig[] = [
     tabs: [
       { slug: 'conversor', name: 'Conversor' },
       { slug: 'colchon', name: 'Colchón' },
+      { slug: 'cumpleanos', name: 'Cumpleaños' },
     ],
   },
 ];

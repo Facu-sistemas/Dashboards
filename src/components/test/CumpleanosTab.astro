@@ -1,0 +1,14 @@
+---
+import CumpleanosApp from './CumpleanosApp';
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Cumpleaños</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Próximos cumpleaños del personal, según el campo "Fecha de nacimiento" cargado en Odoo. Solo lectura.
+    </p>
+  </header>
+
+  <CumpleanosApp client:only="react" />
+</div>
