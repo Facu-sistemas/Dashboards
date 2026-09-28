@@ -103,7 +103,8 @@ export function parseRows(data: RawRow[]): { rows: ParsedRow[]; warns: string[] 
     const medida = extractMedida(producto);
     const alto = extractAlto(producto);
     const largo = medida ? (MEDIDAS_LARGO[medida] ?? null) : null;
-    if (!largo) warns.push(`Sin largo para medida "${medida}" → ${producto}`);
+    // Tela infantil (EBABY) no se usa en esta calculadora — no tiene sentido avisar que le falta el largo.
+    if (!largo && !producto.includes('EBABY')) warns.push(`Sin largo para medida "${medida}" → ${producto}`);
     const metros = largo ? largo * cantidad : 0;
     rows.push({ fecha: r.fecha, producto, cantidad, tela, medida, alto, largo: largo ?? null, metros });
   }
