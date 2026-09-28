@@ -253,22 +253,6 @@ function parseBandasSheet(json: SpreadsheetSnapshot): Partial<BandasTablasOdoo> 
         continue;
       }
 
-      // "CODIGO DE COLORES TELAS": ancla en el título de la tabla y lee (código, color) hacia
-      // abajo hasta la primera fila vacía — algunos códigos no son alfanuméricos (ej. "TELA
-      // INFANTIL"), así que no alcanza con el patrón "letras+dígitos" de más abajo.
-      if (/^CODIGO\s+DE\s+COLORES\s+TELAS$/i.test(content)) {
-        const col = m[1]!;
-        let fila = Number(m[2]!) + 1;
-        for (;;) {
-          const codigo = String(cells[`${col}${fila}`]?.content ?? '').trim();
-          if (!codigo) break;
-          const color = String(cells[`${numToColLetter(colLetterToNum(col) + 1)}${fila}`]?.content ?? '').trim();
-          if (color) colorPorCodigo[codigo.toUpperCase()] = color.toUpperCase();
-          fila++;
-        }
-        continue;
-      }
-
       const upper = content.toUpperCase();
       if (upper === 'EURO' || upper === 'NOVOL') {
         const value = Number(nextContent);
@@ -277,6 +261,11 @@ function parseBandasSheet(json: SpreadsheetSnapshot): Partial<BandasTablasOdoo> 
         if (upper === 'EURO') euroSeg = seg;
         else novolSeg = seg;
         continue;
+      }
+
+      // "CODIGO DE COLORES TELAS": una fila por código de tela de la BOM (ej. "V368") seguido del color.
+      if (/^[A-Z]+\d+$/i.test(content) && nextContent) {
+        colorPorCodigo[content.toUpperCase()] = nextContent.toUpperCase();
       }
     }
   }

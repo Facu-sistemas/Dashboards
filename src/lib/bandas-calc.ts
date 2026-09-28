@@ -65,30 +65,12 @@ export function extractMedida(producto: string): string | null {
     return n.slice(0, -3) + 'X' + n.slice(-3);
   }
   m = producto.match(/([0-9]{2,3}X[0-9]{3})/i);
-  if (m) return m[1]!.toUpperCase();
-  // Bandas infantiles: "EBABY65-97-ALTO12" en vez de "140190" o "80X190".
-  m = producto.match(/([0-9]{2,3})-([0-9]{2,3})/);
-  return m ? `${m[1]}X${m[2]}` : null;
+  return m ? m[1]!.toUpperCase() : null;
 }
 
 export function extractAlto(producto: string): number | null {
   const m = producto.match(/ALTO([0-9]+)/);
   return m ? parseInt(m[1]!, 10) : null;
-}
-
-/**
- * Fórmula detrás de `MEDIDAS_LARGO` (verificada contra 17 de sus 18 medidas,
- * exacta) — se usa como respaldo para medidas nuevas que todavía no están en
- * la tabla curada (ej. las bandas infantiles "EBABYxx-xx"), en vez de dejar
- * el producto en "sin largo" con 0 metros.
- */
-function calcularLargoFormula(medida: string): number | null {
-  const m = medida.match(/^([0-9.]+)X([0-9.]+)$/);
-  if (!m) return null;
-  const ancho = Number(m[1]);
-  const largo = Number(m[2]);
-  if (Number.isNaN(ancho) || Number.isNaN(largo)) return null;
-  return Math.round((0.02 * (ancho + largo) + 0.06) * 100) / 100;
 }
 
 export interface RawRow {
@@ -120,7 +102,7 @@ export function parseRows(data: RawRow[]): { rows: ParsedRow[]; warns: string[] 
     const tela = r.tela;
     const medida = extractMedida(producto);
     const alto = extractAlto(producto);
-    const largo = medida ? (MEDIDAS_LARGO[medida] ?? calcularLargoFormula(medida)) : null;
+    const largo = medida ? (MEDIDAS_LARGO[medida] ?? null) : null;
     if (!largo) warns.push(`Sin largo para medida "${medida}" → ${producto}`);
     const metros = largo ? largo * cantidad : 0;
     rows.push({ fecha: r.fecha, producto, cantidad, tela, medida, alto, largo: largo ?? null, metros });
