@@ -7,18 +7,21 @@ const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'O
 interface Props {
   title: string;
   real: number[];
-  objetivo: number[];
+  /** Sin objetivo (la planilla lo carga en otra medida) — se grafica solo el real. */
+  objetivo?: number[];
   nMeses: number;
   format?: 'currency' | 'number';
 }
 
 export default function VentasGerenciaChart({ title, real, objetivo, nMeses, format = 'number' }: Props) {
   const chartTheme = useChartTheme();
-  const data = MESES.slice(0, nMeses).map((mes, i) => ({ mes, real: real[i] ?? 0, objetivo: objetivo[i] ?? 0 }));
+  const data = MESES.slice(0, nMeses).map((mes, i) => ({ mes, real: real[i] ?? 0, objetivo: objetivo?.[i] ?? 0 }));
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-900 p-4">
-      <h3 className="text-sm font-medium text-slate-300">{title} · Real vs Objetivo</h3>
+      <h3 className="text-sm font-medium text-slate-300">
+        {title} · {objetivo ? 'Real vs Objetivo' : 'Real'}
+      </h3>
       <ResponsiveContainer width="100%" height={220}>
         <ComposedChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} vertical={false} />
@@ -32,7 +35,9 @@ export default function VentasGerenciaChart({ title, real, objetivo, nMeses, for
           />
           <Legend />
           <Bar dataKey="real" name="Real" fill={chartTheme.primary} radius={[4, 4, 0, 0]} isAnimationActive={false} />
-          <Line type="monotone" dataKey="objetivo" name="Objetivo" stroke={chartTheme.axisSecondary} strokeDasharray="5 4" strokeWidth={2} dot={{ r: 3 }} isAnimationActive={false} />
+          {objetivo && (
+            <Line type="monotone" dataKey="objetivo" name="Objetivo" stroke={chartTheme.axisSecondary} strokeDasharray="5 4" strokeWidth={2} dot={{ r: 3 }} isAnimationActive={false} />
+          )}
         </ComposedChart>
       </ResponsiveContainer>
     </div>

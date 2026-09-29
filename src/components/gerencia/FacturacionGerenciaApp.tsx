@@ -10,6 +10,8 @@ import FacturacionMontoChart from './FacturacionMontoChart';
 import PeriodPicker, { idxsForPeriodo } from './PeriodPicker';
 import CumplimientoBars from './CumplimientoBars';
 import DiasHabilesStrip from './DiasHabilesStrip';
+import MedidaToggle, { seriesPorMedida, type Medida } from './MedidaToggle';
+import UeVsCantidadChart from './UeVsCantidadChart';
 
 interface Props {
   dehydratedState?: DehydratedState;
@@ -22,8 +24,10 @@ interface FacturacionGerenciaResult {
   diasTranscurridos: number[];
   diasTotal: number[];
   real: {
-    sillones: number[];
-    colchones: number[];
+    sillonesUE: number[];
+    sillonesCant: number[];
+    colchonesUE: number[];
+    colchonesCant: number[];
     block: number[];
     sillonesPesos: number[];
     colchonesPesos: number[];
@@ -85,6 +89,7 @@ function FacturacionGerenciaInner() {
   const data = query.data;
   const nMeses = data?.mesesConDatos ?? 12;
   const [periodo, setPeriodo] = useState('ACU');
+  const [medida, setMedida] = useState<Medida>('ue');
 
   const idxs = useMemo(() => idxsForPeriodo(periodo, nMeses), [periodo, nMeses]);
 
@@ -99,6 +104,7 @@ function FacturacionGerenciaInner() {
           <LastUpdated dataUpdatedAt={query.dataUpdatedAt} />
         </div>
         {data && <PeriodPicker nMeses={nMeses} periodo={periodo} onChange={setPeriodo} />}
+        {data && <MedidaToggle medida={medida} onChange={setMedida} />}
       </div>
 
       {data && <DiasHabilesStrip diasTranscurridos={data.diasTranscurridos} diasTotal={data.diasTotal} idxs={idxs} />}
@@ -113,14 +119,20 @@ function FacturacionGerenciaInner() {
         <div className="h-64 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
       ) : (
         (() => {
-          const sillones = { real: sum(data.real.sillones, idxs), obj: objetivoProrrateado(data.objetivo.sillones, data.diasTranscurridos, data.diasTotal, idxs) };
-          const colchones = { real: sum(data.real.colchones, idxs), obj: objetivoProrrateado(data.objetivo.colchones, data.diasTranscurridos, data.diasTotal, idxs) };
+          const series = seriesPorMedida(medida, data.real, data.objetivo, data.objetivoTotalAnual);
+          const kpi = (s: typeof series.sillones) => ({
+            real: sum(s.real, idxs),
+            obj: s.objetivo ? objetivoProrrateado(s.objetivo, data.diasTranscurridos, data.diasTotal, idxs) : 0,
+          });
+          const sillones = kpi(series.sillones);
+          const colchones = kpi(series.colchones);
           const block = { real: sum(data.real.block, idxs), obj: objetivoProrrateado(data.objetivo.block, data.diasTranscurridos, data.diasTotal, idxs) };
+          // El total equivalente no sigue el toggle: sillones en UE + colchones en unidades, igual que la planilla de objetivos.
           const totalEq = {
-            real: eqSillones(sillones.real, colchones.real, block.real),
+            real: eqSillones(sum(data.real.sillonesUE, idxs), sum(data.real.colchonesCant, idxs), block.real),
             obj: eqObjetivoProrrateado(data.objetivo, data.diasTranscurridos, data.diasTotal, idxs),
           };
-          const eqRealMonthly = eqSillonesMonthly(data.real.sillones, data.real.colchones, data.real.block);
+          const eqRealMonthly = eqSillonesMonthly(data.real.sillonesUE, data.real.colchonesCant, data.real.block);
           const eqObjMonthly = eqSillonesMonthly(data.objetivo.sillones, data.objetivo.colchones, data.objetivo.block);
 
           const totalPesos = { real: sum(data.real.totalPesos, idxs), obj: objetivoProrrateado(data.objetivo.totalPesos, data.diasTranscurridos, data.diasTotal, idxs) };
@@ -133,8 +145,12 @@ function FacturacionGerenciaInner() {
           return (
             <>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <VentasGerenciaKpiCard label="Sillones eq." real={sillones.real} objetivoProrrateado={sillones.obj} unidad="u" objetivoAnual={data.objetivoTotalAnual.sillones} />
-                <VentasGerenciaKpiCard label="Colchones" real={colchones.real} objetivoProrrateado={colchones.obj} unidad="u" objetivoAnual={data.objetivoTotalAnual.colchones} />
+                {[series.sillones, series.colchones].map((s, i) => {
+                  const k = i === 0 ? sillones : colchones;
+                  return (
+                    <VentasGerenciaKpiCard key={s.label} label={s.label} real={k.real} objetivoProrrateado={k.obj} unidad="u" sinObjetivo={!s.objetivo} objetivoAnual={s.objetivoAnual} nota={s.nota} />
+                  );
+                })}
                 <VentasGerenciaKpiCard label="Block (kg)" real={block.real} objetivoProrrateado={block.obj} unidad="kg" objetivoAnual={data.objetivoTotalAnual.block} />
                 <VentasGerenciaKpiCard
                   label="Total eq. sillones"
@@ -148,8 +164,8 @@ function FacturacionGerenciaInner() {
 
               <CumplimientoBars
                 rows={[
-                  { label: 'Sillones eq.', pct: pctOf(sillones.real, sillones.obj), real: sillones.real, objetivo: sillones.obj },
-                  { label: 'Colchones', pct: pctOf(colchones.real, colchones.obj), real: colchones.real, objetivo: colchones.obj },
+                  { label: series.sillones.label, pct: pctOf(sillones.real, sillones.obj), real: sillones.real, objetivo: sillones.obj, sinObjetivo: !series.sillones.objetivo },
+                  { label: series.colchones.label, pct: pctOf(colchones.real, colchones.obj), real: colchones.real, objetivo: colchones.obj, sinObjetivo: !series.colchones.objetivo },
                   { label: 'Block kg', pct: pctOf(block.real, block.obj), real: block.real, objetivo: block.obj },
                   { label: 'Total equivalente (unid.)', pct: pctOf(totalEq.real, totalEq.obj), real: totalEq.real, objetivo: totalEq.obj, destacado: true },
                 ]}
@@ -157,13 +173,15 @@ function FacturacionGerenciaInner() {
               />
 
               <div className="flex flex-col gap-4">
+                {[series.sillones, series.colchones].map((s) => (
+                  <div key={s.label} className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                    <VentasGerenciaChart title={s.label} real={s.real} objetivo={s.objetivo} nMeses={nMeses} />
+                    <DesvioMensualChart title={s.label} real={s.real} objetivo={s.objetivo} notaSinObjetivo={s.nota} diasTranscurridos={data.diasTranscurridos} diasTotal={data.diasTotal} nMeses={nMeses} />
+                  </div>
+                ))}
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                  <VentasGerenciaChart title="Sillones eq." real={data.real.sillones} objetivo={data.objetivo.sillones} nMeses={nMeses} />
-                  <DesvioMensualChart title="Sillones eq." real={data.real.sillones} objetivo={data.objetivo.sillones} diasTranscurridos={data.diasTranscurridos} diasTotal={data.diasTotal} nMeses={nMeses} />
-                </div>
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                  <VentasGerenciaChart title="Colchones" real={data.real.colchones} objetivo={data.objetivo.colchones} nMeses={nMeses} />
-                  <DesvioMensualChart title="Colchones" real={data.real.colchones} objetivo={data.objetivo.colchones} diasTranscurridos={data.diasTranscurridos} diasTotal={data.diasTotal} nMeses={nMeses} />
+                  <UeVsCantidadChart title="Sillones" ue={data.real.sillonesUE} cantidad={data.real.sillonesCant} nMeses={nMeses} />
+                  <UeVsCantidadChart title="Colchones" ue={data.real.colchonesUE} cantidad={data.real.colchonesCant} nMeses={nMeses} />
                 </div>
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                   <VentasGerenciaChart title="Block (kg)" real={data.real.block} objetivo={data.objetivo.block} nMeses={nMeses} />

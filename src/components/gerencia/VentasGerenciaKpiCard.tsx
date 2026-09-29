@@ -12,6 +12,8 @@ interface Props {
   sinObjetivo?: boolean;
   /** Consensuado del año completo (columna "Total" de la planilla de objetivos en Odoo) — para no tener que ir a Odoo a buscarlo. */
   objetivoAnual?: number;
+  /** Aclaración corta al pie, p.ej. por qué no hay objetivo en esta medida. */
+  nota?: string;
 }
 
 const fullMoney = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
@@ -26,7 +28,7 @@ function fmt(v: number, format: 'currency' | 'number') {
  * passed in is already prorated to days-elapsed-so-far, so 100% means "on
  * pace", not "hit the full monthly target early".
  */
-export default function VentasGerenciaKpiCard({ label, real, objetivoProrrateado, format = 'number', unidad, destacado, sinObjetivo, objetivoAnual }: Props) {
+export default function VentasGerenciaKpiCard({ label, real, objetivoProrrateado, format = 'number', unidad, destacado, sinObjetivo, objetivoAnual, nota }: Props) {
   const [expanded, setExpanded] = useState(false);
   const pct = !sinObjetivo && objetivoProrrateado > 0 ? (real / objetivoProrrateado) * 100 : null;
   const badgeColor = pct === null ? 'bg-slate-800 text-slate-400' : pct >= 100 ? 'bg-status-green/15 text-status-green' : pct >= 85 ? 'bg-status-yellow/15 text-status-yellow' : 'bg-status-red/15 text-status-red';
@@ -47,6 +49,7 @@ export default function VentasGerenciaKpiCard({ label, real, objetivoProrrateado
       )}
       {pct !== null && <span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${badgeColor}`}>{pct >= 100 ? '▲' : '▼'} {pct.toFixed(1)}%</span>}
       {gapLine && <p className={`mt-2 border-t border-dashed border-slate-800 pt-2 text-xs font-semibold ${gapLine.tone}`}>{gapLine.text}</p>}
+      {nota && <p className="mt-2 text-[10px] italic text-slate-500">{nota}</p>}
     </>
   );
 

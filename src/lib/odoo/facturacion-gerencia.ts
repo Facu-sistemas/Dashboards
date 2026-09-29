@@ -70,8 +70,10 @@ export interface FacturacionGerenciaResult {
   diasTranscurridos: number[];
   diasTotal: number[];
   real: {
-    sillones: number[];
-    colchones: number[];
+    sillonesUE: number[];
+    sillonesCant: number[];
+    colchonesUE: number[];
+    colchonesCant: number[];
     block: number[];
     sillonesPesos: number[];
     colchonesPesos: number[];
@@ -126,30 +128,37 @@ function toMonthlyArray(byMonth: Map<string, number>, months: string[]): number[
 
 type SillonInvoiceLine = { invoice_date: string; product_id: [number, string]; quantity: number; move_type: string; move_id: [number, string] };
 
-/** Sillones facturados, ponderados por Unidad Equivalente — mismo criterio que monthlySillonesUE en ventas-gerencia.ts, neteando notas de crédito reales. */
-async function monthlySillonesUEFacturado(categIds: number[], start: string, endExclusive: string, ignoredMoveIds: Set<number>): Promise<Map<string, number>> {
+/** Cantidad y Unidad Equivalente facturadas por mes, en una sola pasada — mismo criterio que monthlyCantidadYUE en ventas-gerencia.ts, neteando notas de crédito reales. */
+async function monthlyCantidadYUEFacturado(
+  domain: OdooDomain,
+  start: string,
+  endExclusive: string,
+  ignoredMoveIds: Set<number>
+): Promise<{ cant: Map<string, number>; ue: Map<string, number> }> {
   const lines = await searchReadAll<SillonInvoiceLine>({
     model: 'account.move.line',
-    domain: [...POSTED_CUSTOMER_INVOICE_OR_REFUND, ['product_id.categ_id', 'in', categIds], ['invoice_date', '>=', start], ['invoice_date', '<', endExclusive]],
+    domain: [...POSTED_CUSTOMER_INVOICE_OR_REFUND, ...domain, ['invoice_date', '>=', start], ['invoice_date', '<', endExclusive]],
     fields: ['invoice_date', 'product_id', 'quantity', 'move_type', 'move_id'],
   });
-  if (lines.length === 0) return new Map();
+  if (lines.length === 0) return { cant: new Map(), ue: new Map() };
 
   const variantIds = [...new Set(lines.map((l) => l.product_id[0]))];
   const templateIdByVariant = await getTemplateIdByVariant(variantIds);
   const templateIds = [...new Set([...templateIdByVariant.values()])];
   const ueByTemplate = await getEquivalenteByTemplate(templateIds);
 
-  const byMonth = new Map<string, number>();
+  const cant = new Map<string, number>();
+  const ue = new Map<string, number>();
   for (const line of lines) {
     const sign = signOf(line as unknown as InvoiceLine, ignoredMoveIds);
     if (sign === 0) continue;
     const templateId = templateIdByVariant.get(line.product_id[0]);
-    const ue = templateId !== undefined ? (ueByTemplate.get(templateId) ?? 0) : 0;
+    const factor = templateId !== undefined ? (ueByTemplate.get(templateId) ?? 0) : 0;
     const month = line.invoice_date.slice(0, 7);
-    byMonth.set(month, (byMonth.get(month) ?? 0) + sign * line.quantity * ue);
+    cant.set(month, (cant.get(month) ?? 0) + sign * line.quantity);
+    ue.set(month, (ue.get(month) ?? 0) + sign * line.quantity * factor);
   }
-  return byMonth;
+  return { cant, ue };
 }
 
 export async function getFacturacionGerencia(): Promise<FacturacionGerenciaResult> {
@@ -168,8 +177,8 @@ export async function getFacturacionGerencia(): Promise<FacturacionGerenciaResul
   const ignoredMoveIds = new Set(ignoredMoveIdsList);
 
   const [
-    sillonesByMonth,
-    colchonesByMonth,
+    sillones,
+    colchones,
     blockByMonth,
     sillonesPesosByMonth,
     colchonesPesosByMonth,
@@ -180,8 +189,8 @@ export async function getFacturacionGerencia(): Promise<FacturacionGerenciaResul
     objetivos,
     diasHabiles,
   ] = await Promise.all([
-    monthlySillonesUEFacturado(SILLONES_CATEG_IDS, start, endExclusive, ignoredMoveIds),
-    monthlyByCategory([['product_id.categ_id', 'child_of', COLCHONES_CATEG_ID]], start, endExclusive, ignoredMoveIds, (l) => l.quantity),
+    monthlyCantidadYUEFacturado([['product_id.categ_id', 'in', SILLONES_CATEG_IDS]], start, endExclusive, ignoredMoveIds),
+    monthlyCantidadYUEFacturado([['product_id.categ_id', 'child_of', COLCHONES_CATEG_ID]], start, endExclusive, ignoredMoveIds),
     monthlyByCategory([['product_id.categ_id', 'child_of', BLOCK_CATEG_ID]], start, endExclusive, ignoredMoveIds, (l) => l.quantity),
     monthlyByCategory([['product_id.categ_id', 'in', SILLONES_CATEG_IDS]], start, endExclusive, ignoredMoveIds, (l) => l.price_subtotal),
     monthlyByCategory([['product_id.categ_id', 'child_of', COLCHONES_CATEG_ID]], start, endExclusive, ignoredMoveIds, (l) => l.price_subtotal),
@@ -200,8 +209,10 @@ export async function getFacturacionGerencia(): Promise<FacturacionGerenciaResul
     diasTranscurridos: diasHabiles.diasTranscurridos,
     diasTotal: diasHabiles.diasTotal,
     real: {
-      sillones: toMonthlyArray(sillonesByMonth, months),
-      colchones: toMonthlyArray(colchonesByMonth, months),
+      sillonesUE: toMonthlyArray(sillones.ue, months),
+      sillonesCant: toMonthlyArray(sillones.cant, months),
+      colchonesUE: toMonthlyArray(colchones.ue, months),
+      colchonesCant: toMonthlyArray(colchones.cant, months),
       block: toMonthlyArray(blockByMonth, months),
       sillonesPesos: toMonthlyArray(sillonesPesosByMonth, months),
       colchonesPesos: toMonthlyArray(colchonesPesosByMonth, months),
