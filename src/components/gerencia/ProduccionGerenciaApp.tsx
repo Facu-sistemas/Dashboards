@@ -6,7 +6,7 @@ import LastUpdated from '../shared/LastUpdated';
 import VentasGerenciaKpiCard from './VentasGerenciaKpiCard';
 import VentasGerenciaChart from './VentasGerenciaChart';
 import DesvioMensualChart from './DesvioMensualChart';
-import PeriodPicker, { idxsForPeriodo } from './PeriodPicker';
+import PeriodPicker, { consensuadoDelPeriodo, idxsForPeriodo } from './PeriodPicker';
 import CumplimientoBars from './CumplimientoBars';
 import DiasHabilesStrip from './DiasHabilesStrip';
 import MedidaToggle, { seriesPorMedida, type Medida } from './MedidaToggle';
@@ -126,7 +126,7 @@ function ProduccionGerenciaInner() {
                 {[series.sillones, series.colchones].map((s, i) => {
                   const k = i === 0 ? sillones : colchones;
                   return (
-                    <VentasGerenciaKpiCard key={s.label} label={s.label} real={k.real} objetivoProrrateado={k.obj} unidad="u" sinObjetivo={!s.objetivo} objetivoAnual={s.objetivoAnual} nota={s.nota} />
+                    <VentasGerenciaKpiCard key={s.label} label={s.label} real={k.real} objetivoProrrateado={k.obj} unidad="u" sinObjetivo={!s.objetivo} consensuado={consensuadoDelPeriodo(periodo, s.objetivo, s.objetivoAnual)} nota={s.nota} />
                   );
                 })}
                 <VentasGerenciaKpiCard
@@ -135,7 +135,7 @@ function ProduccionGerenciaInner() {
                   objetivoProrrateado={totalEq.obj}
                   unidad="u eq."
                   destacado
-                  objetivoAnual={eqSillones(data.objetivoTotalAnual.sillones, data.objetivoTotalAnual.colchones)}
+                  consensuado={consensuadoDelPeriodo(periodo, eqObjMonthly, eqSillones(data.objetivoTotalAnual.sillones, data.objetivoTotalAnual.colchones))}
                 />
               </div>
 

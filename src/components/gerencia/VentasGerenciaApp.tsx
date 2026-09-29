@@ -6,7 +6,7 @@ import LastUpdated from '../shared/LastUpdated';
 import VentasGerenciaKpiCard from './VentasGerenciaKpiCard';
 import VentasGerenciaChart from './VentasGerenciaChart';
 import DesvioMensualChart from './DesvioMensualChart';
-import PeriodPicker, { idxsForPeriodo } from './PeriodPicker';
+import PeriodPicker, { consensuadoDelPeriodo, idxsForPeriodo } from './PeriodPicker';
 import CumplimientoBars from './CumplimientoBars';
 import DiasHabilesStrip from './DiasHabilesStrip';
 import MedidaToggle, { seriesPorMedida, type Medida } from './MedidaToggle';
@@ -131,18 +131,18 @@ function VentasGerenciaInner() {
                 {[series.sillones, series.colchones].map((s, i) => {
                   const k = i === 0 ? sillones : colchones;
                   return (
-                    <VentasGerenciaKpiCard key={s.label} label={s.label} real={k.real} objetivoProrrateado={k.obj} unidad="u" sinObjetivo={!s.objetivo} objetivoAnual={s.objetivoAnual} nota={s.nota} />
+                    <VentasGerenciaKpiCard key={s.label} label={s.label} real={k.real} objetivoProrrateado={k.obj} unidad="u" sinObjetivo={!s.objetivo} consensuado={consensuadoDelPeriodo(periodo, s.objetivo, s.objetivoAnual)} nota={s.nota} />
                   );
                 })}
-                <VentasGerenciaKpiCard label="Block (kg)" real={block.real} objetivoProrrateado={block.obj} unidad="kg" objetivoAnual={data.objetivoTotalAnual.block} />
-                <VentasGerenciaKpiCard label="Reventa $" real={reventa.real} objetivoProrrateado={reventa.obj} format="currency" objetivoAnual={data.objetivoTotalAnual.reventa} />
+                <VentasGerenciaKpiCard label="Block (kg)" real={block.real} objetivoProrrateado={block.obj} unidad="kg" consensuado={consensuadoDelPeriodo(periodo, data.objetivo.block, data.objetivoTotalAnual.block)} />
+                <VentasGerenciaKpiCard label="Reventa $" real={reventa.real} objetivoProrrateado={reventa.obj} format="currency" consensuado={consensuadoDelPeriodo(periodo, data.objetivo.reventa, data.objetivoTotalAnual.reventa)} />
                 <VentasGerenciaKpiCard
                   label="Total eq. sillones"
                   real={totalEq.real}
                   objetivoProrrateado={totalEq.obj}
                   unidad="u eq."
                   destacado
-                  objetivoAnual={eqSillones(data.objetivoTotalAnual.sillones, data.objetivoTotalAnual.colchones, data.objetivoTotalAnual.block)}
+                  consensuado={consensuadoDelPeriodo(periodo, eqObjMonthly, eqSillones(data.objetivoTotalAnual.sillones, data.objetivoTotalAnual.colchones, data.objetivoTotalAnual.block))}
                 />
               </div>
 
