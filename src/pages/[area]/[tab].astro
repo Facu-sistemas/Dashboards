@@ -16,6 +16,7 @@ import CarpinteriaTab from '../../components/produccion/CarpinteriaTab.astro';
 import BandasTab from '../../components/produccion/BandasTab.astro';
 import MulticorteTab from '../../components/produccion/MulticorteTab.astro';
 import VerticalTab from '../../components/produccion/VerticalTab.astro';
+import EtiquetasTab from '../../components/produccion/EtiquetasTab.astro';
 import TicketsSoporteTab from '../../components/calidad/TicketsSoporteTab.astro';
 import ColchonTab from '../../components/test/ColchonTab.astro';
 import ConversorTab from '../../components/test/ConversorTab.astro';
@@ -53,6 +54,7 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
   {area.slug === 'produccion' && tabSlug === 'calculadora-bandas' && <BandasTab />}
   {area.slug === 'produccion' && tabSlug === 'optimizador-multicorte' && <MulticorteTab />}
   {area.slug === 'produccion' && tabSlug === 'optimizador-vertical' && <VerticalTab />}
+  {area.slug === 'produccion' && tabSlug === 'etiquetas-proveedor' && <EtiquetasTab />}
   {area.slug === 'gestion-calidad' && tabSlug === 'tickets-soporte' && <TicketsSoporteTab />}
   {area.slug === 'test' && tabSlug === 'colchon' && <ColchonTab />}
   {area.slug === 'test' && tabSlug === 'conversor' && <ConversorTab />}

@@ -1,0 +1,16 @@
+---
+import EtiquetasApp from './EtiquetasApp';
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Etiquetas de Proveedor</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Genera las etiquetas de 10 × 10 cm de caja master y de rollo para que el proveedor las imprima y
+      las pegue. Cada una lleva un código de barras que coincide con el empaquetado del producto en
+      Odoo, así un solo escaneo carga el producto con su cantidad. No escribe nada en Odoo.
+    </p>
+  </header>
+
+  <EtiquetasApp client:load />
+</div>
