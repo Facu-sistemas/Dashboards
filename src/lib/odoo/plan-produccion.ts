@@ -26,16 +26,16 @@ export type { PeriodKind };
 export interface PlanProduccionGauge {
   /** Raw value — UE for Living, units for Colchones. */
   planificado: number;
-  /** Same unit — the part of `planificado` ALSO closed the same calendar day it was planned for (see `sameDayGauge`). */
+  /** Same unit — the part of `planificado` ALSO closed the same calendar day it was planned for (no longer used for `cumplimientoPct`, kept for drill-down). */
   producido: number;
   cerrado: number;
   /** Consensuado de Gerencia prorrateado por día hábil — 0 si no hay objetivo cargado para ese período/día. */
   objetivo: number;
-  /** Parte de `planificado` con fecha planificada hasta hoy inclusive — base del cumplimiento "a día de hoy" (lo planificado a futuro todavía no se pudo cumplir). */
+  /** Parte de `planificado` con fecha planificada hasta hoy inclusive (ya no se usa para `cumplimientoPct`, kept for drill-down). */
   planificadoAHoy: number;
   /** planificado / objetivo. */
   planificadoPct: number;
-  /** producido / planificadoAHoy. */
+  /** cerrado / planificado — confirmado por el usuario (2026-09-29). */
   cumplimientoPct: number;
   /** cerrado / objetivo. */
   cerradoPct: number;
@@ -145,7 +145,9 @@ function buildGauge(planificado: number, planificadoAHoy: number, producido: num
     cerrado,
     objetivo,
     planificadoPct: objetivo > 0 ? (planificado / objetivo) * 100 : 0,
-    cumplimientoPct: planificadoAHoy > 0 ? (producido / planificadoAHoy) * 100 : 0,
+    // Confirmado por el usuario (2026-09-29): cumplimiento = lo cerrado hasta
+    // hoy sobre lo planificado del período, no el cruce "mismo día" de antes.
+    cumplimientoPct: planificado > 0 ? (cerrado / planificado) * 100 : 0,
     cerradoPct: objetivo > 0 ? (cerrado / objetivo) * 100 : 0,
   };
 }

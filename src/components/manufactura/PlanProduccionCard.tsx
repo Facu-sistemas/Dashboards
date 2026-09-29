@@ -21,6 +21,7 @@ function MetricCard({
   label,
   numerator,
   denominator,
+  denominatorLabel = 'objetivo',
   pctValue,
   unit,
   hasTarget,
@@ -29,6 +30,7 @@ function MetricCard({
   label: string;
   numerator: number;
   denominator: number;
+  denominatorLabel?: string;
   pctValue: number;
   unit: string;
   hasTarget: boolean;
@@ -46,7 +48,7 @@ function MetricCard({
       <p className="mt-1 text-xl font-semibold text-slate-100">{units.format(numerator)}</p>
       {hasTarget ? (
         <p className="text-xs text-slate-500">
-          objetivo {units.format(denominator)} {unit}
+          {denominatorLabel} {units.format(denominator)} {unit}
         </p>
       ) : (
         <p className="text-xs text-slate-500">{unit} — sin objetivo cargado para este período</p>
@@ -73,7 +75,7 @@ export default function PlanProduccionCard({ title, gauge, unit, consensuadoAnua
       <h3 className="border-b border-slate-800 pb-1 text-sm font-semibold uppercase tracking-wide text-slate-300">{title}</h3>
       <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-3">
         <MetricCard label="Planificado" numerator={gauge.planificado} denominator={gauge.objetivo} pctValue={gauge.planificadoPct} unit={unit} hasTarget={hasObjetivo} consensuadoAnual={consensuadoAnual} />
-        <MetricCard label="Cumplimiento" numerator={gauge.producido} denominator={gauge.planificadoAHoy} pctValue={gauge.cumplimientoPct} unit={unit} hasTarget />
+        <MetricCard label="Cumplimiento" numerator={gauge.cerrado} denominator={gauge.planificado} denominatorLabel="planificado" pctValue={gauge.cumplimientoPct} unit={unit} hasTarget={gauge.planificado > 0} />
         <MetricCard label="Cerrado" numerator={gauge.cerrado} denominator={gauge.objetivo} pctValue={gauge.cerradoPct} unit={unit} hasTarget={hasObjetivo} consensuadoAnual={consensuadoAnual} />
       </div>
     </div>
