@@ -1,8 +1,9 @@
-export type Medida = 'ue' | 'cant';
+export type Medida = 'ue' | 'cant' | 'completo';
 
 const OPTIONS: { value: Medida; label: string }[] = [
   { value: 'ue', label: 'Unidad equivalente' },
   { value: 'cant', label: 'Cantidad' },
+  { value: 'completo', label: 'Completo' },
 ];
 
 interface Props {
@@ -37,14 +38,17 @@ export default function MedidaToggle({ medida, onChange }: Props) {
         ))}
       </div>
       <span className="text-[10px] text-slate-500">
-        Objetivo cargado en UE para sillones y en unidades para colchones · el total equivalente usa siempre ese criterio.
+        {medida === 'completo'
+          ? 'Completo: sillones en UE y colchones en unidades, cada uno con su objetivo (como estaba antes del toggle).'
+          : 'Objetivo cargado en UE para sillones y en unidades para colchones.'}{' '}
+        El total equivalente usa siempre ese criterio.
       </span>
     </div>
   );
 }
 
 /** Etiqueta de la tarjeta/gráfico según la medida elegida. */
-export function etiquetaMedida(producto: string, medida: Medida): string {
+export function etiquetaMedida(producto: string, medida: 'ue' | 'cant'): string {
   return `${producto} · ${medida === 'ue' ? 'UE' : 'unidades'}`;
 }
 
@@ -65,9 +69,11 @@ export interface SerieMedida {
 }
 
 /**
- * Serie de sillones y colchones en la medida elegida. Sillones tiene objetivo
- * solo en UE y colchones solo en unidades (así los carga la planilla); en la
- * otra medida se devuelve únicamente el real.
+ * Serie de sillones y colchones según la medida elegida. Sillones tiene
+ * objetivo solo en UE y colchones solo en unidades (así los carga la
+ * planilla); en la otra medida se devuelve únicamente el real. "Completo"
+ * fija cada producto en la medida en la que tiene objetivo (sillones UE,
+ * colchones unidades) — es como se veía antes de que existiera el toggle.
  */
 export function seriesPorMedida(
   medida: Medida,
@@ -75,18 +81,20 @@ export function seriesPorMedida(
   objetivo: { sillones: number[]; colchones: number[] },
   objetivoAnual: { sillones: number; colchones: number },
 ): { sillones: SerieMedida; colchones: SerieMedida } {
-  const sillonesNativo = medida === 'ue';
-  const colchonesNativo = medida === 'cant';
+  const medidaSillones: 'ue' | 'cant' = medida === 'cant' ? 'cant' : 'ue';
+  const medidaColchones: 'ue' | 'cant' = medida === 'ue' ? 'ue' : 'cant';
+  const sillonesNativo = medidaSillones === 'ue';
+  const colchonesNativo = medidaColchones === 'cant';
   return {
     sillones: {
-      label: etiquetaMedida('Sillones', medida),
+      label: etiquetaMedida('Sillones', medidaSillones),
       real: sillonesNativo ? real.sillonesUE : real.sillonesCant,
       objetivo: sillonesNativo ? objetivo.sillones : undefined,
       objetivoAnual: sillonesNativo ? objetivoAnual.sillones : undefined,
       nota: sillonesNativo ? undefined : 'El objetivo de sillones está cargado en UE.',
     },
     colchones: {
-      label: etiquetaMedida('Colchones', medida),
+      label: etiquetaMedida('Colchones', medidaColchones),
       real: colchonesNativo ? real.colchonesCant : real.colchonesUE,
       objetivo: colchonesNativo ? objetivo.colchones : undefined,
       objetivoAnual: colchonesNativo ? objetivoAnual.colchones : undefined,
