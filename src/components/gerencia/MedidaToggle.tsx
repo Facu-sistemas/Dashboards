@@ -1,9 +1,9 @@
 export type Medida = 'ue' | 'cant' | 'completo';
 
 const OPTIONS: { value: Medida; label: string }[] = [
+  { value: 'completo', label: 'Completo' },
   { value: 'ue', label: 'Unidad equivalente' },
   { value: 'cant', label: 'Cantidad' },
-  { value: 'completo', label: 'Completo' },
 ];
 
 interface Props {

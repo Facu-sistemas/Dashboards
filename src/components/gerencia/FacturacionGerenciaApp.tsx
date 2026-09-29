@@ -89,7 +89,7 @@ function FacturacionGerenciaInner() {
   const data = query.data;
   const nMeses = data?.mesesConDatos ?? 12;
   const [periodo, setPeriodo] = useState('ACU');
-  const [medida, setMedida] = useState<Medida>('ue');
+  const [medida, setMedida] = useState<Medida>('completo');
 
   const idxs = useMemo(() => idxsForPeriodo(periodo, nMeses), [periodo, nMeses]);
 
