@@ -57,6 +57,8 @@ export interface VentasGerenciaResult {
   diasTotal: number[];
   real: { sillones: number[]; colchones: number[]; block: number[]; reventa: number[] };
   objetivo: { sillones: number[]; colchones: number[]; block: number[]; reventa: number[] };
+  /** Columna "Total" de la planilla de objetivos — el consensuado del año completo, tal cual está cargado en Odoo (no una suma de los 12 meses de acá). */
+  objetivoTotalAnual: { sillones: number; colchones: number; block: number; reventa: number };
 }
 
 type Line = { order_id: [number, string]; product_uom_qty: number; price_subtotal: number };
@@ -200,5 +202,6 @@ export async function getVentasGerencia(): Promise<VentasGerenciaResult> {
       block: objetivos.ventas.block,
       reventa: objetivos.ventas.reventa,
     },
+    objetivoTotalAnual: objetivos.totales.ventas,
   };
 }

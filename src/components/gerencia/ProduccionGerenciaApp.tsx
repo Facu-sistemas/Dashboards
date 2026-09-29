@@ -22,6 +22,7 @@ interface ProduccionGerenciaResult {
   diasTotal: number[];
   real: { sillones: number[]; colchones: number[] };
   objetivo: { sillones: number[]; colchones: number[] };
+  objetivoTotalAnual: { sillones: number; colchones: number };
 }
 
 // Producción usa una relación colchón/sillón distinta de Ventas/Facturación
@@ -112,9 +113,16 @@ function ProduccionGerenciaInner() {
           return (
             <>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <VentasGerenciaKpiCard label="Sillones eq." real={sillones.real} objetivoProrrateado={sillones.obj} unidad="u" />
-                <VentasGerenciaKpiCard label="Colchones" real={colchones.real} objetivoProrrateado={colchones.obj} unidad="u" />
-                <VentasGerenciaKpiCard label="Total eq. sillones" real={totalEq.real} objetivoProrrateado={totalEq.obj} unidad="u eq." destacado />
+                <VentasGerenciaKpiCard label="Sillones eq." real={sillones.real} objetivoProrrateado={sillones.obj} unidad="u" objetivoAnual={data.objetivoTotalAnual.sillones} />
+                <VentasGerenciaKpiCard label="Colchones" real={colchones.real} objetivoProrrateado={colchones.obj} unidad="u" objetivoAnual={data.objetivoTotalAnual.colchones} />
+                <VentasGerenciaKpiCard
+                  label="Total eq. sillones"
+                  real={totalEq.real}
+                  objetivoProrrateado={totalEq.obj}
+                  unidad="u eq."
+                  destacado
+                  objetivoAnual={eqSillones(data.objetivoTotalAnual.sillones, data.objetivoTotalAnual.colchones)}
+                />
               </div>
 
               <CumplimientoBars
