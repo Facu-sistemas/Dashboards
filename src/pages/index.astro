@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import AreaCard from '../components/nav/AreaCard.astro';
+import CumpleanosToast from '../components/dashboard/CumpleanosToast';
 import { AREAS } from '../lib/areas.config';
 
 export const prerender = false;
@@ -26,4 +27,6 @@ const areas = AREAS.filter((a) => areasPermitidas.includes(a.slug));
       )
     }
   </main>
+
+  <CumpleanosToast client:load />
 </BaseLayout>
