@@ -21,7 +21,7 @@ const PERIOD_OPTIONS: { value: PlanProduccionPeriodKind; label: string }[] = [
   { value: 'year', label: 'Año' },
 ];
 
-const EMPTY_GAUGE: PlanProduccionGauge = { planificado: 0, producido: 0, cerrado: 0, objetivo: 0, planificadoPct: 0, cumplimientoPct: 0, cerradoPct: 0 };
+const EMPTY_GAUGE: PlanProduccionGauge = { planificado: 0, planificadoAHoy: 0, producido: 0, cerrado: 0, objetivo: 0, planificadoPct: 0, cumplimientoPct: 0, cerradoPct: 0 };
 const EMPTY_DIARIA: PlanProduccionDailyRow[] = [];
 
 function PlanProduccionInner({ initialPeriodKind, initialDate }: { initialPeriodKind: PlanProduccionPeriodKind; initialDate: string }) {
@@ -129,8 +129,8 @@ function PlanProduccionInner({ initialPeriodKind, initialDate }: { initialPeriod
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <PlanProduccionCard title="Living" gauge={query.data?.living ?? EMPTY_GAUGE} unit="UE" />
-          <PlanProduccionCard title="Colchones" gauge={query.data?.colchones ?? EMPTY_GAUGE} unit="u" />
+          <PlanProduccionCard title="Living" gauge={query.data?.living ?? EMPTY_GAUGE} unit="UE" consensuadoAnual={query.data?.objetivoAnual.living ?? 0} />
+          <PlanProduccionCard title="Colchones" gauge={query.data?.colchones ?? EMPTY_GAUGE} unit="u" consensuadoAnual={query.data?.objetivoAnual.colchones ?? 0} />
         </div>
       )}
 

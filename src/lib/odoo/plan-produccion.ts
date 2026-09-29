@@ -1,8 +1,9 @@
 import { searchReadAll } from './client';
 import { getFronteraCompany } from './reference';
 import { monthBounds, addDaysIso, periodBounds, type PeriodKind } from '../date';
-import { COLCHONES_CATEG_IDS, LIVING_CATEG_IDS } from './oee';
-import { getPlanProduccionSheetData, objetivoForPeriod, objetivoPerDay } from '../plan-produccion-objetivo';
+import { COLCHONES_CATEG_IDS, LIVING_CATEG_IDS, getArgentinaTodayIso } from './oee';
+import { getObjetivosGerencia } from './gerencia-objetivos';
+import { getBusinessDayChecker, getDiasHabiles } from './business-calendar';
 
 export type { PeriodKind };
 
@@ -16,9 +17,11 @@ export type { PeriodKind };
  * `x_studio_ue_x_cant_1` is just a stale/unsynced computed field — this
  * multiplies the raw multiplier directly instead of trusting it.
  *
- * `objetivo` still comes from the external Google Sheet
- * (plan-produccion-objetivo.ts) for both categories — Odoo has no
- * "Tiempo disponible" × "Personal" data at all.
+ * `objetivo` es el "PRODUCCION CONSENSUADO" de Gerencia General (tabla
+ * "Equipo de gestión", ver gerencia-objetivos.ts): Colchones = fila
+ * "colchones unidad", Living = fila "sillones equivalente". Es mensual, así
+ * que se reparte en partes iguales entre los días hábiles del mes (0 en
+ * fines de semana/feriados) para poder armar día/semana/mes/año.
  */
 export interface PlanProduccionGauge {
   /** Raw value — UE for Living, units for Colchones. */
@@ -26,11 +29,13 @@ export interface PlanProduccionGauge {
   /** Same unit — the part of `planificado` ALSO closed the same calendar day it was planned for (see `sameDayGauge`). */
   producido: number;
   cerrado: number;
-  /** From the external sheet — 0 if that period/day isn't in it yet. */
+  /** Consensuado de Gerencia prorrateado por día hábil — 0 si no hay objetivo cargado para ese período/día. */
   objetivo: number;
+  /** Parte de `planificado` con fecha planificada hasta hoy inclusive — base del cumplimiento "a día de hoy" (lo planificado a futuro todavía no se pudo cumplir). */
+  planificadoAHoy: number;
   /** planificado / objetivo. */
   planificadoPct: number;
-  /** producido / planificado. */
+  /** producido / planificadoAHoy. */
   cumplimientoPct: number;
   /** cerrado / objetivo. */
   cerradoPct: number;
@@ -40,6 +45,8 @@ export interface PlanProduccionResult {
   period: { kind: PeriodKind; date: string; start: string; endExclusive: string };
   colchones: PlanProduccionGauge;
   living: PlanProduccionGauge;
+  /** Columna "Total" del año completo de la misma tabla de objetivos de Gerencia — para mostrar "consensuado año" junto al objetivo del período. */
+  objetivoAnual: { colchones: number; living: number };
 }
 
 export interface PlanProduccionDailyRow {
@@ -99,14 +106,46 @@ function everyDay(start: string, endExclusive: string): string[] {
   return days;
 }
 
-function buildGauge(planificado: number, producido: number, cerrado: number, objetivo: number): PlanProduccionGauge {
+type ObjetivoPorDia = { colchones: Map<string, number>; living: Map<string, number>; totalAnual: { colchones: number; living: number } };
+
+/** Consensuado mensual de Gerencia repartido en partes iguales entre los días hábiles de cada mes (los no hábiles quedan en 0). */
+async function getObjetivoPorDia(start: string, endExclusive: string): Promise<ObjetivoPorDia> {
+  const lastDay = addDaysIso(endExclusive, -1);
+  const years = [...new Set([start.slice(0, 4), lastDay.slice(0, 4)])].map(Number);
+  const [objetivos, esHabil, diasPorAnio] = await Promise.all([
+    getObjetivosGerencia(),
+    getBusinessDayChecker(),
+    Promise.all(years.map((y) => getDiasHabiles(y))),
+  ]);
+  const diasTotal = new Map(years.map((y, i) => [y, diasPorAnio[i]!.diasTotal]));
+
+  const colchones = new Map<string, number>();
+  const living = new Map<string, number>();
+  for (const day of everyDay(start, endExclusive)) {
+    const month = Number(day.slice(5, 7)) - 1;
+    const habiles = diasTotal.get(Number(day.slice(0, 4)))?.[month] ?? 0;
+    const habil = habiles > 0 && esHabil(day);
+    colchones.set(day, habil ? (objetivos.produccion.colchones[month] ?? 0) / habiles : 0);
+    living.set(day, habil ? (objetivos.produccion.sillones[month] ?? 0) / habiles : 0);
+  }
+  return { colchones, living, totalAnual: { colchones: objetivos.totales.produccion.colchones, living: objetivos.totales.produccion.sillones } };
+}
+
+function sumObjetivo(map: Map<string, number>, start: string, endExclusive: string): number {
+  let total = 0;
+  for (const [day, value] of map) if (day >= start && day < endExclusive) total += value;
+  return total;
+}
+
+function buildGauge(planificado: number, planificadoAHoy: number, producido: number, cerrado: number, objetivo: number): PlanProduccionGauge {
   return {
     planificado,
+    planificadoAHoy,
     producido,
     cerrado,
     objetivo,
     planificadoPct: objetivo > 0 ? (planificado / objetivo) * 100 : 0,
-    cumplimientoPct: planificado > 0 ? (producido / planificado) * 100 : 0,
+    cumplimientoPct: planificadoAHoy > 0 ? (producido / planificadoAHoy) * 100 : 0,
     cerradoPct: objetivo > 0 ? (cerrado / objetivo) * 100 : 0,
   };
 }
@@ -121,11 +160,14 @@ function buildGauge(planificado: number, producido: number, cerrado: number, obj
  * sheet's owner meant.
  */
 function sameDayGauge(plannedRows: PlannedRow[], closedRows: ClosedRow[], objetivo: number, valueOf: (r: PlannedRow | ClosedRow) => number): PlanProduccionGauge {
+  const today = getArgentinaTodayIso();
   let planificado = 0;
+  let planificadoAHoy = 0;
   let producido = 0;
   for (const r of plannedRows) {
     const val = valueOf(r);
     planificado += val;
+    if (r.planning_date.slice(0, 10) <= today) planificadoAHoy += val;
     if (r.state === 'done' && r.date_finished && r.date_finished.slice(0, 10) === r.planning_date) {
       producido += val;
     }
@@ -133,7 +175,7 @@ function sameDayGauge(plannedRows: PlannedRow[], closedRows: ClosedRow[], objeti
   let cerrado = 0;
   for (const r of closedRows) cerrado += valueOf(r);
 
-  return buildGauge(planificado, producido, cerrado, objetivo);
+  return buildGauge(planificado, planificadoAHoy, producido, cerrado, objetivo);
 }
 
 /** Planificado / Cumplimiento / Cerrado para Colchones y Living (ambas en vivo desde Odoo), para un período puntual (día/semana/mes/año) anclado en una fecha. */
@@ -141,33 +183,36 @@ export async function getPlanProduccion(periodKind: PeriodKind, anchorIso: strin
   const { companyId } = await getFronteraCompany();
   const { start, endExclusive } = periodBounds(periodKind, anchorIso);
 
-  const [colchonesPlanned, colchonesClosed, livingPlanned, livingClosed, sheet] = await Promise.all([
+  const [colchonesPlanned, colchonesClosed, livingPlanned, livingClosed, objetivoDia] = await Promise.all([
     fetchPlannedRows(COLCHONES_CATEG_IDS, companyId, start, endExclusive, false),
     fetchClosedRows(COLCHONES_CATEG_IDS, companyId, start, endExclusive, false),
     fetchPlannedRows(LIVING_CATEG_IDS, companyId, start, endExclusive, true),
     fetchClosedRows(LIVING_CATEG_IDS, companyId, start, endExclusive, true),
-    getPlanProduccionSheetData(),
+    getObjetivoPorDia(start, endExclusive),
   ]);
   const multiplier = await multiplierByTemplate([...livingPlanned, ...livingClosed]);
   const ueOf = (r: PlannedRow | ClosedRow) => r.product_qty * (multiplier.get(r.product_tmpl_id?.[0] ?? -1) ?? 0);
 
   return {
     period: { kind: periodKind, date: anchorIso, start, endExclusive },
-    colchones: sameDayGauge(colchonesPlanned, colchonesClosed, objetivoForPeriod(sheet.colchones, start, endExclusive), (r) => r.product_qty),
-    living: sameDayGauge(livingPlanned, livingClosed, objetivoForPeriod(sheet.living, start, endExclusive), ueOf),
+    colchones: sameDayGauge(colchonesPlanned, colchonesClosed, sumObjetivo(objetivoDia.colchones, start, endExclusive), (r) => r.product_qty),
+    living: sameDayGauge(livingPlanned, livingClosed, sumObjetivo(objetivoDia.living, start, endExclusive), ueOf),
+    objetivoAnual: objetivoDia.totalAnual,
   };
 }
 
 function sumGauges(gauges: PlanProduccionGauge[], objetivo: number): PlanProduccionGauge {
   let planificado = 0;
+  let planificadoAHoy = 0;
   let producido = 0;
   let cerrado = 0;
   for (const g of gauges) {
     planificado += g.planificado;
+    planificadoAHoy += g.planificadoAHoy;
     producido += g.producido;
     cerrado += g.cerrado;
   }
-  return buildGauge(planificado, producido, cerrado, objetivo);
+  return buildGauge(planificado, planificadoAHoy, producido, cerrado, objetivo);
 }
 
 /**
@@ -192,12 +237,12 @@ export async function getPlanProduccionDiaria(periodKind: PeriodKind, anchorIso:
   const { companyId } = await getFronteraCompany();
   const { start, endExclusive } = trendBounds(periodKind, anchorIso);
 
-  const [colchonesPlanned, colchonesClosed, livingPlanned, livingClosed, sheet] = await Promise.all([
+  const [colchonesPlanned, colchonesClosed, livingPlanned, livingClosed, objetivoDia] = await Promise.all([
     fetchPlannedRows(COLCHONES_CATEG_IDS, companyId, start, endExclusive, false),
     fetchClosedRows(COLCHONES_CATEG_IDS, companyId, start, endExclusive, false),
     fetchPlannedRows(LIVING_CATEG_IDS, companyId, start, endExclusive, true),
     fetchClosedRows(LIVING_CATEG_IDS, companyId, start, endExclusive, true),
-    getPlanProduccionSheetData(),
+    getObjetivoPorDia(start, endExclusive),
   ]);
   const multiplier = await multiplierByTemplate([...livingPlanned, ...livingClosed]);
   const ueOf = (r: PlannedRow | ClosedRow) => r.product_qty * (multiplier.get(r.product_tmpl_id?.[0] ?? -1) ?? 0);
@@ -219,8 +264,8 @@ export async function getPlanProduccionDiaria(periodKind: PeriodKind, anchorIso:
   const colchonesClosedByDay = bucket(colchonesClosed, 'date_finished');
   const livingPlannedByDay = bucket(livingPlanned, 'planning_date');
   const livingClosedByDay = bucket(livingClosed, 'date_finished');
-  const colchonesObjetivoByDay = objetivoPerDay(sheet.colchones, start, endExclusive);
-  const livingObjetivoByDay = objetivoPerDay(sheet.living, start, endExclusive);
+  const colchonesObjetivoByDay = objetivoDia.colchones;
+  const livingObjetivoByDay = objetivoDia.living;
 
   const dailyRows = everyDay(start, endExclusive).map((date) => ({
     date,
@@ -236,8 +281,8 @@ export async function getPlanProduccionDiaria(periodKind: PeriodKind, anchorIso:
     const rowsInMonth = dailyRows.filter((r) => r.date >= mStart && r.date < mEnd);
     return {
       date: mStart,
-      colchones: sumGauges(rowsInMonth.map((r) => r.colchones), objetivoForPeriod(sheet.colchones, mStart, mEnd)),
-      living: sumGauges(rowsInMonth.map((r) => r.living), objetivoForPeriod(sheet.living, mStart, mEnd)),
+      colchones: sumGauges(rowsInMonth.map((r) => r.colchones), sumObjetivo(objetivoDia.colchones, mStart, mEnd)),
+      living: sumGauges(rowsInMonth.map((r) => r.living), sumObjetivo(objetivoDia.living, mStart, mEnd)),
     };
   });
 }

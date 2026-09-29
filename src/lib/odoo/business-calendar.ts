@@ -92,6 +92,12 @@ function countBusinessDays(start: string, endExclusive: string, calendar: Compan
   return count;
 }
 
+/** Devuelve un predicado "¿es día hábil?" (calendario laboral + feriados de Odoo) para una fecha ISO "YYYY-MM-DD". */
+export async function getBusinessDayChecker(): Promise<(iso: string) => boolean> {
+  const calendar = await getCompanyCalendar();
+  return (iso) => calendar.workingDaysOfWeek.has(new Date(`${iso}T00:00:00Z`).getUTCDay()) && !calendar.holidays.has(iso);
+}
+
 export interface DiasHabiles {
   /** 12 entries, Ene..Dic. Días hábiles totales de cada mes del año. */
   diasTotal: number[];
