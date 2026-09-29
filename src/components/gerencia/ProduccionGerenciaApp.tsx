@@ -11,6 +11,7 @@ import CumplimientoBars from './CumplimientoBars';
 import DiasHabilesStrip from './DiasHabilesStrip';
 import MedidaToggle, { seriesPorMedida, type Medida } from './MedidaToggle';
 import UeVsCantidadChart from './UeVsCantidadChart';
+import UeVsCantidadDesvioChart from './UeVsCantidadDesvioChart';
 
 interface Props {
   dehydratedState?: DehydratedState;
@@ -156,12 +157,16 @@ function ProduccionGerenciaInner() {
                   </div>
                 ))}
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                  <UeVsCantidadChart title="Sillones" ue={data.real.sillonesUE} cantidad={data.real.sillonesCant} nMeses={nMeses} />
-                  <UeVsCantidadChart title="Colchones" ue={data.real.colchonesUE} cantidad={data.real.colchonesCant} nMeses={nMeses} />
-                </div>
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                   <VentasGerenciaChart title="Total equivalente (sillones)" real={eqRealMonthly} objetivo={eqObjMonthly} nMeses={nMeses} />
                   <DesvioMensualChart title="Total equivalente (sillones)" real={eqRealMonthly} objetivo={eqObjMonthly} diasTranscurridos={data.diasTranscurridos} diasTotal={data.diasTotal} nMeses={nMeses} />
+                </div>
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <UeVsCantidadChart title="Sillones" ue={data.real.sillonesUE} cantidad={data.real.sillonesCant} nMeses={nMeses} />
+                  <UeVsCantidadDesvioChart title="Sillones" ue={data.real.sillonesUE} cantidad={data.real.sillonesCant} nMeses={nMeses} />
+                </div>
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <UeVsCantidadChart title="Colchones" ue={data.real.colchonesUE} cantidad={data.real.colchonesCant} nMeses={nMeses} />
+                  <UeVsCantidadDesvioChart title="Colchones" ue={data.real.colchonesUE} cantidad={data.real.colchonesCant} nMeses={nMeses} />
                 </div>
               </div>
             </>
