@@ -32,6 +32,8 @@ export interface ProduccionGerenciaResult {
   diasTotal: number[];
   real: { sillones: number[]; colchones: number[] };
   objetivo: { sillones: number[]; colchones: number[] };
+  /** Columna "Total" de la planilla de objetivos — el consensuado del año completo, tal cual está cargado en Odoo. */
+  objetivoTotalAnual: { sillones: number; colchones: number };
 }
 
 type Row = { planning_date: string; qty_produced: number; product_tmpl_id?: [number, string] };
@@ -100,5 +102,6 @@ export async function getProduccionGerencia(): Promise<ProduccionGerenciaResult>
       sillones: objetivos.produccion.sillones,
       colchones: objetivos.produccion.colchones,
     },
+    objetivoTotalAnual: objetivos.totales.produccion,
   };
 }

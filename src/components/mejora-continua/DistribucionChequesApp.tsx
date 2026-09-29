@@ -2,6 +2,7 @@ import type { DehydratedState } from '@tanstack/react-query';
 import QueryProvider from '../QueryProvider';
 import { useApiQuery } from '../dashboard/useApiQuery';
 import LastUpdated from '../shared/LastUpdated';
+import { dayLabel } from './month-label';
 import DistribucionChequesMatrix from './DistribucionChequesMatrix';
 import type { CreditoClientesData } from '../../lib/odoo/credito-clientes';
 
@@ -22,6 +23,12 @@ function DistribucionChequesInner() {
         </p>
         <LastUpdated dataUpdatedAt={query.dataUpdatedAt} />
       </div>
+
+      {query.data && (
+        <p className="rounded border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs text-slate-400">
+          Los cheques se toman desde hoy {dayLabel(query.data.asOf)} en adelante — no se cuenta el historial de cheques ya vencidos.
+        </p>
+      )}
 
       {query.isError && (
         <p className="rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">

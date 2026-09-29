@@ -19,6 +19,7 @@ const DASHBOARD_ID = 40;
 const DASHBOARD_LABEL = 'Reunión de equipo de gestión';
 const MONTH_COL_START = 2; // column C (0-indexed) = Enero
 const MONTH_COL_END = 13; // column N = Diciembre
+const TOTAL_COL = 14; // column O = Total del año, tal cual está cargado en la planilla (no recalculado acá)
 
 export interface ObjetivosGerencia {
   /** 12 entries, Ene..Dic, salvo que se indique lo contrario. */
@@ -26,6 +27,13 @@ export interface ObjetivosGerencia {
   produccion: { sillones: number[]; colchones: number[] };
   facturacionUnidades: { sillones: number[]; colchones: number[]; block: number[] };
   facturacionPesos: { total: number[] };
+  /** Columna "O = Total" de la misma planilla — el consensuado anual completo, para no tener que ir a Odoo a buscarlo. */
+  totales: {
+    ventas: { sillones: number; colchones: number; block: number; reventa: number };
+    produccion: { sillones: number; colchones: number };
+    facturacionUnidades: { sillones: number; colchones: number; block: number };
+    facturacionPesos: number;
+  };
 }
 
 function normalize(s: string | undefined): string {
@@ -51,6 +59,7 @@ function parseNumberEsAr(raw: string | undefined): number {
 interface Row {
   label: string;
   values: number[];
+  total: number;
 }
 
 function readRows(doc: SheetDoc): Row[] {
@@ -80,7 +89,8 @@ function readRows(doc: SheetDoc): Row[] {
     for (let c = MONTH_COL_START; c <= MONTH_COL_END; c++) {
       values.push(parseNumberEsAr(rowCells?.get(c)));
     }
-    rows.push({ label, values });
+    const total = parseNumberEsAr(rowCells?.get(TOTAL_COL));
+    rows.push({ label, values, total });
   }
   return rows;
 }
@@ -103,6 +113,10 @@ function values(row: Row | undefined): number[] {
   return row?.values ?? new Array(12).fill(0);
 }
 
+function total(row: Row | undefined): number {
+  return row?.total ?? 0;
+}
+
 export async function getObjetivosGerencia(): Promise<ObjetivosGerencia> {
   const doc = await fetchLatestDashboardShareSnapshot(DASHBOARD_ID, DASHBOARD_LABEL);
   const rows = readRows(doc);
@@ -118,25 +132,31 @@ export async function getObjetivosGerencia(): Promise<ObjetivosGerencia> {
 
   // VENTAS CONSENSUADO block: from the top (no header row precedes it in
   // this dashboard) up to "PRODUCCION CONSENSUADO".
-  const ventasSillones = values(find(rows, 0, produccionStart, 'consensuado sillones equivalente'));
-  const ventasColchones = values(find(rows, 0, produccionStart, 'consensuado colchones unidad'));
-  const ventasBlock = values(find(rows, 0, produccionStart, 'plande venta block', 'plan de venta block'));
-  const ventasReventa = values(find(rows, 0, produccionStart, 'consensuado reventa en $', 'concensuado reventa en $'));
+  const ventasSillonesRow = find(rows, 0, produccionStart, 'consensuado sillones equivalente');
+  const ventasColchonesRow = find(rows, 0, produccionStart, 'consensuado colchones unidad');
+  const ventasBlockRow = find(rows, 0, produccionStart, 'plande venta block', 'plan de venta block');
+  const ventasReventaRow = find(rows, 0, produccionStart, 'consensuado reventa en $', 'concensuado reventa en $');
 
   // PRODUCCION CONSENSUADO block: up to "FACTURACION CONSENSUADO".
-  const produccionSillones = values(find(rows, produccionStart, facturacionStart, 'consensuado sillones equivalente'));
-  const produccionColchones = values(find(rows, produccionStart, facturacionStart, 'consensuado colchones unidad'));
+  const produccionSillonesRow = find(rows, produccionStart, facturacionStart, 'consensuado sillones equivalente');
+  const produccionColchonesRow = find(rows, produccionStart, facturacionStart, 'consensuado colchones unidad');
 
   // FACTURACION CONSENSUADO block: to the end.
-  const facturacionSillones = values(find(rows, facturacionStart, rows.length, 'consensuado sillones equivalente'));
-  const facturacionColchones = values(find(rows, facturacionStart, rows.length, 'consensuado colchones unidad'));
-  const facturacionBlock = values(find(rows, facturacionStart, rows.length, 'consensuado block equivalente'));
-  const facturacionPesos = values(find(rows, facturacionStart, rows.length, 'concensuado en $', 'consensuado en $'));
+  const facturacionSillonesRow = find(rows, facturacionStart, rows.length, 'consensuado sillones equivalente');
+  const facturacionColchonesRow = find(rows, facturacionStart, rows.length, 'consensuado colchones unidad');
+  const facturacionBlockRow = find(rows, facturacionStart, rows.length, 'consensuado block equivalente');
+  const facturacionPesosRow = find(rows, facturacionStart, rows.length, 'concensuado en $', 'consensuado en $');
 
   return {
-    ventas: { sillones: ventasSillones, colchones: ventasColchones, block: ventasBlock, reventa: ventasReventa },
-    produccion: { sillones: produccionSillones, colchones: produccionColchones },
-    facturacionUnidades: { sillones: facturacionSillones, colchones: facturacionColchones, block: facturacionBlock },
-    facturacionPesos: { total: facturacionPesos },
+    ventas: { sillones: values(ventasSillonesRow), colchones: values(ventasColchonesRow), block: values(ventasBlockRow), reventa: values(ventasReventaRow) },
+    produccion: { sillones: values(produccionSillonesRow), colchones: values(produccionColchonesRow) },
+    facturacionUnidades: { sillones: values(facturacionSillonesRow), colchones: values(facturacionColchonesRow), block: values(facturacionBlockRow) },
+    facturacionPesos: { total: values(facturacionPesosRow) },
+    totales: {
+      ventas: { sillones: total(ventasSillonesRow), colchones: total(ventasColchonesRow), block: total(ventasBlockRow), reventa: total(ventasReventaRow) },
+      produccion: { sillones: total(produccionSillonesRow), colchones: total(produccionColchonesRow) },
+      facturacionUnidades: { sillones: total(facturacionSillonesRow), colchones: total(facturacionColchonesRow), block: total(facturacionBlockRow) },
+      facturacionPesos: total(facturacionPesosRow),
+    },
   };
 }

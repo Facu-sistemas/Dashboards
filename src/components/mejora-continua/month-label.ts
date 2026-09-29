@@ -5,3 +5,9 @@ export function monthLabel(monthKey: string): string {
   const [year, month] = monthKey.split('-');
   return `${MESES[Number(month) - 1]} ${year}`;
 }
+
+/** "YYYY-MM-DD" -> "DD/MM/AAAA", sin pasar por Date/Intl (mismo motivo). */
+export function dayLabel(dateIso: string): string {
+  const [year, month, day] = dateIso.split('-');
+  return `${day}/${month}/${year}`;
+}

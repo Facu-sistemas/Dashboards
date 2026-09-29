@@ -22,6 +22,7 @@ interface VentasGerenciaResult {
   diasTotal: number[];
   real: { sillones: number[]; colchones: number[]; block: number[]; reventa: number[] };
   objetivo: { sillones: number[]; colchones: number[]; block: number[]; reventa: number[] };
+  objetivoTotalAnual: { sillones: number; colchones: number; block: number; reventa: number };
 }
 
 // Sillón equivalente: 1 sillón = 3 colchones = 60kg de block, mismo factor
@@ -117,11 +118,18 @@ function VentasGerenciaInner() {
           return (
             <>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                <VentasGerenciaKpiCard label="Sillones eq." real={sillones.real} objetivoProrrateado={sillones.obj} unidad="u" />
-                <VentasGerenciaKpiCard label="Colchones" real={colchones.real} objetivoProrrateado={colchones.obj} unidad="u" />
-                <VentasGerenciaKpiCard label="Block (kg)" real={block.real} objetivoProrrateado={block.obj} unidad="kg" />
-                <VentasGerenciaKpiCard label="Reventa $" real={reventa.real} objetivoProrrateado={reventa.obj} format="currency" />
-                <VentasGerenciaKpiCard label="Total eq. sillones" real={totalEq.real} objetivoProrrateado={totalEq.obj} unidad="u eq." destacado />
+                <VentasGerenciaKpiCard label="Sillones eq." real={sillones.real} objetivoProrrateado={sillones.obj} unidad="u" objetivoAnual={data.objetivoTotalAnual.sillones} />
+                <VentasGerenciaKpiCard label="Colchones" real={colchones.real} objetivoProrrateado={colchones.obj} unidad="u" objetivoAnual={data.objetivoTotalAnual.colchones} />
+                <VentasGerenciaKpiCard label="Block (kg)" real={block.real} objetivoProrrateado={block.obj} unidad="kg" objetivoAnual={data.objetivoTotalAnual.block} />
+                <VentasGerenciaKpiCard label="Reventa $" real={reventa.real} objetivoProrrateado={reventa.obj} format="currency" objetivoAnual={data.objetivoTotalAnual.reventa} />
+                <VentasGerenciaKpiCard
+                  label="Total eq. sillones"
+                  real={totalEq.real}
+                  objetivoProrrateado={totalEq.obj}
+                  unidad="u eq."
+                  destacado
+                  objetivoAnual={eqSillones(data.objetivoTotalAnual.sillones, data.objetivoTotalAnual.colchones, data.objetivoTotalAnual.block)}
+                />
               </div>
 
               <CumplimientoBars

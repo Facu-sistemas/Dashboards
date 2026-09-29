@@ -33,6 +33,7 @@ interface FacturacionGerenciaResult {
     totalPesos: number[];
   };
   objetivo: { sillones: number[]; colchones: number[]; block: number[]; totalPesos: number[] };
+  objetivoTotalAnual: { sillones: number; colchones: number; block: number; totalPesos: number };
 }
 
 // Sillón equivalente: mismo factor que Ventas (1 sillón = 3 colchones = 60kg
@@ -132,10 +133,17 @@ function FacturacionGerenciaInner() {
           return (
             <>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <VentasGerenciaKpiCard label="Sillones eq." real={sillones.real} objetivoProrrateado={sillones.obj} unidad="u" />
-                <VentasGerenciaKpiCard label="Colchones" real={colchones.real} objetivoProrrateado={colchones.obj} unidad="u" />
-                <VentasGerenciaKpiCard label="Block (kg)" real={block.real} objetivoProrrateado={block.obj} unidad="kg" />
-                <VentasGerenciaKpiCard label="Total eq. sillones" real={totalEq.real} objetivoProrrateado={totalEq.obj} unidad="u eq." destacado />
+                <VentasGerenciaKpiCard label="Sillones eq." real={sillones.real} objetivoProrrateado={sillones.obj} unidad="u" objetivoAnual={data.objetivoTotalAnual.sillones} />
+                <VentasGerenciaKpiCard label="Colchones" real={colchones.real} objetivoProrrateado={colchones.obj} unidad="u" objetivoAnual={data.objetivoTotalAnual.colchones} />
+                <VentasGerenciaKpiCard label="Block (kg)" real={block.real} objetivoProrrateado={block.obj} unidad="kg" objetivoAnual={data.objetivoTotalAnual.block} />
+                <VentasGerenciaKpiCard
+                  label="Total eq. sillones"
+                  real={totalEq.real}
+                  objetivoProrrateado={totalEq.obj}
+                  unidad="u eq."
+                  destacado
+                  objetivoAnual={eqSillones(data.objetivoTotalAnual.sillones, data.objetivoTotalAnual.colchones, data.objetivoTotalAnual.block)}
+                />
               </div>
 
               <CumplimientoBars
@@ -172,7 +180,14 @@ function FacturacionGerenciaInner() {
                   Facturación en $
                 </h3>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  <VentasGerenciaKpiCard label="Total facturado $" real={totalPesos.real} objetivoProrrateado={totalPesos.obj} format="currency" destacado />
+                  <VentasGerenciaKpiCard
+                    label="Total facturado $"
+                    real={totalPesos.real}
+                    objetivoProrrateado={totalPesos.obj}
+                    format="currency"
+                    destacado
+                    objetivoAnual={data.objetivoTotalAnual.totalPesos}
+                  />
                   <VentasGerenciaKpiCard label="Sillones $" real={sillonesPesos} objetivoProrrateado={0} format="currency" sinObjetivo />
                   <VentasGerenciaKpiCard label="Colchones $" real={colchonesPesos} objetivoProrrateado={0} format="currency" sinObjetivo />
                   <VentasGerenciaKpiCard label="Block $" real={blockPesos} objetivoProrrateado={0} format="currency" sinObjetivo />

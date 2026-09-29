@@ -4,6 +4,7 @@ import QueryProvider from '../QueryProvider';
 import { useApiQuery } from '../dashboard/useApiQuery';
 import LastUpdated from '../shared/LastUpdated';
 import { formatCompactCurrency } from '../gerencia/format';
+import { dayLabel } from './month-label';
 import CreditoChequesTable, { type CreditoSortBy } from './CreditoChequesTable';
 import CreditoChequesChart from './CreditoChequesChart';
 import type { CreditoClientesData } from '../../lib/odoo/credito-clientes';
@@ -41,6 +42,12 @@ function CreditoChequesInner() {
         <p className="text-xs text-slate-500">Solo lectura — datos de Odoo (deudores por ventas, cheques de terceros en cartera y pedidos confirmados sin entregar).</p>
         <LastUpdated dataUpdatedAt={query.dataUpdatedAt} />
       </div>
+
+      {data && (
+        <p className="rounded border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs text-slate-400">
+          Los cheques se toman desde hoy {dayLabel(data.asOf)} en adelante — no se cuenta el historial de cheques ya vencidos.
+        </p>
+      )}
 
       {query.isError && (
         <p className="rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">

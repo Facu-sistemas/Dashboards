@@ -86,6 +86,8 @@ export interface FacturacionGerenciaResult {
     block: number[];
     totalPesos: number[];
   };
+  /** Columna "Total" de la planilla de objetivos — el consensuado del año completo, tal cual está cargado en Odoo. */
+  objetivoTotalAnual: { sillones: number; colchones: number; block: number; totalPesos: number };
 }
 
 type InvoiceLine = { invoice_date: string; quantity: number; price_subtotal: number; move_type: string; move_id: [number, string] };
@@ -213,6 +215,12 @@ export async function getFacturacionGerencia(): Promise<FacturacionGerenciaResul
       colchones: objetivos.facturacionUnidades.colchones,
       block: objetivos.facturacionUnidades.block,
       totalPesos: objetivos.facturacionPesos.total,
+    },
+    objetivoTotalAnual: {
+      sillones: objetivos.totales.facturacionUnidades.sillones,
+      colchones: objetivos.totales.facturacionUnidades.colchones,
+      block: objetivos.totales.facturacionUnidades.block,
+      totalPesos: objetivos.totales.facturacionPesos,
     },
   };
 }
