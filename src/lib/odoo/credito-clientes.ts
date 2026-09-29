@@ -14,7 +14,9 @@ import type { OdooDomain } from './types';
 /**
  * "Cheques de terceros" (account.third.check) a contemplar: En cartera,
  * Vendido, Entregado y Depositado — todos menos Rechazado (confirmado
- * explícitamente: es el único estado a excluir).
+ * explícitamente: es el único estado a excluir). Además, solo con fecha de
+ * pago de hoy en adelante — no el historial completo (confirmado: contarlos
+ * todos infló "Cheques Activos" con cheques ya vencidos hace tiempo).
  */
 const EXCLUDED_CHECK_STATE = 'rejected';
 
@@ -23,6 +25,17 @@ const PENDING_ORDER_DOMAIN: OdooDomain = [
   ['state', '=', 'sale'],
   ['delivery_status', '!=', 'full'],
 ];
+
+/**
+ * `res.partner` de Frontera Living S.A (id 1) y Presupuesto (id 7) —
+ * empresas propias del grupo, no clientes reales, así que no deben
+ * aparecer en el resumen (confirmado explícitamente).
+ */
+const EXCLUDED_PARTNER_IDS = [1, 7];
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 export interface ClienteCreditoRow {
   partnerId: number;
@@ -59,6 +72,8 @@ export interface CreditoClientesData {
   chequesPorMes: ChequeMesPoint[];
   /** Igual que `chequesPorMes`, pero desglosado por cliente — para el drill-down del gráfico. */
   chequesPorMesPorCliente: Record<number, ChequeMesPoint[]>;
+  /** "YYYY-MM-DD" del día en que se calculó esto — los cheques solo cuentan desde esta fecha en adelante. */
+  asOf: string;
 }
 
 interface PartnerAgg {
@@ -72,15 +87,21 @@ export async function getCreditoClientes(): Promise<CreditoClientesData> {
   type PendingOrderRow = { partner_id: [number, string] | false; amount_total: number; amount_untaxed: number };
   type PartnerRow = { id: number; name: string; credit: number; credit_limit: number };
 
+  const today = todayIso();
+
   const [cheques, pendingOrders] = await Promise.all([
     searchReadAll<ChequeRow>({
       model: 'account.third.check',
-      domain: [['state', '!=', EXCLUDED_CHECK_STATE]],
+      domain: [
+        ['state', '!=', EXCLUDED_CHECK_STATE],
+        ['payment_date', '>=', today],
+        ['partner_id', 'not in', EXCLUDED_PARTNER_IDS],
+      ],
       fields: ['partner_id', 'amount', 'payment_date'],
     }),
     searchReadAll<PendingOrderRow>({
       model: 'sale.order',
-      domain: PENDING_ORDER_DOMAIN,
+      domain: [...PENDING_ORDER_DOMAIN, ['partner_id', 'not in', EXCLUDED_PARTNER_IDS]],
       fields: ['partner_id', 'amount_total', 'amount_untaxed'],
     }),
   ]);
@@ -125,7 +146,10 @@ export async function getCreditoClientes(): Promise<CreditoClientesData> {
   // still in wallet) — union of both sets, fetched in the fewest round trips.
   const creditPartners = await searchReadAll<PartnerRow>({
     model: 'res.partner',
-    domain: [['credit', '!=', 0]],
+    domain: [
+      ['credit', '!=', 0],
+      ['id', 'not in', EXCLUDED_PARTNER_IDS],
+    ],
     fields: ['id', 'name', 'credit', 'credit_limit'],
   });
   const creditPartnerIds = new Set(creditPartners.map((p) => p.id));
@@ -140,6 +164,10 @@ export async function getCreditoClientes(): Promise<CreditoClientesData> {
       : [];
 
   const clientes: ClienteCreditoRow[] = [...creditPartners, ...extraPartners]
+    // Un puñado de partner_id referenciados en cheques/pedidos vienen sin
+    // `name` (registros fusionados/archivados en Odoo) — no son clientes
+    // reportables, se descartan.
+    .filter((p) => p.name)
     .map((p) => {
       const a = byPartner.get(p.id) ?? { chequesActivos: 0, pedidosNeto: 0, pedidosConIva: 0 };
       return {
@@ -180,5 +208,5 @@ export async function getCreditoClientes(): Promise<CreditoClientesData> {
     chequesPorMesPorCliente[partnerId] = monthRange.map((month) => ({ month, monto: months.get(month) ?? 0 })).filter((p) => p.monto !== 0);
   }
 
-  return { clientes, totales, chequesPorMes, chequesPorMesPorCliente };
+  return { clientes, totales, chequesPorMes, chequesPorMesPorCliente, asOf: today };
 }
