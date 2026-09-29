@@ -1,0 +1,15 @@
+---
+import FlujoViewer from './FlujoViewer';
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Flujo</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Elegí un producto y una orden de venta real para ver, paso a paso, cómo se mueve por la fábrica: depósito,
+      fabricación y facturación — con la opción de simular qué pasaría si vuelve por una devolución.
+    </p>
+  </header>
+
+  <FlujoViewer client:only="react" />
+</div>

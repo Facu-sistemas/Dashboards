@@ -4,6 +4,7 @@ import QueryProvider from '../QueryProvider';
 import { useApiQuery } from '../dashboard/useApiQuery';
 import ProductSearchTable from './ProductSearchTable';
 import ProductPriceChart from './ProductPriceChart';
+import QuotationDetailModal from './QuotationDetailModal';
 import LastUpdated from '../shared/LastUpdated';
 import type { ProductPriceTrend } from './types';
 
@@ -14,6 +15,7 @@ interface Props {
 function ProductPriceTrendInner() {
   const [selected, setSelected] = useState<{ id: number; name: string } | null>(null);
   const [listUpdatedAt, setListUpdatedAt] = useState<number>(0);
+  const [detailMonth, setDetailMonth] = useState<string | null>(null);
 
   const trendQuery = useApiQuery<ProductPriceTrend>(
     ['product-price-trend', selected?.id ?? null],
@@ -30,7 +32,10 @@ function ProductPriceTrendInner() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[360px_1fr]">
       <ProductSearchTable
         selectedProductId={selected?.id ?? null}
-        onSelect={(id, name) => setSelected({ id, name })}
+        onSelect={(id, name) => {
+          setSelected({ id, name });
+          setDetailMonth(null);
+        }}
         onDataUpdatedAt={setListUpdatedAt}
       />
 
@@ -53,11 +58,20 @@ function ProductPriceTrendInner() {
         ) : (
           <>
             <h3 className="text-sm font-medium text-slate-300">{selected.name}</h3>
-            <ProductPriceChart points={trendQuery.data.points} />
+            <ProductPriceChart points={trendQuery.data.points} onSelectMonth={setDetailMonth} />
           </>
         )}
       </section>
       </div>
+
+      {detailMonth && selected && trendQuery.data && (
+        <QuotationDetailModal
+          productName={selected.name}
+          month={detailMonth}
+          details={trendQuery.data.quotationDetails.filter((d) => d.month === detailMonth)}
+          onClose={() => setDetailMonth(null)}
+        />
+      )}
     </div>
   );
 }

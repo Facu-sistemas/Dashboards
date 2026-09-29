@@ -4,6 +4,18 @@ export interface ProductPricePoint {
   month: string; // YYYY-MM
   price: number;
   source: PriceSource;
+  min?: number;
+  max?: number;
+  count?: number;
+}
+
+export interface ProductQuotationDetail {
+  orderId: number;
+  orderName: string;
+  date: string;
+  month: string;
+  price: number;
+  qty: number;
 }
 
 export interface ProductPriceTrend {
@@ -11,6 +23,7 @@ export interface ProductPriceTrend {
   productName: string;
   hasHistory: boolean;
   points: ProductPricePoint[];
+  quotationDetails: ProductQuotationDetail[];
 }
 
 export interface SellableProductOption {
