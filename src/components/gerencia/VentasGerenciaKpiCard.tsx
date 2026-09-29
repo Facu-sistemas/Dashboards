@@ -10,8 +10,10 @@ interface Props {
   destacado?: boolean;
   /** No hay objetivo para este indicador (p.ej. desgloses $ sin meta por categoría en Odoo) — oculta la línea de objetivo, el badge y el "faltan recuperar". */
   sinObjetivo?: boolean;
-  /** Consensuado del año completo (columna "Total" de la planilla de objetivos en Odoo) — para no tener que ir a Odoo a buscarlo. */
-  objetivoAnual?: number;
+  /** Consensuado del período elegido (mes, trimestre o año completo) según la planilla de objetivos en Odoo — para no tener que ir a Odoo a buscarlo. */
+  consensuado?: { label: string; valor: number };
+  /** Aclaración corta al pie, p.ej. por qué no hay objetivo en esta medida. */
+  nota?: string;
 }
 
 const fullMoney = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
@@ -26,7 +28,7 @@ function fmt(v: number, format: 'currency' | 'number') {
  * passed in is already prorated to days-elapsed-so-far, so 100% means "on
  * pace", not "hit the full monthly target early".
  */
-export default function VentasGerenciaKpiCard({ label, real, objetivoProrrateado, format = 'number', unidad, destacado, sinObjetivo, objetivoAnual }: Props) {
+export default function VentasGerenciaKpiCard({ label, real, objetivoProrrateado, format = 'number', unidad, destacado, sinObjetivo, consensuado, nota }: Props) {
   const [expanded, setExpanded] = useState(false);
   const pct = !sinObjetivo && objetivoProrrateado > 0 ? (real / objetivoProrrateado) * 100 : null;
   const badgeColor = pct === null ? 'bg-slate-800 text-slate-400' : pct >= 100 ? 'bg-status-green/15 text-status-green' : pct >= 85 ? 'bg-status-yellow/15 text-status-yellow' : 'bg-status-red/15 text-status-red';
@@ -42,11 +44,14 @@ export default function VentasGerenciaKpiCard({ label, real, objetivoProrrateado
       <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
       <p className="mt-1 text-xl font-semibold text-slate-100">{clickable && expanded ? fullMoney.format(real) : fmt(real, format)}</p>
       {!sinObjetivo && <p className="mt-0.5 text-xs text-slate-500">objetivo {fmt(objetivoProrrateado, format)}</p>}
-      {objetivoAnual !== undefined && objetivoAnual > 0 && (
-        <p className="text-xs text-slate-600">consensuado año: {fmt(objetivoAnual, format)}</p>
+      {consensuado && consensuado.valor > 0 && (
+        <p className="text-xs text-slate-600">
+          consensuado {consensuado.label}: {fmt(consensuado.valor, format)}
+        </p>
       )}
       {pct !== null && <span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${badgeColor}`}>{pct >= 100 ? '▲' : '▼'} {pct.toFixed(1)}%</span>}
       {gapLine && <p className={`mt-2 border-t border-dashed border-slate-800 pt-2 text-xs font-semibold ${gapLine.tone}`}>{gapLine.text}</p>}
+      {nota && <p className="mt-2 text-[10px] italic text-slate-500">{nota}</p>}
     </>
   );
 

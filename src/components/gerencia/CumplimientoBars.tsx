@@ -7,6 +7,8 @@ interface Row {
   objetivo: number;
   format?: 'currency' | 'number';
   destacado?: boolean;
+  /** No hay objetivo en esta medida — se muestra el real y "sin objetivo" en vez de un % contra 0. */
+  sinObjetivo?: boolean;
 }
 
 interface Props {
@@ -61,7 +63,7 @@ export default function CumplimientoBars({ rows, nota }: Props) {
               </div>
               <div className={`w-12 shrink-0 text-right text-xs font-bold ${textColorFor(row.pct)}`}>{row.pct === null ? '—' : `${row.pct.toFixed(0)}%`}</div>
               <div className="hidden w-32 shrink-0 text-right text-[10px] text-slate-500 sm:block">
-                {formatValue(row.real, row.format ?? 'number')} / {formatValue(row.objetivo, row.format ?? 'number')}
+                {formatValue(row.real, row.format ?? 'number')} / {row.sinObjetivo ? 'sin objetivo' : formatValue(row.objetivo, row.format ?? 'number')}
               </div>
             </div>
           );

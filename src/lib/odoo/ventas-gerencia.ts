@@ -55,7 +55,8 @@ export interface VentasGerenciaResult {
   mesesConDatos: number;
   diasTranscurridos: number[];
   diasTotal: number[];
-  real: { sillones: number[]; colchones: number[]; block: number[]; reventa: number[] };
+  /** Sillones y colchones en las dos medidas — el objetivo de la planilla está en UE para sillones y en unidades para colchones. */
+  real: { sillonesUE: number[]; sillonesCant: number[]; colchonesUE: number[]; colchonesCant: number[]; block: number[]; reventa: number[] };
   objetivo: { sillones: number[]; colchones: number[]; block: number[]; reventa: number[] };
   /** Columna "Total" de la planilla de objetivos — el consensuado del año completo, tal cual está cargado en Odoo (no una suma de los 12 meses de acá). */
   objetivoTotalAnual: { sillones: number; colchones: number; block: number; reventa: number };
@@ -119,21 +120,22 @@ async function monthlyInvoicedByCategory(categId: number, start: string, endExcl
   return byMonth;
 }
 
-type SillonLine = { order_id: [number, string]; product_id: [number, string]; product_uom_qty: number };
+type QtyLine = { order_id: [number, string]; product_id: [number, string]; product_uom_qty: number };
 
-/** Sillones vendidos, ponderados por Unidad Equivalente — ver el comentario grande de arriba del archivo. */
-async function monthlySillonesUE(categIds: number[], start: string, endExclusive: string): Promise<Map<string, number>> {
-  const lines = await searchReadAll<SillonLine>({
+/**
+ * Cantidad (unidades crudas) y Unidad Equivalente (cantidad ×
+ * `x_studio_equivalente_produccion`) por mes, en una sola pasada — la
+ * pestaña tiene un toggle para ver una u otra. Sillones y colchones tienen
+ * el campo cargado (confirmado en vivo 2026-09-29: 0 líneas de colchones de
+ * Agosto sin valor).
+ */
+async function monthlyCantidadYUE(domain: OdooDomain, start: string, endExclusive: string): Promise<{ cant: Map<string, number>; ue: Map<string, number> }> {
+  const lines = await searchReadAll<QtyLine>({
     model: 'sale.order.line',
-    domain: [
-      ['order_id.state', '=', 'sale'],
-      ['product_id.categ_id', 'in', categIds],
-      ['order_id.date_order', '>=', start],
-      ['order_id.date_order', '<', endExclusive],
-    ],
+    domain: [['order_id.state', '=', 'sale'], ...domain, ['order_id.date_order', '>=', start], ['order_id.date_order', '<', endExclusive]],
     fields: ['order_id', 'product_id', 'product_uom_qty'],
   });
-  if (lines.length === 0) return new Map();
+  if (lines.length === 0) return { cant: new Map(), ue: new Map() };
 
   const orderIds = [...new Set(lines.map((l) => l.order_id[0]))];
   const orders = await searchReadAll<{ id: number; date_order: string }>({
@@ -148,16 +150,18 @@ async function monthlySillonesUE(categIds: number[], start: string, endExclusive
   const templateIds = [...new Set([...templateIdByVariant.values()])];
   const ueByTemplate = await getEquivalenteByTemplate(templateIds);
 
-  const byMonth = new Map<string, number>();
+  const cant = new Map<string, number>();
+  const ue = new Map<string, number>();
   for (const line of lines) {
     const dateOrder = dateByOrder.get(line.order_id[0]);
     if (!dateOrder) continue;
     const templateId = templateIdByVariant.get(line.product_id[0]);
-    const ue = templateId !== undefined ? (ueByTemplate.get(templateId) ?? 0) : 0;
+    const factor = templateId !== undefined ? (ueByTemplate.get(templateId) ?? 0) : 0;
     const month = dateOrder.slice(0, 7);
-    byMonth.set(month, (byMonth.get(month) ?? 0) + line.product_uom_qty * ue);
+    cant.set(month, (cant.get(month) ?? 0) + line.product_uom_qty);
+    ue.set(month, (ue.get(month) ?? 0) + line.product_uom_qty * factor);
   }
-  return byMonth;
+  return { cant, ue };
 }
 
 export async function getVentasGerencia(): Promise<VentasGerenciaResult> {
@@ -170,14 +174,9 @@ export async function getVentasGerencia(): Promise<VentasGerenciaResult> {
 
   const baseDomain: OdooDomain = [['order_id.state', '=', 'sale']];
 
-  const [sillonesByMonth, colchonesByMonth, blockByMonth, reventaByMonth, objetivos, diasHabiles] = await Promise.all([
-    monthlySillonesUE(SILLONES_CATEG_IDS, start, endExclusive),
-    monthlyQtyByCategory(
-      [...baseDomain, ['product_id.categ_id', 'child_of', COLCHONES_CATEG_ID]],
-      start,
-      endExclusive,
-      'product_uom_qty'
-    ),
+  const [sillones, colchones, blockByMonth, reventaByMonth, objetivos, diasHabiles] = await Promise.all([
+    monthlyCantidadYUE([['product_id.categ_id', 'in', SILLONES_CATEG_IDS]], start, endExclusive),
+    monthlyCantidadYUE([['product_id.categ_id', 'child_of', COLCHONES_CATEG_ID]], start, endExclusive),
     monthlyQtyByCategory([...baseDomain, ['product_id.categ_id', 'child_of', BLOCK_CATEG_ID]], start, endExclusive, 'product_uom_qty'),
     monthlyInvoicedByCategory(REVENTA_CATEG_ID, start, endExclusive),
     getObjetivosGerencia(),
@@ -191,8 +190,10 @@ export async function getVentasGerencia(): Promise<VentasGerenciaResult> {
     diasTranscurridos: diasHabiles.diasTranscurridos,
     diasTotal: diasHabiles.diasTotal,
     real: {
-      sillones: toMonthlyArray(sillonesByMonth, months),
-      colchones: toMonthlyArray(colchonesByMonth, months),
+      sillonesUE: toMonthlyArray(sillones.ue, months),
+      sillonesCant: toMonthlyArray(sillones.cant, months),
+      colchonesUE: toMonthlyArray(colchones.ue, months),
+      colchonesCant: toMonthlyArray(colchones.cant, months),
       block: toMonthlyArray(blockByMonth, months),
       reventa: toMonthlyArray(reventaByMonth, months),
     },

@@ -86,6 +86,7 @@ export type PlanProduccionPeriodKind = 'day' | 'week' | 'month' | 'year';
 
 export interface PlanProduccionGauge {
   planificado: number;
+  planificadoAHoy: number;
   producido: number;
   cerrado: number;
   objetivo: number;
@@ -98,6 +99,7 @@ export interface PlanProduccionResult {
   period: { kind: PlanProduccionPeriodKind; date: string; start: string; endExclusive: string };
   colchones: PlanProduccionGauge;
   living: PlanProduccionGauge;
+  objetivoAnual: { colchones: number; living: number };
 }
 
 export interface PlanProduccionDailyRow {

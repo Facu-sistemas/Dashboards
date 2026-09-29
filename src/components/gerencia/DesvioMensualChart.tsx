@@ -7,7 +7,10 @@ const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'O
 interface Props {
   title: string;
   real: number[];
-  objetivo: number[];
+  /** Sin objetivo en esta medida — la tarjeta muestra una aclaración en vez del gráfico (no hay contra qué calcular desvío). */
+  objetivo?: number[];
+  /** Texto de la aclaración cuando no hay objetivo, p.ej. "El objetivo de sillones está cargado en UE". */
+  notaSinObjetivo?: string;
   diasTranscurridos: number[];
   diasTotal: number[];
   nMeses: number;
@@ -26,13 +29,25 @@ function fmtGap(v: number, format: 'currency' | 'number') {
  * (si sobró) o abajo (si faltó) de cada barra. `objetivo` ya viene prorrateado
  * a días hábiles transcurridos de cada mes individual (no acumulado).
  */
-export default function DesvioMensualChart({ title, real, objetivo, diasTranscurridos, diasTotal, nMeses, format = 'number' }: Props) {
+export default function DesvioMensualChart({ title, real, objetivo, notaSinObjetivo, diasTranscurridos, diasTotal, nMeses, format = 'number' }: Props) {
   const chartTheme = useChartTheme();
 
+  if (!objetivo) {
+    return (
+      <div className="flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-900 p-4">
+        <h3 className="text-sm font-medium text-slate-300">{title} · Desvío mensual (%)</h3>
+        <div className="flex h-[220px] items-center justify-center px-6 text-center text-xs text-slate-500">
+          {notaSinObjetivo ?? 'Sin objetivo en esta medida.'}
+        </div>
+      </div>
+    );
+  }
+
+  const objetivoMensual = objetivo;
   const data = MESES.slice(0, nMeses).map((mes, i) => {
     const dt = diasTranscurridos[i] ?? 0;
     const dm = diasTotal[i] ?? 0;
-    const objProrr = dm > 0 ? (objetivo[i] ?? 0) * (dt / dm) : 0;
+    const objProrr = dm > 0 ? (objetivoMensual[i] ?? 0) * (dt / dm) : 0;
     const r = real[i] ?? 0;
     const desv = objProrr > 0 ? (r / objProrr) * 100 - 100 : null;
     const gap = objProrr > 0 ? r - objProrr : null;

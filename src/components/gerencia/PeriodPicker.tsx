@@ -17,6 +17,22 @@ export function idxsForPeriodo(periodo: string, nMeses: number): number[] {
   return trimestre ? trimestre[1].filter((i) => i < nMeses) : [];
 }
 
+/**
+ * Consensuado (objetivo sin prorratear) del período elegido: el mes o el
+ * trimestre completo sumando la planilla mes a mes, y en "Acumulado" el total
+ * del año (columna "Total" de la planilla).
+ */
+export function consensuadoDelPeriodo(periodo: string, mensual: number[] | undefined, anual: number | undefined): { label: string; valor: number } | undefined {
+  if (!mensual || anual === undefined) return undefined;
+  if (periodo === 'ACU') return { label: 'año', valor: anual };
+  if (periodo.startsWith('M')) {
+    const i = Number(periodo.slice(1));
+    return { label: MESES[i]?.toLowerCase() ?? '', valor: mensual[i] ?? 0 };
+  }
+  const idxs = TRIMESTRES.find(([key]) => key === periodo)?.[1] ?? [];
+  return { label: periodo, valor: idxs.reduce((a, i) => a + (mensual[i] ?? 0), 0) };
+}
+
 interface Props {
   nMeses: number;
   periodo: string;

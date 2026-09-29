@@ -133,7 +133,7 @@ export const AREAS: AreaConfig[] = [
   {
     slug: 'produccion',
     name: 'Herramientas de producción',
-    description: 'Calculadoras de listones de carpintería y de bandas',
+    description: 'Calculadoras, optimizadores de corte y etiquetas',
     accent: 'amber',
     icon: ICONS.ruler,
     tabs: [
@@ -141,6 +141,7 @@ export const AREAS: AreaConfig[] = [
       { slug: 'calculadora-bandas', name: 'Calculadora de Bandas' },
       { slug: 'optimizador-multicorte', name: 'Optimizador Multicorte' },
       { slug: 'optimizador-vertical', name: 'Optimizador Vertical' },
+      { slug: 'etiquetas-proveedor', name: 'Etiquetas de Proveedor' },
     ],
   },
   {

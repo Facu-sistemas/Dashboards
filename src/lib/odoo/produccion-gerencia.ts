@@ -17,11 +17,11 @@ import { getEquivalenteByTemplate } from './producto-equivalente';
  * uses (plan-produccion-objetivo.ts is a different tab's data source, not
  * reused here).
  *
- * Colchones: raw `qty_produced` (units). Sillones: `qty_produced`
- * ponderado por Unidad Equivalente (`x_studio_equivalente_produccion`,
- * ver producto-equivalente.ts) — mismo campo, mismo criterio que ya
- * confirmamos exacto contra la referencia histórica para Ventas
- * (ver ventas-gerencia.ts). Colchones no tiene este campo, Sillones sí.
+ * Sillones y colchones se devuelven en las dos medidas: cantidad
+ * (`qty_produced` crudo) y Unidad Equivalente (`qty_produced` ×
+ * `x_studio_equivalente_produccion`, ver producto-equivalente.ts) — la
+ * pestaña tiene un toggle. Ambas categorías tienen el campo cargado
+ * (confirmado en vivo 2026-09-29).
  */
 
 export interface ProduccionGerenciaResult {
@@ -30,7 +30,7 @@ export interface ProduccionGerenciaResult {
   mesesConDatos: number;
   diasTranscurridos: number[];
   diasTotal: number[];
-  real: { sillones: number[]; colchones: number[] };
+  real: { sillonesUE: number[]; sillonesCant: number[]; colchonesUE: number[]; colchonesCant: number[] };
   objetivo: { sillones: number[]; colchones: number[] };
   /** Columna "Total" de la planilla de objetivos — el consensuado del año completo, tal cual está cargado en Odoo. */
   objetivoTotalAnual: { sillones: number; colchones: number };
@@ -76,17 +76,17 @@ export async function getProduccionGerencia(): Promise<ProduccionGerenciaResult>
 
   const [livingRows, colchonesRows, objetivos, diasHabiles] = await Promise.all([
     fetchMonthlyRows(LIVING_CATEG_IDS, companyId, start, endExclusive, true),
-    fetchMonthlyRows(COLCHONES_CATEG_IDS, companyId, start, endExclusive, false),
+    fetchMonthlyRows(COLCHONES_CATEG_IDS, companyId, start, endExclusive, true),
     getObjetivosGerencia(),
     getDiasHabiles(year),
   ]);
 
-  const templateIds = [...new Set(livingRows.map((r) => r.product_tmpl_id?.[0]).filter((id): id is number => id !== undefined))];
+  const templateIds = [
+    ...new Set([...livingRows, ...colchonesRows].map((r) => r.product_tmpl_id?.[0]).filter((id): id is number => id !== undefined)),
+  ];
   const ueByTemplate = await getEquivalenteByTemplate(templateIds);
   const ueOf = (r: Row) => r.qty_produced * (ueByTemplate.get(r.product_tmpl_id?.[0] ?? -1) ?? 0);
-
-  const sillonesByMonth = bucketByMonth(livingRows, ueOf);
-  const colchonesByMonth = bucketByMonth(colchonesRows, (r) => r.qty_produced);
+  const cantOf = (r: Row) => r.qty_produced;
 
   return {
     year,
@@ -95,8 +95,10 @@ export async function getProduccionGerencia(): Promise<ProduccionGerenciaResult>
     diasTranscurridos: diasHabiles.diasTranscurridos,
     diasTotal: diasHabiles.diasTotal,
     real: {
-      sillones: toMonthlyArray(sillonesByMonth, months),
-      colchones: toMonthlyArray(colchonesByMonth, months),
+      sillonesUE: toMonthlyArray(bucketByMonth(livingRows, ueOf), months),
+      sillonesCant: toMonthlyArray(bucketByMonth(livingRows, cantOf), months),
+      colchonesUE: toMonthlyArray(bucketByMonth(colchonesRows, ueOf), months),
+      colchonesCant: toMonthlyArray(bucketByMonth(colchonesRows, cantOf), months),
     },
     objetivo: {
       sillones: objetivos.produccion.sillones,
