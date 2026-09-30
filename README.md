@@ -13,7 +13,7 @@ búsqueda) resuelven la consulta contra Odoo en el momento vía una API route �
 
 ### Áreas y estado actual
 
-- **Compras** — Presupuesto de Compras (real vs. presupuestado por categoría y mes),
+- **Compras** — Presupuesto de Compras (real vs. presupuestado por categoría y mes) [en reconstrucción],
   Facturación (comparativo Banco vs. Efectivo por contacto), Consumo de Materia Prima
   vs. Stock.
 - **Comercial** — Tendencia de Precios por producto (histórico mensual, con selección por

@@ -65,6 +65,7 @@ export const AREAS: AreaConfig[] = [
     accent: 'brand',
     icon: ICONS.barChart,
     tabs: [
+      { slug: 'presupuesto-proyectado', name: 'Presupuesto Proyectado' },
       { slug: 'facturacion', name: 'Facturación' },
       { slug: 'politica-vs-real', name: 'Política vs Real' },
       { slug: 'consumo-mp', name: 'Consumo MP vs Stock' },
@@ -105,8 +106,8 @@ export const AREAS: AreaConfig[] = [
     accent: 'orange',
     icon: ICONS.gear,
     tabs: [
-      { slug: 'oee', name: 'Eficiencia (OEE)' },
       { slug: 'plan-produccion', name: 'Plan de Producción' },
+      { slug: 'oee', name: 'Eficiencia (OEE)' },
       { slug: 'top-productos', name: 'Top 10 Productos' },
     ],
   },
