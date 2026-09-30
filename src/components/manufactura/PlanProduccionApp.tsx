@@ -45,6 +45,8 @@ function PlanProduccionInner({ initialPeriodKind, initialDate }: { initialPeriod
         ? `Tendencia diaria ${date.slice(0, 7)}`
         : `Tendencia diaria — semana ${dateToWeekValue(date)}`;
 
+  const chartTitle = periodKind === 'year' ? trendTitle : `${trendTitle} · solo días laborables`;
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
@@ -147,15 +149,8 @@ function PlanProduccionInner({ initialPeriodKind, initialDate }: { initialPeriod
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <PlanProduccionTrendChart title={`Living — ${trendTitle}`} rows={diariaQuery.data ?? EMPTY_DIARIA} pick={(r) => r.living} monthly={periodKind === 'year'} />
-          <PlanProduccionTrendChart title={`Colchones — ${trendTitle}`} rows={diariaQuery.data ?? EMPTY_DIARIA} pick={(r) => r.colchones} monthly={periodKind === 'year'} />
-        </div>
-      )}
-
-      {!diariaQuery.isLoading && periodKind !== 'year' && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <PlanProduccionTrendChart title={`Living — ${trendTitle} · solo días laborables`} rows={diariaQuery.data ?? EMPTY_DIARIA} pick={(r) => r.living} soloLaborables />
-          <PlanProduccionTrendChart title={`Colchones — ${trendTitle} · solo días laborables`} rows={diariaQuery.data ?? EMPTY_DIARIA} pick={(r) => r.colchones} soloLaborables />
+          <PlanProduccionTrendChart title={`Living — ${chartTitle}`} rows={diariaQuery.data ?? EMPTY_DIARIA} pick={(r) => r.living} monthly={periodKind === 'year'} soloLaborables />
+          <PlanProduccionTrendChart title={`Colchones — ${chartTitle}`} rows={diariaQuery.data ?? EMPTY_DIARIA} pick={(r) => r.colchones} monthly={periodKind === 'year'} soloLaborables />
         </div>
       )}
     </div>

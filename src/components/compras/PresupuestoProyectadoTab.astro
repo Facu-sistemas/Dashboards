@@ -1,0 +1,15 @@
+---
+import PresupuestoProyectadoApp from './PresupuestoProyectadoApp';
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Presupuesto Proyectado</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Consumo histórico de cada materia prima, escalado por las ventas proyectadas del año, menos lo que ya
+      tenemos (disponible + entrante). Solo lectura contra Odoo.
+    </p>
+  </header>
+
+  <PresupuestoProyectadoApp client:load />
+</div>
