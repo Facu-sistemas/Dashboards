@@ -1,13 +1,20 @@
-import type { PlanProduccionGauge } from './types';
+import type { PlanProduccionGauge, PlanProduccionPeriodKind } from './types';
 
 interface Props {
   title: string;
   gauge: PlanProduccionGauge;
   /** "UE" for Living, "u" for Colchones — the two categories are not on the same unit, see plan-produccion.ts. */
   unit: string;
-  /** Consensuado del año completo de Gerencia General para esta categoría — mismo dato que Planificado/Cerrado prorratean por día hábil, ver plan-produccion.ts. */
-  consensuadoAnual: number;
+  /** Período elegido — define a qué corresponde el "objetivo" mostrado (del día/semana/mes/año). */
+  periodKind: PlanProduccionPeriodKind;
 }
+
+const OBJETIVO_LABEL: Record<PlanProduccionPeriodKind, string> = {
+  day: 'objetivo del día',
+  week: 'objetivo de la semana',
+  month: 'objetivo del mes',
+  year: 'objetivo acumulado',
+};
 
 const units = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
 const pct = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
@@ -21,20 +28,18 @@ function MetricCard({
   label,
   numerator,
   denominator,
-  denominatorLabel = 'objetivo',
+  denominatorLabel,
   pctValue,
   unit,
   hasTarget,
-  consensuadoAnual,
 }: {
   label: string;
   numerator: number;
   denominator: number;
-  denominatorLabel?: string;
+  denominatorLabel: string;
   pctValue: number;
   unit: string;
   hasTarget: boolean;
-  consensuadoAnual?: number;
 }) {
   const badgeColor = !hasTarget ? 'bg-slate-800 text-slate-400' : pctValue >= 100 ? 'bg-status-green/15 text-status-green' : pctValue >= 85 ? 'bg-status-yellow/15 text-status-yellow' : 'bg-status-red/15 text-status-red';
 
@@ -53,11 +58,6 @@ function MetricCard({
       ) : (
         <p className="text-xs text-slate-500">{unit} — sin objetivo cargado para este período</p>
       )}
-      {!!consensuadoAnual && consensuadoAnual > 0 && (
-        <p className="text-xs text-slate-600">
-          consensuado año: {units.format(consensuadoAnual)} {unit}
-        </p>
-      )}
       {hasTarget && (
         <span className={`mt-2 inline-flex w-fit rounded-full px-2 py-0.5 text-xs font-semibold ${badgeColor}`}>
           {pctValue >= 100 ? '▲' : '▼'} {pct.format(pctValue)}%
@@ -68,15 +68,16 @@ function MetricCard({
   );
 }
 
-export default function PlanProduccionCard({ title, gauge, unit, consensuadoAnual }: Props) {
+export default function PlanProduccionCard({ title, gauge, unit, periodKind }: Props) {
   const hasObjetivo = gauge.objetivo > 0;
+  const objetivoLabel = OBJETIVO_LABEL[periodKind];
   return (
     <div className="flex h-full flex-col gap-3">
       <h3 className="border-b border-slate-800 pb-1 text-sm font-semibold uppercase tracking-wide text-slate-300">{title}</h3>
       <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-3">
-        <MetricCard label="Planificado" numerator={gauge.planificado} denominator={gauge.objetivo} pctValue={gauge.planificadoPct} unit={unit} hasTarget={hasObjetivo} consensuadoAnual={consensuadoAnual} />
+        <MetricCard label="Planificado" numerator={gauge.planificado} denominator={gauge.objetivo} pctValue={gauge.planificadoPct} unit={unit} hasTarget={hasObjetivo} denominatorLabel={objetivoLabel} />
         <MetricCard label="Cumplimiento" numerator={gauge.producido} denominator={gauge.planificadoAHoy} denominatorLabel="planificado a hoy" pctValue={gauge.cumplimientoPct} unit={unit} hasTarget={gauge.planificadoAHoy > 0} />
-        <MetricCard label="Cerrado" numerator={gauge.cerrado} denominator={gauge.objetivo} pctValue={gauge.cerradoPct} unit={unit} hasTarget={hasObjetivo} consensuadoAnual={consensuadoAnual} />
+        <MetricCard label="Cerrado" numerator={gauge.cerrado} denominator={gauge.objetivo} pctValue={gauge.cerradoPct} unit={unit} hasTarget={hasObjetivo} denominatorLabel={objetivoLabel} />
       </div>
     </div>
   );
