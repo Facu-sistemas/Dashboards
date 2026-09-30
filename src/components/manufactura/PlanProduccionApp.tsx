@@ -129,8 +129,8 @@ function PlanProduccionInner({ initialPeriodKind, initialDate }: { initialPeriod
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <PlanProduccionCard title="Living" gauge={query.data?.living ?? EMPTY_GAUGE} unit="UE" consensuadoAnual={query.data?.objetivoAnual.living ?? 0} />
-          <PlanProduccionCard title="Colchones" gauge={query.data?.colchones ?? EMPTY_GAUGE} unit="u" consensuadoAnual={query.data?.objetivoAnual.colchones ?? 0} />
+          <PlanProduccionCard title="Living" gauge={query.data?.living ?? EMPTY_GAUGE} unit="UE" periodKind={periodKind} />
+          <PlanProduccionCard title="Colchones" gauge={query.data?.colchones ?? EMPTY_GAUGE} unit="u" periodKind={periodKind} />
         </div>
       )}
 

@@ -178,10 +178,18 @@ export async function getPlanProduccion(periodKind: PeriodKind, anchorIso: strin
   const unidadesEqOf = (r: PlannedRow | ClosedRow) => r.x_studio_unidades_eq;
   const cantOf = (r: PlannedRow | ClosedRow) => r.product_qty;
 
+  // Vista anual: el objetivo es la suma de los consensuados mensuales hasta el
+  // mes en curso inclusive (no el total del año) — así % = cerrado / acumulado.
+  let objetivoEnd = endExclusive;
+  if (periodKind === 'year') {
+    const currentMonthEnd = monthBounds(getArgentinaTodayIso().slice(0, 7)).endExclusive;
+    if (currentMonthEnd > start && currentMonthEnd < endExclusive) objetivoEnd = currentMonthEnd;
+  }
+
   return {
     period: { kind: periodKind, date: anchorIso, start, endExclusive },
-    colchones: sameDayGauge(colchonesPlanned, colchonesClosed, sumObjetivo(objetivoDia.colchones, start, endExclusive), cantOf),
-    living: sameDayGauge(livingPlanned, livingClosed, sumObjetivo(objetivoDia.living, start, endExclusive), unidadesEqOf),
+    colchones: sameDayGauge(colchonesPlanned, colchonesClosed, sumObjetivo(objetivoDia.colchones, start, objetivoEnd), cantOf),
+    living: sameDayGauge(livingPlanned, livingClosed, sumObjetivo(objetivoDia.living, start, objetivoEnd), unidadesEqOf),
     objetivoAnual: objetivoDia.totalAnual,
   };
 }
