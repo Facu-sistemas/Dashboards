@@ -151,6 +151,13 @@ function PlanProduccionInner({ initialPeriodKind, initialDate }: { initialPeriod
           <PlanProduccionTrendChart title={`Colchones — ${trendTitle}`} rows={diariaQuery.data ?? EMPTY_DIARIA} pick={(r) => r.colchones} monthly={periodKind === 'year'} />
         </div>
       )}
+
+      {!diariaQuery.isLoading && periodKind !== 'year' && (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <PlanProduccionTrendChart title={`Living — ${trendTitle} · solo días laborables`} rows={diariaQuery.data ?? EMPTY_DIARIA} pick={(r) => r.living} soloLaborables />
+          <PlanProduccionTrendChart title={`Colchones — ${trendTitle} · solo días laborables`} rows={diariaQuery.data ?? EMPTY_DIARIA} pick={(r) => r.colchones} soloLaborables />
+        </div>
+      )}
     </div>
   );
 }

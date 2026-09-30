@@ -17,7 +17,8 @@ function fmtGap(v: number) {
 }
 
 /**
- * Desvío mensual (%) entre cantidad y unidad equivalente — mismo formato que
+ * Desvío mensual (%) de la unidad equivalente respecto de la cantidad
+ * (UE / cantidad − 1: positivo = la UE supera a las unidades) — mismo formato que
  * DesvioMensualChart, pero sin prorrateo a días hábiles (no hay "objetivo",
  * son dos formas de medir lo mismo). En colchones el factor UE ronda 1, así
  * que el gráfico de barras agrupadas casi no se nota la diferencia; este
@@ -29,8 +30,8 @@ export default function UeVsCantidadDesvioChart({ title, ue, cantidad, nMeses }:
   const data = MESES.slice(0, nMeses).map((mes, i) => {
     const u = ue[i] ?? 0;
     const c = cantidad[i] ?? 0;
-    const desv = u > 0 ? (c / u) * 100 - 100 : null;
-    const gap = u > 0 ? c - u : null;
+    const desv = c > 0 ? (u / c) * 100 - 100 : null;
+    const gap = c > 0 ? u - c : null;
     return { mes, desv, gapLabel: gap === null ? '' : fmtGap(gap) };
   });
 
@@ -47,7 +48,7 @@ export default function UeVsCantidadDesvioChart({ title, ue, cantidad, nMeses }:
             contentStyle={{ background: chartTheme.tooltipBg, border: `1px solid ${chartTheme.tooltipBorder}`, borderRadius: 8 }}
             labelStyle={{ color: chartTheme.tooltipText }}
             itemStyle={{ color: chartTheme.tooltipText }}
-            formatter={(value: number, _name, props) => [`${value >= 0 ? '+' : ''}${value.toFixed(1)}% (${props.payload.gapLabel})`, 'Cantidad vs UE']}
+            formatter={(value: number, _name, props) => [`${value >= 0 ? '+' : ''}${value.toFixed(1)}% (${props.payload.gapLabel})`, 'UE vs Cantidad']}
           />
           <Bar dataKey="desv" radius={[3, 3, 3, 3]} isAnimationActive={false}>
             {data.map((d, i) => (

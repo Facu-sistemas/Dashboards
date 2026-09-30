@@ -8,6 +8,13 @@ interface Props {
   pick: (row: PlanProduccionDailyRow) => PlanProduccionGauge;
   /** Rows are one-per-month (year view) instead of one-per-day — changes the x-axis label format. */
   monthly?: boolean;
+  /**
+   * Oculta los días que empujarían la línea a 0%: se deja el día solo si
+   * tiene objetivo prorrateado (hábil) Y registros (planificado/cerrado).
+   * Sin objetivo el % no se puede calcular, así que un sábado trabajado
+   * tampoco aparece; un día hábil sin ningún registro (feriado) tampoco.
+   */
+  soloLaborables?: boolean;
 }
 
 // timeZone: 'UTC' is load-bearing — see monthOptions.ts for why.
@@ -27,10 +34,18 @@ function pctDomainMax(dataMax: number): number {
   return Math.max(150, dataMax);
 }
 
-export default function PlanProduccionTrendChart({ title, rows, pick, monthly = false }: Props) {
+export default function PlanProduccionTrendChart({ title, rows, pick, monthly = false, soloLaborables = false }: Props) {
   const chartTheme = useChartTheme();
 
-  const data = rows.map((r) => {
+  const visibleRows =
+    soloLaborables && !monthly
+      ? rows.filter((r) => {
+          const g = pick(r);
+          return g.objetivo > 0 && (g.planificado > 0 || g.cerrado > 0);
+        })
+      : rows;
+
+  const data = visibleRows.map((r) => {
     const g = pick(r);
     return {
       day: dayLabel(r.date, monthly),
