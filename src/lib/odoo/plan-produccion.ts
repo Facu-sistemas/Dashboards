@@ -8,14 +8,10 @@ import { getBusinessDayChecker, getDiasHabiles } from './business-calendar';
 export type { PeriodKind };
 
 /**
- * Colchones works in raw units (`product_qty`). Living works in UE
- * (Unidad Equivalente) = `product_qty × x_studio_equivalente_produccion`
- * (the per-product multiplier on `product.template`) — confirmed live
- * this is the RIGHT field: `mrp.production.x_studio_ue_x_cant_1` (used
- * previously) reads 0 on ~64% of Living's orders, but every one of those
- * orders' products has a proper non-zero multiplier on `product.template`.
- * `x_studio_ue_x_cant_1` is just a stale/unsynced computed field — this
- * multiplies the raw multiplier directly instead of trusting it.
+ * Living trabaja en `x_studio_unidades_eq` (columna "Unidades equivalentes"
+ * de Órdenes de fabricación — confirmado 2026-09-30: 1528,43 cerrados en
+ * septiembre); ya no se usa `product_qty × multiplicador`. Colchones queda
+ * en cantidad cruda (`product_qty`).
  *
  * `objetivo` es el "PRODUCCION CONSENSUADO" de Gerencia General (tabla
  * "Equipo de gestión", ver gerencia-objetivos.ts): Colchones = fila
@@ -24,18 +20,18 @@ export type { PeriodKind };
  * fines de semana/feriados) para poder armar día/semana/mes/año.
  */
 export interface PlanProduccionGauge {
-  /** Raw value — UE for Living, units for Colchones. */
+  /** UE (x_studio_unidades_eq) para Living, unidades para Colchones. */
   planificado: number;
-  /** Same unit — the part of `planificado` ALSO closed the same calendar day it was planned for (no longer used for `cumplimientoPct`, kept for drill-down). */
+  /** Same unit — the part of `planificado` ALSO closed the same calendar day it was planned for (numerador de `cumplimientoPct`). */
   producido: number;
   cerrado: number;
   /** Consensuado de Gerencia prorrateado por día hábil — 0 si no hay objetivo cargado para ese período/día. */
   objetivo: number;
-  /** Parte de `planificado` con fecha planificada hasta hoy inclusive (ya no se usa para `cumplimientoPct`, kept for drill-down). */
+  /** Parte de `planificado` con fecha planificada hasta hoy inclusive (denominador de `cumplimientoPct`). */
   planificadoAHoy: number;
   /** planificado / objetivo. */
   planificadoPct: number;
-  /** cerrado / planificado — confirmado por el usuario (2026-09-29). */
+  /** producido / planificadoAHoy — confirmado por el usuario (2026-09-30). */
   cumplimientoPct: number;
   /** cerrado / objetivo. */
   cerradoPct: number;
@@ -56,10 +52,10 @@ export interface PlanProduccionDailyRow {
 }
 
 /** `date_finished` is `false`/unset for orders that haven't closed yet. */
-type PlannedRow = { planning_date: string; date_finished: string | false; state: string; product_qty: number; product_tmpl_id?: [number, string] };
-type ClosedRow = { date_finished: string; product_qty: number; product_tmpl_id?: [number, string] };
+type PlannedRow = { planning_date: string; date_finished: string | false; state: string; product_qty: number; x_studio_unidades_eq: number };
+type ClosedRow = { date_finished: string; product_qty: number; x_studio_unidades_eq: number };
 
-async function fetchPlannedRows(categIds: number[], companyId: number, start: string, endExclusive: string, withTemplate: boolean): Promise<PlannedRow[]> {
+async function fetchPlannedRows(categIds: number[], companyId: number, start: string, endExclusive: string): Promise<PlannedRow[]> {
   return searchReadAll<PlannedRow>({
     model: 'mrp.production',
     domain: [
@@ -68,13 +64,11 @@ async function fetchPlannedRows(categIds: number[], companyId: number, start: st
       ['planning_date', '>=', start],
       ['planning_date', '<', endExclusive],
     ],
-    fields: withTemplate
-      ? ['planning_date', 'date_finished', 'state', 'product_qty', 'product_tmpl_id']
-      : ['planning_date', 'date_finished', 'state', 'product_qty'],
+    fields: ['planning_date', 'date_finished', 'state', 'product_qty', 'x_studio_unidades_eq'],
   });
 }
 
-async function fetchClosedRows(categIds: number[], companyId: number, start: string, endExclusive: string, withTemplate: boolean): Promise<ClosedRow[]> {
+async function fetchClosedRows(categIds: number[], companyId: number, start: string, endExclusive: string): Promise<ClosedRow[]> {
   return searchReadAll<ClosedRow>({
     model: 'mrp.production',
     domain: [
@@ -84,20 +78,8 @@ async function fetchClosedRows(categIds: number[], companyId: number, start: str
       ['date_finished', '>=', start],
       ['date_finished', '<', endExclusive],
     ],
-    fields: withTemplate ? ['date_finished', 'product_qty', 'product_tmpl_id'] : ['date_finished', 'product_qty'],
+    fields: ['date_finished', 'product_qty', 'x_studio_unidades_eq'],
   });
-}
-
-/** UE multiplier (`x_studio_equivalente_produccion`) per `product.template` id, for the templates actually referenced by a batch of rows. */
-async function multiplierByTemplate(rows: (PlannedRow | ClosedRow)[]): Promise<Map<number, number>> {
-  const tmplIds = [...new Set(rows.map((r) => r.product_tmpl_id?.[0]).filter((id): id is number => id !== undefined))];
-  if (tmplIds.length === 0) return new Map();
-  const templates = await searchReadAll<{ id: number; x_studio_equivalente_produccion: number }>({
-    model: 'product.template',
-    domain: [['id', 'in', tmplIds]],
-    fields: ['x_studio_equivalente_produccion'],
-  });
-  return new Map(templates.map((t) => [t.id, t.x_studio_equivalente_produccion]));
 }
 
 function everyDay(start: string, endExclusive: string): string[] {
@@ -145,9 +127,10 @@ function buildGauge(planificado: number, planificadoAHoy: number, producido: num
     cerrado,
     objetivo,
     planificadoPct: objetivo > 0 ? (planificado / objetivo) * 100 : 0,
-    // Confirmado por el usuario (2026-09-29): cumplimiento = lo cerrado hasta
-    // hoy sobre lo planificado del período, no el cruce "mismo día" de antes.
-    cumplimientoPct: planificado > 0 ? (cerrado / planificado) * 100 : 0,
+    // Confirmado por el usuario (2026-09-30): cumplimiento = lo producido en
+    // tiempo y forma (planificado y cerrado el mismo día) sobre lo planificado
+    // hasta hoy; lo que se arrastra al día siguiente no cuenta como cumplido.
+    cumplimientoPct: planificadoAHoy > 0 ? (producido / planificadoAHoy) * 100 : 0,
     cerradoPct: objetivo > 0 ? (cerrado / objetivo) * 100 : 0,
   };
 }
@@ -186,19 +169,19 @@ export async function getPlanProduccion(periodKind: PeriodKind, anchorIso: strin
   const { start, endExclusive } = periodBounds(periodKind, anchorIso);
 
   const [colchonesPlanned, colchonesClosed, livingPlanned, livingClosed, objetivoDia] = await Promise.all([
-    fetchPlannedRows(COLCHONES_CATEG_IDS, companyId, start, endExclusive, false),
-    fetchClosedRows(COLCHONES_CATEG_IDS, companyId, start, endExclusive, false),
-    fetchPlannedRows(LIVING_CATEG_IDS, companyId, start, endExclusive, true),
-    fetchClosedRows(LIVING_CATEG_IDS, companyId, start, endExclusive, true),
+    fetchPlannedRows(COLCHONES_CATEG_IDS, companyId, start, endExclusive),
+    fetchClosedRows(COLCHONES_CATEG_IDS, companyId, start, endExclusive),
+    fetchPlannedRows(LIVING_CATEG_IDS, companyId, start, endExclusive),
+    fetchClosedRows(LIVING_CATEG_IDS, companyId, start, endExclusive),
     getObjetivoPorDia(start, endExclusive),
   ]);
-  const multiplier = await multiplierByTemplate([...livingPlanned, ...livingClosed]);
-  const ueOf = (r: PlannedRow | ClosedRow) => r.product_qty * (multiplier.get(r.product_tmpl_id?.[0] ?? -1) ?? 0);
+  const unidadesEqOf = (r: PlannedRow | ClosedRow) => r.x_studio_unidades_eq;
+  const cantOf = (r: PlannedRow | ClosedRow) => r.product_qty;
 
   return {
     period: { kind: periodKind, date: anchorIso, start, endExclusive },
-    colchones: sameDayGauge(colchonesPlanned, colchonesClosed, sumObjetivo(objetivoDia.colchones, start, endExclusive), (r) => r.product_qty),
-    living: sameDayGauge(livingPlanned, livingClosed, sumObjetivo(objetivoDia.living, start, endExclusive), ueOf),
+    colchones: sameDayGauge(colchonesPlanned, colchonesClosed, sumObjetivo(objetivoDia.colchones, start, endExclusive), cantOf),
+    living: sameDayGauge(livingPlanned, livingClosed, sumObjetivo(objetivoDia.living, start, endExclusive), unidadesEqOf),
     objetivoAnual: objetivoDia.totalAnual,
   };
 }
@@ -240,14 +223,14 @@ export async function getPlanProduccionDiaria(periodKind: PeriodKind, anchorIso:
   const { start, endExclusive } = trendBounds(periodKind, anchorIso);
 
   const [colchonesPlanned, colchonesClosed, livingPlanned, livingClosed, objetivoDia] = await Promise.all([
-    fetchPlannedRows(COLCHONES_CATEG_IDS, companyId, start, endExclusive, false),
-    fetchClosedRows(COLCHONES_CATEG_IDS, companyId, start, endExclusive, false),
-    fetchPlannedRows(LIVING_CATEG_IDS, companyId, start, endExclusive, true),
-    fetchClosedRows(LIVING_CATEG_IDS, companyId, start, endExclusive, true),
+    fetchPlannedRows(COLCHONES_CATEG_IDS, companyId, start, endExclusive),
+    fetchClosedRows(COLCHONES_CATEG_IDS, companyId, start, endExclusive),
+    fetchPlannedRows(LIVING_CATEG_IDS, companyId, start, endExclusive),
+    fetchClosedRows(LIVING_CATEG_IDS, companyId, start, endExclusive),
     getObjetivoPorDia(start, endExclusive),
   ]);
-  const multiplier = await multiplierByTemplate([...livingPlanned, ...livingClosed]);
-  const ueOf = (r: PlannedRow | ClosedRow) => r.product_qty * (multiplier.get(r.product_tmpl_id?.[0] ?? -1) ?? 0);
+  const unidadesEqOf = (r: PlannedRow | ClosedRow) => r.x_studio_unidades_eq;
+  const cantOf = (r: PlannedRow | ClosedRow) => r.product_qty;
 
   function bucket<T extends { planning_date?: string; date_finished?: string | false }>(rows: T[], field: 'planning_date' | 'date_finished'): Map<string, T[]> {
     const map = new Map<string, T[]>();
@@ -271,8 +254,8 @@ export async function getPlanProduccionDiaria(periodKind: PeriodKind, anchorIso:
 
   const dailyRows = everyDay(start, endExclusive).map((date) => ({
     date,
-    colchones: sameDayGauge(colchonesPlannedByDay.get(date) ?? [], colchonesClosedByDay.get(date) ?? [], colchonesObjetivoByDay.get(date) ?? 0, (r) => r.product_qty),
-    living: sameDayGauge(livingPlannedByDay.get(date) ?? [], livingClosedByDay.get(date) ?? [], livingObjetivoByDay.get(date) ?? 0, ueOf),
+    colchones: sameDayGauge(colchonesPlannedByDay.get(date) ?? [], colchonesClosedByDay.get(date) ?? [], colchonesObjetivoByDay.get(date) ?? 0, cantOf),
+    living: sameDayGauge(livingPlannedByDay.get(date) ?? [], livingClosedByDay.get(date) ?? [], livingObjetivoByDay.get(date) ?? 0, unidadesEqOf),
   }));
 
   if (periodKind !== 'year') return dailyRows;
