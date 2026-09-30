@@ -75,7 +75,7 @@ export default function PlanProduccionCard({ title, gauge, unit, consensuadoAnua
       <h3 className="border-b border-slate-800 pb-1 text-sm font-semibold uppercase tracking-wide text-slate-300">{title}</h3>
       <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-3">
         <MetricCard label="Planificado" numerator={gauge.planificado} denominator={gauge.objetivo} pctValue={gauge.planificadoPct} unit={unit} hasTarget={hasObjetivo} consensuadoAnual={consensuadoAnual} />
-        <MetricCard label="Cumplimiento" numerator={gauge.cerrado} denominator={gauge.planificado} denominatorLabel="planificado" pctValue={gauge.cumplimientoPct} unit={unit} hasTarget={gauge.planificado > 0} />
+        <MetricCard label="Cumplimiento" numerator={gauge.producido} denominator={gauge.planificadoAHoy} denominatorLabel="planificado a hoy" pctValue={gauge.cumplimientoPct} unit={unit} hasTarget={gauge.planificadoAHoy > 0} />
         <MetricCard label="Cerrado" numerator={gauge.cerrado} denominator={gauge.objetivo} pctValue={gauge.cerradoPct} unit={unit} hasTarget={hasObjetivo} consensuadoAnual={consensuadoAnual} />
       </div>
     </div>
