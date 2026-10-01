@@ -145,6 +145,7 @@ export const AREAS: AreaConfig[] = [
       { slug: 'calculadora-bandas', name: 'Calculadora de Bandas' },
       { slug: 'optimizador-multicorte', name: 'Optimizador Multicorte' },
       { slug: 'optimizador-vertical', name: 'Optimizador Vertical (Living)' },
+      { slug: 'planificado-linea', name: 'Planificado Línea' },
     ],
   },
   {
