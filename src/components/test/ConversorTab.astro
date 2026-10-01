@@ -1,6 +1,7 @@
 ---
 import ConversorExcelCsv from './ConversorExcelCsv';
 import MarkdownAPdf from './MarkdownAPdf';
+import CopiadoRapido from './CopiadoRapido';
 ---
 
 <div>
@@ -12,6 +13,17 @@ import MarkdownAPdf from './MarkdownAPdf';
   </header>
 
   <ConversorExcelCsv client:only="react" />
+
+  <hr class="my-8 border-slate-800" />
+
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Copiado rápido</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Guardá los pedacitos de texto que usás siempre y copialos al portapapeles con un clic.
+    </p>
+  </header>
+
+  <CopiadoRapido client:only="react" />
 
   <hr class="my-8 border-slate-800" />
 

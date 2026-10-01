@@ -126,23 +126,25 @@ export const AREAS: AreaConfig[] = [
   {
     slug: 'almacen',
     name: 'Almacén',
-    description: 'Mapa interactivo de ubicaciones de stock',
+    description: 'Mapa de ubicaciones de stock y etiquetas de proveedor',
     accent: 'cyan',
     icon: ICONS.box,
-    tabs: [{ slug: 'mapa-deposito', name: 'Mapa de Depósito' }],
+    tabs: [
+      { slug: 'mapa-deposito', name: 'Mapa de Depósito' },
+      { slug: 'etiquetas-proveedor', name: 'Etiquetas de Proveedor' },
+    ],
   },
   {
     slug: 'produccion',
     name: 'Herramientas de producción',
-    description: 'Calculadoras, optimizadores de corte y etiquetas',
+    description: 'Calculadoras y optimizadores de corte',
     accent: 'amber',
     icon: ICONS.ruler,
     tabs: [
       { slug: 'calculadora-carpinteria', name: 'Calculadora Carpintería' },
       { slug: 'calculadora-bandas', name: 'Calculadora de Bandas' },
       { slug: 'optimizador-multicorte', name: 'Optimizador Multicorte' },
-      { slug: 'optimizador-vertical', name: 'Optimizador Vertical' },
-      { slug: 'etiquetas-proveedor', name: 'Etiquetas de Proveedor' },
+      { slug: 'optimizador-vertical', name: 'Optimizador Vertical (Living)' },
     ],
   },
   {
