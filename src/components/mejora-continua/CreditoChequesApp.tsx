@@ -14,16 +14,30 @@ interface Props {
   dehydratedState?: DehydratedState;
 }
 
-/** Por default muestra el monto compacto; click alterna al monto exacto. `alwaysExact` lo deja siempre en exacto y sin click (Total por Cobrar). */
-function KpiCard({ label, value, highlight, alwaysExact }: { label: string; value: number; highlight?: boolean; alwaysExact?: boolean }) {
-  const [exact, setExact] = useState(Boolean(alwaysExact));
+/**
+ * Las 5 cards comparten un solo estado de exacto/compacto (controlado desde
+ * el padre) — click en cualquiera las alterna a todas juntas, no una por una.
+ */
+function KpiCard({
+  label,
+  value,
+  highlight,
+  exact,
+  onToggle,
+}: {
+  label: string;
+  value: number;
+  highlight?: boolean;
+  exact: boolean;
+  onToggle: () => void;
+}) {
   const display = exact ? formatExactCurrency(value) : formatCompactCurrency(value);
   return (
     <button
       type="button"
-      onClick={alwaysExact ? undefined : () => setExact((v) => !v)}
-      title={alwaysExact ? undefined : exact ? 'Click para volver al monto compacto' : 'Click para ver el monto exacto'}
-      className={`rounded-lg border p-4 text-left transition-colors ${highlight ? 'border-brand-500/40 bg-brand-500/5' : 'border-slate-800 bg-slate-900'} ${alwaysExact ? 'cursor-default' : 'cursor-pointer hover:bg-slate-800/60'}`}
+      onClick={onToggle}
+      title={exact ? 'Click para volver a montos compactos' : 'Click para ver montos exactos'}
+      className={`cursor-pointer rounded-lg border p-4 text-left transition-colors hover:bg-slate-800/60 ${highlight ? 'border-brand-500/40 bg-brand-500/5' : 'border-slate-800 bg-slate-900'}`}
     >
       <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
       <p className={`mt-1 text-2xl font-semibold ${highlight ? 'text-brand-400' : 'text-slate-100'}`}>{display}</p>
@@ -34,6 +48,8 @@ function KpiCard({ label, value, highlight, alwaysExact }: { label: string; valu
 function CreditoChequesInner() {
   const [sortBy, setSortBy] = useState<CreditoSortBy>('totalCredito');
   const [selectedPartnerId, setSelectedPartnerId] = useState<number | null>(null);
+  const [exactKpis, setExactKpis] = useState(false);
+  const toggleExactKpis = () => setExactKpis((v) => !v);
 
   const query = useApiQuery<CreditoClientesData>(['credito-clientes'], '/api/credito-clientes');
   const data = query.data;
@@ -68,11 +84,11 @@ function CreditoChequesInner() {
         <div className="h-24 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <KpiCard label="Total por Cobrar" value={data.totales.totalPorCobrar} alwaysExact />
-          <KpiCard label="Cheques Activos" value={data.totales.totalChequesActivos} />
-          <KpiCard label="Pedidos Pendientes" value={data.totales.pedidosPendientes} />
-          <KpiCard label="Total Crédito" value={data.totales.totalCredito} highlight />
-          <KpiCard label="Límite de Crédito" value={data.totales.limiteCredito} />
+          <KpiCard label="Total por Cobrar" value={data.totales.totalPorCobrar} exact={exactKpis} onToggle={toggleExactKpis} />
+          <KpiCard label="Cheques Activos" value={data.totales.totalChequesActivos} exact={exactKpis} onToggle={toggleExactKpis} />
+          <KpiCard label="Pedidos Pendientes" value={data.totales.pedidosPendientes} exact={exactKpis} onToggle={toggleExactKpis} />
+          <KpiCard label="Total Crédito" value={data.totales.totalCredito} highlight exact={exactKpis} onToggle={toggleExactKpis} />
+          <KpiCard label="Límite de Crédito" value={data.totales.limiteCredito} exact={exactKpis} onToggle={toggleExactKpis} />
         </div>
       )}
 
@@ -104,7 +120,11 @@ function CreditoChequesInner() {
 
       <section className="flex flex-col gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
         <h3 className="text-sm font-medium text-slate-300">Clientes</h3>
-        <p className="-mt-2 text-xs text-slate-500">Click en un cliente para ver su distribución de cheques arriba.</p>
+        <p className="-mt-2 text-xs text-slate-500">
+          Click en un cliente para ver su distribución de cheques arriba. "Pedidos Pendientes" con{' '}
+          <span className="underline decoration-dotted decoration-slate-500 underline-offset-4">subrayado punteado</span> incluye monto de
+          Presupuesto (no facturado realmente), pasá el mouse para ver cuánto.
+        </p>
         {query.isLoading || !data ? (
           <div className="h-64 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
         ) : (

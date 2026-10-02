@@ -141,7 +141,18 @@ export default function CreditoChequesTable({ rows, chequesPorMesPorCliente, sel
                       </td>
                       <td className="py-2 pr-4 text-right tabular-nums text-slate-300">{formatExactCurrency(r.totalPorCobrar)}</td>
                       <td className="py-2 pr-4 text-right tabular-nums text-slate-300">{formatExactCurrency(r.totalChequesActivos)}</td>
-                      <td className="py-2 pr-4 text-right tabular-nums text-slate-300">{formatExactCurrency(r.pedidosPendientes)}</td>
+                      <td
+                        className={`py-2 pr-4 text-right tabular-nums text-slate-300 ${r.pedidosPendientesPresupuesto !== 0 ? 'underline decoration-dotted decoration-slate-500 underline-offset-4' : ''}`}
+                        title={
+                          r.pedidosPendientesPresupuesto !== 0
+                            ? r.pedidosPendientesPresupuesto === r.pedidosPendientes
+                              ? 'Todo Presupuesto (sin factura real)'
+                              : `Incluye ${formatExactCurrency(r.pedidosPendientesPresupuesto)} de Presupuesto, el resto es factura`
+                            : undefined
+                        }
+                      >
+                        {formatExactCurrency(r.pedidosPendientes)}
+                      </td>
                       <td className={`py-2 pr-4 text-right tabular-nums font-semibold ${usoColor ?? 'text-slate-100'}`}>
                         {formatExactCurrency(r.totalCredito)}
                       </td>
