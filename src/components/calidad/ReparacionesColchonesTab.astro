@@ -1,0 +1,40 @@
+---
+import ReparacionesColchonesApp from './ReparacionesColchonesApp';
+import { buildReparacionesDehydratedState } from '../../lib/reparaciones-colchones-ssr';
+import type { CalidadRange } from './types';
+
+const RANGE_VALUES: CalidadRange[] = ['all', 'this-year', 'last-12-months', 'last-6-months'];
+
+const params = Astro.url.searchParams;
+const rangeParam = params.get('range');
+const initialRange: CalidadRange = RANGE_VALUES.includes(rangeParam as CalidadRange) ? (rangeParam as CalidadRange) : 'last-12-months';
+
+let dehydratedState;
+let ssrError: string | null = null;
+try {
+  dehydratedState = await buildReparacionesDehydratedState(initialRange);
+} catch (err) {
+  ssrError = err instanceof Error ? err.message : 'Error desconocido consultando Odoo';
+}
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Reparaciones</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Devoluciones en reparación — Living y Colchón por separado — (horas de trabajo y plata recuperada) contrapuestas
+      contra la cantidad fabricada de cada sector ese mismo mes. Solo lectura.
+    </p>
+  </header>
+
+  {
+    ssrError && (
+      <p class="mb-6 rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">
+        No se pudo precargar la data desde Odoo en el servidor ({ssrError}). El panel
+        intentará cargar los datos desde el navegador.
+      </p>
+    )
+  }
+
+  <ReparacionesColchonesApp client:load initialRange={initialRange} dehydratedState={dehydratedState} />
+</div>

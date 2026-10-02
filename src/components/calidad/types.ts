@@ -34,3 +34,43 @@ export interface TicketsSoporteResult {
   mensual: TicketsMonthlyPoint[];
   notasCreditoGarantia: NotasCreditoGarantiaPoint[];
 }
+
+export interface ReparacionSectorMonthlyPoint {
+  month: string;
+  cantidadReparaciones: number;
+  horasReparacion: number;
+  totalRecuperado: number;
+  unidadesFabricadas: number;
+  reparacionesPorMilUnidades: number | null;
+}
+
+export interface ReparacionesSectorResult {
+  totalReparaciones: number;
+  totalHoras: number;
+  totalRecuperado: number;
+  totalUnidadesFabricadas: number;
+  mensual: ReparacionSectorMonthlyPoint[];
+}
+
+export interface ReparacionColchonMonthlyPoint {
+  month: string;
+  cantidadNotasCredito: number;
+  montoNotasCredito: number;
+  horasReparacion: number;
+  unidadesFabricadas: number;
+  notasCreditoPorMilUnidades: number | null;
+}
+
+export interface ReparacionesColchonResult {
+  totalNotasCredito: number;
+  totalMontoNotasCredito: number;
+  totalHoras: number;
+  totalUnidadesFabricadas: number;
+  mensual: ReparacionColchonMonthlyPoint[];
+}
+
+export interface ReparacionesResult {
+  totalSinSector: number;
+  living: ReparacionesSectorResult;
+  colchon: ReparacionesColchonResult;
+}
