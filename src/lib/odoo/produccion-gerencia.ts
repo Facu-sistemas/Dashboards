@@ -40,9 +40,9 @@ export interface ProduccionGerenciaResult {
   objetivoTotalAnual: { sillones: number; colchones: number };
 }
 
-type Row = { date_finished: string; qty_produced: number; x_studio_unidades_eq: number; product_tmpl_id?: [number, string] };
+export type Row = { date_finished: string; qty_produced: number; x_studio_unidades_eq: number; product_tmpl_id?: [number, string] };
 
-async function fetchMonthlyRows(categIds: number[], companyId: number, start: string, endExclusive: string, withTemplate: boolean): Promise<Row[]> {
+export async function fetchMonthlyRows(categIds: number[], companyId: number, start: string, endExclusive: string, withTemplate: boolean): Promise<Row[]> {
   return searchReadAll<Row>({
     model: 'mrp.production',
     domain: [
