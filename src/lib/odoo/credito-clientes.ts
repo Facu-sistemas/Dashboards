@@ -64,6 +64,8 @@ export interface ClienteCreditoRow {
    * untaxed_amount_invoiced` (lo que falta facturar de esa línea).
    */
   pedidosPendientes: number;
+  /** Parte de `pedidosPendientes` que viene de líneas facturables por Presupuesto (vs. factura real de Frontera Living) — para marcarlo visualmente en la tabla. */
+  pedidosPendientesPresupuesto: number;
   /** chequesActivos + porCobrar + pedidosPendientes. */
   totalCredito: number;
 }
@@ -95,6 +97,7 @@ export interface CreditoClientesData {
 interface PartnerAgg {
   chequesActivos: number;
   pedidosPendientes: number;
+  pedidosPendientesPresupuesto: number;
 }
 
 export async function getCreditoClientes(): Promise<CreditoClientesData> {
@@ -145,7 +148,7 @@ export async function getCreditoClientes(): Promise<CreditoClientesData> {
   function bucket(id: number): PartnerAgg {
     let a = byPartner.get(id);
     if (!a) {
-      a = { chequesActivos: 0, pedidosPendientes: 0 };
+      a = { chequesActivos: 0, pedidosPendientes: 0, pedidosPendientesPresupuesto: 0 };
       byPartner.set(id, a);
     }
     return a;
@@ -173,7 +176,9 @@ export async function getCreditoClientes(): Promise<CreditoClientesData> {
     if (partnerId === undefined) continue;
     const esPresupuesto = line.company_invoice_id !== false && line.company_invoice_id[0] === PRESUPUESTO_COMPANY_ID;
     const contribucion = esPresupuesto ? line.price_total - line.untaxed_amount_invoiced : line.price_total;
-    bucket(partnerId).pedidosPendientes += contribucion;
+    const a = bucket(partnerId);
+    a.pedidosPendientes += contribucion;
+    if (esPresupuesto) a.pedidosPendientesPresupuesto += contribucion;
   }
 
   // Every partner with an open receivable balance, plus any partner that only
@@ -204,7 +209,7 @@ export async function getCreditoClientes(): Promise<CreditoClientesData> {
     // reportables, se descartan.
     .filter((p) => p.name)
     .map((p) => {
-      const a = byPartner.get(p.id) ?? { chequesActivos: 0, pedidosPendientes: 0 };
+      const a = byPartner.get(p.id) ?? { chequesActivos: 0, pedidosPendientes: 0, pedidosPendientesPresupuesto: 0 };
       return {
         partnerId: p.id,
         partnerName: p.name,
@@ -212,6 +217,7 @@ export async function getCreditoClientes(): Promise<CreditoClientesData> {
         limiteCredito: p.credit_limit,
         totalChequesActivos: a.chequesActivos,
         pedidosPendientes: a.pedidosPendientes,
+        pedidosPendientesPresupuesto: a.pedidosPendientesPresupuesto,
         totalCredito: a.chequesActivos + p.credit + a.pedidosPendientes,
       };
     })

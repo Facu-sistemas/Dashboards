@@ -120,7 +120,11 @@ function CreditoChequesInner() {
 
       <section className="flex flex-col gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
         <h3 className="text-sm font-medium text-slate-300">Clientes</h3>
-        <p className="-mt-2 text-xs text-slate-500">Click en un cliente para ver su distribución de cheques arriba.</p>
+        <p className="-mt-2 text-xs text-slate-500">
+          Click en un cliente para ver su distribución de cheques arriba. "Pedidos Pendientes" con{' '}
+          <span className="underline decoration-dotted decoration-slate-500 underline-offset-4">subrayado punteado</span> incluye monto de
+          Presupuesto (no facturado realmente), pasá el mouse para ver cuánto.
+        </p>
         {query.isLoading || !data ? (
           <div className="h-64 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
         ) : (
