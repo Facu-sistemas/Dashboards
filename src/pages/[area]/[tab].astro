@@ -69,9 +69,9 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
   {area.slug === 'gerencia-general' && tabSlug === 'facturacion' && <FacturacionGerenciaTab />}
   {area.slug === 'comercial' && tabSlug === 'clientes-activos' && <ClientesActivosTab />}
   {area.slug === 'rrhh' && tabSlug === 'vacaciones' && <VacacionesTab />}
-  {area.slug === 'mejora-continua' && tabSlug === 'credito-cheques' && <CreditoChequesTab />}
-  {area.slug === 'mejora-continua' && tabSlug === 'distribucion-cheques' && <DistribucionChequesTab />}
-  {!['finanzas', 'comercial', 'manufactura', 'almacen', 'produccion', 'gestion-calidad', 'test', 'gerencia-general', 'rrhh', 'mejora-continua'].includes(
+  {area.slug === 'finanzas-creditos' && tabSlug === 'credito-cheques' && <CreditoChequesTab />}
+  {area.slug === 'finanzas-creditos' && tabSlug === 'distribucion-cheques' && <DistribucionChequesTab />}
+  {!['finanzas', 'comercial', 'manufactura', 'almacen', 'produccion', 'gestion-calidad', 'test', 'gerencia-general', 'rrhh', 'finanzas-creditos'].includes(
     area.slug
   ) && <PlaceholderTab areaName={area.name} />}
 </AreaLayout>

@@ -33,6 +33,18 @@ const PENDING_ORDER_DOMAIN: OdooDomain = [
  */
 const EXCLUDED_PARTNER_IDS = [1, 7];
 
+/**
+ * `res.company` id 2 = "Presupuesto". Cada línea de pedido tiene su propio
+ * `company_invoice_id` ("Facturar en empresa") — confirmado en vivo contra
+ * S17465 (AIMAR CARLOS NAHUEL): sus 2 líneas tienen company_invoice_id =
+ * Presupuesto, price_total $300.000/$90.000 y untaxed_amount_invoiced
+ * $270.000/$0 → (300.000-270.000) + (90.000-0) = $120.000 exacto, el
+ * número confirmado por el usuario. Vacío/false se trata como Frontera
+ * Living (confirmado explícitamente: "vacío -> lo toma como Frontera
+ * Living").
+ */
+const PRESUPUESTO_COMPANY_ID = 2;
+
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -45,9 +57,14 @@ export interface ClienteCreditoRow {
   limiteCredito: number;
   /** Suma de cheques de terceros recibidos, en cualquier estado salvo Rechazado. */
   totalChequesActivos: number;
-  pedidosPendientesNeto: number;
-  pedidosPendientesConIva: number;
-  /** chequesActivos + porCobrar + pedidosPendientes CON IVA (el neto es solo informativo). */
+  /**
+   * Suma por línea de pedido pendiente: línea facturable por Frontera
+   * Living (o sin empresa asignada) → `price_total` (ya con IVA si
+   * corresponde); línea facturable por Presupuesto → `price_total -
+   * untaxed_amount_invoiced` (lo que falta facturar de esa línea).
+   */
+  pedidosPendientes: number;
+  /** chequesActivos + porCobrar + pedidosPendientes. */
   totalCredito: number;
 }
 
@@ -60,8 +77,7 @@ export interface CreditoClientesTotales {
   totalPorCobrar: number;
   limiteCredito: number;
   totalChequesActivos: number;
-  pedidosPendientesNeto: number;
-  pedidosPendientesConIva: number;
+  pedidosPendientes: number;
   totalCredito: number;
 }
 
@@ -78,13 +94,18 @@ export interface CreditoClientesData {
 
 interface PartnerAgg {
   chequesActivos: number;
-  pedidosNeto: number;
-  pedidosConIva: number;
+  pedidosPendientes: number;
 }
 
 export async function getCreditoClientes(): Promise<CreditoClientesData> {
   type ChequeRow = { partner_id: [number, string] | false; amount: number; payment_date: string | false };
-  type PendingOrderRow = { partner_id: [number, string] | false; amount_total: number; amount_untaxed: number };
+  type PendingOrderRow = { id: number; partner_id: [number, string] | false };
+  type OrderLineRow = {
+    order_id: [number, string];
+    company_invoice_id: [number, string] | false;
+    price_total: number;
+    untaxed_amount_invoiced: number;
+  };
   type PartnerRow = { id: number; name: string; credit: number; credit_limit: number };
 
   const today = todayIso();
@@ -102,15 +123,29 @@ export async function getCreditoClientes(): Promise<CreditoClientesData> {
     searchReadAll<PendingOrderRow>({
       model: 'sale.order',
       domain: [...PENDING_ORDER_DOMAIN, ['partner_id', 'not in', EXCLUDED_PARTNER_IDS]],
-      fields: ['partner_id', 'amount_total', 'amount_untaxed'],
+      fields: ['id', 'partner_id'],
     }),
   ]);
+
+  const partnerIdByOrderId = new Map<number, number>();
+  for (const o of pendingOrders) {
+    if (o.partner_id) partnerIdByOrderId.set(o.id, o.partner_id[0]);
+  }
+
+  const orderLines =
+    partnerIdByOrderId.size > 0
+      ? await searchReadAll<OrderLineRow>({
+          model: 'sale.order.line',
+          domain: [['order_id', 'in', [...partnerIdByOrderId.keys()]]],
+          fields: ['order_id', 'company_invoice_id', 'price_total', 'untaxed_amount_invoiced'],
+        })
+      : [];
 
   const byPartner = new Map<number, PartnerAgg>();
   function bucket(id: number): PartnerAgg {
     let a = byPartner.get(id);
     if (!a) {
-      a = { chequesActivos: 0, pedidosNeto: 0, pedidosConIva: 0 };
+      a = { chequesActivos: 0, pedidosPendientes: 0 };
       byPartner.set(id, a);
     }
     return a;
@@ -133,12 +168,12 @@ export async function getCreditoClientes(): Promise<CreditoClientesData> {
     perClientMonths.set(month, (perClientMonths.get(month) ?? 0) + c.amount);
   }
 
-  for (const o of pendingOrders) {
-    if (!o.partner_id) continue;
-    const [id] = o.partner_id;
-    const a = bucket(id);
-    a.pedidosNeto += o.amount_untaxed;
-    a.pedidosConIva += o.amount_total;
+  for (const line of orderLines) {
+    const partnerId = partnerIdByOrderId.get(line.order_id[0]);
+    if (partnerId === undefined) continue;
+    const esPresupuesto = line.company_invoice_id !== false && line.company_invoice_id[0] === PRESUPUESTO_COMPANY_ID;
+    const contribucion = esPresupuesto ? line.price_total - line.untaxed_amount_invoiced : line.price_total;
+    bucket(partnerId).pedidosPendientes += contribucion;
   }
 
   // Every partner with an open receivable balance, plus any partner that only
@@ -169,16 +204,15 @@ export async function getCreditoClientes(): Promise<CreditoClientesData> {
     // reportables, se descartan.
     .filter((p) => p.name)
     .map((p) => {
-      const a = byPartner.get(p.id) ?? { chequesActivos: 0, pedidosNeto: 0, pedidosConIva: 0 };
+      const a = byPartner.get(p.id) ?? { chequesActivos: 0, pedidosPendientes: 0 };
       return {
         partnerId: p.id,
         partnerName: p.name,
         totalPorCobrar: p.credit,
         limiteCredito: p.credit_limit,
         totalChequesActivos: a.chequesActivos,
-        pedidosPendientesNeto: a.pedidosNeto,
-        pedidosPendientesConIva: a.pedidosConIva,
-        totalCredito: a.chequesActivos + p.credit + a.pedidosConIva,
+        pedidosPendientes: a.pedidosPendientes,
+        totalCredito: a.chequesActivos + p.credit + a.pedidosPendientes,
       };
     })
     .sort((a, b) => b.totalCredito - a.totalCredito);
@@ -188,12 +222,11 @@ export async function getCreditoClientes(): Promise<CreditoClientesData> {
       acc.totalPorCobrar += c.totalPorCobrar;
       acc.limiteCredito += c.limiteCredito;
       acc.totalChequesActivos += c.totalChequesActivos;
-      acc.pedidosPendientesNeto += c.pedidosPendientesNeto;
-      acc.pedidosPendientesConIva += c.pedidosPendientesConIva;
+      acc.pedidosPendientes += c.pedidosPendientes;
       acc.totalCredito += c.totalCredito;
       return acc;
     },
-    { totalPorCobrar: 0, limiteCredito: 0, totalChequesActivos: 0, pedidosPendientesNeto: 0, pedidosPendientesConIva: 0, totalCredito: 0 }
+    { totalPorCobrar: 0, limiteCredito: 0, totalChequesActivos: 0, pedidosPendientes: 0, totalCredito: 0 }
   );
 
   // Solo meses futuros (mes actual en adelante) — cheques con fecha de pago

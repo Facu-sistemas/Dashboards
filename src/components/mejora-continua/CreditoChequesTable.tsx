@@ -1,12 +1,11 @@
 import { Fragment, useMemo, useState } from 'react';
-import { formatCompactCurrency } from '../gerencia/format';
 import { monthLabel } from './month-label';
 import { formatExactCurrency } from './amount-format';
 import type { ChequeMesPoint, ClienteCreditoRow } from '../../lib/odoo/credito-clientes';
 
-export type CreditoSortBy = 'totalCredito' | 'totalPorCobrar' | 'totalChequesActivos' | 'pedidosPendientesConIva';
+export type CreditoSortBy = 'totalCredito' | 'totalPorCobrar' | 'totalChequesActivos' | 'pedidosPendientes' | 'limiteCredito';
 
-const COLUMN_COUNT = 7;
+const COLUMN_COUNT = 6;
 
 interface Props {
   rows: ClienteCreditoRow[];
@@ -40,10 +39,11 @@ function ChequesMesDetailRow({ meses, colSpan }: { meses: ChequeMesPoint[]; colS
 }
 
 const SORT_LABELS: Record<CreditoSortBy, string> = {
-  totalCredito: 'Total Crédito',
   totalPorCobrar: 'Por Cobrar',
   totalChequesActivos: 'Cheques Activos',
-  pedidosPendientesConIva: 'Pedidos Pend.',
+  pedidosPendientes: 'Pedidos Pendientes',
+  totalCredito: 'Total Crédito',
+  limiteCredito: 'Límite',
 };
 
 function SortableHeader({
@@ -114,16 +114,15 @@ export default function CreditoChequesTable({ rows, chequesPorMesPorCliente, sel
               <tr className="border-b border-slate-800 text-left text-xs uppercase tracking-wide text-slate-500">
                 <th className="py-2 pl-3 pr-4 font-medium">Cliente</th>
                 <SortableHeader sortKey="totalPorCobrar" active={sortBy === 'totalPorCobrar'} onClick={() => onSortByChange('totalPorCobrar')} />
-                <th className="py-2 pr-4 text-right font-medium">Límite</th>
                 <SortableHeader
                   sortKey="totalChequesActivos"
                   active={sortBy === 'totalChequesActivos'}
                   onClick={() => onSortByChange('totalChequesActivos')}
                   title="Click en una fila para ver el detalle mes a mes"
                 />
-                <th className="py-2 pr-4 text-right font-medium">Pedidos (neto)</th>
-                <SortableHeader sortKey="pedidosPendientesConIva" active={sortBy === 'pedidosPendientesConIva'} onClick={() => onSortByChange('pedidosPendientesConIva')} />
+                <SortableHeader sortKey="pedidosPendientes" active={sortBy === 'pedidosPendientes'} onClick={() => onSortByChange('pedidosPendientes')} />
                 <SortableHeader sortKey="totalCredito" active={sortBy === 'totalCredito'} onClick={() => onSortByChange('totalCredito')} />
+                <SortableHeader sortKey="limiteCredito" active={sortBy === 'limiteCredito'} onClick={() => onSortByChange('limiteCredito')} />
               </tr>
             </thead>
             <tbody>
@@ -140,15 +139,14 @@ export default function CreditoChequesTable({ rows, chequesPorMesPorCliente, sel
                         <span className="mr-1 inline-block w-3 text-slate-600">{selected ? '▾' : '▸'}</span>
                         {r.partnerName}
                       </td>
-                      <td className="py-2 pr-4 text-right tabular-nums text-slate-300">{formatCompactCurrency(r.totalPorCobrar)}</td>
-                      <td className="py-2 pr-4 text-right tabular-nums text-slate-400">
-                        {r.limiteCredito > 0 ? formatCompactCurrency(r.limiteCredito) : '—'}
-                      </td>
-                      <td className="py-2 pr-4 text-right tabular-nums text-slate-300">{formatCompactCurrency(r.totalChequesActivos)}</td>
-                      <td className="py-2 pr-4 text-right tabular-nums text-slate-400">{formatCompactCurrency(r.pedidosPendientesNeto)}</td>
-                      <td className="py-2 pr-4 text-right tabular-nums text-slate-300">{formatCompactCurrency(r.pedidosPendientesConIva)}</td>
+                      <td className="py-2 pr-4 text-right tabular-nums text-slate-300">{formatExactCurrency(r.totalPorCobrar)}</td>
+                      <td className="py-2 pr-4 text-right tabular-nums text-slate-300">{formatExactCurrency(r.totalChequesActivos)}</td>
+                      <td className="py-2 pr-4 text-right tabular-nums text-slate-300">{formatExactCurrency(r.pedidosPendientes)}</td>
                       <td className={`py-2 pr-4 text-right tabular-nums font-semibold ${usoColor ?? 'text-slate-100'}`}>
-                        {formatCompactCurrency(r.totalCredito)}
+                        {formatExactCurrency(r.totalCredito)}
+                      </td>
+                      <td className="py-2 pr-4 text-right tabular-nums text-slate-400">
+                        {r.limiteCredito > 0 ? formatExactCurrency(r.limiteCredito) : '—'}
                       </td>
                     </tr>
                     {selected && <ChequesMesDetailRow meses={chequesPorMesPorCliente[r.partnerId] ?? []} colSpan={COLUMN_COUNT} />}

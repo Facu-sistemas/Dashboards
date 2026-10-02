@@ -113,7 +113,7 @@ export const AREAS: AreaConfig[] = [
     ],
   },
   {
-    slug: 'mejora-continua',
+    slug: 'finanzas-creditos',
     name: 'Finanzas',
     description: 'Crédito, cheques y pedidos pendientes por cliente',
     accent: 'emerald',

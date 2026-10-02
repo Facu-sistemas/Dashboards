@@ -5,6 +5,7 @@ import { useApiQuery } from '../dashboard/useApiQuery';
 import LastUpdated from '../shared/LastUpdated';
 import { formatCompactCurrency } from '../gerencia/format';
 import { dayLabel } from './month-label';
+import { formatExactCurrency } from './amount-format';
 import CreditoChequesTable, { type CreditoSortBy } from './CreditoChequesTable';
 import CreditoChequesChart from './CreditoChequesChart';
 import type { CreditoClientesData } from '../../lib/odoo/credito-clientes';
@@ -13,12 +14,20 @@ interface Props {
   dehydratedState?: DehydratedState;
 }
 
-function KpiCard({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+/** Por default muestra el monto compacto; click alterna al monto exacto. `alwaysExact` lo deja siempre en exacto y sin click (Total por Cobrar). */
+function KpiCard({ label, value, highlight, alwaysExact }: { label: string; value: number; highlight?: boolean; alwaysExact?: boolean }) {
+  const [exact, setExact] = useState(Boolean(alwaysExact));
+  const display = exact ? formatExactCurrency(value) : formatCompactCurrency(value);
   return (
-    <div className={`rounded-lg border p-4 ${highlight ? 'border-brand-500/40 bg-brand-500/5' : 'border-slate-800 bg-slate-900'}`}>
+    <button
+      type="button"
+      onClick={alwaysExact ? undefined : () => setExact((v) => !v)}
+      title={alwaysExact ? undefined : exact ? 'Click para volver al monto compacto' : 'Click para ver el monto exacto'}
+      className={`rounded-lg border p-4 text-left transition-colors ${highlight ? 'border-brand-500/40 bg-brand-500/5' : 'border-slate-800 bg-slate-900'} ${alwaysExact ? 'cursor-default' : 'cursor-pointer hover:bg-slate-800/60'}`}
+    >
       <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
-      <p className={`mt-1 text-2xl font-semibold ${highlight ? 'text-brand-400' : 'text-slate-100'}`}>{value}</p>
-    </div>
+      <p className={`mt-1 text-2xl font-semibold ${highlight ? 'text-brand-400' : 'text-slate-100'}`}>{display}</p>
+    </button>
   );
 }
 
@@ -58,11 +67,12 @@ function CreditoChequesInner() {
       {query.isLoading || !data ? (
         <div className="h-24 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <KpiCard label="Total por Cobrar" value={formatCompactCurrency(data.totales.totalPorCobrar)} />
-          <KpiCard label="Cheques Activos" value={formatCompactCurrency(data.totales.totalChequesActivos)} />
-          <KpiCard label="Pedidos Pendientes (c/IVA)" value={formatCompactCurrency(data.totales.pedidosPendientesConIva)} />
-          <KpiCard label="Total Crédito" value={formatCompactCurrency(data.totales.totalCredito)} highlight />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <KpiCard label="Total por Cobrar" value={data.totales.totalPorCobrar} alwaysExact />
+          <KpiCard label="Cheques Activos" value={data.totales.totalChequesActivos} />
+          <KpiCard label="Pedidos Pendientes" value={data.totales.pedidosPendientes} />
+          <KpiCard label="Total Crédito" value={data.totales.totalCredito} highlight />
+          <KpiCard label="Límite de Crédito" value={data.totales.limiteCredito} />
         </div>
       )}
 
