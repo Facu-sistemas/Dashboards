@@ -42,6 +42,14 @@ const EXCLUDED_PARTNER_IDS = [1, 7];
  * número confirmado por el usuario. Vacío/false se trata como Frontera
  * Living (confirmado explícitamente: "vacío -> lo toma como Frontera
  * Living").
+ *
+ * Para las líneas de Frontera Living (factura real) NO se usa `price_total`
+ * directo — eso suma el total de la línea completa incluso cuando ya está
+ * parcialmente facturada, e infla el número (confirmado: daba
+ * $621.921.383,07 para Roberto Picca, cliente 100% factura, cuando el
+ * número correcto es $77.425.158,94). La cuenta es lo que falta facturar,
+ * en neto: `price_subtotal - untaxed_amount_invoiced` (mismo criterio que
+ * Presupuesto pero arrancando del subtotal sin IVA en vez del total).
  */
 const PRESUPUESTO_COMPANY_ID = 2;
 
@@ -59,9 +67,10 @@ export interface ClienteCreditoRow {
   totalChequesActivos: number;
   /**
    * Suma por línea de pedido pendiente: línea facturable por Frontera
-   * Living (o sin empresa asignada) → `price_total` (ya con IVA si
-   * corresponde); línea facturable por Presupuesto → `price_total -
-   * untaxed_amount_invoiced` (lo que falta facturar de esa línea).
+   * Living (o sin empresa asignada) → `price_subtotal -
+   * untaxed_amount_invoiced` (lo que falta facturar, en neto); línea
+   * facturable por Presupuesto → `price_total - untaxed_amount_invoiced`
+   * (lo que falta facturar, arrancando del total de esa línea).
    */
   pedidosPendientes: number;
   /** Parte de `pedidosPendientes` que viene de líneas facturables por Presupuesto (vs. factura real de Frontera Living) — para marcarlo visualmente en la tabla. */
@@ -107,6 +116,7 @@ export async function getCreditoClientes(): Promise<CreditoClientesData> {
     order_id: [number, string];
     company_invoice_id: [number, string] | false;
     price_total: number;
+    price_subtotal: number;
     untaxed_amount_invoiced: number;
   };
   type PartnerRow = { id: number; name: string; credit: number; credit_limit: number };
@@ -140,7 +150,7 @@ export async function getCreditoClientes(): Promise<CreditoClientesData> {
       ? await searchReadAll<OrderLineRow>({
           model: 'sale.order.line',
           domain: [['order_id', 'in', [...partnerIdByOrderId.keys()]]],
-          fields: ['order_id', 'company_invoice_id', 'price_total', 'untaxed_amount_invoiced'],
+          fields: ['order_id', 'company_invoice_id', 'price_total', 'price_subtotal', 'untaxed_amount_invoiced'],
         })
       : [];
 
@@ -175,7 +185,9 @@ export async function getCreditoClientes(): Promise<CreditoClientesData> {
     const partnerId = partnerIdByOrderId.get(line.order_id[0]);
     if (partnerId === undefined) continue;
     const esPresupuesto = line.company_invoice_id !== false && line.company_invoice_id[0] === PRESUPUESTO_COMPANY_ID;
-    const contribucion = esPresupuesto ? line.price_total - line.untaxed_amount_invoiced : line.price_total;
+    const contribucion = esPresupuesto
+      ? line.price_total - line.untaxed_amount_invoiced
+      : line.price_subtotal - line.untaxed_amount_invoiced;
     const a = bucket(partnerId);
     a.pedidosPendientes += contribucion;
     if (esPresupuesto) a.pedidosPendientesPresupuesto += contribucion;
