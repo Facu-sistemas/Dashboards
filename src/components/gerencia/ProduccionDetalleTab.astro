@@ -1,0 +1,33 @@
+---
+import ProduccionDetalleApp from './ProduccionDetalleApp';
+import { buildProduccionDetalleDehydratedState } from '../../lib/produccion-detalle-ssr';
+
+let dehydratedState;
+let ssrError: string | null = null;
+try {
+  dehydratedState = await buildProduccionDetalleDehydratedState();
+} catch (err) {
+  ssrError = err instanceof Error ? err.message : 'Error desconocido consultando Odoo';
+}
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Detalle de Producción</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Quiénes componen los totales de la pestaña Producción: desglose por familia o por producto puntual,
+      en cantidad o en unidad equivalente. Solo lectura.
+    </p>
+  </header>
+
+  {
+    ssrError && (
+      <p class="mb-6 rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">
+        No se pudo precargar la data desde Odoo en el servidor ({ssrError}). El panel intentará cargar
+        los datos desde el navegador.
+      </p>
+    )
+  }
+
+  <ProduccionDetalleApp client:load dehydratedState={dehydratedState} />
+</div>

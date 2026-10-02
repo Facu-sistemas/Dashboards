@@ -90,6 +90,7 @@ export const AREAS: AreaConfig[] = [
       { slug: 'ventas', name: 'Ventas' },
       { slug: 'produccion', name: 'Producción' },
       { slug: 'facturacion', name: 'Facturación' },
+      { slug: 'detalle-produccion', name: 'Detalle de Producción' },
     ],
   },
   {
@@ -98,7 +99,10 @@ export const AREAS: AreaConfig[] = [
     description: 'Tickets de soporte por tipo y prioridad',
     accent: 'emerald',
     icon: ICONS.checkCircle,
-    tabs: [{ slug: 'tickets-soporte', name: 'Tickets de Soporte' }],
+    tabs: [
+      { slug: 'tickets-soporte', name: 'Tickets de Soporte' },
+      { slug: 'reparaciones-colchones', name: 'Reparaciones' },
+    ],
   },
   {
     slug: 'manufactura',
