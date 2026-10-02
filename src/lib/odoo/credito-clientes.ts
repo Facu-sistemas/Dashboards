@@ -46,12 +46,14 @@ const EXCLUDED_PARTNER_IDS = [1, 7];
  * Para las líneas de Frontera Living (factura real) NO se usa `price_total`
  * directo — eso suma el total de la línea completa incluso cuando ya está
  * parcialmente facturada, e infla el número (confirmado: daba
- * $621.921.383,07 para Roberto Picca, cliente 100% factura, cuando el
- * número correcto es $77.425.158,94). La cuenta es lo que falta facturar,
- * en neto: `price_subtotal - untaxed_amount_invoiced` (mismo criterio que
- * Presupuesto pero arrancando del subtotal sin IVA en vez del total).
+ * $621.921.383,07 para Roberto Picca, cliente 100% factura). La cuenta
+ * correcta es lo que falta facturar en neto (`price_subtotal -
+ * untaxed_amount_invoiced`) multiplicado por 1.21 para agregarle el IVA
+ * real que sí corresponde en una factura — confirmado con Picca dando
+ * $93.684.442,32.
  */
 const PRESUPUESTO_COMPANY_ID = 2;
+const IVA_MULTIPLIER = 1.21;
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -67,10 +69,10 @@ export interface ClienteCreditoRow {
   totalChequesActivos: number;
   /**
    * Suma por línea de pedido pendiente: línea facturable por Frontera
-   * Living (o sin empresa asignada) → `price_subtotal -
-   * untaxed_amount_invoiced` (lo que falta facturar, en neto); línea
-   * facturable por Presupuesto → `price_total - untaxed_amount_invoiced`
-   * (lo que falta facturar, arrancando del total de esa línea).
+   * Living (o sin empresa asignada) → `(price_subtotal -
+   * untaxed_amount_invoiced) * 1.21` (lo que falta facturar, con IVA);
+   * línea facturable por Presupuesto → `price_total -
+   * untaxed_amount_invoiced` (lo que falta facturar, sin agregar IVA).
    */
   pedidosPendientes: number;
   /** Parte de `pedidosPendientes` que viene de líneas facturables por Presupuesto (vs. factura real de Frontera Living) — para marcarlo visualmente en la tabla. */
@@ -187,7 +189,7 @@ export async function getCreditoClientes(): Promise<CreditoClientesData> {
     const esPresupuesto = line.company_invoice_id !== false && line.company_invoice_id[0] === PRESUPUESTO_COMPANY_ID;
     const contribucion = esPresupuesto
       ? line.price_total - line.untaxed_amount_invoiced
-      : line.price_subtotal - line.untaxed_amount_invoiced;
+      : (line.price_subtotal - line.untaxed_amount_invoiced) * IVA_MULTIPLIER;
     const a = bucket(partnerId);
     a.pedidosPendientes += contribucion;
     if (esPresupuesto) a.pedidosPendientesPresupuesto += contribucion;
