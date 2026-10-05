@@ -44,6 +44,7 @@
   --accent-teal: 45 212 191;
   --accent-cyan: 34 211 238;
   --accent-rose: 251 113 133;
+  --accent-indigo: 129 140 248;
 }
 
 /* Solarized Light (https://ethanschoonover.com/solarized/) mapped onto the
@@ -82,6 +83,7 @@
   --accent-teal: 42 161 152; /* Solarized cyan */
   --accent-cyan: 42 161 152; /* Solarized cyan */
   --accent-rose: 211 54 130; /* Solarized magenta */
+  --accent-indigo: 38 139 210; /* Solarized blue */
 }
 
 @layer base {

@@ -32,6 +32,11 @@ import VentasTab from '../../components/gerencia/VentasTab.astro';
 import ProduccionGerenciaTab from '../../components/gerencia/ProduccionTab.astro';
 import ProduccionDetalleTab from '../../components/gerencia/ProduccionDetalleTab.astro';
 import FacturacionGerenciaTab from '../../components/gerencia/FacturacionTab.astro';
+import DespachosTab from '../../components/logistica/DespachosTab.astro';
+import CumplimientoTab from '../../components/logistica/CumplimientoTab.astro';
+import PedidosSinDespacharTab from '../../components/logistica/PedidosSinDespacharTab.astro';
+import MapaDestinosTab from '../../components/logistica/MapaDestinosTab.astro';
+import CostoDevolucionesTab from '../../components/calidad/CostoDevolucionesTab.astro';
 import CreditoChequesTab from '../../components/mejora-continua/CreditoChequesTab.astro';
 import DistribucionChequesTab from '../../components/mejora-continua/DistribucionChequesTab.astro';
 import { getArea } from '../../lib/areas.config';
@@ -65,6 +70,7 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
   {area.slug === 'almacen' && tabSlug === 'etiquetas-proveedor' && <EtiquetasTab />}
   {area.slug === 'gestion-calidad' && tabSlug === 'tickets-soporte' && <TicketsSoporteTab />}
   {area.slug === 'gestion-calidad' && tabSlug === 'reparaciones-colchones' && <ReparacionesColchonesTab />}
+  {area.slug === 'gestion-calidad' && tabSlug === 'costo-devoluciones' && <CostoDevolucionesTab />}
   {area.slug === 'test' && tabSlug === 'colchon' && <ColchonTab />}
   {area.slug === 'test' && tabSlug === 'conversor' && <ConversorTab />}
   {area.slug === 'test' && tabSlug === 'cumpleanos' && <CumpleanosTab />}
@@ -79,7 +85,11 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
   {area.slug === 'rrhh' && tabSlug === 'vacaciones' && <VacacionesTab />}
   {area.slug === 'finanzas-creditos' && tabSlug === 'credito-cheques' && <CreditoChequesTab />}
   {area.slug === 'finanzas-creditos' && tabSlug === 'distribucion-cheques' && <DistribucionChequesTab />}
-  {!['finanzas', 'comercial', 'manufactura', 'almacen', 'produccion', 'gestion-calidad', 'test', 'gerencia-general', 'rrhh', 'finanzas-creditos'].includes(
+  {area.slug === 'logistica' && tabSlug === 'despachos' && <DespachosTab />}
+  {area.slug === 'logistica' && tabSlug === 'cumplimiento' && <CumplimientoTab />}
+  {area.slug === 'logistica' && tabSlug === 'pedidos-sin-despachar' && <PedidosSinDespacharTab />}
+  {area.slug === 'logistica' && tabSlug === 'mapa-destinos' && <MapaDestinosTab />}
+  {!['finanzas', 'comercial', 'manufactura', 'almacen', 'produccion', 'gestion-calidad', 'test', 'gerencia-general', 'rrhh', 'finanzas-creditos', 'logistica'].includes(
     area.slug
   ) && <PlaceholderTab areaName={area.name} />}
 </AreaLayout>

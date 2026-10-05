@@ -13,7 +13,7 @@ export interface TabConfig {
   name: string;
 }
 
-export type AccentColor = 'brand' | 'purple' | 'amber' | 'emerald' | 'orange' | 'teal' | 'cyan' | 'rose';
+export type AccentColor = 'brand' | 'purple' | 'amber' | 'emerald' | 'orange' | 'teal' | 'cyan' | 'rose' | 'indigo';
 
 export interface AreaConfig {
   slug: string;
@@ -40,6 +40,7 @@ export const ACCENT_CLASSES: Record<AccentColor, { bg: string; text: string; rin
   teal: { bg: 'bg-teal-500/10', text: 'text-accent-teal', ring: 'group-hover:ring-teal-500/30' },
   cyan: { bg: 'bg-cyan-500/10', text: 'text-accent-cyan', ring: 'group-hover:ring-cyan-500/30' },
   rose: { bg: 'bg-rose-500/10', text: 'text-accent-rose', ring: 'group-hover:ring-rose-500/30' },
+  indigo: { bg: 'bg-indigo-500/10', text: 'text-accent-indigo', ring: 'group-hover:ring-indigo-500/30' },
 };
 
 const ICONS = {
@@ -54,6 +55,8 @@ const ICONS = {
   cart: '<rect x="6" y="7" width="12" height="7" rx="1"/><line x1="3" y1="4" x2="6" y2="4"/><line x1="6" y1="4" x2="6" y2="7"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/>',
   ruler: '<rect x="3" y="9" width="18" height="6" rx="1"/><line x1="7" y1="9" x2="7" y2="12"/><line x1="11" y1="9" x2="11" y2="15"/><line x1="15" y1="9" x2="15" y2="12"/><line x1="19" y1="9" x2="19" y2="15"/>',
   flask: '<path d="M9 3h6"/><path d="M10 3v6.5L4.6 18a2 2 0 001.7 3h11.4a2 2 0 001.7-3L14 9.5V3"/><path d="M7.5 15h9"/>',
+  truck:
+    '<rect x="2" y="7" width="11" height="9" rx="1"/><path d="M13 10h4l3 3v3h-7"/><circle cx="7" cy="18" r="1.8"/><circle cx="16.5" cy="18" r="1.8"/>',
   coins: '<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.66 3.13 3 7 3s7-1.34 7-3V6"/><path d="M5 12v6c0 1.66 3.13 3 7 3s7-1.34 7-3v-6"/>',
 };
 
@@ -103,8 +106,9 @@ export const AREAS: AreaConfig[] = [
     accent: 'emerald',
     icon: ICONS.checkCircle,
     tabs: [
-      { slug: 'tickets-soporte', name: 'Tickets de Soporte' },
       { slug: 'reparaciones-colchones', name: 'Reparaciones' },
+      { slug: 'tickets-soporte', name: 'Tickets de Soporte' },
+      { slug: 'costo-devoluciones', name: 'Costo de devoluciones' },
     ],
   },
   {
@@ -165,6 +169,19 @@ export const AREAS: AreaConfig[] = [
       { slug: 'salud-cartera', name: 'Salud de la Cartera' },
       { slug: 'clientes-activos', name: 'Clientes Activos' },
       { slug: 'tendencia-precios', name: 'Tendencia de Precios' },
+    ],
+  },
+  {
+    slug: 'logistica',
+    name: 'Logística',
+    description: 'Envíos y despachos',
+    accent: 'indigo',
+    icon: ICONS.truck,
+    tabs: [
+      { slug: 'despachos', name: 'Despachos' },
+      { slug: 'cumplimiento', name: 'Cumplimiento de entrega' },
+      { slug: 'pedidos-sin-despachar', name: 'Pedidos sin despachar' },
+      { slug: 'mapa-destinos', name: 'Mapa de destinos' },
     ],
   },
   {

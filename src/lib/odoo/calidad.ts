@@ -56,7 +56,7 @@ export interface TicketsSoporteResult {
  * outside this app's control), but the stored technical value is still
  * "Garantatía", so this filter keeps matching the same rows either way.
  */
-const CREDIT_NOTE_WARRANTY_MOTIVO = 'Garantatía';
+export const CREDIT_NOTE_WARRANTY_MOTIVO = 'Garantatía';
 
 /**
  * `x_studio_motivo = 'Producto'` is the "no conformidad" / Calidad motivo
@@ -64,7 +64,7 @@ const CREDIT_NOTE_WARRANTY_MOTIVO = 'Garantatía';
  * together with `CREDIT_NOTE_WARRANTY_MOTIVO`, Calidad wants counted as a
  * "devolución" for Colchón (see `getReparaciones`).
  */
-const CREDIT_NOTE_NO_CONFORMIDAD_MOTIVO = 'Producto';
+export const CREDIT_NOTE_NO_CONFORMIDAD_MOTIVO = 'Producto';
 
 /**
  * Selector de empresa para Notas de Crédito por Garantía — deliberately

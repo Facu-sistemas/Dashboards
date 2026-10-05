@@ -1,0 +1,187 @@
+---
+import { getMapaDestinosData } from '../../lib/odoo/mapa-destinos';
+import type { MapaDestinosData } from '../../lib/odoo/mapa-destinos';
+
+let data: MapaDestinosData | null = null;
+let ssrError: string | null = null;
+try {
+  data = await getMapaDestinosData();
+} catch (err) {
+  ssrError = err instanceof Error ? err.message : 'Error desconocido consultando Odoo';
+}
+
+const fmtFecha = (iso: string) => iso.split('-').reverse().join('/');
+// `<` escapado para que ningún nombre de cliente pueda cerrar el <script>.
+const json = data ? JSON.stringify(data).replace(/</g, '\\u003c') : '';
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Mapa de destinos</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      A dónde van los pedidos: pendientes de despacho hoy o despachados en los últimos 90 días (desde
+      {data ? fmtFecha(data.desde) : '—'}). Cada círculo agrupa los destinos de una misma localidad; su tamaño
+      es la cantidad. Solo lectura.
+    </p>
+  </header>
+
+  {
+    ssrError && (
+      <p class="mb-6 rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">
+        No se pudo consultar Odoo ({ssrError}).
+      </p>
+    )
+  }
+
+  {
+    data && (
+      <>
+        <div class="mb-4 flex flex-wrap items-center gap-3">
+          <div class="inline-flex rounded-lg border border-slate-800 bg-slate-900 p-1 text-sm" role="group" aria-label="Qué mostrar">
+            <button type="button" data-modo="pendientes" class="mapa-modo rounded-md px-3 py-1.5">Pendientes de despacho</button>
+            <button type="button" data-modo="despachados" class="mapa-modo rounded-md px-3 py-1.5">Despachados (90 días)</button>
+          </div>
+          <p id="mapa-resumen" class="text-sm text-slate-400" />
+        </div>
+
+        <div class="grid gap-4 lg:grid-cols-[1fr_320px]">
+          <div id="mapa" class="isolate z-0 h-[560px] rounded-lg border border-slate-800 bg-slate-900" />
+          <div class="max-h-[560px] overflow-y-auto rounded-lg border border-slate-800 bg-slate-900 p-4">
+            <h3 class="mb-3 text-sm font-medium text-slate-200">Por provincia</h3>
+            <table class="w-full text-left text-sm">
+              <thead class="text-xs text-slate-400">
+                <tr class="border-b border-slate-800">
+                  <th class="py-2 pr-2 font-medium">Provincia</th>
+                  <th class="py-2 pr-2 text-right font-medium">Cant.</th>
+                  <th class="py-2 text-right font-medium">%</th>
+                </tr>
+              </thead>
+              <tbody id="mapa-provincias" />
+            </table>
+          </div>
+        </div>
+
+        <script is:inline id="mapa-data" type="application/json" set:html={json} />
+      </>
+    )
+  }
+</div>
+
+<script>
+  import L from 'leaflet';
+  import 'leaflet/dist/leaflet.css';
+  import type { MapaDestinosData, MapaModoData, MapaModo, MapaPunto } from '../../lib/odoo/mapa-destinos';
+
+  const raw = document.getElementById('mapa-data')?.textContent;
+  const mapEl = document.getElementById('mapa');
+
+  if (raw && mapEl) {
+    const data = JSON.parse(raw) as MapaDestinosData;
+    const light = document.documentElement.getAttribute('data-theme') === 'light';
+
+    const map = L.map(mapEl, { zoomSnap: 0.25 }).setView([-38.5, -63.5], 4);
+    // OpenStreetMap: no pide API key (los mosaicos de CARTO ahora devuelven marca de agua sin una). En tema oscuro se invierten por CSS.
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 18,
+      className: light ? '' : 'mapa-tiles-oscuro',
+    }).addTo(map);
+
+    const capa = L.layerGroup().addTo(map);
+    const resumen = document.getElementById('mapa-resumen')!;
+    const tbody = document.getElementById('mapa-provincias')!;
+    const botones = document.querySelectorAll<HTMLButtonElement>('button.mapa-modo');
+
+    let modo: MapaModo = 'pendientes';
+    let marcadores: { punto: MapaPunto; marker: L.CircleMarker }[] = [];
+
+    const fmt = (n: number) => n.toLocaleString('es-AR');
+    const fmtMonto = (n: number) => n.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
+
+    function el<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, className?: string): HTMLElementTagNameMap[K] {
+      const e = document.createElement(tag);
+      if (text !== undefined) e.textContent = text;
+      if (className) e.className = className;
+      return e;
+    }
+
+    // Datos de Odoo (nombres/ciudades) van siempre como textContent, nunca como HTML.
+    function popup(p: MapaPunto, m: MapaModo): HTMLElement {
+      const box = el('div');
+      box.append(el('strong', `${p.ciudad}, ${p.provincia}`));
+      box.append(el('br'));
+      box.append(
+        document.createTextNode(
+          m === 'pendientes'
+            ? `${fmt(p.count)} ${p.count === 1 ? 'pedido' : 'pedidos'} · ${fmtMonto(p.monto)}`
+            : `${fmt(p.count)} ${p.count === 1 ? 'remito' : 'remitos'}`
+        )
+      );
+      for (const c of p.clientes) {
+        box.append(el('br'));
+        box.append(el('span', `· ${c}`));
+      }
+      return box;
+    }
+
+    function render() {
+      const d: MapaModoData = data[modo];
+      capa.clearLayers();
+      marcadores = [];
+
+      const color = light ? '#268bd2' : '#60a5fa';
+      for (const p of d.puntos) {
+        const marker = L.circleMarker([p.lat, p.lng], {
+          radius: 5 + Math.sqrt(p.count) * 2.2,
+          color,
+          weight: 1.5,
+          fillColor: color,
+          fillOpacity: 0.45,
+        }).bindPopup(popup(p, modo));
+        marker.addTo(capa);
+        marcadores.push({ punto: p, marker });
+      }
+
+      const unidad = modo === 'pendientes' ? 'pedidos' : 'remitos';
+      resumen.textContent =
+        `${fmt(d.total)} ${unidad}` +
+        (d.sinUbicacion > 0 ? ` · ${fmt(d.sinUbicacion)} sin ubicación en el mapa (solo en la tabla)` : '');
+
+      tbody.replaceChildren();
+      for (const pr of d.provincias) {
+        const tr = el('tr', undefined, 'cursor-pointer border-b border-slate-800/60 text-slate-300 hover:bg-slate-800/50');
+        tr.append(el('td', pr.provincia, 'py-2 pr-2'));
+        tr.append(el('td', fmt(pr.count), 'py-2 pr-2 text-right tabular-nums'));
+        tr.append(el('td', `${((pr.count / Math.max(1, d.total)) * 100).toLocaleString('es-AR', { maximumFractionDigits: 1 })}%`, 'py-2 text-right tabular-nums text-slate-400'));
+        tr.addEventListener('click', () => {
+          const pts = d.puntos.filter((p) => p.provincia === pr.provincia).map((p) => L.latLng(p.lat, p.lng));
+          if (pts.length > 0) map.fitBounds(L.latLngBounds(pts), { padding: [40, 40], maxZoom: 8 });
+        });
+        tbody.append(tr);
+      }
+
+      botones.forEach((b) => {
+        const active = b.dataset.modo === modo;
+        b.classList.toggle('bg-brand-500/20', active);
+        b.classList.toggle('text-slate-100', active);
+        b.classList.toggle('text-slate-400', !active);
+      });
+    }
+
+    botones.forEach((b) =>
+      b.addEventListener('click', () => {
+        modo = b.dataset.modo as MapaModo;
+        map.setView([-38.5, -63.5], 4);
+        render();
+      })
+    );
+
+    render();
+  }
+</script>
+
+<style is:global>
+  .mapa-tiles-oscuro {
+    filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9);
+  }
+</style>

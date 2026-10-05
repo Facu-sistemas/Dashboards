@@ -1,0 +1,189 @@
+---
+import { getCumplimientoData } from '../../lib/odoo/cumplimiento-despachos';
+import type { CumplimientoData } from '../../lib/odoo/cumplimiento-despachos';
+
+let data: CumplimientoData | null = null;
+let ssrError: string | null = null;
+try {
+  data = await getCumplimientoData();
+} catch (err) {
+  ssrError = err instanceof Error ? err.message : 'Error desconocido consultando Odoo';
+}
+
+const fmt = (n: number) => n.toLocaleString('es-AR');
+const fmtPct = (n: number | null) => (n === null ? '—' : `${n.toLocaleString('es-AR', { maximumFractionDigits: 1 })}%`);
+const fmtDias = (n: number | null) => (n === null ? '—' : n.toLocaleString('es-AR', { maximumFractionDigits: 1 }));
+const fmtFecha = (iso: string) => iso.split('-').reverse().join('/');
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const fmtMes = (key: string) => `${MESES[Number(key.slice(5)) - 1]} ${key.slice(2, 4)}`;
+
+/** Verde ≥ 90%, amarillo ≥ 75%, rojo por debajo. */
+const pctClass = (p: number | null) =>
+  p === null ? 'text-slate-400' : p >= 90 ? 'text-status-green' : p >= 75 ? 'text-status-yellow' : 'text-status-red';
+
+const maxDemora = data ? Math.max(1, ...data.demora.map((b) => b.count)) : 1;
+const totalVentana = data ? data.demora.reduce((s, b) => s + b.count, 0) : 0;
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Cumplimiento de entrega</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Un remito de salida cuenta como "a tiempo" si se despachó el mismo día de su fecha programada o antes.
+      Se excluyen las devoluciones. Solo lectura.
+    </p>
+  </header>
+
+  {
+    ssrError && (
+      <p class="mb-6 rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">
+        No se pudo consultar Odoo ({ssrError}).
+      </p>
+    )
+  }
+
+  {
+    data && (
+      <>
+        <section class="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+            <p class="text-xs text-slate-400">A tiempo (30 días)</p>
+            <p class={`mt-1 text-2xl font-semibold ${pctClass(data.ultimos30d.pctATiempo)}`}>
+              {fmtPct(data.ultimos30d.pctATiempo)}
+            </p>
+          </div>
+          <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+            <p class="text-xs text-slate-400">Despachados (30 días)</p>
+            <p class="mt-1 text-2xl font-semibold text-slate-100">{fmt(data.ultimos30d.total)}</p>
+          </div>
+          <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+            <p class="text-xs text-slate-400">Fuera de plazo (30 días)</p>
+            <p class="mt-1 text-2xl font-semibold text-status-red">
+              {fmt(data.ultimos30d.total - data.ultimos30d.aTiempo)}
+            </p>
+          </div>
+          <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+            <p class="text-xs text-slate-400">Fuera de plazo (90 días)</p>
+            <p class="mt-1 text-2xl font-semibold text-status-red">{fmt(data.tardios.length)}</p>
+          </div>
+        </section>
+
+        <section class="mb-6 grid gap-6 lg:grid-cols-2">
+          <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+            <h3 class="mb-3 text-sm font-medium text-slate-200">Cumplimiento por mes</h3>
+            <table class="w-full text-left text-sm">
+              <thead class="text-xs text-slate-400">
+                <tr class="border-b border-slate-800">
+                  <th class="py-2 pr-4 font-medium">Mes</th>
+                  <th class="py-2 pr-4 text-right font-medium">Despachos</th>
+                  <th class="py-2 pr-4 text-right font-medium">A tiempo</th>
+                  <th class="py-2 pr-4 text-right font-medium">% a tiempo</th>
+                  <th class="py-2 text-right font-medium">Demora prom. (tardíos)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.meses.map((m) => (
+                  <tr class="border-b border-slate-800/60 text-slate-300">
+                    <td class="py-2 pr-4">{fmtMes(m.month)}</td>
+                    <td class="py-2 pr-4 text-right tabular-nums">{fmt(m.total)}</td>
+                    <td class="py-2 pr-4 text-right tabular-nums">{fmt(m.aTiempo)}</td>
+                    <td class={`py-2 pr-4 text-right tabular-nums ${pctClass(m.pctATiempo)}`}>{fmtPct(m.pctATiempo)}</td>
+                    <td class="py-2 text-right tabular-nums">{m.demoraPromedioTardios === null ? '—' : `${fmtDias(m.demoraPromedioTardios)} días`}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+            <h3 class="mb-3 text-sm font-medium text-slate-200">
+              Distribución de la demora <span class="font-normal text-slate-500">(últimos 90 días, {fmt(totalVentana)} despachos)</span>
+            </h3>
+            <ul class="space-y-2">
+              {data.demora.map((b, i) => (
+                <li class="flex items-center gap-3 text-sm">
+                  <span class="w-44 shrink-0 text-slate-400">{b.label}</span>
+                  <div class="h-3 flex-1 rounded bg-slate-800">
+                    <div
+                      class={`h-3 rounded ${i === 0 ? 'bg-status-green' : i === 1 ? 'bg-status-yellow' : 'bg-status-red'}`}
+                      style={`width:${(b.count / maxDemora) * 100}%`}
+                    />
+                  </div>
+                  <span class="w-12 text-right tabular-nums text-slate-200">{fmt(b.count)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        <section class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+          <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <h3 class="text-sm font-medium text-slate-200">
+              Despachos fuera de plazo
+              <span class="font-normal text-slate-500">(desde {fmtFecha(data.tardiosDesde)}) </span>
+              <span id="cump-count" class="font-normal text-slate-500">({fmt(data.tardios.length)})</span>
+            </h3>
+            <input
+              id="cump-search"
+              type="search"
+              placeholder="Buscar por cliente o remito…"
+              class="w-full rounded border border-slate-700 bg-slate-950 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-500 focus:border-brand-500 focus:outline-none sm:w-72"
+            />
+          </div>
+          <div class="overflow-x-auto">
+            <table id="cump-table" class="w-full text-left text-sm">
+              <thead class="text-xs text-slate-400">
+                <tr class="border-b border-slate-800">
+                  <th class="py-2 pr-4 font-medium"><button type="button" data-sort="remito" class="hover:text-slate-200">Remito</button></th>
+                  <th class="py-2 pr-4 font-medium"><button type="button" data-sort="cliente" class="hover:text-slate-200">Cliente</button></th>
+                  <th class="py-2 pr-4 font-medium"><button type="button" data-sort="origen" class="hover:text-slate-200">Origen</button></th>
+                  <th class="py-2 pr-4 font-medium"><button type="button" data-sort="programado" class="hover:text-slate-200">Programado</button></th>
+                  <th class="py-2 pr-4 font-medium"><button type="button" data-sort="despacho" class="hover:text-slate-200">Despachado</button></th>
+                  <th class="py-2 text-right font-medium"><button type="button" data-sort="demora" class="hover:text-slate-200">Días de demora</button></th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.tardios.map((t) => (
+                  <tr
+                    class="border-b border-slate-800/60 text-slate-300"
+                    data-remito={t.name}
+                    data-cliente={t.cliente}
+                    data-origen={t.origen}
+                    data-programado={t.fechaProgramada}
+                    data-despacho={t.fechaDespacho}
+                    data-demora={t.diasDemora}
+                  >
+                    <td class="py-2 pr-4 whitespace-nowrap">{t.name}</td>
+                    <td class="py-2 pr-4">{t.cliente}</td>
+                    <td class="py-2 pr-4 whitespace-nowrap">{t.origen}</td>
+                    <td class="py-2 pr-4 whitespace-nowrap">{fmtFecha(t.fechaProgramada)}</td>
+                    <td class="py-2 pr-4 whitespace-nowrap">{fmtFecha(t.fechaDespacho)}</td>
+                    <td class="py-2 text-right tabular-nums">{fmt(t.diasDemora)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p id="cump-empty" class="hidden py-6 text-center text-sm text-slate-500">Ningún remito coincide con la búsqueda.</p>
+          </div>
+        </section>
+      </>
+    )
+  }
+</div>
+
+<script>
+  import { initSortableTable } from './sortable-table';
+
+  initSortableTable({
+    prefix: 'cump',
+    searchKeys: ['cliente', 'remito'],
+    numericKeys: ['demora'],
+    defaultSort: 'demora',
+    descFirst: ['demora'],
+  });
+</script>
+
+<style>
+  button[data-sort]::after {
+    content: attr(data-arrow);
+  }
+</style>
