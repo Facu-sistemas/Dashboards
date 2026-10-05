@@ -6,6 +6,7 @@ import LastUpdated from '../shared/LastUpdated';
 import PeriodPicker, { idxsForPeriodo } from './PeriodPicker';
 import ProduccionDetalleChart, { type SerieProducto } from './ProduccionDetalleChart';
 import ProduccionDetalleTable, { type FilaDetalle } from './ProduccionDetalleTable';
+import { DESTACADOS_DEFAULT, DESTACADOS_MAX } from './produccion-detalle-palette';
 
 interface Props {
   dehydratedState?: DehydratedState;
@@ -16,6 +17,7 @@ interface ProduccionDetalleProducto {
   modelo: string;
   familia: string;
   categoria: 'sillones' | 'colchones';
+  categOdoo: string;
   cant: number[];
   ue: number[];
 }
@@ -27,7 +29,10 @@ interface ProduccionDetalleResult {
 }
 
 type Sector = 'sillones' | 'colchones' | 'ambos';
-type Vista = 'producto' | 'familia';
+type Vista = 'producto' | 'familia' | 'categoria';
+
+const CLAVE_POR_VISTA = { producto: 'modelo', familia: 'familia', categoria: 'categOdoo' } as const;
+const NOMBRE_VISTA: Record<Vista, string> = { producto: 'producto', familia: 'familia', categoria: 'categoría' };
 type Medida = 'cant' | 'ue';
 
 function sumArrays(arrs: number[][], nMeses: number): number[] {
@@ -42,11 +47,12 @@ function sumPorIdxs(arr: number[], idxs: number[]): number {
  * Agrupa por "modelo" (ej. "Stella Sofá Eléctrico 2/3 Cpo", sumando todas
  * sus telas/colores — eso es lo que la pestaña llama "Producto": la
  * variante de tela sola no tenía sentido como fila propia) o por
- * "familia" (un nivel más arriba: Stella/Movex/Sirius/Onix) según la
- * vista elegida.
+ * "familia" (un nivel más arriba: Stella/Movex/Sirius/Onix) o por
+ * categoría de Odoo ("Sillon / Deliveries", "Sillon / Accesorio"...) según
+ * la vista elegida.
  */
 function agrupar(productos: ProduccionDetalleProducto[], vista: Vista, nMeses: number): { nombre: string; cant: number[]; ue: number[] }[] {
-  const clave = vista === 'producto' ? 'modelo' : 'familia';
+  const clave = CLAVE_POR_VISTA[vista];
   const porClave = new Map<string, ProduccionDetalleProducto[]>();
   for (const p of productos) {
     const grupo = porClave.get(p[clave]) ?? [];
@@ -88,14 +94,32 @@ function ProduccionDetalleInner() {
   const [vista, setVista] = useState<Vista>('familia');
   const [medida, setMedida] = useState<Medida>('ue');
   const [periodo, setPeriodo] = useState('ACU');
+  const [destacados, setDestacados] = useState(DESTACADOS_DEFAULT);
+  // Se guardan las apagadas (no las prendidas) para que una categoría nueva aparezca prendida por defecto.
+  const [categsExcluidas, setCategsExcluidas] = useState<Set<string>>(new Set());
 
   const idxs = useMemo(() => idxsForPeriodo(periodo, nMeses), [periodo, nMeses]);
 
+  const productosSector = useMemo(() => {
+    if (!data) return [];
+    return sector === 'ambos' ? data.productos : data.productos.filter((p) => p.categoria === sector);
+  }, [data, sector]);
+
+  const categsDisponibles = useMemo(() => [...new Set(productosSector.map((p) => p.categOdoo))].sort(), [productosSector]);
+
   const grupos = useMemo(() => {
     if (!data) return [];
-    const productosSector = sector === 'ambos' ? data.productos : data.productos.filter((p) => p.categoria === sector);
-    return agrupar(productosSector, vista, data.mesesConDatos);
-  }, [data, sector, vista]);
+    const filtrados = productosSector.filter((p) => !categsExcluidas.has(p.categOdoo));
+    return agrupar(filtrados, vista, data.mesesConDatos);
+  }, [data, productosSector, categsExcluidas, vista]);
+
+  const toggleCateg = (c: string) =>
+    setCategsExcluidas((prev) => {
+      const next = new Set(prev);
+      if (next.has(c)) next.delete(c);
+      else next.add(c);
+      return next;
+    });
 
   return (
     <div className="flex flex-col gap-6">
@@ -125,6 +149,7 @@ function ProduccionDetalleInner() {
             options={[
               { value: 'familia', label: 'Familia' },
               { value: 'producto', label: 'Producto' },
+              { value: 'categoria', label: 'Categoría' },
             ]}
           />
           <ToggleGroup
@@ -136,7 +161,43 @@ function ProduccionDetalleInner() {
               { value: 'ue', label: 'Unidad equivalente' },
             ]}
           />
+          <label className="flex items-center gap-1.5">
+            <span className="mr-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Mostrar</span>
+            <input
+              type="number"
+              min={1}
+              max={DESTACADOS_MAX}
+              value={destacados}
+              onChange={(e) => {
+                const n = Math.round(Number(e.target.value));
+                if (Number.isFinite(n)) setDestacados(Math.min(DESTACADOS_MAX, Math.max(1, n)));
+              }}
+              className="w-16 rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-xs text-slate-200 focus:border-brand-500 focus:outline-none"
+            />
+            <span className="text-xs text-slate-400">+ Otros</span>
+          </label>
         </div>
+        {categsDisponibles.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Categorías</span>
+            {categsDisponibles.map((c) => {
+              const activa = !categsExcluidas.has(c);
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => toggleCateg(c)}
+                  aria-pressed={activa}
+                  className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                    activa ? 'border-brand-500 bg-brand-500/20 text-brand-300' : 'border-slate-700 bg-slate-950 text-slate-500 line-through hover:border-brand-500/50'
+                  }`}
+                >
+                  {c}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {query.isError && (
@@ -149,7 +210,9 @@ function ProduccionDetalleInner() {
         <div className="h-64 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
       ) : (
         (() => {
-          // Sin producción en el período elegido — no aporta nada mostrar la fila en 0.
+          // Sin producción en el período elegido — no aporta nada mostrar la fila en 0. Se mira cantidad O UE (no solo la
+          // medida elegida): si en UE se ocultaran las filas con 0 UE (almohadones), el total de Cantidad de la tabla dejaría
+          // de coincidir con la pestaña Producción (sept 2026: 2.155 en vez de 2.222).
           const conDatos = grupos.filter((g) => sumPorIdxs(g.cant, idxs) > 0 || sumPorIdxs(g.ue, idxs) > 0);
           const series: SerieProducto[] = conDatos.map((g) => ({ nombre: g.nombre, valores: g[medida] }));
           const filas: FilaDetalle[] = conDatos.map((g) => ({ nombre: g.nombre, cant: sumPorIdxs(g.cant, idxs), ue: sumPorIdxs(g.ue, idxs) }));
@@ -158,13 +221,14 @@ function ProduccionDetalleInner() {
           return (
             <>
               <ProduccionDetalleChart
-                key={`${sector}-${vista}-${medida}-${periodo}`}
-                title={`${tituloSector} por ${vista === 'familia' ? 'familia' : 'producto'} — ${medida === 'ue' ? 'unidad equivalente' : 'cantidad'}`}
+                key={`${sector}-${vista}-${medida}-${periodo}-${[...categsExcluidas].join('|')}`}
+                title={`${tituloSector} por ${NOMBRE_VISTA[vista]} —${medida === 'ue' ? 'unidad equivalente' : 'cantidad'}`}
                 series={series}
                 idxs={idxs}
                 unidad={medida === 'ue' ? 'u eq.' : 'u'}
+                destacados={destacados}
               />
-              <ProduccionDetalleTable rows={filas} ordenarPor={medida} />
+              <ProduccionDetalleTable rows={filas} ordenarPor={medida} destacados={destacados} />
             </>
           );
         })()
