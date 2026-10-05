@@ -56,6 +56,10 @@ export interface ReparacionColchonMonthlyPoint {
   month: string;
   cantidadNotasCredito: number;
   montoNotasCredito: number;
+  cantidadGarantia: number;
+  montoGarantia: number;
+  cantidadCalidad: number;
+  montoCalidad: number;
   horasReparacion: number;
   unidadesFabricadas: number;
   notasCreditoPorMilUnidades: number | null;

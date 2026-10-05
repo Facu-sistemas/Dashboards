@@ -22,6 +22,12 @@ const RANGE_OPTIONS: { value: CalidadRange; label: string }[] = [
 const money = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
 const numero = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
 
+function nombreMes(month: string): string {
+  const [y, m] = month.split('-').map(Number);
+  const name = new Date(y!, m! - 1, 1).toLocaleDateString('es-AR', { month: 'long' });
+  return `${name.charAt(0).toUpperCase()}${name.slice(1)} ${y}`;
+}
+
 function SectorHeader({ sectorName, accent }: { sectorName: string; accent: string }) {
   return (
     <div className="flex items-center gap-3">
@@ -134,6 +140,42 @@ function ColchonSection({ data }: { data: ReparacionesResult['colchon'] }) {
           </p>
         </div>
         <HorasYRecuperadoChart points={puntosMontoHoras} montoLabel="Monto de notas de crédito" />
+      </section>
+
+      <section className="flex flex-col gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
+        <div>
+          <h3 className="text-sm font-medium text-slate-300">Devoluciones por mes: Garantía vs. Calidad</h3>
+          <p className="mt-1 text-xs text-slate-500">
+            Mismas notas de crédito de Colchón de arriba, separadas por motivo. Garantía = motivo "Garantía"; Calidad = no
+            conformidad (producto). Suma ambas empresas (Frontera Living y Presupuesto).
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-800 text-left text-xs text-slate-500">
+                <th className="py-2 pr-4 font-medium">Mes</th>
+                <th className="px-2 py-2 text-right font-medium">Garantía (cant.)</th>
+                <th className="px-2 py-2 text-right font-medium">Garantía ($)</th>
+                <th className="px-2 py-2 text-right font-medium">Calidad (cant.)</th>
+                <th className="px-2 py-2 text-right font-medium">Calidad ($)</th>
+                <th className="py-2 pl-2 text-right font-medium">Total ($)</th>
+              </tr>
+            </thead>
+            <tbody className="text-slate-200">
+              {[...data.mensual].reverse().map((p) => (
+                <tr key={p.month} className="border-b border-slate-800/60">
+                  <td className="py-2 pr-4">{nombreMes(p.month)}</td>
+                  <td className="px-2 py-2 text-right">{numero.format(p.cantidadGarantia)}</td>
+                  <td className="px-2 py-2 text-right">{money.format(p.montoGarantia)}</td>
+                  <td className="px-2 py-2 text-right">{numero.format(p.cantidadCalidad)}</td>
+                  <td className="px-2 py-2 text-right">{money.format(p.montoCalidad)}</td>
+                  <td className="py-2 pl-2 text-right font-semibold">{money.format(p.montoNotasCredito)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
     </div>
   );
