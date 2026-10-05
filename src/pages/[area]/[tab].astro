@@ -24,8 +24,10 @@ import ReparacionesColchonesTab from '../../components/calidad/ReparacionesColch
 import ColchonTab from '../../components/test/ColchonTab.astro';
 import ConversorTab from '../../components/test/ConversorTab.astro';
 import VacacionesTab from '../../components/rrhh/VacacionesTab.astro';
+import ResumenRrhhTab from '../../components/rrhh/ResumenTab.astro';
 import CumpleanosTab from '../../components/test/CumpleanosTab.astro';
 import FlujoTab from '../../components/test/FlujoTab.astro';
+import PronosticoTab from '../../components/test/PronosticoTab.astro';
 import VentasTab from '../../components/gerencia/VentasTab.astro';
 import ProduccionGerenciaTab from '../../components/gerencia/ProduccionTab.astro';
 import ProduccionDetalleTab from '../../components/gerencia/ProduccionDetalleTab.astro';
@@ -67,11 +69,13 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
   {area.slug === 'test' && tabSlug === 'conversor' && <ConversorTab />}
   {area.slug === 'test' && tabSlug === 'cumpleanos' && <CumpleanosTab />}
   {area.slug === 'test' && tabSlug === 'flujo' && <FlujoTab />}
+  {area.slug === 'test' && tabSlug === 'pronostico' && <PronosticoTab />}
   {area.slug === 'gerencia-general' && tabSlug === 'ventas' && <VentasTab />}
   {area.slug === 'gerencia-general' && tabSlug === 'produccion' && <ProduccionGerenciaTab />}
   {area.slug === 'gerencia-general' && tabSlug === 'detalle-produccion' && <ProduccionDetalleTab />}
   {area.slug === 'gerencia-general' && tabSlug === 'facturacion' && <FacturacionGerenciaTab />}
   {area.slug === 'comercial' && tabSlug === 'clientes-activos' && <ClientesActivosTab />}
+  {area.slug === 'rrhh' && tabSlug === 'resumen' && <ResumenRrhhTab />}
   {area.slug === 'rrhh' && tabSlug === 'vacaciones' && <VacacionesTab />}
   {area.slug === 'finanzas-creditos' && tabSlug === 'credito-cheques' && <CreditoChequesTab />}
   {area.slug === 'finanzas-creditos' && tabSlug === 'distribucion-cheques' && <DistribucionChequesTab />}
