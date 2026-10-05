@@ -13,7 +13,7 @@ export interface MapaPunto {
   count: number;
   /** Monto total de los pedidos; solo en modo pendientes. */
   monto: number;
-  /** Hasta 5 clientes, los de mayor cantidad primero. */
+  /** Todos los clientes de esta localidad (los del buscador del mapa), los de mayor cantidad primero. */
   clientes: string[];
 }
 
@@ -169,7 +169,6 @@ function armarModo(ops: Operacion[], partners: Map<number, PartnerRow>): MapaMod
       ...punto,
       clientes: [...porCliente.entries()]
         .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
         .map(([nombre]) => nombre),
     })),
     provincias: [...provincias.values()].sort((a, b) => b.count - a.count),

@@ -190,7 +190,7 @@ const inputClass =
           </p>
         </section>
 
-        <script is:inline id="cd-data" type="application/json" set:html={json} />
+        <div id="cd-data" data-json={json} hidden></div>
       </>
     )
   }
@@ -213,7 +213,7 @@ const inputClass =
   import type { CostoDevolucionesData } from '../../lib/odoo/costo-devoluciones';
   import type { TarifasGuardadas, TarifasMes } from '../../lib/supabase/costo-devoluciones-tarifas';
 
-  const raw = document.getElementById('cd-data')?.textContent;
+  const raw = document.getElementById('cd-data')?.dataset.json;
 
   if (raw) {
     const { data, tarifas: guardadas } = JSON.parse(raw) as { data: CostoDevolucionesData; tarifas: TarifasGuardadas };
