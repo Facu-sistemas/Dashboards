@@ -1,4 +1,4 @@
-import { searchRead, searchReadAll } from './client';
+import { readGroup, searchRead, searchReadAll } from './client';
 import { currentMonthKey, monthsBetween } from '../date';
 import type { OdooDomain } from './types';
 
@@ -55,6 +55,21 @@ const EXCLUDED_PARTNER_IDS = [1, 7];
 const PRESUPUESTO_COMPANY_ID = 2;
 const IVA_MULTIPLIER = 1.21;
 
+/**
+ * `res.partner.credit` solo suma la compañía Frontera Living — verificado en
+ * vivo contra los 405 clientes con saldo: `credit` == residual de la compañía
+ * 1 en todos. Las facturas "INV/..." de la compañía Presupuesto (id 2) quedan
+ * afuera (ej. CABRERA RICARDO MARTIN, $57M abiertos, `credit` = 0), así que
+ * el saldo de Presupuesto se lee aparte de `account.move.line` y se suma.
+ */
+const PRESUPUESTO_RECEIVABLE_DOMAIN: OdooDomain = [
+  ['company_id', '=', PRESUPUESTO_COMPANY_ID],
+  ['account_id.account_type', '=', 'asset_receivable'],
+  ['parent_state', '=', 'posted'],
+  ['amount_residual', '!=', 0],
+  ['partner_id', 'not in', EXCLUDED_PARTNER_IDS],
+];
+
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -64,6 +79,8 @@ export interface ClienteCreditoRow {
   partnerName: string;
   /** `res.partner.credit` — saldo abierto en cuentas de deudores por ventas (matches `total_due`). */
   totalPorCobrar: number;
+  /** Parte de `totalPorCobrar` que viene de facturas "INV/" de la compañía Presupuesto (el resto es `res.partner.credit` de Frontera Living). */
+  totalPorCobrarPresupuesto: number;
   limiteCredito: number;
   /** Suma de cheques de terceros recibidos, en cualquier estado salvo Rechazado. */
   totalChequesActivos: number;
@@ -121,11 +138,12 @@ export async function getCreditoClientes(): Promise<CreditoClientesData> {
     price_subtotal: number;
     untaxed_amount_invoiced: number;
   };
+  type ReceivableGroup = { partner_id: [number, string] | false; amount_residual: number };
   type PartnerRow = { id: number; name: string; credit: number; credit_limit: number };
 
   const today = todayIso();
 
-  const [cheques, pendingOrders] = await Promise.all([
+  const [cheques, pendingOrders, presupuestoReceivable] = await Promise.all([
     searchReadAll<ChequeRow>({
       model: 'account.third.check',
       domain: [
@@ -140,7 +158,18 @@ export async function getCreditoClientes(): Promise<CreditoClientesData> {
       domain: [...PENDING_ORDER_DOMAIN, ['partner_id', 'not in', EXCLUDED_PARTNER_IDS]],
       fields: ['id', 'partner_id'],
     }),
+    readGroup({
+      model: 'account.move.line',
+      domain: PRESUPUESTO_RECEIVABLE_DOMAIN,
+      fields: ['amount_residual'],
+      groupBy: ['partner_id'],
+    }) as unknown as Promise<ReceivableGroup[]>,
   ]);
+
+  const porCobrarPresupuesto = new Map<number, number>();
+  for (const g of presupuestoReceivable) {
+    if (g.partner_id) porCobrarPresupuesto.set(g.partner_id[0], g.amount_residual);
+  }
 
   const partnerIdByOrderId = new Map<number, number>();
   for (const o of pendingOrders) {
@@ -207,7 +236,7 @@ export async function getCreditoClientes(): Promise<CreditoClientesData> {
     fields: ['id', 'name', 'credit', 'credit_limit'],
   });
   const creditPartnerIds = new Set(creditPartners.map((p) => p.id));
-  const missingIds = [...byPartner.keys()].filter((id) => !creditPartnerIds.has(id));
+  const missingIds = [...new Set([...byPartner.keys(), ...porCobrarPresupuesto.keys()])].filter((id) => !creditPartnerIds.has(id));
   const extraPartners =
     missingIds.length > 0
       ? await searchRead<PartnerRow>({
@@ -224,15 +253,18 @@ export async function getCreditoClientes(): Promise<CreditoClientesData> {
     .filter((p) => p.name)
     .map((p) => {
       const a = byPartner.get(p.id) ?? { chequesActivos: 0, pedidosPendientes: 0, pedidosPendientesPresupuesto: 0 };
+      const porCobrarPresu = porCobrarPresupuesto.get(p.id) ?? 0;
+      const totalPorCobrar = p.credit + porCobrarPresu;
       return {
         partnerId: p.id,
         partnerName: p.name,
-        totalPorCobrar: p.credit,
+        totalPorCobrar,
+        totalPorCobrarPresupuesto: porCobrarPresu,
         limiteCredito: p.credit_limit,
         totalChequesActivos: a.chequesActivos,
         pedidosPendientes: a.pedidosPendientes,
         pedidosPendientesPresupuesto: a.pedidosPendientesPresupuesto,
-        totalCredito: a.chequesActivos + p.credit + a.pedidosPendientes,
+        totalCredito: a.chequesActivos + totalPorCobrar + a.pedidosPendientes,
       };
     })
     .sort((a, b) => b.totalCredito - a.totalCredito);
