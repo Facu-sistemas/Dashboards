@@ -56,7 +56,7 @@ export interface TicketsSoporteResult {
  * outside this app's control), but the stored technical value is still
  * "Garantatía", so this filter keeps matching the same rows either way.
  */
-const CREDIT_NOTE_WARRANTY_MOTIVO = 'Garantatía';
+export const CREDIT_NOTE_WARRANTY_MOTIVO = 'Garantatía';
 
 /**
  * `x_studio_motivo = 'Producto'` is the "no conformidad" / Calidad motivo
@@ -64,7 +64,7 @@ const CREDIT_NOTE_WARRANTY_MOTIVO = 'Garantatía';
  * together with `CREDIT_NOTE_WARRANTY_MOTIVO`, Calidad wants counted as a
  * "devolución" for Colchón (see `getReparaciones`).
  */
-const CREDIT_NOTE_NO_CONFORMIDAD_MOTIVO = 'Producto';
+export const CREDIT_NOTE_NO_CONFORMIDAD_MOTIVO = 'Producto';
 
 /**
  * Selector de empresa para Notas de Crédito por Garantía — deliberately
@@ -228,6 +228,11 @@ export interface ReparacionColchonMonthlyPoint {
   month: string; // "YYYY-MM"
   cantidadNotasCredito: number;
   montoNotasCredito: number;
+  /** Desglose del total anterior por motivo: Garantía vs. Calidad (no conformidad). */
+  cantidadGarantia: number;
+  montoGarantia: number;
+  cantidadCalidad: number;
+  montoCalidad: number;
   /** De `repair.order` (único lugar donde se cargan horas) — complementario a las notas de crédito, no son necesariamente las mismas órdenes. */
   horasReparacion: number;
   unidadesFabricadas: number;
@@ -277,7 +282,7 @@ async function fetchProductionRows(categIds: number[], companyId: number, startD
   return searchReadAll<ProductionRow>({ model: 'mrp.production', domain, fields: ['date_finished', 'qty_produced'] });
 }
 
-type CreditNoteRow = { invoice_date: string; amount_total_signed: number };
+type CreditNoteRow = { invoice_date: string; amount_total_signed: number; x_studio_motivo: string | false };
 
 /**
  * Notas de crédito de Colchón por Garantía + No conformidad — fuente que
@@ -295,7 +300,7 @@ async function fetchNotasCreditoColchon(startDate: string | null): Promise<Credi
     ['x_studio_motivo', 'in', [CREDIT_NOTE_WARRANTY_MOTIVO, CREDIT_NOTE_NO_CONFORMIDAD_MOTIVO]],
   ];
   if (startDate) domain.push(['invoice_date', '>=', startDate]);
-  return searchReadAll<CreditNoteRow>({ model: 'account.move', domain, fields: ['invoice_date', 'amount_total_signed'] });
+  return searchReadAll<CreditNoteRow>({ model: 'account.move', domain, fields: ['invoice_date', 'amount_total_signed', 'x_studio_motivo'] });
 }
 
 function bucketColchon(
@@ -304,12 +309,21 @@ function bucketColchon(
   productionRows: ProductionRow[],
   months: string[]
 ): ReparacionesColchonResult {
-  const ncByMonth = new Map<string, { cantidad: number; monto: number }>();
+  const emptyBucket = () => ({ cantidad: 0, monto: 0, cantGarantia: 0, montoGarantia: 0, cantCalidad: 0, montoCalidad: 0 });
+  const ncByMonth = new Map<string, ReturnType<typeof emptyBucket>>();
   for (const r of creditNoteRows) {
     const month = r.invoice_date.slice(0, 7);
-    const bucket = ncByMonth.get(month) ?? { cantidad: 0, monto: 0 };
+    const bucket = ncByMonth.get(month) ?? emptyBucket();
+    const monto = Math.abs(r.amount_total_signed);
     bucket.cantidad += 1;
-    bucket.monto += Math.abs(r.amount_total_signed);
+    bucket.monto += monto;
+    if (r.x_studio_motivo === CREDIT_NOTE_WARRANTY_MOTIVO) {
+      bucket.cantGarantia += 1;
+      bucket.montoGarantia += monto;
+    } else {
+      bucket.cantCalidad += 1;
+      bucket.montoCalidad += monto;
+    }
     ncByMonth.set(month, bucket);
   }
 
@@ -326,12 +340,16 @@ function bucketColchon(
   }
 
   const mensual = months.map((month) => {
-    const ncBucket = ncByMonth.get(month) ?? { cantidad: 0, monto: 0 };
+    const ncBucket = ncByMonth.get(month) ?? emptyBucket();
     const unidadesFabricadas = productionByMonth.get(month) ?? 0;
     return {
       month,
       cantidadNotasCredito: ncBucket.cantidad,
       montoNotasCredito: ncBucket.monto,
+      cantidadGarantia: ncBucket.cantGarantia,
+      montoGarantia: ncBucket.montoGarantia,
+      cantidadCalidad: ncBucket.cantCalidad,
+      montoCalidad: ncBucket.montoCalidad,
       horasReparacion: horasByMonth.get(month) ?? 0,
       unidadesFabricadas,
       notasCreditoPorMilUnidades: unidadesFabricadas > 0 ? (ncBucket.cantidad / unidadesFabricadas) * 1000 : null,

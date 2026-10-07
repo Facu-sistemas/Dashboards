@@ -1,0 +1,17 @@
+---
+import PlanificadoLineaApp from './PlanificadoLineaApp';
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Planificado Línea</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Reparte en las mesas de la línea resorte las órdenes del filtro "Colchón Línea Resorte" de Odoo, usando el tiempo
+      estimado de cada orden. Jornada de 06:00 con 488 minutos de trabajo y desayuno de 09:00 a 09:10. Lo que quedó
+      pendiente de días anteriores se arrastra y se planifica primero; si sobra jornada, se completa con lo de los días
+      siguientes. Las mesas y las reglas por tap se administran en las pestañas "Mesas" y "Taps".
+    </p>
+  </header>
+
+  <PlanificadoLineaApp client:load />
+</div>

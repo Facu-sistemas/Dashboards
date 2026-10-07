@@ -1,0 +1,170 @@
+---
+import { getPedidosSinDespacharData } from '../../lib/odoo/pedidos-sin-despachar';
+import type { EntregaEstado, PedidosSinDespacharData } from '../../lib/odoo/pedidos-sin-despachar';
+
+let data: PedidosSinDespacharData | null = null;
+let ssrError: string | null = null;
+try {
+  data = await getPedidosSinDespacharData();
+} catch (err) {
+  ssrError = err instanceof Error ? err.message : 'Error desconocido consultando Odoo';
+}
+
+const ESTADO_LABEL: Record<EntregaEstado, string> = {
+  pending: 'Sin entregar',
+  started: 'Iniciada',
+  partial: 'Parcialmente entregado',
+};
+const ESTADO_CLASS: Record<EntregaEstado, string> = {
+  pending: 'text-status-yellow',
+  started: 'text-slate-300',
+  partial: 'text-brand-400',
+};
+const ESTADO_ORDEN: Record<EntregaEstado, number> = { pending: 0, started: 1, partial: 2 };
+
+const fmt = (n: number) => n.toLocaleString('es-AR');
+const fmtMonto = (n: number) => n.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
+const fmtFecha = (iso: string) => iso.split('-').reverse().join('/');
+
+const maxEspera = data ? Math.max(1, ...data.espera.map((b) => b.count)) : 1;
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Pedidos sin despachar</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Pedidos de venta confirmados cuya entrega no está completa, con los días que llevan esperando desde la
+      confirmación. El monto es el total del pedido (con IVA); en los parcialmente entregados incluye lo ya
+      despachado. Solo lectura.
+    </p>
+  </header>
+
+  {
+    ssrError && (
+      <p class="mb-6 rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">
+        No se pudo consultar Odoo ({ssrError}).
+      </p>
+    )
+  }
+
+  {
+    data && (
+      <>
+        <section class="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
+          <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+            <p class="text-xs text-slate-400">Pedidos pendientes</p>
+            <p class="mt-1 text-2xl font-semibold text-slate-100">{fmt(data.pedidos.length)}</p>
+          </div>
+          <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+            <p class="text-xs text-slate-400">Monto pendiente</p>
+            <p class="mt-1 text-2xl font-semibold text-slate-100">{fmtMonto(data.montoTotal)}</p>
+          </div>
+          <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+            <p class="text-xs text-slate-400">Sin entregar / parciales</p>
+            <p class="mt-1 text-2xl font-semibold text-slate-100">
+              {fmt(data.porEstado.pending + data.porEstado.started)}
+              <span class="text-slate-500"> / </span>
+              {fmt(data.porEstado.partial)}
+            </p>
+          </div>
+          <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+            <p class="text-xs text-slate-400">Espera promedio</p>
+            <p class="mt-1 text-2xl font-semibold text-status-yellow">
+              {data.esperaPromedio.toLocaleString('es-AR', { maximumFractionDigits: 0 })} días
+            </p>
+          </div>
+          <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+            <p class="text-xs text-slate-400">Espera máxima</p>
+            <p class="mt-1 text-2xl font-semibold text-status-red">{fmt(data.esperaMaxima)} días</p>
+          </div>
+        </section>
+
+        <section class="mb-6 rounded-lg border border-slate-800 bg-slate-900 p-4">
+          <h3 class="mb-3 text-sm font-medium text-slate-200">Antigüedad de los pedidos pendientes</h3>
+          <ul class="space-y-2">
+            {data.espera.map((b) => (
+              <li class="flex items-center gap-3 text-sm">
+                <span class="w-32 shrink-0 text-slate-400">{b.label}</span>
+                <div class="h-3 flex-1 rounded bg-slate-800">
+                  <div class="h-3 rounded bg-brand-500" style={`width:${(b.count / maxEspera) * 100}%`} />
+                </div>
+                <span class="w-12 text-right tabular-nums text-slate-200">{fmt(b.count)}</span>
+                <span class="hidden w-40 text-right tabular-nums text-slate-400 sm:inline">{fmtMonto(b.monto)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+          <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <h3 class="text-sm font-medium text-slate-200">
+              Pedidos <span id="ped-count" class="font-normal text-slate-500">({fmt(data.pedidos.length)})</span>
+            </h3>
+            <input
+              id="ped-search"
+              type="search"
+              placeholder="Buscar por cliente, pedido o vendedor…"
+              class="w-full rounded border border-slate-700 bg-slate-950 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-500 focus:border-brand-500 focus:outline-none sm:w-80"
+            />
+          </div>
+          <div class="overflow-x-auto">
+            <table id="ped-table" class="w-full text-left text-sm">
+              <thead class="text-xs text-slate-400">
+                <tr class="border-b border-slate-800">
+                  <th class="py-2 pr-4 font-medium"><button type="button" data-sort="pedido" class="hover:text-slate-200">Pedido</button></th>
+                  <th class="py-2 pr-4 font-medium"><button type="button" data-sort="cliente" class="hover:text-slate-200">Cliente</button></th>
+                  <th class="py-2 pr-4 font-medium"><button type="button" data-sort="vendedor" class="hover:text-slate-200">Vendedor</button></th>
+                  <th class="py-2 pr-4 font-medium"><button type="button" data-sort="estado" class="hover:text-slate-200">Entrega</button></th>
+                  <th class="py-2 pr-4 font-medium"><button type="button" data-sort="fecha" class="hover:text-slate-200">Confirmado</button></th>
+                  <th class="py-2 pr-4 text-right font-medium"><button type="button" data-sort="dias" class="hover:text-slate-200">Días de espera</button></th>
+                  <th class="py-2 text-right font-medium"><button type="button" data-sort="monto" class="hover:text-slate-200">Monto</button></th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.pedidos.map((p) => (
+                  <tr
+                    class="border-b border-slate-800/60 text-slate-300"
+                    data-pedido={p.name}
+                    data-cliente={p.cliente}
+                    data-vendedor={p.vendedor}
+                    data-estado={ESTADO_ORDEN[p.estado]}
+                    data-fecha={p.fecha}
+                    data-dias={p.diasEspera}
+                    data-monto={p.monto}
+                  >
+                    <td class="py-2 pr-4 whitespace-nowrap">{p.name}</td>
+                    <td class="py-2 pr-4">{p.cliente}</td>
+                    <td class="py-2 pr-4 whitespace-nowrap">{p.vendedor}</td>
+                    <td class={`py-2 pr-4 whitespace-nowrap ${ESTADO_CLASS[p.estado]}`}>{ESTADO_LABEL[p.estado]}</td>
+                    <td class="py-2 pr-4 whitespace-nowrap">{fmtFecha(p.fecha)}</td>
+                    <td class="py-2 pr-4 text-right tabular-nums">{fmt(p.diasEspera)}</td>
+                    <td class="py-2 text-right tabular-nums whitespace-nowrap">{fmtMonto(p.monto)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p id="ped-empty" class="hidden py-6 text-center text-sm text-slate-500">Ningún pedido coincide con la búsqueda.</p>
+          </div>
+        </section>
+      </>
+    )
+  }
+</div>
+
+<script>
+  import { initSortableTable } from './sortable-table';
+
+  initSortableTable({
+    prefix: 'ped',
+    searchKeys: ['cliente', 'pedido', 'vendedor'],
+    numericKeys: ['estado', 'dias', 'monto'],
+    defaultSort: 'dias',
+    descFirst: ['dias', 'monto'],
+  });
+</script>
+
+<style>
+  button[data-sort]::after {
+    content: attr(data-arrow);
+  }
+</style>

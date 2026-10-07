@@ -1,0 +1,186 @@
+---
+import { getDespachosData } from '../../lib/odoo/despachos';
+import type { DespachoEstado, DespachosData } from '../../lib/odoo/despachos';
+
+let data: DespachosData | null = null;
+let ssrError: string | null = null;
+try {
+  data = await getDespachosData();
+} catch (err) {
+  ssrError = err instanceof Error ? err.message : 'Error desconocido consultando Odoo';
+}
+
+const ESTADO_LABEL: Record<DespachoEstado, string> = {
+  assigned: 'Listo para despachar',
+  confirmed: 'Esperando disponibilidad',
+  waiting: 'Esperando otra operación',
+};
+const ESTADO_CLASS: Record<DespachoEstado, string> = {
+  assigned: 'text-status-green',
+  confirmed: 'text-status-yellow',
+  waiting: 'text-slate-400',
+};
+
+/** Orden al ordenar por Estado: primero lo que ya se puede despachar. */
+const ESTADO_ORDEN: Record<DespachoEstado, number> = { assigned: 0, confirmed: 1, waiting: 2 };
+
+const fmt = (n: number) => n.toLocaleString('es-AR');
+const fmtFecha = (iso: string) => iso.split('-').reverse().join('/');
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const fmtMes = (key: string) => `${MESES[Number(key.slice(5)) - 1]} ${key.slice(2, 4)}`;
+
+const maxAnt = data ? Math.max(1, ...data.antiguedad.map((b) => b.count)) : 1;
+const maxMes = data ? Math.max(1, ...data.despachadosMensual.map((m) => m.count)) : 1;
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Despachos</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Remitos de salida pendientes de despacho (todos los almacenes), su antigüedad respecto de la fecha
+      programada y el ritmo de despachos de los últimos meses. Solo lectura.
+    </p>
+  </header>
+
+  {
+    ssrError && (
+      <p class="mb-6 rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">
+        No se pudo consultar Odoo ({ssrError}).
+      </p>
+    )
+  }
+
+  {
+    data && (
+      <>
+        <section class="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
+          <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+            <p class="text-xs text-slate-400">Pendientes</p>
+            <p class="mt-1 text-2xl font-semibold text-slate-100">{fmt(data.pendientes.length)}</p>
+          </div>
+          <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+            <p class="text-xs text-slate-400">Listos para despachar</p>
+            <p class="mt-1 text-2xl font-semibold text-status-green">{fmt(data.porEstado.assigned)}</p>
+          </div>
+          <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+            <p class="text-xs text-slate-400">Esperando stock u otra operación</p>
+            <p class="mt-1 text-2xl font-semibold text-status-yellow">
+              {fmt(data.porEstado.confirmed + data.porEstado.waiting)}
+            </p>
+          </div>
+          <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+            <p class="text-xs text-slate-400">Atrasados</p>
+            <p class="mt-1 text-2xl font-semibold text-status-red">{fmt(data.atrasados)}</p>
+          </div>
+          <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+            <p class="text-xs text-slate-400">Despachados (30 días)</p>
+            <p class="mt-1 text-2xl font-semibold text-slate-100">{fmt(data.despachados30d)}</p>
+          </div>
+        </section>
+
+        <section class="mb-6 grid gap-6 lg:grid-cols-2">
+          <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+            <h3 class="mb-3 text-sm font-medium text-slate-200">Antigüedad de pendientes</h3>
+            <ul class="space-y-2">
+              {data.antiguedad.map((b) => (
+                <li class="flex items-center gap-3 text-sm">
+                  <span class="w-36 shrink-0 text-slate-400">{b.label}</span>
+                  <div class="h-3 flex-1 rounded bg-slate-800">
+                    <div class="h-3 rounded bg-brand-500" style={`width:${(b.count / maxAnt) * 100}%`} />
+                  </div>
+                  <span class="w-12 text-right tabular-nums text-slate-200">{fmt(b.count)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+            <h3 class="mb-3 text-sm font-medium text-slate-200">Despachos por mes</h3>
+            <ul class="space-y-2">
+              {data.despachadosMensual.map((m) => (
+                <li class="flex items-center gap-3 text-sm">
+                  <span class="w-36 shrink-0 text-slate-400">{fmtMes(m.month)}</span>
+                  <div class="h-3 flex-1 rounded bg-slate-800">
+                    <div class="h-3 rounded bg-accent-teal" style={`width:${(m.count / maxMes) * 100}%`} />
+                  </div>
+                  <span class="w-12 text-right tabular-nums text-slate-200">{fmt(m.count)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        <section class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+          <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <h3 class="text-sm font-medium text-slate-200">
+              Remitos pendientes
+              <span id="desp-count" class="font-normal text-slate-500">({fmt(data.pendientes.length)})</span>
+            </h3>
+            <input
+              id="desp-search"
+              type="search"
+              placeholder="Buscar por cliente o remito…"
+              class="w-full rounded border border-slate-700 bg-slate-950 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-500 focus:border-brand-500 focus:outline-none sm:w-72"
+            />
+          </div>
+          <div class="overflow-x-auto">
+            <table id="desp-table" class="w-full text-left text-sm">
+              <thead class="text-xs text-slate-400">
+                <tr class="border-b border-slate-800">
+                  <th class="py-2 pr-4 font-medium"><button type="button" data-sort="remito" class="hover:text-slate-200">Remito</button></th>
+                  <th class="py-2 pr-4 font-medium"><button type="button" data-sort="cliente" class="hover:text-slate-200">Cliente</button></th>
+                  <th class="py-2 pr-4 font-medium"><button type="button" data-sort="origen" class="hover:text-slate-200">Origen</button></th>
+                  <th class="py-2 pr-4 font-medium"><button type="button" data-sort="almacen" class="hover:text-slate-200">Almacén</button></th>
+                  <th class="py-2 pr-4 font-medium"><button type="button" data-sort="estado" class="hover:text-slate-200">Estado</button></th>
+                  <th class="py-2 pr-4 font-medium"><button type="button" data-sort="fecha" class="hover:text-slate-200">Programado</button></th>
+                  <th class="py-2 text-right font-medium"><button type="button" data-sort="atraso" class="hover:text-slate-200">Días de atraso</button></th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.pendientes.map((p) => (
+                  <tr
+                    class="border-b border-slate-800/60 text-slate-300"
+                    data-remito={p.name}
+                    data-cliente={p.cliente}
+                    data-origen={p.origen}
+                    data-almacen={p.almacen}
+                    data-estado={ESTADO_ORDEN[p.estado]}
+                    data-fecha={p.fechaProgramada}
+                    data-atraso={p.diasAtraso}
+                  >
+                    <td class="py-2 pr-4 whitespace-nowrap">{p.name}</td>
+                    <td class="py-2 pr-4">{p.cliente}</td>
+                    <td class="py-2 pr-4 whitespace-nowrap">{p.origen}</td>
+                    <td class="py-2 pr-4 whitespace-nowrap">{p.almacen}</td>
+                    <td class={`py-2 pr-4 whitespace-nowrap ${ESTADO_CLASS[p.estado]}`}>{ESTADO_LABEL[p.estado]}</td>
+                    <td class="py-2 pr-4 whitespace-nowrap">{fmtFecha(p.fechaProgramada)}</td>
+                    <td class="py-2 text-right tabular-nums">{fmt(p.diasAtraso)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p id="desp-empty" class="hidden py-6 text-center text-sm text-slate-500">Ningún remito coincide con la búsqueda.</p>
+          </div>
+        </section>
+      </>
+    )
+  }
+</div>
+
+<script>
+  import { initSortableTable } from './sortable-table';
+
+  initSortableTable({
+    prefix: 'desp',
+    searchKeys: ['cliente', 'remito'],
+    numericKeys: ['estado', 'atraso'],
+    defaultSort: 'fecha',
+    descFirst: ['atraso'],
+    tieBreaker: 'atraso',
+  });
+</script>
+
+<style>
+  button[data-sort]::after {
+    content: attr(data-arrow);
+  }
+</style>

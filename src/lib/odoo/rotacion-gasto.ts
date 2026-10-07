@@ -116,7 +116,7 @@ function cleanCategoria(name: string): string {
   return name.replace(/^Materia Prima \/ /, '');
 }
 
-async function inBatches<T, R>(items: T[], size: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+export async function inBatches<T, R>(items: T[], size: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const out: R[] = [];
   for (let i = 0; i < items.length; i += size) {
     out.push(...(await Promise.all(items.slice(i, i + size).map(fn))));
@@ -124,7 +124,7 @@ async function inBatches<T, R>(items: T[], size: number, fn: (item: T) => Promis
   return out;
 }
 
-const MP_DOMAIN: OdooDomain = [['product_id.categ_id', 'child_of', MATERIA_PRIMA_CATEG_ID]];
+export const MP_DOMAIN: OdooDomain = [['product_id.categ_id', 'child_of', MATERIA_PRIMA_CATEG_ID]];
 
 export async function getEmpresas(): Promise<Empresa[]> {
   return withTtlCache('rotacion-gasto:empresas', CACHE_TTL_MS, async () => {
@@ -134,7 +134,7 @@ export async function getEmpresas(): Promise<Empresa[]> {
 }
 
 /** Valida los ids pedidos contra las empresas reales; sin ids (o ninguno válido) = todas. */
-async function resolverEmpresas(ids: number[] | undefined): Promise<{ empresas: Empresa[]; seleccion: number[] }> {
+export async function resolverEmpresas(ids: number[] | undefined): Promise<{ empresas: Empresa[]; seleccion: number[] }> {
   const empresas = await getEmpresas();
   const validos = (ids ?? []).filter((id) => empresas.some((e) => e.id === id));
   const seleccion = validos.length > 0 ? [...new Set(validos)].sort((a, b) => a - b) : empresas.map((e) => e.id);

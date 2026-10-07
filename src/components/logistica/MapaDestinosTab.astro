@@ -1,0 +1,270 @@
+---
+import { getMapaDestinosData } from '../../lib/odoo/mapa-destinos';
+import type { MapaDestinosData } from '../../lib/odoo/mapa-destinos';
+
+let data: MapaDestinosData | null = null;
+let ssrError: string | null = null;
+try {
+  data = await getMapaDestinosData();
+} catch (err) {
+  ssrError = err instanceof Error ? err.message : 'Error desconocido consultando Odoo';
+}
+
+const fmtFecha = (iso: string) => iso.split('-').reverse().join('/');
+// `<` escapado para que ningún nombre de cliente pueda cerrar el <script>.
+const json = data ? JSON.stringify(data).replace(/</g, '\\u003c') : '';
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Mapa de destinos</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      A dónde van los pedidos: pendientes de despacho hoy o despachados en los últimos 90 días (desde
+      {data ? fmtFecha(data.desde) : '—'}). Cada círculo agrupa los destinos de una misma localidad; su tamaño
+      es la cantidad. Solo lectura.
+    </p>
+  </header>
+
+  {
+    ssrError && (
+      <p class="mb-6 rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">
+        No se pudo consultar Odoo ({ssrError}).
+      </p>
+    )
+  }
+
+  {
+    data && (
+      <>
+        <div class="mb-4 flex flex-wrap items-center gap-3">
+          <div class="inline-flex rounded-lg border border-slate-800 bg-slate-900 p-1 text-sm" role="group" aria-label="Qué mostrar">
+            <button type="button" data-modo="pendientes" class="mapa-modo rounded-md px-3 py-1.5">Pendientes de despacho</button>
+            <button type="button" data-modo="despachados" class="mapa-modo rounded-md px-3 py-1.5">Despachados (90 días)</button>
+          </div>
+          <input
+            id="mapa-buscar"
+            type="search"
+            placeholder="Buscar cliente en el mapa…"
+            autocomplete="off"
+            class="w-full rounded border border-slate-700 bg-slate-950 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-500 focus:border-brand-500 focus:outline-none sm:w-72"
+          />
+          <p id="mapa-busqueda" class="text-sm text-amber-400" />
+          <p id="mapa-resumen" class="text-sm text-slate-400" />
+        </div>
+
+        <div class="grid gap-4 lg:grid-cols-[1fr_320px]">
+          <div id="mapa" class="isolate z-0 h-[560px] rounded-lg border border-slate-800 bg-slate-900" />
+          <div class="max-h-[560px] overflow-y-auto rounded-lg border border-slate-800 bg-slate-900 p-4">
+            <h3 class="mb-3 text-sm font-medium text-slate-200">Por provincia</h3>
+            <table class="w-full text-left text-sm">
+              <thead class="text-xs text-slate-400">
+                <tr class="border-b border-slate-800">
+                  <th class="py-2 pr-2 font-medium">Provincia</th>
+                  <th class="py-2 pr-2 text-right font-medium">Cant.</th>
+                  <th class="py-2 text-right font-medium">%</th>
+                </tr>
+              </thead>
+              <tbody id="mapa-provincias" />
+            </table>
+          </div>
+        </div>
+
+        <div id="mapa-data" data-json={json} hidden></div>
+      </>
+    )
+  }
+</div>
+
+<script>
+  import L from 'leaflet';
+  import 'leaflet/dist/leaflet.css';
+  import type { MapaDestinosData, MapaModoData, MapaModo, MapaPunto } from '../../lib/odoo/mapa-destinos';
+
+  const raw = document.getElementById('mapa-data')?.dataset.json;
+  const mapEl = document.getElementById('mapa');
+
+  if (raw && mapEl) {
+    const data = JSON.parse(raw) as MapaDestinosData;
+    const light = document.documentElement.getAttribute('data-theme') === 'light';
+
+    const map = L.map(mapEl, { zoomSnap: 0.25 }).setView([-38.5, -63.5], 4);
+    // OpenStreetMap: no pide API key (los mosaicos de CARTO ahora devuelven marca de agua sin una). En tema oscuro se invierten por CSS.
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 18,
+      className: light ? '' : 'mapa-tiles-oscuro',
+    }).addTo(map);
+
+    const capa = L.layerGroup().addTo(map);
+    const resumen = document.getElementById('mapa-resumen')!;
+    const tbody = document.getElementById('mapa-provincias')!;
+    const botones = document.querySelectorAll<HTMLButtonElement>('button.mapa-modo');
+    const buscar = document.getElementById('mapa-buscar') as HTMLInputElement;
+    const estadoBusqueda = document.getElementById('mapa-busqueda')!;
+
+    let modo: MapaModo = 'pendientes';
+    let marcadores: { punto: MapaPunto; marker: L.CircleMarker }[] = [];
+
+    const fmt = (n: number) => n.toLocaleString('es-AR');
+    const fmtMonto = (n: number) => n.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
+
+    function el<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, className?: string): HTMLElementTagNameMap[K] {
+      const e = document.createElement(tag);
+      if (text !== undefined) e.textContent = text;
+      if (className) e.className = className;
+      return e;
+    }
+
+    // Datos de Odoo (nombres/ciudades) van siempre como textContent, nunca como HTML.
+    const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    /** Alto máximo de la lista de clientes del cuadro: si hay más, se desplaza dentro del cuadro. */
+    const ALTO_LISTA_PX = 220;
+
+    function popup(p: MapaPunto, m: MapaModo, q = ''): HTMLElement {
+      const box = el('div');
+      box.append(el('strong', `${p.ciudad}, ${p.provincia}`));
+      box.append(el('br'));
+      box.append(
+        document.createTextNode(
+          m === 'pendientes'
+            ? `${fmt(p.count)} ${p.count === 1 ? 'pedido' : 'pedidos'} · ${fmtMonto(p.monto)}`
+            : `${fmt(p.count)} ${p.count === 1 ? 'remito' : 'remitos'}`
+        )
+      );
+      const coinciden = q ? p.clientes.filter((c) => norm(c).includes(q)) : [];
+      const resto = p.clientes.filter((c) => !coinciden.includes(c));
+      const lista = [...coinciden, ...resto];
+      box.append(el('br'));
+      box.append(el('em', `${fmt(lista.length)} ${lista.length === 1 ? 'cliente' : 'clientes'}`));
+      const scroll = el('div');
+      scroll.style.maxHeight = `${ALTO_LISTA_PX}px`;
+      scroll.style.overflowY = 'auto';
+      scroll.style.marginTop = '4px';
+      for (const c of lista) {
+        const fila = el(coinciden.includes(c) ? 'strong' : 'span', `· ${c}`);
+        fila.style.display = 'block';
+        scroll.append(fila);
+      }
+      // La rueda del mouse desplaza la lista en vez de hacer zoom en el mapa.
+      L.DomEvent.disableScrollPropagation(scroll);
+      box.append(scroll);
+      return box;
+    }
+
+    const ESTILO_BASE = {
+      color: light ? '#268bd2' : '#60a5fa',
+      fillColor: light ? '#268bd2' : '#60a5fa',
+      weight: 1.5,
+      opacity: 1,
+      fillOpacity: 0.45,
+    };
+    const ESTILO_COINCIDE = { color: '#f59e0b', fillColor: '#f59e0b', weight: 3, opacity: 1, fillOpacity: 0.8 };
+    const ESTILO_APAGADO = { weight: 1, opacity: 0.25, fillOpacity: 0.08 };
+    const VISTA_INICIAL: L.LatLngTuple = [-38.5, -63.5];
+
+    /** Resalta las localidades con un cliente que coincide con la búsqueda y, si `ajustarVista`, lleva el mapa hasta ellas. */
+    function aplicarBusqueda(ajustarVista: boolean) {
+      const q = norm(buscar.value.trim());
+      if (!q) {
+        for (const { punto, marker } of marcadores) {
+          marker.setStyle({ ...ESTILO_BASE });
+          marker.setPopupContent(popup(punto, modo));
+        }
+        estadoBusqueda.textContent = '';
+        if (ajustarVista) {
+          map.closePopup();
+          map.setView(VISTA_INICIAL, 4);
+        }
+        return;
+      }
+
+      const aciertos: typeof marcadores = [];
+      let clientes = 0;
+      for (const m of marcadores) {
+        const n = m.punto.clientes.filter((c) => norm(c).includes(q)).length;
+        if (n > 0) {
+          aciertos.push(m);
+          clientes += n;
+          m.marker.setStyle({ ...ESTILO_COINCIDE });
+          m.marker.bringToFront();
+        } else {
+          m.marker.setStyle({ ...ESTILO_APAGADO });
+        }
+        m.marker.setPopupContent(popup(m.punto, modo, q));
+      }
+
+      if (aciertos.length === 0) {
+        estadoBusqueda.textContent = 'Sin resultados en este modo';
+        return;
+      }
+      estadoBusqueda.textContent = `${fmt(clientes)} ${clientes === 1 ? 'cliente' : 'clientes'} en ${fmt(aciertos.length)} ${aciertos.length === 1 ? 'localidad' : 'localidades'}`;
+      if (!ajustarVista) return;
+      if (aciertos.length === 1) {
+        const { punto, marker } = aciertos[0]!;
+        map.setView([punto.lat, punto.lng], 9);
+        marker.openPopup();
+      } else {
+        map.fitBounds(L.latLngBounds(aciertos.map((a) => L.latLng(a.punto.lat, a.punto.lng))), { padding: [50, 50], maxZoom: 9 });
+      }
+    }
+
+    function render() {
+      const d: MapaModoData = data[modo];
+      capa.clearLayers();
+      marcadores = [];
+
+      for (const p of d.puntos) {
+        const marker = L.circleMarker([p.lat, p.lng], {
+          radius: 5 + Math.sqrt(p.count) * 2.2,
+          ...ESTILO_BASE,
+        }).bindPopup(popup(p, modo));
+        marker.addTo(capa);
+        marcadores.push({ punto: p, marker });
+      }
+
+      const unidad = modo === 'pendientes' ? 'pedidos' : 'remitos';
+      resumen.textContent =
+        `${fmt(d.total)} ${unidad}` +
+        (d.sinUbicacion > 0 ? ` · ${fmt(d.sinUbicacion)} sin ubicación en el mapa (solo en la tabla)` : '');
+
+      tbody.replaceChildren();
+      for (const pr of d.provincias) {
+        const tr = el('tr', undefined, 'cursor-pointer border-b border-slate-800/60 text-slate-300 hover:bg-slate-800/50');
+        tr.append(el('td', pr.provincia, 'py-2 pr-2'));
+        tr.append(el('td', fmt(pr.count), 'py-2 pr-2 text-right tabular-nums'));
+        tr.append(el('td', `${((pr.count / Math.max(1, d.total)) * 100).toLocaleString('es-AR', { maximumFractionDigits: 1 })}%`, 'py-2 text-right tabular-nums text-slate-400'));
+        tr.addEventListener('click', () => {
+          const pts = d.puntos.filter((p) => p.provincia === pr.provincia).map((p) => L.latLng(p.lat, p.lng));
+          if (pts.length > 0) map.fitBounds(L.latLngBounds(pts), { padding: [40, 40], maxZoom: 8 });
+        });
+        tbody.append(tr);
+      }
+
+      botones.forEach((b) => {
+        const active = b.dataset.modo === modo;
+        b.classList.toggle('bg-brand-500/20', active);
+        b.classList.toggle('text-slate-100', active);
+        b.classList.toggle('text-slate-400', !active);
+      });
+    }
+
+    botones.forEach((b) =>
+      b.addEventListener('click', () => {
+        modo = b.dataset.modo as MapaModo;
+        map.setView(VISTA_INICIAL, 4);
+        render();
+        aplicarBusqueda(true);
+      })
+    );
+
+    buscar.addEventListener('input', () => aplicarBusqueda(true));
+
+    render();
+  }
+</script>
+
+<style is:global>
+  .mapa-tiles-oscuro {
+    filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9);
+  }
+</style>

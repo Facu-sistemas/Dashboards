@@ -29,6 +29,53 @@ function Section({ title, subtitle, children }: { title: string; subtitle: strin
   );
 }
 
+function ComoSeCalcula({ meses }: { meses: string[] | undefined }) {
+  const n = meses?.length ?? 16;
+  const p = 'text-sm text-slate-400';
+  const b = 'font-medium text-slate-200';
+  return (
+    <details className="rounded-lg border border-slate-800 bg-slate-900 p-4">
+      <summary className="cursor-pointer text-sm font-medium text-slate-200">¿Cómo se calcula? (para conciliar con tus números)</summary>
+      <div className="mt-3 flex flex-col gap-3">
+        <p className={p}>
+          <span className={b}>Alcance.</span> Solo productos de la categoría Materia Prima (ID 14) y sus subcategorías, incluidos los archivados. Las empresas
+          son las tildadas arriba (por defecto, todas). Todo sale de <code>stock.valuation.layer</code> (capas de valoración), no de <code>stock.quant</code>.
+        </p>
+        <p className={p}>
+          <span className={b}>1. Stock al cierre de cada mes.</span> Por producto, suma de cantidad y valor de <em>todas</em> las capas creadas antes del
+          1° del mes siguiente (acumulado histórico desde el primer movimiento). Es el criterio del informe «Valoración a fecha» de Odoo. También se calcula
+          la apertura, al 1° del primer mes. El período tiene {n} meses cerrados, así que hay {n + 1} puntos de stock (apertura + {n} cierres).
+        </p>
+        <p className={p}>
+          <span className={b}>2. Consumo del mes.</span> Capas cuyo movimiento es una materia prima consumida por una orden de fabricación
+          (<code>raw_material_production_id</code>), agrupadas por mes de creación. Cantidad y valor son negativos en Odoo, por eso se invierte el signo.
+          No cuenta ventas de materia prima, ajustes de inventario ni transferencias.
+        </p>
+        <p className={p}>
+          <span className={b}>3. Dos valorizaciones.</span> <em>Según Odoo (capas)</em> usa el valor que registró cada movimiento. <em>A costo actual</em> usa la
+          cantidad de las capas × el costo estándar de hoy del producto. Para el stock de cada cierre y para el consumo se aplica el mismo criterio. Cuando una
+          capa histórica tiene el costo mal cargado, las dos valorizaciones difieren mucho: ahí suele estar la diferencia con otros cálculos.
+        </p>
+        <p className={p}>
+          <span className={b}>4. Inventario promedio</span> = promedio simple de los {n + 1} puntos de stock (apertura + cierres), no ponderado por días.
+        </p>
+        <p className={p}>
+          <span className={b}>5. Rotación</span> = consumo total del período ÷ inventario promedio. <span className={b}>Rotación anualizada</span> = rotación × 365 ÷ días
+          del período. <span className={b}>Días de inventario</span> = inventario promedio ÷ (consumo total ÷ días del período).
+        </p>
+        <p className={p}>
+          <span className={b}>6. Totales.</span> La fila Total suma el stock y el consumo de todas las categorías mes a mes y recién después calcula el promedio y
+          la rotación. No es el promedio de las rotaciones de cada categoría.
+        </p>
+        <p className={p}>
+          <span className={b}>Causas habituales de diferencia:</span> mirar otra valorización (capas vs. costo actual), otro conjunto de empresas, incluir el mes en
+          curso (acá solo hay meses cerrados), contar como consumo algo más que las órdenes de fabricación, o tomar el promedio solo de los cierres sin la apertura.
+        </p>
+      </div>
+    </details>
+  );
+}
+
 function periodLabel(meses: string[]): string {
   const f = (m: string) => `${monthShort(m)} ${m.slice(0, 4)}`;
   return `${f(meses[0]!)} – ${f(meses[meses.length - 1]!)}`;
@@ -114,6 +161,8 @@ function Rotacion({ seleccion }: { seleccion: number[] | null }) {
         <KpiCard label="Rotación anualizada (veces)" value={total?.rotacionAnual ?? undefined} isLoading={!data} />
         <KpiCard label="Días de inventario" value={total?.diasInventario ?? undefined} isLoading={!data} />
       </div>
+
+      <ComoSeCalcula meses={data?.meses} />
 
       <div className="rounded-lg border border-slate-800 bg-slate-900 p-4">
         <p className="mb-2 text-sm font-medium text-slate-200">Rotación anualizada por categoría (veces por año)</p>
@@ -382,6 +431,27 @@ function Inner() {
   return (
     <div className="flex flex-col gap-10">
       <EmpresaSelector empresas={empresasQuery.data ?? []} seleccion={seleccion} onChange={setSeleccion} />
+      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-800 bg-slate-900 p-4 text-sm text-slate-300">
+        <span className="font-medium text-slate-200">Detalle por producto (Excel, con ID y nombre en pantalla)</span>
+        <a
+          href={`/api/rotacion-gasto-export?tipo=gasto${empresasParam(seleccion)}`}
+          className="rounded-md border border-slate-700 px-3 py-1.5 hover:bg-slate-800"
+        >
+          Descargar gasto real (líneas de factura)
+        </a>
+        <a
+          href={`/api/rotacion-gasto-export?tipo=stock${empresasParam(seleccion)}`}
+          className="rounded-md border border-slate-700 px-3 py-1.5 hover:bg-slate-800"
+        >
+          Descargar stock de fin de mes
+        </a>
+        <a
+          href={`/api/rotacion-gasto-export?tipo=oc${empresasParam(seleccion)}`}
+          className="rounded-md border border-slate-700 px-3 py-1.5 hover:bg-slate-800"
+        >
+          Descargar OC pendientes de recibir
+        </a>
+      </div>
       <Rotacion seleccion={seleccion} />
       <GastoReal seleccion={seleccion} />
     </div>

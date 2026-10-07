@@ -17,19 +17,27 @@ import CarpinteriaTab from '../../components/produccion/CarpinteriaTab.astro';
 import BandasTab from '../../components/produccion/BandasTab.astro';
 import MulticorteTab from '../../components/produccion/MulticorteTab.astro';
 import VerticalTab from '../../components/produccion/VerticalTab.astro';
-import EtiquetasTab from '../../components/produccion/EtiquetasTab.astro';
+import PlanificadoLineaTab from '../../components/produccion/PlanificadoLineaTab.astro';
+import EtiquetasTab from '../../components/almacen/EtiquetasTab.astro';
 import TicketsSoporteTab from '../../components/calidad/TicketsSoporteTab.astro';
 import ReparacionesColchonesTab from '../../components/calidad/ReparacionesColchonesTab.astro';
 import ColchonTab from '../../components/test/ColchonTab.astro';
 import ConversorTab from '../../components/test/ConversorTab.astro';
 import VacacionesTab from '../../components/rrhh/VacacionesTab.astro';
+import ResumenRrhhTab from '../../components/rrhh/ResumenTab.astro';
 import CumpleanosTab from '../../components/test/CumpleanosTab.astro';
 import FlujoTab from '../../components/test/FlujoTab.astro';
 import FichajeTab from '../../components/test/FichajeTab.astro';
+import PronosticoTab from '../../components/test/PronosticoTab.astro';
 import VentasTab from '../../components/gerencia/VentasTab.astro';
 import ProduccionGerenciaTab from '../../components/gerencia/ProduccionTab.astro';
 import ProduccionDetalleTab from '../../components/gerencia/ProduccionDetalleTab.astro';
 import FacturacionGerenciaTab from '../../components/gerencia/FacturacionTab.astro';
+import DespachosTab from '../../components/logistica/DespachosTab.astro';
+import CumplimientoTab from '../../components/logistica/CumplimientoTab.astro';
+import PedidosSinDespacharTab from '../../components/logistica/PedidosSinDespacharTab.astro';
+import MapaDestinosTab from '../../components/logistica/MapaDestinosTab.astro';
+import CostoDevolucionesTab from '../../components/calidad/CostoDevolucionesTab.astro';
 import CreditoChequesTab from '../../components/mejora-continua/CreditoChequesTab.astro';
 import DistribucionChequesTab from '../../components/mejora-continua/DistribucionChequesTab.astro';
 import { getArea } from '../../lib/areas.config';
@@ -59,23 +67,31 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
   {area.slug === 'produccion' && tabSlug === 'calculadora-bandas' && <BandasTab />}
   {area.slug === 'produccion' && tabSlug === 'optimizador-multicorte' && <MulticorteTab />}
   {area.slug === 'produccion' && tabSlug === 'optimizador-vertical' && <VerticalTab />}
-  {area.slug === 'produccion' && tabSlug === 'etiquetas-proveedor' && <EtiquetasTab />}
+  {area.slug === 'produccion' && tabSlug === 'planificado-linea' && <PlanificadoLineaTab />}
+  {area.slug === 'almacen' && tabSlug === 'etiquetas-proveedor' && <EtiquetasTab />}
   {area.slug === 'gestion-calidad' && tabSlug === 'tickets-soporte' && <TicketsSoporteTab />}
   {area.slug === 'gestion-calidad' && tabSlug === 'reparaciones-colchones' && <ReparacionesColchonesTab />}
+  {area.slug === 'gestion-calidad' && tabSlug === 'costo-devoluciones' && <CostoDevolucionesTab />}
   {area.slug === 'test' && tabSlug === 'colchon' && <ColchonTab />}
   {area.slug === 'test' && tabSlug === 'conversor' && <ConversorTab />}
   {area.slug === 'test' && tabSlug === 'cumpleanos' && <CumpleanosTab />}
   {area.slug === 'test' && tabSlug === 'flujo' && <FlujoTab />}
   {area.slug === 'test' && tabSlug === 'fichaje' && <FichajeTab />}
+  {area.slug === 'test' && tabSlug === 'pronostico' && <PronosticoTab />}
   {area.slug === 'gerencia-general' && tabSlug === 'ventas' && <VentasTab />}
   {area.slug === 'gerencia-general' && tabSlug === 'produccion' && <ProduccionGerenciaTab />}
   {area.slug === 'gerencia-general' && tabSlug === 'detalle-produccion' && <ProduccionDetalleTab />}
   {area.slug === 'gerencia-general' && tabSlug === 'facturacion' && <FacturacionGerenciaTab />}
   {area.slug === 'comercial' && tabSlug === 'clientes-activos' && <ClientesActivosTab />}
+  {area.slug === 'rrhh' && tabSlug === 'resumen' && <ResumenRrhhTab />}
   {area.slug === 'rrhh' && tabSlug === 'vacaciones' && <VacacionesTab />}
   {area.slug === 'finanzas-creditos' && tabSlug === 'credito-cheques' && <CreditoChequesTab />}
   {area.slug === 'finanzas-creditos' && tabSlug === 'distribucion-cheques' && <DistribucionChequesTab />}
-  {!['finanzas', 'comercial', 'manufactura', 'almacen', 'produccion', 'gestion-calidad', 'test', 'gerencia-general', 'rrhh', 'finanzas-creditos'].includes(
+  {area.slug === 'logistica' && tabSlug === 'despachos' && <DespachosTab />}
+  {area.slug === 'logistica' && tabSlug === 'cumplimiento' && <CumplimientoTab />}
+  {area.slug === 'logistica' && tabSlug === 'pedidos-sin-despachar' && <PedidosSinDespacharTab />}
+  {area.slug === 'logistica' && tabSlug === 'mapa-destinos' && <MapaDestinosTab />}
+  {!['finanzas', 'comercial', 'manufactura', 'almacen', 'produccion', 'gestion-calidad', 'test', 'gerencia-general', 'rrhh', 'finanzas-creditos', 'logistica'].includes(
     area.slug
   ) && <PlaceholderTab areaName={area.name} />}
 </AreaLayout>

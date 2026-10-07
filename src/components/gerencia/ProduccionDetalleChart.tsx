@@ -2,10 +2,9 @@ import { useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useChartTheme, type ChartTheme } from '../shared/useChartTheme';
 import { formatNumber } from './format';
-import { colorFor, MAX_DESTACADOS } from './produccion-detalle-palette';
+import { colorFor } from './produccion-detalle-palette';
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-const MAX_LINES = MAX_DESTACADOS + 1;
 
 export interface SerieProducto {
   nombre: string;
@@ -19,18 +18,20 @@ interface Props {
   /** Índices de mes (0=enero) a mostrar en el eje X, en orden — del período elegido en PeriodPicker. */
   idxs: number[];
   unidad: string;
+  /** Cuántas series se muestran con color propio; el resto se suma en "Otros". */
+  destacados: number;
 }
 
 function recortar(series: SerieProducto[], idxs: number[]): SerieProducto[] {
   return series.map((s) => ({ nombre: s.nombre, valores: idxs.map((i) => s.valores[i] ?? 0) }));
 }
 
-/** Agrupa todo lo que no entra en el top MAX_LINES-1 (sobre el período visible) en una línea "Otros" — nunca un 9no color generado. */
-function topSeriesConOtros(series: SerieProducto[]): SerieProducto[] {
+/** Agrupa todo lo que no entra en el top `destacados` (sobre el período visible) en una línea "Otros". */
+function topSeriesConOtros(series: SerieProducto[], destacados: number): SerieProducto[] {
   const ordenadas = [...series].sort((a, b) => b.valores.reduce((s, v) => s + v, 0) - a.valores.reduce((s, v) => s + v, 0));
-  if (ordenadas.length <= MAX_LINES) return ordenadas;
-  const top = ordenadas.slice(0, MAX_LINES - 1);
-  const resto = ordenadas.slice(MAX_LINES - 1);
+  if (ordenadas.length <= destacados + 1) return ordenadas;
+  const top = ordenadas.slice(0, destacados);
+  const resto = ordenadas.slice(destacados);
   const nMeses = ordenadas[0]?.valores.length ?? 0;
   const otros: SerieProducto = {
     nombre: 'Otros',
@@ -53,6 +54,7 @@ function BarraUnMes({
   unidad,
   ocultas,
   toggle,
+  destacados,
 }: {
   title: string;
   visibles: SerieProducto[];
@@ -60,8 +62,9 @@ function BarraUnMes({
   unidad: string;
   ocultas: Set<string>;
   toggle: (nombre: string) => void;
+  destacados: number;
 }) {
-  const colorByNombre = new Map(visibles.map((s, i) => [s.nombre, colorFor(chartTheme, i)]));
+  const colorByNombre = new Map(visibles.map((s, i) => [s.nombre, colorFor(chartTheme, i, destacados)]));
   const dataVisible = visibles.filter((s) => !ocultas.has(s.nombre));
   // Recharts dibuja el orden del array de arriba a abajo — se invierte para que el #1 quede arriba, como en un ranking.
   const data = [...dataVisible].reverse().map((s) => ({ nombre: s.nombre, valor: s.valores[0] ?? 0 }));
@@ -112,10 +115,10 @@ function BarraUnMes({
   );
 }
 
-export default function ProduccionDetalleChart({ title, series, idxs, unidad }: Props) {
+export default function ProduccionDetalleChart({ title, series, idxs, unidad, destacados }: Props) {
   const chartTheme = useChartTheme();
   const [ocultas, setOcultas] = useState<Set<string>>(new Set());
-  const visibles = topSeriesConOtros(recortar(series, idxs));
+  const visibles = topSeriesConOtros(recortar(series, idxs), destacados);
 
   const toggle = (nombre: string) => {
     setOcultas((prev) => {
@@ -127,7 +130,7 @@ export default function ProduccionDetalleChart({ title, series, idxs, unidad }: 
   };
 
   if (idxs.length === 1) {
-    return <BarraUnMes title={title} visibles={visibles} chartTheme={chartTheme} unidad={unidad} ocultas={ocultas} toggle={toggle} />;
+    return <BarraUnMes title={title} visibles={visibles} chartTheme={chartTheme} unidad={unidad} ocultas={ocultas} toggle={toggle} destacados={destacados} />;
   }
 
   const data = idxs.map((mesIdx, i) => {
@@ -160,7 +163,7 @@ export default function ProduccionDetalleChart({ title, series, idxs, unidad }: 
               type="monotone"
               dataKey={s.nombre}
               name={s.nombre}
-              stroke={colorFor(chartTheme, i)}
+              stroke={colorFor(chartTheme, i, destacados)}
               strokeWidth={2}
               dot={{ r: 3 }}
               hide={ocultas.has(s.nombre)}
@@ -169,7 +172,7 @@ export default function ProduccionDetalleChart({ title, series, idxs, unidad }: 
           ))}
         </LineChart>
       </ResponsiveContainer>
-      <p className="text-[10px] text-slate-500">Click en la referencia para mostrar/ocultar una línea. Hasta {MAX_LINES - 1} + "Otros".</p>
+      <p className="text-[10px] text-slate-500">Click en la referencia para mostrar/ocultar una línea. Hasta {destacados} + "Otros".</p>
     </div>
   );
 }

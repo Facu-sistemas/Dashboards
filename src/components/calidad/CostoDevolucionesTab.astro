@@ -1,0 +1,475 @@
+---
+import { getCostoDevolucionesData } from '../../lib/odoo/costo-devoluciones';
+import { getTarifasGuardadas } from '../../lib/supabase/costo-devoluciones-tarifas';
+import type { CostoDevolucionesData } from '../../lib/odoo/costo-devoluciones';
+import type { TarifasGuardadas } from '../../lib/supabase/costo-devoluciones-tarifas';
+
+let data: CostoDevolucionesData | null = null;
+let tarifas: TarifasGuardadas = { disponible: false, porMes: {} };
+let ssrError: string | null = null;
+try {
+  [data, tarifas] = await Promise.all([getCostoDevolucionesData(), getTarifasGuardadas()]);
+} catch (err) {
+  ssrError = err instanceof Error ? err.message : 'Error desconocido consultando Odoo';
+}
+
+// `<` escapado para que ningún nombre pueda cerrar el <script>.
+const json = data ? JSON.stringify({ data, tarifas }).replace(/</g, '\\u003c') : '';
+
+const SQL = `create table costo_devoluciones_tarifas (
+  mes text primary key check (mes ~ '^[0-9]{4}-[0-9]{2}$'),
+  costo_hora numeric not null default 0,
+  viajes numeric not null default 2,
+  fletes jsonb not null default '{}',
+  actualizado_por text,
+  updated_at timestamptz not null default now()
+);
+alter table costo_devoluciones_tarifas enable row level security;
+grant select, insert, update, delete on public.costo_devoluciones_tarifas to service_role;`;
+
+// Para quien ya había migrado la tabla a la versión por km (idempotente: sirve en cualquier estado).
+const SQL_MIGRACION = `alter table costo_devoluciones_tarifas
+  add column if not exists fletes jsonb not null default '{}',
+  drop column if exists costo_km,
+  drop column if exists factor_ruta;`;
+
+const inputClass =
+  'mt-1 w-full rounded border border-slate-700 bg-slate-950 px-3 py-1.5 text-slate-200 focus:border-brand-500 focus:outline-none';
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Costo de devoluciones</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Resumen mensual: cruza las devoluciones con la provincia del cliente y las costea (flete de ida y vuelta + horas de
+      reparación). Los fletes y el costo por hora no están en Odoo: se cargan acá, se guardan mes a mes y el resumen se
+      puede bajar en PDF.
+    </p>
+  </header>
+
+  {
+    ssrError && (
+      <p class="mb-6 rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">
+        No se pudo consultar Odoo ({ssrError}).
+      </p>
+    )
+  }
+
+  {
+    data && !tarifas.disponible && (
+      <div class="mb-6 rounded border border-amber-900 bg-amber-950/40 p-3 text-sm text-amber-200">
+        <p>
+          Las tarifas todavía no se pueden guardar: falta crear (o actualizar) la tabla en Supabase. Mientras tanto la
+          pantalla funciona, pero los valores se pierden al recargar. Ejecutá esto en el SQL Editor de Supabase:
+        </p>
+        <pre class="mt-2 overflow-x-auto rounded bg-slate-950 p-3 text-xs text-slate-300">{SQL}</pre>
+        <p class="mt-3">Si la tabla ya existe, ejecutá solo esto:</p>
+        <pre class="mt-2 overflow-x-auto rounded bg-slate-950 p-3 text-xs text-slate-300">{SQL_MIGRACION}</pre>
+      </div>
+    )
+  }
+
+  {
+    data && (
+      <>
+        <section class="mb-6 grid gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4 sm:grid-cols-3">
+          <label class="block text-sm text-slate-400">
+            Mes
+            <select id="cd-mes" class={inputClass}></select>
+          </label>
+          <label class="block text-sm text-slate-400">
+            Sector
+            <select id="cd-sector" class={inputClass}>
+              <option value="todos">Living y Colchón</option>
+              <option value="living">Living</option>
+              <option value="colchon">Colchón</option>
+            </select>
+          </label>
+          <label class="block text-sm text-slate-400">
+            Empresa
+            <select id="cd-empresa" class={inputClass}>
+              <option value="0">Todas</option>
+              {data.empresas.map((e) => <option value={e.id}>{e.name}</option>)}
+            </select>
+          </label>
+        </section>
+
+        <section class="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div class="rounded-lg border border-slate-800 bg-slate-900 p-4" id="cd-card-living">
+            <p class="text-xs text-slate-400">Living: devoluciones cada 1.000 fabricadas</p>
+            <p id="cd-kpi-living" class="mt-1 text-2xl font-semibold text-slate-100">—</p>
+            <p id="cd-kpi-living-sub" class="mt-1 text-xs text-slate-500"></p>
+          </div>
+          <div class="rounded-lg border border-slate-800 bg-slate-900 p-4" id="cd-card-colchon">
+            <p class="text-xs text-slate-400">Colchón: devoluciones cada 1.000 fabricadas</p>
+            <p id="cd-kpi-colchon" class="mt-1 text-2xl font-semibold text-slate-100">—</p>
+            <p id="cd-kpi-colchon-sub" class="mt-1 text-xs text-slate-500"></p>
+          </div>
+          <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+            <p class="text-xs text-slate-400">Devoluciones del mes</p>
+            <p id="cd-kpi-dev" class="mt-1 text-2xl font-semibold text-slate-100">—</p>
+          </div>
+          <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+            <p class="text-xs text-slate-400">Costo estimado (flete + reparación)</p>
+            <p id="cd-kpi-costo" class="mt-1 text-2xl font-semibold text-status-red">—</p>
+          </div>
+        </section>
+
+        <section class="mb-6 rounded-lg border border-slate-800 bg-slate-900 p-4">
+          <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h3 class="text-sm font-medium text-slate-200">Tarifas de <span id="cd-tarifas-mes"></span></h3>
+            <p id="cd-tarifas-estado" class="text-xs text-slate-500"></p>
+          </div>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <label class="block text-sm text-slate-400">
+              Costo por hora de reparación ($)
+              <input id="cd-hora" type="number" min="0" step="any" inputmode="decimal" class={inputClass} />
+            </label>
+            <label class="block text-sm text-slate-400">
+              Viajes de flete por devolución
+              <input id="cd-viajes" type="number" min="0" step="1" inputmode="numeric" class={inputClass} />
+              <span class="mt-1 block text-xs text-slate-500">2 = el envío original + la vuelta. 3 si además se reenvía reparado.</span>
+            </label>
+          </div>
+          <div class="mt-4 flex flex-wrap items-center gap-3">
+            <button id="cd-guardar" type="button" class="rounded bg-brand-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50">Guardar tarifas del mes</button>
+            <p id="cd-guardar-msg" class="text-sm text-slate-400" role="status"></p>
+          </div>
+        </section>
+
+        <section class="mb-6 rounded-lg border border-slate-800 bg-slate-900 p-4">
+          <div class="mb-3 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h3 class="text-sm font-medium text-slate-200">Flete por provincia</h3>
+              <p class="mt-1 text-xs text-slate-500">Costo de un viaje a cada provincia. Se guarda junto con las demás tarifas del mes.</p>
+            </div>
+            <div class="flex gap-2">
+              <input id="cd-flete-todas" type="number" min="0" step="any" inputmode="decimal" placeholder="Mismo valor para todas" class="w-48 rounded border border-slate-700 bg-slate-950 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-500 focus:border-brand-500 focus:outline-none" />
+              <button id="cd-flete-aplicar" type="button" class="rounded border border-slate-700 px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-800">Aplicar</button>
+            </div>
+          </div>
+          <div id="cd-fletes" class="grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"></div>
+        </section>
+
+        <section class="mb-6 rounded-lg border border-slate-800 bg-slate-900 p-4">
+          <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <h3 class="text-sm font-medium text-slate-200">Resumen</h3>
+            <button id="cd-pdf" type="button" class="rounded border border-slate-700 px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-800 disabled:opacity-50">Descargar PDF</button>
+          </div>
+          <p id="cd-resumen" class="text-sm leading-relaxed text-slate-300"></p>
+        </section>
+
+        <section class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+          <h3 class="mb-3 text-sm font-medium text-slate-200">Por provincia</h3>
+          <div class="overflow-x-auto">
+            <table id="cd-table" class="w-full text-left text-sm">
+              <thead class="text-xs text-slate-400">
+                <tr class="border-b border-slate-800">
+                  <th class="py-2 pr-4 font-medium">Provincia</th>
+                  <th class="py-2 pr-4 text-right font-medium">Living</th>
+                  <th class="py-2 pr-4 text-right font-medium">Colchón</th>
+                  <th class="py-2 pr-4 text-right font-medium">Total</th>
+                  <th class="py-2 pr-4 text-right font-medium">Flete por viaje</th>
+                  <th class="py-2 pr-4 text-right font-medium">Flete total</th>
+                  <th class="py-2 pr-4 text-right font-medium">Horas rep.</th>
+                  <th class="py-2 pr-4 text-right font-medium">Reparación</th>
+                  <th class="py-2 pr-4 text-right font-medium">Costo total</th>
+                  <th class="py-2 text-right font-medium">Notas de crédito</th>
+                </tr>
+              </thead>
+              <tbody id="cd-tbody"></tbody>
+              <tfoot id="cd-tfoot"></tfoot>
+            </table>
+            <p id="cd-vacio" class="hidden py-6 text-center text-sm text-slate-500">No hubo devoluciones con estos filtros.</p>
+          </div>
+          <p class="mt-3 text-xs text-slate-500">
+            Devoluciones = mismo criterio que la pestaña Reparaciones: Living por órdenes de reparación, Colchón por notas
+            de crédito de Garantía y Calidad. La provincia es la del cliente de cada nota u orden. Las horas incluyen las
+            reparaciones de Colchón. Las notas de crédito son lo que se le devolvió al cliente (solo Colchón). Hoy las
+            reparaciones y la producción son todas de Frontera Living S.A.: filtrar por Presupuesto solo deja notas de crédito.
+          </p>
+        </section>
+
+        <div id="cd-data" data-json={json} hidden></div>
+      </>
+    )
+  }
+</div>
+
+<script>
+  import {
+    SECTOR_LABEL,
+    armarResumen,
+    calcular,
+    fmt,
+    fmtHoras,
+    fmtMil,
+    fmtMonto,
+    mesLabel,
+    positivo,
+    type Filtros,
+    type Resultado,
+  } from './costo-devoluciones-calc';
+  import type { CostoDevolucionesData } from '../../lib/odoo/costo-devoluciones';
+  import type { TarifasGuardadas, TarifasMes } from '../../lib/supabase/costo-devoluciones-tarifas';
+
+  const raw = document.getElementById('cd-data')?.dataset.json;
+
+  if (raw) {
+    const { data, tarifas: guardadas } = JSON.parse(raw) as { data: CostoDevolucionesData; tarifas: TarifasGuardadas };
+    const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+
+    const mesSel = $<HTMLSelectElement>('cd-mes');
+    const sectorSel = $<HTMLSelectElement>('cd-sector');
+    const empresaSel = $<HTMLSelectElement>('cd-empresa');
+    const horaIn = $<HTMLInputElement>('cd-hora');
+    const viajesIn = $<HTMLInputElement>('cd-viajes');
+    const todasIn = $<HTMLInputElement>('cd-flete-todas');
+    const fletesBox = $('cd-fletes');
+    const guardarBtn = $<HTMLButtonElement>('cd-guardar');
+    const guardarMsg = $('cd-guardar-msg');
+    const pdfBtn = $<HTMLButtonElement>('cd-pdf');
+    const tbody = $('cd-tbody');
+    const tfoot = $('cd-tfoot');
+
+    for (const m of data.meses) mesSel.add(new Option(mesLabel(m), m));
+    mesSel.value = data.mesActual;
+    guardarBtn.disabled = !guardadas.disponible;
+
+    const filtros = (): Filtros => ({
+      mes: mesSel.value,
+      sector: sectorSel.value as Filtros['sector'],
+      empresa: Number(empresaSel.value),
+    });
+
+    // Tarifas del mes en edición. Un mes sin guardar hereda las del último mes anterior guardado.
+    const TARIFAS_VACIAS: TarifasMes = { costoHora: 0, viajes: 2, fletes: {} };
+    let tarifas: TarifasMes = { ...TARIFAS_VACIAS, fletes: {} };
+    let dirty = false;
+    let origen = '';
+
+    const fechaLarga = (iso: string) =>
+      new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso));
+
+    function cargarTarifasDelMes() {
+      const mes = mesSel.value;
+      const propio = guardadas.porMes[mes];
+      const anterior = Object.keys(guardadas.porMes)
+        .filter((m) => m < mes)
+        .sort()
+        .pop();
+      const fuente = propio ?? (anterior ? guardadas.porMes[anterior] : undefined);
+      tarifas = fuente
+        ? { costoHora: fuente.costoHora, viajes: fuente.viajes, fletes: { ...fuente.fletes } }
+        : { ...TARIFAS_VACIAS, fletes: {} };
+      dirty = false;
+      origen = propio
+        ? `Guardadas${propio.actualizadoPor ? ` por ${propio.actualizadoPor}` : ''} el ${fechaLarga(propio.updatedAt)}`
+        : anterior
+          ? `Sin guardar para este mes: se partió de las de ${mesLabel(anterior)}`
+          : 'Sin tarifas guardadas todavía';
+      horaIn.value = tarifas.costoHora ? String(tarifas.costoHora) : '';
+      viajesIn.value = String(tarifas.viajes);
+      guardarMsg.textContent = '';
+    }
+
+    function el<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, className?: string): HTMLElementTagNameMap[K] {
+      const e = document.createElement(tag);
+      if (text !== undefined) e.textContent = text;
+      if (className) e.className = className;
+      return e;
+    }
+
+    let resultado: Resultado;
+
+    function actualizarCalculo() {
+      const f = filtros();
+      resultado = calcular(data, f, tarifas);
+      const r = resultado;
+
+      $('cd-card-living').classList.toggle('hidden', f.sector === 'colchon');
+      $('cd-card-colchon').classList.toggle('hidden', f.sector === 'living');
+      $('cd-kpi-living').textContent = fmtMil(r.living.porMil);
+      $('cd-kpi-living-sub').textContent = `${fmt(r.living.devoluciones)} sobre ${fmt(r.living.unidades)} unidades`;
+      $('cd-kpi-colchon').textContent = fmtMil(r.colchon.porMil);
+      $('cd-kpi-colchon-sub').textContent = `${fmt(r.colchon.devoluciones)} sobre ${fmt(r.colchon.unidades)} unidades`;
+      $('cd-kpi-dev').textContent = fmt(r.totales.dev);
+      $('cd-kpi-costo').textContent = r.totales.costo > 0 ? fmtMonto(r.totales.costo) : 'Cargá las tarifas';
+      $('cd-resumen').textContent = armarResumen(r, f, tarifas);
+      $('cd-tarifas-mes').textContent = mesLabel(f.mes);
+      $('cd-tarifas-estado').textContent = dirty ? 'Cambios sin guardar' : origen;
+
+      for (const fila of r.filas) {
+        const tr = tbody.querySelector<HTMLTableRowElement>(`tr[data-prov="${CSS.escape(fila.provincia)}"]`);
+        if (!tr) continue;
+        tr.querySelector('[data-c="tarifa"]')!.textContent = fmtMonto(positivo(tarifas.fletes[fila.provincia]));
+        tr.querySelector('[data-c="flete"]')!.textContent = fmtMonto(fila.flete);
+        tr.querySelector('[data-c="reparacion"]')!.textContent = fmtMonto(fila.reparacion);
+        tr.querySelector('[data-c="costo"]')!.textContent = fmtMonto(fila.costo);
+      }
+      const t = r.totales;
+      const set = (k: string, v: string) => (tfoot.querySelector(`[data-t="${k}"]`)!.textContent = v);
+      set('living', fmt(t.living));
+      set('colchon', fmt(t.colchon));
+      set('dev', fmt(t.dev));
+      set('flete', fmtMonto(t.flete));
+      set('horas', fmtHoras(t.horas));
+      set('reparacion', fmtMonto(t.reparacion));
+      set('costo', fmtMonto(t.costo));
+      set('nc', fmtMonto(t.notaCredito));
+    }
+
+    const provincias = [...new Set(data.registros.map((r) => r.provincia))].sort((x, y) => x.localeCompare(y, 'es'));
+
+    function armarFletes() {
+      fletesBox.replaceChildren();
+      for (const provincia of provincias) {
+        const label = el('label', undefined, 'flex items-center justify-between gap-3 text-sm text-slate-400');
+        label.append(el('span', provincia));
+        const input = el(
+          'input',
+          undefined,
+          'w-28 rounded border border-slate-700 bg-slate-950 px-2 py-1 text-right text-slate-200 focus:border-brand-500 focus:outline-none'
+        );
+        input.type = 'number';
+        input.min = '0';
+        input.step = 'any';
+        input.inputMode = 'decimal';
+        input.value = tarifas.fletes[provincia] ? String(tarifas.fletes[provincia]) : '';
+        input.addEventListener('input', () => {
+          tarifas.fletes[provincia] = positivo(Number(input.value));
+          dirty = true;
+          actualizarCalculo();
+        });
+        label.append(input);
+        fletesBox.append(label);
+      }
+    }
+
+    function armarTabla() {
+      const r = calcular(data, filtros(), tarifas);
+      tbody.replaceChildren();
+      tfoot.replaceChildren();
+      $('cd-vacio').classList.toggle('hidden', r.filas.length > 0);
+
+      for (const fila of r.filas) {
+        const tr = el('tr', undefined, 'border-b border-slate-800/60 text-slate-300');
+        tr.dataset.prov = fila.provincia;
+        tr.append(el('td', fila.provincia, 'py-2 pr-4 whitespace-nowrap'));
+        tr.append(el('td', fmt(fila.living), 'py-2 pr-4 text-right tabular-nums'));
+        tr.append(el('td', fmt(fila.colchon), 'py-2 pr-4 text-right tabular-nums'));
+        tr.append(el('td', fmt(fila.dev), 'py-2 pr-4 text-right tabular-nums'));
+
+        const tarifa = el('td', undefined, 'py-2 pr-4 text-right tabular-nums');
+        tarifa.dataset.c = 'tarifa';
+        tr.append(tarifa);
+
+        const flete = el('td', undefined, 'py-2 pr-4 text-right tabular-nums');
+        flete.dataset.c = 'flete';
+        tr.append(flete);
+        tr.append(el('td', fmtHoras(fila.horas), 'py-2 pr-4 text-right tabular-nums'));
+        const rep = el('td', undefined, 'py-2 pr-4 text-right tabular-nums');
+        rep.dataset.c = 'reparacion';
+        tr.append(rep);
+        const costo = el('td', undefined, 'py-2 pr-4 text-right font-medium tabular-nums text-slate-100');
+        costo.dataset.c = 'costo';
+        tr.append(costo);
+        tr.append(el('td', fmtMonto(fila.notaCredito), 'py-2 text-right tabular-nums whitespace-nowrap'));
+        tbody.append(tr);
+      }
+
+      const pie = el('tr', undefined, 'font-medium text-slate-100');
+      const celda = (k: string | null, className: string, text = '') => {
+        const td = el('td', text, className);
+        if (k) td.dataset.t = k;
+        pie.append(td);
+      };
+      celda(null, 'py-2 pr-4', 'Total');
+      celda('living', 'py-2 pr-4 text-right tabular-nums');
+      celda('colchon', 'py-2 pr-4 text-right tabular-nums');
+      celda('dev', 'py-2 pr-4 text-right tabular-nums');
+      celda(null, 'py-2 pr-4');
+      celda('flete', 'py-2 pr-4 text-right tabular-nums');
+      celda('horas', 'py-2 pr-4 text-right tabular-nums');
+      celda('reparacion', 'py-2 pr-4 text-right tabular-nums');
+      celda('costo', 'py-2 pr-4 text-right tabular-nums');
+      celda('nc', 'py-2 text-right tabular-nums whitespace-nowrap');
+      tfoot.append(pie);
+
+      actualizarCalculo();
+    }
+
+    horaIn.addEventListener('input', () => {
+      tarifas.costoHora = positivo(Number(horaIn.value));
+      dirty = true;
+      actualizarCalculo();
+    });
+    viajesIn.addEventListener('input', () => {
+      tarifas.viajes = positivo(Number(viajesIn.value));
+      dirty = true;
+      actualizarCalculo();
+    });
+
+    $('cd-flete-aplicar').addEventListener('click', () => {
+      const valor = positivo(Number(todasIn.value));
+      // A todas las provincias con datos, no solo a las que muestran los filtros actuales.
+      for (const provincia of provincias) tarifas.fletes[provincia] = valor;
+      dirty = true;
+      armarFletes();
+      actualizarCalculo();
+    });
+
+    guardarBtn.addEventListener('click', async () => {
+      guardarBtn.disabled = true;
+      guardarMsg.textContent = 'Guardando…';
+      try {
+        const mes = mesSel.value;
+        const res = await fetch('/api/costo-devoluciones-tarifas', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mes, costoHora: tarifas.costoHora, viajes: tarifas.viajes, fletes: tarifas.fletes }),
+        });
+        const body = (await res.json()) as { ok: boolean; data?: TarifasGuardadas['porMes'][string]; error?: string };
+        if (!body.ok || !body.data) throw new Error(body.error ?? 'No se pudo guardar');
+        guardadas.porMes[mes] = body.data;
+        dirty = false;
+        origen = `Guardadas por ${body.data.actualizadoPor ?? '—'} el ${fechaLarga(body.data.updatedAt)}`;
+        guardarMsg.textContent = `Tarifas de ${mesLabel(mes)} guardadas.`;
+        actualizarCalculo();
+      } catch (err) {
+        guardarMsg.textContent = err instanceof Error ? err.message : 'No se pudo guardar';
+      } finally {
+        guardarBtn.disabled = !guardadas.disponible;
+      }
+    });
+
+    pdfBtn.addEventListener('click', async () => {
+      pdfBtn.disabled = true;
+      try {
+        // Carga diferida: jsPDF solo se baja cuando se pide el PDF.
+        const { generarPdfCostoDevoluciones } = await import('./costo-devoluciones-pdf');
+        const f = filtros();
+        const empresa = f.empresa === 0 ? 'Todas' : (data.empresas.find((e) => e.id === f.empresa)?.name ?? '—');
+        const doc = generarPdfCostoDevoluciones(resultado, f, tarifas, empresa);
+        const sufijo = [f.sector !== 'todos' ? SECTOR_LABEL[f.sector].toLowerCase() : '', f.empresa !== 0 ? empresa.toLowerCase().replace(/[^a-z0-9]+/g, '-') : '']
+          .filter(Boolean)
+          .join('-');
+        doc.save(`costo-devoluciones-${f.mes}${sufijo ? `-${sufijo}` : ''}.pdf`);
+      } finally {
+        pdfBtn.disabled = false;
+      }
+    });
+
+    mesSel.addEventListener('change', () => {
+      cargarTarifasDelMes();
+      armarFletes();
+      armarTabla();
+    });
+    sectorSel.addEventListener('change', armarTabla);
+    empresaSel.addEventListener('change', armarTabla);
+
+    cargarTarifasDelMes();
+    armarFletes();
+    armarTabla();
+  }
+</script>

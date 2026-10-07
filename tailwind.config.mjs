@@ -57,6 +57,7 @@ export default {
           teal: cssVar('--accent-teal'),
           cyan: cssVar('--accent-cyan'),
           rose: cssVar('--accent-rose'),
+          indigo: cssVar('--accent-indigo'),
         },
       },
     },
