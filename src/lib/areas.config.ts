@@ -120,7 +120,7 @@ export const AREAS: AreaConfig[] = [
     tabs: [
       { slug: 'plan-produccion', name: 'Plan de Producción' },
       { slug: 'oee', name: 'Eficiencia (OEE)' },
-      { slug: 'top-productos', name: 'Top 10 Productos' },
+      { slug: 'mas-detalles', name: 'Más Detalles' },
     ],
   },
   {

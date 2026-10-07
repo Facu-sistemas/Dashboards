@@ -1,0 +1,17 @@
+---
+import PlanProduccionDetalleApp from './PlanProduccionDetalleApp';
+import { getArgentinaTodayIso } from '../../lib/odoo/oee';
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Más Detalles</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Cumplimiento por rama y por línea de Odoo (campo Línea de la orden de fabricación): Lean y
+      Tradicional en Living, Espuma (E) y Base (B) en Colchones. El Herraje Unión "J" Suma va
+      aparte y no suma al total de Tradicional. Solo lectura.
+    </p>
+  </header>
+
+  <PlanProduccionDetalleApp client:load initialDate={getArgentinaTodayIso()} />
+</div>

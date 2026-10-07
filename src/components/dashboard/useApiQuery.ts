@@ -3,6 +3,14 @@ import type { ApiEnvelope } from './types';
 
 async function fetchJson<T>(path: string): Promise<T> {
   const res = await fetch(path, { headers: { Accept: 'application/json' } });
+  // Sesión vencida (el middleware redirige a /login) o ruta inexistente: llega HTML, no JSON.
+  if (!(res.headers.get('content-type') ?? '').includes('json')) {
+    throw new Error(
+      res.redirected && res.url.includes('/login')
+        ? 'La sesión venció — recargá la página e iniciá sesión de nuevo.'
+        : `El servidor no devolvió datos (${res.status}). Recargá la página; si sigue, avisá a sistemas.`
+    );
+  }
   const body = (await res.json()) as ApiEnvelope<T>;
   if (!res.ok || !body.ok || body.data === undefined) {
     throw new Error(body.error ?? `Request to ${path} failed`);
