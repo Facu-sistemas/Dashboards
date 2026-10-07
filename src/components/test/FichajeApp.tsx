@@ -27,7 +27,7 @@ const UMBRAL = 0.5;
 const CONFIRMACIONES = 3;
 const INTERVALO_MS = 400;
 /** Cuánto queda en pantalla el cartel de "Entrada/Salida registrada". */
-const RESULTADO_MS = 5000;
+const RESULTADO_MS = 3000;
 
 let faceApiPromise: Promise<FaceApi> | null = null;
 
