@@ -172,6 +172,7 @@ export const AREAS: AreaConfig[] = [
       { slug: 'colchon', name: 'Colchón' },
       { slug: 'cumpleanos', name: 'Cumpleaños' },
       { slug: 'flujo', name: 'Flujo' },
+      { slug: 'fichaje', name: 'Fichaje' },
     ],
   },
 ];

@@ -1,0 +1,15 @@
+---
+import FichajeApp from './FichajeApp';
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Fichaje</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Prueba de reconocimiento facial: se registra la cara de un empleado de Odoo y la cámara lo identifica. Por ahora solo
+      reconoce — todavía no ficha en Odoo. Se guardan vectores numéricos, no fotos.
+    </p>
+  </header>
+
+  <FichajeApp client:only="react" />
+</div>

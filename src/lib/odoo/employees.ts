@@ -75,3 +75,24 @@ export async function getUpcomingBirthdays(): Promise<UpcomingBirthday[]> {
 
   return result.sort((a, b) => a.diasRestantes - b.diasRestantes || a.nombre.localeCompare(b.nombre));
 }
+
+export interface EmpleadoActivo {
+  id: number;
+  nombre: string;
+  departamento: string | null;
+}
+
+/** Every active `hr.employee`, for linking a registered face to an Odoo employee. Read-only. */
+export async function getEmpleadosActivos(): Promise<EmpleadoActivo[]> {
+  const rows = await searchReadAll<EmployeeRow>({
+    model: 'hr.employee',
+    domain: [['active', '=', true]],
+    fields: ['name', 'department_id'],
+    order: 'name asc',
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    nombre: r.name,
+    departamento: r.department_id ? r.department_id[1].split('/').pop()!.trim() : null,
+  }));
+}
