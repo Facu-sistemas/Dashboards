@@ -71,7 +71,7 @@ export async function marcarAsistencia(empleadoId: number): Promise<ResultadoFic
 
   const respuesta = await call<{ warning?: string }>('hr.employee', 'attendance_manual', [
     [empleadoId],
-    'hr_attendance.hr_attendance_action_my_attendances',
+    'hr_attendance.hr_attendance_action_greeting_message',
   ]);
   if (respuesta.warning) throw new OdooError(`Odoo rechazó el fichaje: ${respuesta.warning}`);
 
