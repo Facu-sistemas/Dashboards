@@ -14,36 +14,100 @@ interface Props {
   usuarios: UsuarioConPermisos[];
 }
 
-function areaName(slug: string): string {
-  return AREAS.find((a) => a.slug === slug)?.name ?? slug;
+const TODAS = AREAS.map((a) => a.slug);
+
+/** Áreas que casi nadie necesita: la mayoría de las cuentas ve todo menos esto. */
+const AREAS_ESPECIALES = ['test', 'fichaje'];
+const TODAS_MENOS_ESPECIALES = TODAS.filter((s) => !AREAS_ESPECIALES.includes(s));
+
+function mismasAreas(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((s) => b.includes(s));
 }
 
-function AreaToggle({
-  usuario,
-  areaSlug,
-  onError,
+/**
+ * Selector de áreas compartido por "Cuentas existentes" y "Agregar cuenta": atajos para marcar muchas
+ * de una vez (Todas, Todas menos Test y Fichaje, Ninguna, Invertir) y las casillas individuales para el detalle.
+ */
+function AreaSelector({
+  value,
+  disabled,
+  onToggle,
+  onSet,
 }: {
-  usuario: UsuarioConPermisos;
-  areaSlug: string;
-  onError: (message: string) => void;
+  value: string[];
+  disabled?: boolean;
+  onToggle: (slug: string) => void;
+  onSet: (slugs: string[]) => void;
 }) {
-  const [checked, setChecked] = useState(usuario.areasActivas.includes(areaSlug));
+  const atajos: { label: string; slugs: string[] }[] = [
+    { label: 'Todas', slugs: TODAS },
+    { label: 'Todas menos Test y Fichaje', slugs: TODAS_MENOS_ESPECIALES },
+    { label: 'Ninguna', slugs: [] },
+    { label: 'Invertir', slugs: TODAS.filter((s) => !value.includes(s)) },
+  ];
+
+  return (
+    <div className={`flex flex-col gap-2 ${disabled ? 'opacity-60' : ''}`}>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="mr-1 text-xs text-slate-500">
+          {value.length} de {TODAS.length} áreas
+        </span>
+        {atajos.map((a) => {
+          const activo = a.label !== 'Invertir' && mismasAreas(value, a.slugs);
+          return (
+            <button
+              key={a.label}
+              type="button"
+              disabled={disabled}
+              onClick={() => onSet(a.slugs)}
+              className={`rounded border px-2 py-0.5 text-xs transition-colors disabled:cursor-not-allowed ${
+                activo
+                  ? 'border-brand-500 bg-brand-500/10 text-brand-400'
+                  : 'border-slate-700 text-slate-300 hover:border-slate-500 hover:text-slate-100'
+              }`}
+            >
+              {a.label}
+            </button>
+          );
+        })}
+      </div>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-3">
+        {AREAS.map((area) => (
+          <label key={area.slug} className="flex items-center gap-1.5 text-xs text-slate-300">
+            <input
+              type="checkbox"
+              checked={value.includes(area.slug)}
+              disabled={disabled}
+              onChange={() => onToggle(area.slug)}
+              className="accent-brand-500"
+            />
+            {area.name}
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function UsuarioAreas({ usuario, onError }: { usuario: UsuarioConPermisos; onError: (message: string) => void }) {
+  const [activas, setActivas] = useState(usuario.areasActivas);
   const [pending, setPending] = useState(false);
 
-  async function toggle() {
-    const next = !checked;
-    setChecked(next);
+  // Actualización optimista: se muestra el cambio al instante y se revierte si el servidor lo rechaza.
+  async function guardar(next: string[], payload: Record<string, unknown>) {
+    const previas = activas;
+    setActivas(next);
     setPending(true);
     try {
       const res = await fetch('/api/admin/usuarios', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'toggleArea', userId: usuario.id, areaSlug, activo: next }),
+        body: JSON.stringify({ userId: usuario.id, ...payload }),
       });
       const body = await res.json();
       if (!res.ok || !body.ok) throw new Error(body.error ?? 'No se pudo actualizar el permiso.');
     } catch (err) {
-      setChecked(!next); // revert optimistic update
+      setActivas(previas);
       onError(err instanceof Error ? err.message : 'No se pudo actualizar el permiso.');
     } finally {
       setPending(false);
@@ -51,10 +115,15 @@ function AreaToggle({
   }
 
   return (
-    <label className={`flex items-center gap-1.5 text-xs ${pending ? 'opacity-60' : ''}`}>
-      <input type="checkbox" checked={checked} disabled={pending} onChange={toggle} className="accent-brand-500" />
-      {areaName(areaSlug)}
-    </label>
+    <AreaSelector
+      value={activas}
+      disabled={pending}
+      onToggle={(slug) => {
+        const activo = !activas.includes(slug);
+        void guardar(activo ? [...activas, slug] : activas.filter((s) => s !== slug), { type: 'toggleArea', areaSlug: slug, activo });
+      }}
+      onSet={(slugs) => void guardar(slugs, { type: 'setAreas', areaSlugs: slugs })}
+    />
   );
 }
 
@@ -184,11 +253,7 @@ function UsuarioRow({ usuario, onError }: { usuario: UsuarioConPermisos; onError
         <p className="text-xs text-slate-500">Ve todas las áreas — no gestiona permisos por acá.</p>
       ) : (
         <>
-          <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-            {AREAS.map((area) => (
-              <AreaToggle key={area.slug} usuario={usuario} areaSlug={area.slug} onError={onError} />
-            ))}
-          </div>
+          <UsuarioAreas usuario={usuario} onError={onError} />
           <SessionLimitControl usuario={usuario} onError={onError} />
         </>
       )}
@@ -300,19 +365,7 @@ export default function AdminUsuariosApp({ usuarios }: Props) {
 
         <div className="flex flex-col gap-1.5">
           <span className="text-sm text-slate-300">Áreas habilitadas</span>
-          <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-            {AREAS.map((area) => (
-              <label key={area.slug} className="flex items-center gap-1.5 text-xs text-slate-300">
-                <input
-                  type="checkbox"
-                  checked={areas.includes(area.slug)}
-                  onChange={() => toggleAreaSeleccionada(area.slug)}
-                  className="accent-brand-500"
-                />
-                {area.name}
-              </label>
-            ))}
-          </div>
+          <AreaSelector value={areas} onToggle={toggleAreaSeleccionada} onSet={setAreas} />
         </div>
 
         <div className="flex flex-wrap items-center gap-2 text-sm text-slate-300">

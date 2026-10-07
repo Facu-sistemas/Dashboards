@@ -35,7 +35,13 @@ const setSessionLimitSchema = z.object({
   sesionMaxMinutos: sesionMaxMinutosSchema,
 });
 
-const patchSchema = z.union([toggleAreaSchema, setSessionLimitSchema]);
+const setAreasSchema = z.object({
+  type: z.literal('setAreas'),
+  userId: z.string().uuid(),
+  areaSlugs: z.array(areaSlugSchema),
+});
+
+const patchSchema = z.union([toggleAreaSchema, setAreasSchema, setSessionLimitSchema]);
 
 const deleteSchema = z.object({
   userId: z.string().uuid(),
@@ -98,8 +104,8 @@ export const POST: APIRoute = async (context) => {
   return jsonResponse({ ok: true, data: { id: created.user.id, username } });
 };
 
-// PATCH /api/admin/usuarios — dos acciones sobre un usuario existente:
-// togglear (upsert) el permiso de un área, o fijar/quitar su límite de sesión.
+// PATCH /api/admin/usuarios — acciones sobre un usuario existente: togglear (upsert) el permiso de un
+// área, fijar el conjunto completo de áreas de una vez, o fijar/quitar su límite de sesión.
 export const PATCH: APIRoute = async (context) => {
   const denied = requireDev(context);
   if (denied) return denied;
@@ -125,6 +131,18 @@ export const PATCH: APIRoute = async (context) => {
         { user_id: parsed.data.userId, area_slug: parsed.data.areaSlug, activo: parsed.data.activo },
         { onConflict: 'user_id,area_slug' }
       );
+    if (error) {
+      return jsonResponse({ ok: false, error: error.message }, { status: 400 });
+    }
+    return jsonResponse({ ok: true });
+  }
+
+  if (parsed.data.type === 'setAreas') {
+    // Fija el conjunto completo de áreas de una sola vez: todas las áreas del config quedan activas o no
+    // según estén en la lista (así "Ninguna" también desactiva las que ya existían en la tabla).
+    const habilitadas = new Set(parsed.data.areaSlugs);
+    const rows = AREA_SLUGS.map((area_slug) => ({ user_id: parsed.data.userId, area_slug, activo: habilitadas.has(area_slug) }));
+    const { error } = await admin.from('permisos_modulo').upsert(rows, { onConflict: 'user_id,area_slug' });
     if (error) {
       return jsonResponse({ ok: false, error: error.message }, { status: 400 });
     }
