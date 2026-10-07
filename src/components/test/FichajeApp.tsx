@@ -26,6 +26,8 @@ const UMBRAL = 0.5;
 /** Cuadros consecutivos con el mismo empleado antes de confirmar el reconocimiento. */
 const CONFIRMACIONES = 3;
 const INTERVALO_MS = 400;
+/** Cuánto queda en pantalla el cartel de "Entrada/Salida registrada". */
+const RESULTADO_MS = 5000;
 
 let faceApiPromise: Promise<FaceApi> | null = null;
 
@@ -151,6 +153,9 @@ function FichajeInner() {
       setReconocido(null);
       return;
     }
+    // Mientras se ficha y mientras se muestra el resultado, el reconocimiento se pausa: así el cartel no
+    // desaparece si la cara sale un instante de cámara, y no se puede fichar dos veces seguidas por accidente.
+    if (fichando || fichaje) return;
     let cancelado = false;
     let candidato: number | null = null;
     let racha = 0;
@@ -197,12 +202,14 @@ function FichajeInner() {
     return () => {
       cancelado = true;
     };
-  }, [camaraActiva, modo, detectar]);
+  }, [camaraActiva, modo, detectar, fichando, fichaje]);
 
-  const reconocidoId = reconocido?.empleadoId ?? null;
+  // El resultado del fichaje queda en pantalla unos segundos y después se vuelve a buscar caras.
   useEffect(() => {
-    setFichaje(null);
-  }, [reconocidoId]);
+    if (!fichaje) return;
+    const t = setTimeout(() => setFichaje(null), RESULTADO_MS);
+    return () => clearTimeout(t);
+  }, [fichaje]);
 
   async function ficharAhora() {
     if (!reconocido) return;
@@ -210,6 +217,8 @@ function FichajeInner() {
     setError(null);
     try {
       setFichaje(await marcarEnOdoo(reconocido.empleadoId));
+      setReconocido(null);
+      setEstado('Fichaje registrado.');
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -289,26 +298,39 @@ function FichajeInner() {
 
         <div className="relative mx-auto aspect-[4/3] w-full max-w-xl overflow-hidden rounded-lg bg-black">
           <video ref={videoRef} playsInline muted className="h-full w-full -scale-x-100 object-cover" />
-          {reconocido && modo === 'reconocer' && (
-            <div className="absolute inset-x-0 bottom-0 bg-emerald-600/90 px-4 py-3 text-center">
-              <p className="text-lg font-semibold text-white">Hola, {reconocido.nombre}</p>
-              <p className="text-xs text-emerald-100">distancia {reconocido.distancia.toFixed(2)}</p>
-              {fichaje ? (
-                <p className="mt-2 rounded bg-white/20 px-3 py-1.5 text-sm font-semibold text-white">
-                  {fichaje.accion === 'entrada' ? 'Entrada' : 'Salida'} registrada
-                  {fichaje.hora ? ` a las ${new Date(fichaje.hora).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}` : ''}
+          {fichaje ? (
+            // Verde = entrada, rojo = salida. Tapa todo el video para que no se pueda pasar por alto.
+            <div
+              className={`absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center text-white ${
+                fichaje.accion === 'entrada' ? 'bg-emerald-600/95' : 'bg-red-600/95'
+              }`}
+            >
+              <span className="text-6xl leading-none">{fichaje.accion === 'entrada' ? '→' : '←'}</span>
+              <p className="text-3xl font-bold uppercase tracking-wide">{fichaje.accion === 'entrada' ? 'Entrada' : 'Salida'}</p>
+              <p className="text-xl font-semibold">{fichaje.empleado}</p>
+              {fichaje.hora && (
+                <p className="text-lg">
+                  {new Date(fichaje.hora).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })} hs
                 </p>
-              ) : (
+              )}
+              <p className="text-xs opacity-80">Registrada en Odoo</p>
+            </div>
+          ) : (
+            reconocido &&
+            modo === 'reconocer' && (
+              <div className="absolute inset-x-0 bottom-0 bg-sky-700/90 px-4 py-3 text-center">
+                <p className="text-lg font-semibold text-white">Hola, {reconocido.nombre}</p>
+                <p className="text-xs text-sky-100">distancia {reconocido.distancia.toFixed(2)}</p>
                 <button
                   type="button"
                   disabled={fichando}
                   onClick={ficharAhora}
-                  className="mt-2 rounded bg-white px-4 py-1.5 text-sm font-semibold text-emerald-700 disabled:opacity-60"
+                  className="mt-2 rounded bg-white px-5 py-2 text-sm font-semibold text-sky-800 disabled:opacity-60"
                 >
                   {fichando ? 'Fichando...' : 'Fichar'}
                 </button>
-              )}
-            </div>
+              </div>
+            )
           )}
         </div>
 
