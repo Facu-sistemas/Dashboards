@@ -5,11 +5,12 @@ import { OdooError } from './types';
  * ÚNICO módulo del proyecto que escribe en Odoo — separado a propósito de
  * `client.ts`, que es de solo lectura (ver el comentario de ese archivo).
  *
- * Solo expone `marcarAsistencia`, que llama al mismo método que usa el
- * quiosco de Odoo (`hr.employee.attendance_manual`). Odoo decide solo si
- * corresponde entrada o salida según si el empleado tiene una asistencia
- * abierta. No hay un `create`/`write`/`unlink` genérico acá: agregar uno
- * rompería la razón de existir de este archivo.
+ * Solo expone `marcarAsistencia`, que replica lo que hace el quiosco de
+ * Odoo 17: si el empleado está afuera crea una `hr.attendance` con
+ * `check_in`; si está adentro cierra la abierta con `check_out`. (Odoo 17 no
+ * tiene un método RPC tipo `attendance_manual`: la lógica del quiosco vive en
+ * un controlador web.) No hay un `create`/`write`/`unlink` genérico acá:
+ * agregar uno rompería la razón de existir de este archivo.
  */
 
 interface JsonRpcResponse<T> {
@@ -60,38 +61,35 @@ interface EmpleadoAsistencia {
   last_attendance_id: [number, string] | false;
 }
 
+/** Odoo guarda los datetime en UTC con formato "YYYY-MM-DD HH:MM:SS". */
+function ahoraOdoo(): string {
+  return new Date().toISOString().slice(0, 19).replace('T', ' ');
+}
+
 export async function marcarAsistencia(empleadoId: number): Promise<ResultadoFichaje> {
   const config = getOdooConfig();
   const uid = await getUid();
   const call = <T>(model: string, method: string, args: unknown[]) =>
     rpc<T>(config.url, 'object', 'execute_kw', [config.db, uid, config.apiKey, model, method, args, { context: { lang: 'es_AR' } }]);
 
-  const [antes] = await call<EmpleadoAsistencia[]>('hr.employee', 'read', [[empleadoId], ['name', 'attendance_state', 'last_attendance_id']]);
-  if (!antes) throw new OdooError(`Empleado ${empleadoId} no encontrado en Odoo`);
+  const [empleado] = await call<EmpleadoAsistencia[]>('hr.employee', 'read', [[empleadoId], ['name', 'attendance_state', 'last_attendance_id']]);
+  if (!empleado) throw new OdooError(`Empleado ${empleadoId} no encontrado en Odoo`);
 
-  const respuesta = await call<{ warning?: string }>('hr.employee', 'attendance_manual', [
-    [empleadoId],
-    'hr_attendance.hr_attendance_action_greeting_message',
+  const hora = ahoraOdoo();
+
+  if (empleado.attendance_state === 'checked_out') {
+    await call<number>('hr.attendance', 'create', [[{ employee_id: empleadoId, check_in: hora, in_mode: 'kiosk' }]]);
+    return { empleado: empleado.name, accion: 'entrada', hora: `${hora.replace(' ', 'T')}Z` };
+  }
+
+  const [abierta] = await call<{ id: number }[]>('hr.attendance', 'search_read', [
+    [['employee_id', '=', empleadoId], ['check_out', '=', false]],
+    ['id'],
+    0,
+    1,
+    'check_in desc',
   ]);
-  if (respuesta.warning) throw new OdooError(`Odoo rechazó el fichaje: ${respuesta.warning}`);
-
-  // Confirmación: releer el estado. Si no cambió, Odoo no registró nada.
-  const [despues] = await call<EmpleadoAsistencia[]>('hr.employee', 'read', [[empleadoId], ['attendance_state', 'last_attendance_id']]);
-  if (!despues || despues.attendance_state === antes.attendance_state) {
-    throw new OdooError('Odoo no registró el fichaje (el estado de asistencia no cambió)');
-  }
-
-  const accion = despues.attendance_state === 'checked_in' ? 'entrada' : 'salida';
-  let hora: string | null = null;
-  if (despues.last_attendance_id) {
-    const [att] = await call<{ check_in: string; check_out: string | false }[]>('hr.attendance', 'read', [
-      [despues.last_attendance_id[0]],
-      ['check_in', 'check_out'],
-    ]);
-    const crudo = accion === 'entrada' ? att?.check_in : att?.check_out;
-    // Odoo devuelve "YYYY-MM-DD HH:MM:SS" en UTC.
-    hora = crudo ? `${crudo.replace(' ', 'T')}Z` : null;
-  }
-
-  return { empleado: antes.name, accion, hora };
+  if (!abierta) throw new OdooError('El empleado figura adentro pero no tiene una asistencia abierta en Odoo');
+  await call<boolean>('hr.attendance', 'write', [[abierta.id], { check_out: hora, out_mode: 'kiosk' }]);
+  return { empleado: empleado.name, accion: 'salida', hora: `${hora.replace(' ', 'T')}Z` };
 }
