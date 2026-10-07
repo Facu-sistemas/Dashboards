@@ -1,20 +1,5 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useApiQuery } from '../dashboard/useApiQuery';
-
-const writeDateFmt = new Intl.DateTimeFormat('es-AR', {
-  timeZone: 'America/Argentina/Buenos_Aires',
-  day: '2-digit',
-  month: '2-digit',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-});
-
-/** Odoo guarda write_date en UTC sin sufijo de zona — se agrega explícito o `Date` lo toma como hora local. */
-function formatOdooWriteDate(raw: string): string {
-  return writeDateFmt.format(new Date(`${raw.replace(' ', 'T')}Z`));
-}
 
 /**
  * Fuerza a re-leer la tabla "Equipo de gestión" (objetivos) desde Odoo: el
@@ -25,7 +10,6 @@ export default function GerenciaSyncButton() {
   const queryClient = useQueryClient();
   const [sincronizando, setSincronizando] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const syncInfo = useApiQuery<{ writeDate: string | null }>(['gerencia-sync-info'], '/api/gerencia-sync');
 
   async function sincronizar() {
     setSincronizando(true);
@@ -39,7 +23,6 @@ export default function GerenciaSyncButton() {
         queryClient.invalidateQueries({ queryKey: ['produccion-gerencia'] }),
         queryClient.invalidateQueries({ queryKey: ['plan-produccion'] }),
         queryClient.invalidateQueries({ queryKey: ['plan-produccion-diaria'] }),
-        queryClient.invalidateQueries({ queryKey: ['gerencia-sync-info'] }),
       ]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo sincronizar con Odoo.');
@@ -51,11 +34,6 @@ export default function GerenciaSyncButton() {
   return (
     <div className="flex flex-wrap items-center gap-3">
       {error && <p className="text-xs text-red-400">{error}</p>}
-      {syncInfo.data?.writeDate && (
-        <p className="text-xs text-slate-500">
-          Tabla "Equipo de gestión" editada en Odoo: <span className="text-slate-400">{formatOdooWriteDate(syncInfo.data.writeDate)}</span>
-        </p>
-      )}
       <button
         type="button"
         onClick={sincronizar}

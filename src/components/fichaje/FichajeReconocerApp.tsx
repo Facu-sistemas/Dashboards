@@ -3,6 +3,7 @@ import { useApiQuery } from '../dashboard/useApiQuery';
 import QueryProvider from '../QueryProvider';
 import { marcarEnOdoo, UMBRAL_RECONOCIMIENTO as UMBRAL, type CaraRegistrada, type ResultadoFichaje } from './fichaje-shared';
 import { useFichajeCamara } from './useFichajeCamara';
+import { usePantallaCompleta } from './usePantallaCompleta';
 
 /** Cuadros consecutivos con el mismo empleado antes de confirmar el reconocimiento. */
 const CONFIRMACIONES = 3;
@@ -10,22 +11,6 @@ const INTERVALO_MS = 400;
 /** Cuánto queda en pantalla el cartel de "Entrada/Salida registrada". */
 const RESULTADO_MS = 3000;
 const PREF_PANTALLA_COMPLETA = 'fichaje-pantalla-completa';
-
-function leerPreferencia(): boolean {
-  try {
-    return localStorage.getItem(PREF_PANTALLA_COMPLETA) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function guardarPreferencia(valor: boolean) {
-  try {
-    localStorage.setItem(PREF_PANTALLA_COMPLETA, valor ? '1' : '0');
-  } catch {
-    // Sin localStorage (modo privado): simplemente no se recuerda.
-  }
-}
 
 function FichajeReconocerInner() {
   const carasQ = useApiQuery<CaraRegistrada[]>(['fichaje-caras'], '/api/fichaje-caras');
@@ -36,46 +21,10 @@ function FichajeReconocerInner() {
   const [reconocido, setReconocido] = useState<{ empleadoId: number; nombre: string; distancia: number } | null>(null);
   const [fichando, setFichando] = useState(false);
   const [fichaje, setFichaje] = useState<ResultadoFichaje | null>(null);
-  const [pantallaCompleta, setPantallaCompleta] = useState(leerPreferencia);
+  const { pantallaCompleta, contenedorRef, entrar: entrarPantallaCompleta, salir: salirPantallaCompleta, alTocar } = usePantallaCompleta(PREF_PANTALLA_COMPLETA);
 
-  const contenedorRef = useRef<HTMLDivElement>(null);
   const carasRef = useRef(caras);
   carasRef.current = caras;
-  /** true si el navegador entró en pantalla completa real (en iPhone solo existe la versión "tapar la página"). */
-  const fsRealRef = useRef(false);
-
-  // Si el navegador sale de pantalla completa real (ej. gesto de volver o ESC), salimos también del modo quiosco.
-  useEffect(() => {
-    function alCambiar() {
-      if (document.fullscreenElement) {
-        fsRealRef.current = true;
-      } else if (fsRealRef.current) {
-        fsRealRef.current = false;
-        setPantallaCompleta(false);
-        guardarPreferencia(false);
-      }
-    }
-    document.addEventListener('fullscreenchange', alCambiar);
-    return () => document.removeEventListener('fullscreenchange', alCambiar);
-  }, []);
-
-  function pedirFullscreenReal() {
-    if (document.fullscreenElement) return;
-    void contenedorRef.current?.requestFullscreen?.().catch(() => {});
-  }
-
-  function entrarPantallaCompleta() {
-    setPantallaCompleta(true);
-    guardarPreferencia(true);
-    pedirFullscreenReal();
-  }
-
-  function salirPantallaCompleta() {
-    setPantallaCompleta(false);
-    guardarPreferencia(false);
-    fsRealRef.current = false;
-    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
-  }
 
   // Bucle de reconocimiento: corre mientras la cámara está abierta.
   useEffect(() => {
@@ -185,7 +134,7 @@ function FichajeReconocerInner() {
       {/* El mismo <video> sirve para los dos modos: solo cambian las clases, así la cámara no se reinicia al entrar/salir. */}
       <div
         ref={contenedorRef}
-        onClick={() => pantallaCompleta && pedirFullscreenReal()}
+        onClick={alTocar}
         className={
           pantallaCompleta
             ? 'fixed inset-0 z-[200] bg-black'
