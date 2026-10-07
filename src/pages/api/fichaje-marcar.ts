@@ -11,7 +11,7 @@ const bodySchema = z.object({ empleadoId: z.number().int().positive() });
 // POST /api/fichaje-marcar — registra entrada o salida (la decide Odoo) del
 // empleado reconocido. Única ruta del proyecto que escribe en Odoo.
 export const POST: APIRoute = async (context) => {
-  if (!context.locals.usuario?.areasPermitidas.includes('test')) {
+  if (!context.locals.usuario?.areasPermitidas.includes('fichaje')) {
     return jsonResponse({ ok: false, error: 'No autorizado' }, { status: 403 });
   }
   return handleApiRoute(async () => {

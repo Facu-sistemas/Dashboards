@@ -1,0 +1,17 @@
+---
+import FichajeRegistrarApp from './FichajeRegistrarApp';
+
+const esDev = Astro.locals.usuario?.rol === 'dev';
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Registrar</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Registro de la cara de un empleado de Odoo con 5 muestras. Se guardan vectores numéricos, no fotos. La lista de
+      registrados y la baja de caras se manejan desde la administración.
+    </p>
+  </header>
+
+  <FichajeRegistrarApp client:only="react" esDev={esDev} />
+</div>

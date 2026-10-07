@@ -57,6 +57,8 @@ const ICONS = {
   flask: '<path d="M9 3h6"/><path d="M10 3v6.5L4.6 18a2 2 0 001.7 3h11.4a2 2 0 001.7-3L14 9.5V3"/><path d="M7.5 15h9"/>',
   truck:
     '<rect x="2" y="7" width="11" height="9" rx="1"/><path d="M13 10h4l3 3v3h-7"/><circle cx="7" cy="18" r="1.8"/><circle cx="16.5" cy="18" r="1.8"/>',
+  faceScan:
+    '<path d="M4 8V6a2 2 0 012-2h2"/><path d="M16 4h2a2 2 0 012 2v2"/><path d="M20 16v2a2 2 0 01-2 2h-2"/><path d="M8 20H6a2 2 0 01-2-2v-2"/><circle cx="12" cy="10" r="2.5"/><path d="M7.5 17c.8-2 2.4-3 4.5-3s3.7 1 4.5 3"/>',
   coins: '<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.66 3.13 3 7 3s7-1.34 7-3V6"/><path d="M5 12v6c0 1.66 3.13 3 7 3s7-1.34 7-3v-6"/>',
 };
 
@@ -185,6 +187,17 @@ export const AREAS: AreaConfig[] = [
     ],
   },
   {
+    slug: 'fichaje',
+    name: 'Fichaje',
+    description: 'Entrada y salida con reconocimiento facial',
+    accent: 'teal',
+    icon: ICONS.faceScan,
+    tabs: [
+      { slug: 'reconocer', name: 'Reconocer' },
+      { slug: 'registrar', name: 'Registrar' },
+    ],
+  },
+  {
     slug: 'test',
     name: 'Test',
     description: 'Experimentos y prototipos',
@@ -195,7 +208,6 @@ export const AREAS: AreaConfig[] = [
       { slug: 'colchon', name: 'Colchón' },
       { slug: 'cumpleanos', name: 'Cumpleaños' },
       { slug: 'flujo', name: 'Flujo' },
-      { slug: 'fichaje', name: 'Fichaje' },
       { slug: 'pronostico', name: 'Pronóstico' },
     ],
   },

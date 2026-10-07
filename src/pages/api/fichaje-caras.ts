@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { listCaras, crearCaras, borrarCarasDeEmpleado } from '../../lib/supabase/fichaje-caras';
+import { listCaras, listCarasResumen, crearCaras, borrarCarasDeEmpleado, empleadoTieneCaras } from '../../lib/supabase/fichaje-caras';
 import { handleApiRoute, jsonResponse, ApiValidationError } from '../../lib/api-helpers';
 
 export const prerender = false;
@@ -13,53 +13,45 @@ const postSchema = z.object({
   descriptores: z.array(descriptorSchema).min(1).max(10),
 });
 
-const deleteSchema = z.object({ empleadoId: z.number().int().positive() });
-
-function requireTestAccess(context: { locals: App.Locals }): Response | null {
-  if (!context.locals.usuario?.areasPermitidas.includes('test')) {
+function requireFichajeAccess(context: { locals: App.Locals }): Response | null {
+  if (!context.locals.usuario?.areasPermitidas.includes('fichaje')) {
     return jsonResponse({ ok: false, error: 'No autorizado' }, { status: 403 });
   }
   return null;
 }
 
-async function readBody<T>(request: Request, schema: z.ZodType<T>): Promise<T> {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    throw new ApiValidationError('JSON inválido');
-  }
-  const parsed = schema.safeParse(body);
-  if (!parsed.success) throw new ApiValidationError(parsed.error.issues.map((i) => i.message).join('; '));
-  return parsed.data;
-}
-
 // GET /api/fichaje-caras — todos los descriptores registrados (el reconocimiento se hace en el navegador).
+// Con ?resumen=1 devuelve solo una fila por empleado, sin los vectores.
 export const GET: APIRoute = async (context) => {
-  const denied = requireTestAccess(context);
+  const denied = requireFichajeAccess(context);
   if (denied) return denied;
-  return handleApiRoute(() => listCaras());
+  const resumen = context.url.searchParams.get('resumen') === '1';
+  return handleApiRoute(() => (resumen ? listCarasResumen() : listCaras()));
 };
 
-// POST /api/fichaje-caras — registra una cara nueva; reemplaza las anteriores del mismo empleado.
+// POST /api/fichaje-caras — registra la cara de un empleado. Quien no es admin no puede pisar una cara ya
+// registrada (sería equivalente a borrarla); el reemplazo y la baja los hace el admin.
+// No hay DELETE acá a propósito: eliminar registros faciales está en /api/admin/fichaje-caras (solo dev).
 export const POST: APIRoute = async (context) => {
-  const denied = requireTestAccess(context);
+  const denied = requireFichajeAccess(context);
   if (denied) return denied;
   return handleApiRoute(async () => {
-    const { empleadoId, empleadoNombre, descriptores } = await readBody(context.request, postSchema);
+    let body: unknown;
+    try {
+      body = await context.request.json();
+    } catch {
+      throw new ApiValidationError('JSON inválido');
+    }
+    const parsed = postSchema.safeParse(body);
+    if (!parsed.success) throw new ApiValidationError(parsed.error.issues.map((i) => i.message).join('; '));
+    const { empleadoId, empleadoNombre, descriptores } = parsed.data;
+
+    if (context.locals.usuario?.rol !== 'dev' && (await empleadoTieneCaras(empleadoId))) {
+      throw new ApiValidationError('Ese empleado ya tiene la cara registrada. Solo un administrador puede reemplazarla o eliminarla.');
+    }
+
     await borrarCarasDeEmpleado(empleadoId);
     await crearCaras(empleadoId, empleadoNombre, descriptores);
     return { guardados: descriptores.length };
-  });
-};
-
-// DELETE /api/fichaje-caras — elimina el registro facial de un empleado.
-export const DELETE: APIRoute = async (context) => {
-  const denied = requireTestAccess(context);
-  if (denied) return denied;
-  return handleApiRoute(async () => {
-    const { empleadoId } = await readBody(context.request, deleteSchema);
-    await borrarCarasDeEmpleado(empleadoId);
-    return { ok: true };
   });
 };

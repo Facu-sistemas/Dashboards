@@ -75,6 +75,39 @@ export async function fetchLatestDashboardShareSnapshot(dashboardId: number, lab
   return decodeSnapshot(raw, label);
 }
 
+/**
+ * Lee el contenido VIVO del tablero (su propio `spreadsheet_snapshot`, que
+ * Odoo regraba cada vez que alguien edita y cierra el tablero — confirmado en
+ * vivo 2026-10-07 para id 40, donde el share congelado del 09-29 tenía valores
+ * viejos). Si el tablero nunca populó su snapshot (caso anterior, cuando venía
+ * `false`) cae al share más reciente.
+ */
+export async function fetchDashboardSnapshotOrLatestShare(dashboardId: number, label: string): Promise<SheetDoc> {
+  const records = await searchRead<{ spreadsheet_snapshot: string | false }>({
+    model: 'spreadsheet.dashboard',
+    domain: [['id', '=', dashboardId]],
+    fields: ['spreadsheet_snapshot'],
+    limit: 1,
+  });
+  const snapshot = records[0]?.spreadsheet_snapshot;
+  if (snapshot) {
+    const doc = decodeSnapshot(snapshot, label);
+    if (doc.sheets[0]?.cells) return doc;
+  }
+  return fetchLatestDashboardShareSnapshot(dashboardId, label);
+}
+
+/** write_date (UTC, "YYYY-MM-DD HH:mm:ss") de un tablero — para mostrar cuándo se editó por última vez. */
+export async function getDashboardWriteDate(dashboardId: number): Promise<string | null> {
+  const records = await searchRead<{ write_date: string }>({
+    model: 'spreadsheet.dashboard',
+    domain: [['id', '=', dashboardId]],
+    fields: ['write_date'],
+    limit: 1,
+  });
+  return records[0]?.write_date ?? null;
+}
+
 function decodeSnapshot(raw: string, label: string): SheetDoc {
   let doc: SheetDoc;
   try {

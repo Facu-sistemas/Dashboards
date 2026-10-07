@@ -3,6 +3,8 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import AdminUsuariosApp from '../../components/admin/AdminUsuariosApp';
 import { getSupabaseAdminClient } from '../../lib/supabase/admin';
 import type { UsuarioConPermisos } from '../../components/admin/AdminUsuariosApp';
+import FichajeCarasAdmin from '../../components/admin/FichajeCarasAdmin';
+import { listCarasResumen } from '../../lib/supabase/fichaje-caras';
 
 export const prerender = false;
 
@@ -25,6 +27,8 @@ const usuarios: UsuarioConPermisos[] = (perfiles ?? []).map((p) => ({
   areasActivas: (permisos ?? []).filter((perm) => perm.user_id === p.id).map((perm) => perm.area_slug),
   sesionMaxMinutos: p.sesion_max_minutos,
 }));
+
+const carasFichaje = await listCarasResumen().catch(() => []);
 ---
 
 <BaseLayout title="Administración de usuarios — Frontera Living">
@@ -37,5 +41,9 @@ const usuarios: UsuarioConPermisos[] = (perfiles ?? []).map((p) => ({
     </header>
 
     <AdminUsuariosApp client:load usuarios={usuarios} />
+
+    <div class="mt-10">
+      <FichajeCarasAdmin client:load caras={carasFichaje} />
+    </div>
   </main>
 </BaseLayout>

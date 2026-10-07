@@ -1,4 +1,4 @@
-import { fetchLatestDashboardShareSnapshot, colLetterToIndex, type SheetDoc } from './spreadsheet-snapshot';
+import { fetchDashboardSnapshotOrLatestShare, getDashboardWriteDate, colLetterToIndex, type SheetDoc } from './spreadsheet-snapshot';
 import { OdooError } from './types';
 
 /**
@@ -117,8 +117,12 @@ function total(row: Row | undefined): number {
   return row?.total ?? 0;
 }
 
+export function getObjetivosWriteDate(): Promise<string | null> {
+  return getDashboardWriteDate(DASHBOARD_ID);
+}
+
 export async function getObjetivosGerencia(): Promise<ObjetivosGerencia> {
-  const doc = await fetchLatestDashboardShareSnapshot(DASHBOARD_ID, DASHBOARD_LABEL);
+  const doc = await fetchDashboardSnapshotOrLatestShare(DASHBOARD_ID, DASHBOARD_LABEL);
   const rows = readRows(doc);
 
   const produccionStart = sectionStart(rows, 'produccion consensuado');

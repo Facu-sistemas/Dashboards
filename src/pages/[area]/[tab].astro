@@ -27,7 +27,8 @@ import VacacionesTab from '../../components/rrhh/VacacionesTab.astro';
 import ResumenRrhhTab from '../../components/rrhh/ResumenTab.astro';
 import CumpleanosTab from '../../components/test/CumpleanosTab.astro';
 import FlujoTab from '../../components/test/FlujoTab.astro';
-import FichajeTab from '../../components/test/FichajeTab.astro';
+import FichajeReconocerTab from '../../components/fichaje/FichajeReconocerTab.astro';
+import FichajeRegistrarTab from '../../components/fichaje/FichajeRegistrarTab.astro';
 import PronosticoTab from '../../components/test/PronosticoTab.astro';
 import VentasTab from '../../components/gerencia/VentasTab.astro';
 import ProduccionGerenciaTab from '../../components/gerencia/ProduccionTab.astro';
@@ -76,7 +77,8 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
   {area.slug === 'test' && tabSlug === 'conversor' && <ConversorTab />}
   {area.slug === 'test' && tabSlug === 'cumpleanos' && <CumpleanosTab />}
   {area.slug === 'test' && tabSlug === 'flujo' && <FlujoTab />}
-  {area.slug === 'test' && tabSlug === 'fichaje' && <FichajeTab />}
+  {area.slug === 'fichaje' && tabSlug === 'reconocer' && <FichajeReconocerTab />}
+  {area.slug === 'fichaje' && tabSlug === 'registrar' && <FichajeRegistrarTab />}
   {area.slug === 'test' && tabSlug === 'pronostico' && <PronosticoTab />}
   {area.slug === 'gerencia-general' && tabSlug === 'ventas' && <VentasTab />}
   {area.slug === 'gerencia-general' && tabSlug === 'produccion' && <ProduccionGerenciaTab />}
@@ -91,7 +93,7 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
   {area.slug === 'logistica' && tabSlug === 'cumplimiento' && <CumplimientoTab />}
   {area.slug === 'logistica' && tabSlug === 'pedidos-sin-despachar' && <PedidosSinDespacharTab />}
   {area.slug === 'logistica' && tabSlug === 'mapa-destinos' && <MapaDestinosTab />}
-  {!['finanzas', 'comercial', 'manufactura', 'almacen', 'produccion', 'gestion-calidad', 'test', 'gerencia-general', 'rrhh', 'finanzas-creditos', 'logistica'].includes(
+  {!['finanzas', 'comercial', 'manufactura', 'almacen', 'produccion', 'gestion-calidad', 'test', 'gerencia-general', 'rrhh', 'finanzas-creditos', 'logistica', 'fichaje'].includes(
     area.slug
   ) && <PlaceholderTab areaName={area.name} />}
 </AreaLayout>

@@ -3,6 +3,7 @@ import type { DehydratedState } from '@tanstack/react-query';
 import QueryProvider from '../QueryProvider';
 import { useApiQuery } from '../dashboard/useApiQuery';
 import LastUpdated from '../shared/LastUpdated';
+import GerenciaSyncButton from './GerenciaSyncButton';
 import VentasGerenciaKpiCard from './VentasGerenciaKpiCard';
 import VentasGerenciaChart from './VentasGerenciaChart';
 import DesvioMensualChart from './DesvioMensualChart';
@@ -88,7 +89,10 @@ function ProduccionGerenciaInner() {
           <p className="text-xs text-slate-400">
             {data?.year ?? ''} · unidades reales terminadas en planta (Odoo, mrp.production), objetivo desde el tablero de gestión de Odoo.
           </p>
-          <LastUpdated dataUpdatedAt={query.dataUpdatedAt} />
+          <div className="flex flex-wrap items-center gap-3">
+            <GerenciaSyncButton />
+            <LastUpdated dataUpdatedAt={query.dataUpdatedAt} />
+          </div>
         </div>
         {data && <PeriodPicker nMeses={nMeses} periodo={periodo} onChange={setPeriodo} />}
         {data && <MedidaToggle medida={medida} onChange={setMedida} />}
