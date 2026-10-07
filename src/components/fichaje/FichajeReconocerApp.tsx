@@ -1,11 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useApiQuery } from '../dashboard/useApiQuery';
 import QueryProvider from '../QueryProvider';
-import { marcarEnOdoo, type CaraRegistrada, type ResultadoFichaje } from './fichaje-shared';
+import { marcarEnOdoo, UMBRAL_RECONOCIMIENTO as UMBRAL, type CaraRegistrada, type ResultadoFichaje } from './fichaje-shared';
 import { useFichajeCamara } from './useFichajeCamara';
 
-/** Distancia euclídea máxima para considerar que dos descriptores son la misma persona (menor = más estricto). */
-const UMBRAL = 0.5;
 /** Cuadros consecutivos con el mismo empleado antes de confirmar el reconocimiento. */
 const CONFIRMACIONES = 3;
 const INTERVALO_MS = 400;

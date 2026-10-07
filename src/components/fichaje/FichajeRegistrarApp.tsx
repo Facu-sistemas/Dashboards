@@ -2,23 +2,53 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useApiQuery } from '../dashboard/useApiQuery';
 import QueryProvider from '../QueryProvider';
-import { registrarCaras, type CaraResumen, type Empleado } from './fichaje-shared';
+import {
+  registrarCaras,
+  UMBRAL_PARECIDO,
+  UMBRAL_RECONOCIMIENTO,
+  type CaraRegistrada,
+  type CaraResumen,
+  type Empleado,
+} from './fichaje-shared';
 import { useFichajeCamara } from './useFichajeCamara';
 
 const MUESTRAS_REGISTRO = 5;
+
+interface Muestra {
+  descriptor: number[];
+  /** El empleado ya registrado (distinto del que se está registrando) con la cara más parecida a esta muestra. */
+  cercano: { nombre: string; distancia: number } | null;
+}
+
+type Riesgo = 'confusion' | 'parecido' | 'ok';
+
+function riesgoDe(distancia: number | undefined): Riesgo {
+  if (distancia === undefined) return 'ok';
+  if (distancia <= UMBRAL_RECONOCIMIENTO) return 'confusion';
+  if (distancia <= UMBRAL_PARECIDO) return 'parecido';
+  return 'ok';
+}
+
+const COLOR_RIESGO: Record<Riesgo, string> = {
+  confusion: 'text-red-400',
+  parecido: 'text-amber-300',
+  ok: 'text-emerald-400',
+};
 
 function FichajeRegistrarInner({ esDev }: { esDev: boolean }) {
   const queryClient = useQueryClient();
   const empleadosQ = useApiQuery<Empleado[]>(['fichaje-empleados'], '/api/fichaje-empleados');
   const resumenQ = useApiQuery<CaraResumen[]>(['fichaje-caras-resumen'], '/api/fichaje-caras?resumen=1');
+  // Los vectores de los ya registrados: se necesitan para avisar cuando una cara nueva se parece a alguna existente.
+  const carasQ = useApiQuery<CaraRegistrada[]>(['fichaje-caras'], '/api/fichaje-caras');
   const empleados = empleadosQ.data ?? [];
   const registrados = new Map((resumenQ.data ?? []).map((r) => [r.empleadoId, r]));
 
-  const { videoRef, camaraActiva, estado, error, setError, iniciar, detener, detectar } = useFichajeCamara(false);
+  const { videoRef, faceapiRef, camaraActiva, estado, error, setError, iniciar, detener, detectar } = useFichajeCamara(false);
 
   const [empleadoId, setEmpleadoId] = useState<number | ''>('');
   const [busqueda, setBusqueda] = useState('');
-  const [muestras, setMuestras] = useState<number[][]>([]);
+  const [muestras, setMuestras] = useState<Muestra[]>([]);
   const [guardando, setGuardando] = useState(false);
   const [guardadoOk, setGuardadoOk] = useState<string | null>(null);
 
@@ -26,24 +56,50 @@ function FichajeRegistrarInner({ esDev }: { esDev: boolean }) {
   const empleadosFiltrados = empleados.filter((e) => !texto || e.nombre.toLowerCase().includes(texto));
   const yaRegistrado = empleadoId !== '' && registrados.has(empleadoId);
 
+  const peorDistancia = muestras.reduce<number | undefined>((peor, m) => {
+    if (!m.cercano) return peor;
+    return peor === undefined ? m.cercano.distancia : Math.min(peor, m.cercano.distancia);
+  }, undefined);
+  const riesgoGeneral = riesgoDe(peorDistancia);
+  const peorMuestra = muestras.find((m) => m.cercano && m.cercano.distancia === peorDistancia);
+  // Una cara que se confunde con otra persona no se puede guardar salvo que lo confirme un admin.
+  const bloqueado = riesgoGeneral === 'confusion' && !esDev;
+
   async function capturarMuestra() {
     setError(null);
     setGuardadoOk(null);
     const det = await detectar();
-    if (!det) {
+    const faceapi = faceapiRef.current;
+    if (!det || !faceapi) {
       setError('No se detecta ninguna cara. Acercate y mirá a la cámara.');
       return;
     }
-    setMuestras((m) => [...m, Array.from(det.descriptor)]);
+    let cercano: Muestra['cercano'] = null;
+    for (const c of carasQ.data ?? []) {
+      if (c.empleadoId === empleadoId) continue;
+      const d = faceapi.euclideanDistance(det.descriptor, c.descriptor);
+      if (!cercano || d < cercano.distancia) cercano = { nombre: c.empleadoNombre, distancia: d };
+    }
+    setMuestras((m) => [...m, { descriptor: Array.from(det.descriptor), cercano }]);
   }
 
   async function guardarRegistro() {
     const emp = empleados.find((e) => e.id === empleadoId);
     if (!emp) return;
+    if (
+      riesgoGeneral === 'confusion' &&
+      !window.confirm(`La cara de ${emp.nombre} se parece a la de ${peorMuestra?.cercano?.nombre} (distancia ${peorDistancia?.toFixed(2)}) y se podrían confundir al fichar. ¿Guardar igual?`)
+    ) {
+      return;
+    }
     setGuardando(true);
     setError(null);
     try {
-      await registrarCaras(emp.id, emp.nombre, muestras);
+      await registrarCaras(
+        emp.id,
+        emp.nombre,
+        muestras.map((m) => m.descriptor)
+      );
       setMuestras([]);
       setGuardadoOk(`Cara de ${emp.nombre} registrada.`);
       await queryClient.invalidateQueries({ queryKey: ['fichaje-caras-resumen'] });
@@ -130,13 +186,49 @@ function FichajeRegistrarInner({ esDev }: { esDev: boolean }) {
           </span>
           <button
             type="button"
-            disabled={muestras.length < MUESTRAS_REGISTRO || guardando}
+            disabled={muestras.length < MUESTRAS_REGISTRO || guardando || bloqueado}
             onClick={guardarRegistro}
             className="ml-auto rounded bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40"
           >
             {guardando ? 'Guardando...' : 'Guardar registro'}
           </button>
         </div>
+
+        {muestras.length > 0 && (
+          <div className="flex flex-col gap-1 rounded border border-slate-800 bg-slate-950/50 p-3">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Parecido con los ya registrados (distancia)</p>
+            {muestras.map((m, i) => {
+              const riesgo = riesgoDe(m.cercano?.distancia);
+              return (
+                <p key={i} className="text-sm text-slate-300">
+                  Muestra {i + 1}:{' '}
+                  {m.cercano ? (
+                    <>
+                      más parecida a <span className="font-medium text-slate-100">{m.cercano.nombre}</span>{' '}
+                      <span className={`font-mono ${COLOR_RIESGO[riesgo]}`}>{m.cercano.distancia.toFixed(2)}</span>
+                    </>
+                  ) : (
+                    <span className="text-slate-500">no hay otras caras registradas para comparar</span>
+                  )}
+                </p>
+              );
+            })}
+            {riesgoGeneral === 'confusion' && (
+              <p className="mt-1 text-sm text-red-400">
+                Se parece demasiado a {peorMuestra?.cercano?.nombre} (menos de {UMBRAL_RECONOCIMIENTO.toFixed(2)}): al fichar los podría confundir.
+                {esDev ? ' Podés guardar igual confirmando.' : ' Probá de nuevo con otra luz o ángulo; si persiste, avisá al administrador.'}
+              </p>
+            )}
+            {riesgoGeneral === 'parecido' && (
+              <p className="mt-1 text-sm text-amber-300">
+                Hay cierto parecido con {peorMuestra?.cercano?.nombre}: se puede guardar, pero conviene vigilar los fichajes de ambos.
+              </p>
+            )}
+            {riesgoGeneral === 'ok' && peorDistancia !== undefined && (
+              <p className="mt-1 text-sm text-emerald-400">No se parece a ninguna cara ya registrada.</p>
+            )}
+          </div>
+        )}
       </div>
     </section>
   );
