@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { marcarAsistencia } from '../../lib/odoo/asistencia-write';
 import { handleApiRoute, jsonResponse, ApiValidationError } from '../../lib/api-helpers';
+import { OdooError } from '../../lib/odoo/types';
 
 export const prerender = false;
 
@@ -22,6 +23,16 @@ export const POST: APIRoute = async (context) => {
     }
     const parsed = bodySchema.safeParse(body);
     if (!parsed.success) throw new ApiValidationError(parsed.error.issues.map((i) => i.message).join('; '));
-    return marcarAsistencia(parsed.data.empleadoId);
+    try {
+      return await marcarAsistencia(parsed.data.empleadoId);
+    } catch (err) {
+      // Acá se muestra el motivo real de Odoo (ruta solo para usuarios con acceso a Test): el mensaje genérico de
+      // handleApiRoute no deja diagnosticar por qué Odoo rechazó el fichaje.
+      if (err instanceof OdooError) {
+        console.error('[fichaje-marcar]', err.message, err.cause ?? '');
+        throw new ApiValidationError(err.message);
+      }
+      throw err;
+    }
   });
 };
