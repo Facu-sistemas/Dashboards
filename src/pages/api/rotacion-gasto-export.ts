@@ -76,12 +76,17 @@ async function ocPendientesWorkbook(empresas?: number[]): Promise<ExcelJS.Workbo
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('OC pendientes');
   addReportHeader(wb, ws);
-  const headers = ['ID producto', 'Nombre en pantalla', 'Categoría', 'Orden', 'Proveedor', 'Fecha orden', 'Fecha prevista entrega', 'Cantidad pedida (u producto)', 'Cantidad recibida (u producto)', 'Cantidad pendiente (u producto)', 'Precio unitario', 'Moneda'];
+  const headers = ['ID producto', 'Nombre en pantalla', 'Categoría', 'Orden', 'Proveedor', 'Fecha orden', 'Fecha prevista entrega', 'Cantidad pedida (u producto)', 'Cantidad recibida (u producto)', 'Cantidad pendiente (u producto)', 'Precio unitario', 'Moneda',
+    // Columnas nuevas, al final para no mover las que el libro ya lee.
+    'Condición de pago OC', 'Pagado s/ facturas de la OC', 'Pagos del proveedor sin imputar (misma moneda)', 'Última recepción', 'Recepción pendiente programada', 'Remito abierto'];
   ws.getRow(HEADER_ROW).values = headers;
   styleBand(ws.getRow(HEADER_ROW), headers.length);
-  ws.columns = [12, 38, 30, 14, 34, 14, 20, 20, 20, 20, 16, 10].map((width) => ({ width }));
-  for (const l of lineas) ws.addRow([l.productId, l.nombrePantalla, l.categoria, l.orden, l.proveedor, l.fechaOrden, l.fechaPrevista, l.pedida, l.recibida, l.pendiente, l.precioUnitario, l.moneda]);
-  for (const c of [8, 9, 10, 11]) ws.getColumn(c).numFmt = NUM_FMT;
+  ws.columns = [12, 38, 30, 14, 34, 14, 20, 20, 20, 20, 16, 10, 28, 20, 24, 16, 20, 18].map((width) => ({ width }));
+  for (const l of lineas) {
+    ws.addRow([l.productId, l.nombrePantalla, l.categoria, l.orden, l.proveedor, l.fechaOrden, l.fechaPrevista, l.pedida, l.recibida, l.pendiente, l.precioUnitario, l.moneda,
+      l.condicionPago, l.pagadoFacturas, l.pagosSinImputar || '', l.ultimaRecepcion, l.recepcionProgramada, l.remitoAbierto]);
+  }
+  for (const c of [8, 9, 10, 11, 14, 15]) ws.getColumn(c).numFmt = NUM_FMT;
   if (lineas.length > 0) addTotalRow(ws, headers.length, 1, [8, 9, 10], HEADER_ROW + 1, HEADER_ROW + lineas.length);
   ws.views = [{ state: 'frozen', ySplit: HEADER_ROW }];
   return wb;
