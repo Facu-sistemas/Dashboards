@@ -1,7 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApiQuery } from '../dashboard/useApiQuery';
 import QueryProvider from '../QueryProvider';
-import { marcarEnOdoo, UMBRAL_RECONOCIMIENTO as UMBRAL, type CaraRegistrada, type ResultadoFichaje } from './fichaje-shared';
+import { agruparPersonas, rankingPersonas } from '../../lib/fichaje-matching';
+import {
+  marcarEnOdoo,
+  MARGEN_RECONOCIMIENTO,
+  UMBRAL_RECONOCIMIENTO as UMBRAL,
+  type CaraRegistrada,
+  type ResultadoFichaje,
+} from './fichaje-shared';
 import { useFichajeCamara } from './useFichajeCamara';
 import { usePantallaCompleta } from './usePantallaCompleta';
 
@@ -16,15 +23,16 @@ function FichajeReconocerInner() {
   const carasQ = useApiQuery<CaraRegistrada[]>(['fichaje-caras'], '/api/fichaje-caras');
   const caras = carasQ.data ?? [];
 
-  const { videoRef, faceapiRef, camaraActiva, estado, setEstado, error, setError, iniciar, detener, detectar } = useFichajeCamara(true);
+  const { videoRef, camaraActiva, estado, setEstado, error, setError, iniciar, detener, detectar } = useFichajeCamara(true);
 
   const [reconocido, setReconocido] = useState<{ empleadoId: number; nombre: string; distancia: number } | null>(null);
   const [fichando, setFichando] = useState(false);
   const [fichaje, setFichaje] = useState<ResultadoFichaje | null>(null);
   const { pantallaCompleta, contenedorRef, entrar: entrarPantallaCompleta, salir: salirPantallaCompleta, alTocar } = usePantallaCompleta(PREF_PANTALLA_COMPLETA);
 
-  const carasRef = useRef(caras);
-  carasRef.current = caras;
+  const personas = useMemo(() => agruparPersonas(caras), [caras]);
+  const personasRef = useRef(personas);
+  personasRef.current = personas;
 
   // Bucle de reconocimiento: corre mientras la cámara está abierta.
   useEffect(() => {
@@ -41,7 +49,6 @@ function FichajeReconocerInner() {
 
     async function tick() {
       if (cancelado) return;
-      const faceapi = faceapiRef.current!;
       const det = await detectar();
       if (cancelado) return;
 
@@ -50,16 +57,15 @@ function FichajeReconocerInner() {
         racha = 0;
         setReconocido(null);
         setEstado('Buscando cara...');
-      } else if (carasRef.current.length === 0) {
+      } else if (personasRef.current.length === 0) {
         setEstado('Hay una cara, pero todavía no hay empleados registrados.');
       } else {
-        // Mejor coincidencia por empleado (cada uno tiene varias muestras).
-        let mejor: { empleadoId: number; nombre: string; distancia: number } | null = null;
-        for (const c of carasRef.current) {
-          const d = faceapi.euclideanDistance(det.descriptor, c.descriptor);
-          if (!mejor || d < mejor.distancia) mejor = { empleadoId: c.empleadoId, nombre: c.empleadoNombre, distancia: d };
-        }
-        if (mejor && mejor.distancia <= UMBRAL) {
+        // Ranking de empleados (distancia = promedio de sus 2 muestras más cercanas). Se acepta solo si la mejor
+        // está bajo el umbral y además le gana a la segunda por un margen: si dos empleados dan casi igual,
+        // es preferible no reconocer a nadie que reconocer al equivocado.
+        const [mejor, segunda] = rankingPersonas(det.descriptor, personasRef.current);
+        const ambigua = !!mejor && !!segunda && mejor.distancia <= UMBRAL && segunda.distancia - mejor.distancia < MARGEN_RECONOCIMIENTO;
+        if (mejor && mejor.distancia <= UMBRAL && !ambigua) {
           racha = candidato === mejor.empleadoId ? racha + 1 : 1;
           candidato = mejor.empleadoId;
           if (racha >= CONFIRMACIONES) {
@@ -72,7 +78,11 @@ function FichajeReconocerInner() {
           candidato = null;
           racha = 0;
           setReconocido(null);
-          setEstado(`Cara no reconocida (distancia ${mejor?.distancia.toFixed(2)}).`);
+          setEstado(
+            ambigua
+              ? `No estoy seguro (parecido a ${mejor!.nombre} y a ${segunda!.nombre}). Mirá de frente a la cámara.`
+              : `Cara no reconocida (distancia ${mejor?.distancia.toFixed(2)}).`
+          );
         }
       }
       setTimeout(tick, INTERVALO_MS);
@@ -81,7 +91,7 @@ function FichajeReconocerInner() {
     return () => {
       cancelado = true;
     };
-  }, [camaraActiva, detectar, faceapiRef, setEstado, fichando, fichaje]);
+  }, [camaraActiva, detectar, setEstado, fichando, fichaje]);
 
   // El resultado del fichaje queda en pantalla unos segundos y después se vuelve a buscar caras.
   useEffect(() => {

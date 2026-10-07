@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useApiQuery } from '../dashboard/useApiQuery';
 import QueryProvider from '../QueryProvider';
+import { agruparPersonas, rankingPersonas } from '../../lib/fichaje-matching';
 import {
   registrarCaras,
   UMBRAL_PARECIDO,
@@ -104,7 +105,7 @@ function FichajeRegistrarInner({ esDev }: { esDev: boolean }) {
   const empleados = empleadosQ.data ?? [];
   const registrados = new Map((resumenQ.data ?? []).map((r) => [r.empleadoId, r]));
 
-  const { videoRef, faceapiRef, camaraActiva, estado, error, setError, iniciar, detener, detectar } = useFichajeCamara(false);
+  const { videoRef, camaraActiva, estado, error, setError, iniciar, detener, detectar } = useFichajeCamara(false);
   const { pantallaCompleta, contenedorRef, entrar, salir } = usePantallaCompleta();
 
   const [empleadoId, setEmpleadoId] = useState<number | ''>('');
@@ -115,8 +116,9 @@ function FichajeRegistrarInner({ esDev }: { esDev: boolean }) {
   const [vivo, setVivo] = useState<Vivo | null>(null);
   const [listo, setListo] = useState(false);
 
-  const carasRef = useRef<CaraRegistrada[]>([]);
-  carasRef.current = carasQ.data ?? [];
+  const personas = useMemo(() => agruparPersonas(carasQ.data ?? []), [carasQ.data]);
+  const personasRef = useRef(personas);
+  personasRef.current = personas;
   /** Última captura que cumplió todo: es exactamente lo que se guarda al apretar "Confirmar". */
   const ultimaBuenaRef = useRef<Muestra | null>(null);
   const rachaRef = useRef(0);
@@ -140,10 +142,9 @@ function FichajeRegistrarInner({ esDev }: { esDev: boolean }) {
 
     async function tick() {
       if (cancelado) return;
-      const faceapi = faceapiRef.current;
       const video = videoRef.current;
       const det = await detectar();
-      if (cancelado || !faceapi || !video) return;
+      if (cancelado || !video) return;
 
       if (!det) {
         rachaRef.current = Math.min(rachaRef.current, 0);
@@ -154,12 +155,9 @@ function FichajeRegistrarInner({ esDev }: { esDev: boolean }) {
         const anchoRelativo = det.detection.box.width / (video.videoWidth || 1);
         const calidad: Calidad = det.detection.score < SCORE_MIN ? 'borrosa' : anchoRelativo < ANCHO_MIN ? 'lejos' : 'ok';
 
-        let cercano: Muestra['cercano'] = null;
-        for (const c of carasRef.current) {
-          if (c.empleadoId === empleadoId) continue;
-          const d = faceapi.euclideanDistance(det.descriptor, c.descriptor);
-          if (!cercano || d < cercano.distancia) cercano = { nombre: c.empleadoNombre, distancia: d };
-        }
+        // Misma métrica que el reconocimiento (promedio de las 2 muestras más cercanas de cada persona).
+        const [masParecida] = rankingPersonas(det.descriptor, personasRef.current, empleadoId === '' ? undefined : empleadoId);
+        const cercano: Muestra['cercano'] = masParecida ? { nombre: masParecida.nombre, distancia: masParecida.distancia } : null;
         const riesgo = riesgoDe(cercano?.distancia);
 
         // Una cara que se confundiría con otra persona no se puede confirmar, salvo que sea un admin.
@@ -176,7 +174,7 @@ function FichajeRegistrarInner({ esDev }: { esDev: boolean }) {
     return () => {
       cancelado = true;
     };
-  }, [camaraActiva, empleadoId, completas, detectar, faceapiRef, videoRef, esDev]);
+  }, [camaraActiva, empleadoId, completas, detectar, videoRef, esDev]);
 
   function confirmarMuestra() {
     const m = ultimaBuenaRef.current;

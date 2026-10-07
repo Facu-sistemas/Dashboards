@@ -4,7 +4,9 @@ import AdminUsuariosApp from '../../components/admin/AdminUsuariosApp';
 import { getSupabaseAdminClient } from '../../lib/supabase/admin';
 import type { UsuarioConPermisos } from '../../components/admin/AdminUsuariosApp';
 import FichajeCarasAdmin from '../../components/admin/FichajeCarasAdmin';
-import { listCarasResumen } from '../../lib/supabase/fichaje-caras';
+import FichajeParecidosAdmin from '../../components/admin/FichajeParecidosAdmin';
+import { listCaras, listCarasResumen } from '../../lib/supabase/fichaje-caras';
+import { agruparPersonas, calcularParesParecidos } from '../../lib/fichaje-matching';
 
 export const prerender = false;
 
@@ -29,6 +31,12 @@ const usuarios: UsuarioConPermisos[] = (perfiles ?? []).map((p) => ({
 }));
 
 const carasFichaje = await listCarasResumen().catch(() => []);
+
+// Reporte de empleados cuyas caras se parecen: se calcula acá (servidor) para no mandar los vectores al navegador.
+const personasFichaje = await listCaras()
+  .then(agruparPersonas)
+  .catch(() => []);
+const paresParecidos = calcularParesParecidos(personasFichaje);
 ---
 
 <BaseLayout title="Administración de usuarios — Frontera Living">
@@ -44,6 +52,10 @@ const carasFichaje = await listCarasResumen().catch(() => []);
 
     <div class="mt-10">
       <FichajeCarasAdmin client:load caras={carasFichaje} />
+    </div>
+
+    <div class="mt-10">
+      <FichajeParecidosAdmin client:load pares={paresParecidos} totalPersonas={personasFichaje.length} />
     </div>
   </main>
 </BaseLayout>

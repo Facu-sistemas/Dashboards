@@ -26,10 +26,7 @@ export interface ResultadoFichaje {
   hora: string | null;
 }
 
-/** Distancia euclídea máxima para considerar que dos descriptores son la misma persona (menor = más estricto). */
-export const UMBRAL_RECONOCIMIENTO = 0.5;
-/** Entre el umbral y este valor dos personas distintas ya se parecen lo suficiente como para vigilarlas. */
-export const UMBRAL_PARECIDO = 0.6;
+export { UMBRAL_RECONOCIMIENTO, UMBRAL_PARECIDO, MARGEN_RECONOCIMIENTO } from '../../lib/fichaje-matching';
 
 export type FaceApi = typeof import('@vladmandic/face-api');
 
