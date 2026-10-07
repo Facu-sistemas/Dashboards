@@ -46,6 +46,23 @@ function loadFaceApi(): Promise<FaceApi> {
   return faceApiPromise;
 }
 
+interface ResultadoFichaje {
+  empleado: string;
+  accion: 'entrada' | 'salida';
+  hora: string | null;
+}
+
+async function marcarEnOdoo(empleadoId: number): Promise<ResultadoFichaje> {
+  const res = await fetch('/api/fichaje-marcar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ empleadoId }),
+  });
+  const json = (await res.json()) as ApiEnvelope<ResultadoFichaje>;
+  if (!res.ok || !json.ok || !json.data) throw new Error(json.error ?? 'No se pudo fichar');
+  return json.data;
+}
+
 async function apiSend(method: 'POST' | 'DELETE', body: unknown): Promise<void> {
   const res = await fetch('/api/fichaje-caras', {
     method,
@@ -73,7 +90,9 @@ function FichajeInner() {
   const [busqueda, setBusqueda] = useState('');
   const [muestras, setMuestras] = useState<number[][]>([]);
   const [guardando, setGuardando] = useState(false);
-  const [reconocido, setReconocido] = useState<{ nombre: string; distancia: number } | null>(null);
+  const [reconocido, setReconocido] = useState<{ empleadoId: number; nombre: string; distancia: number } | null>(null);
+  const [fichando, setFichando] = useState(false);
+  const [fichaje, setFichaje] = useState<ResultadoFichaje | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -160,7 +179,7 @@ function FichajeInner() {
           racha = candidato === mejor.empleadoId ? racha + 1 : 1;
           candidato = mejor.empleadoId;
           if (racha >= CONFIRMACIONES) {
-            setReconocido({ nombre: mejor.nombre, distancia: mejor.distancia });
+            setReconocido({ empleadoId: mejor.empleadoId, nombre: mejor.nombre, distancia: mejor.distancia });
             setEstado('Reconocido');
           } else {
             setEstado('Verificando...');
@@ -179,6 +198,24 @@ function FichajeInner() {
       cancelado = true;
     };
   }, [camaraActiva, modo, detectar]);
+
+  const reconocidoId = reconocido?.empleadoId ?? null;
+  useEffect(() => {
+    setFichaje(null);
+  }, [reconocidoId]);
+
+  async function ficharAhora() {
+    if (!reconocido) return;
+    setFichando(true);
+    setError(null);
+    try {
+      setFichaje(await marcarEnOdoo(reconocido.empleadoId));
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setFichando(false);
+    }
+  }
 
   async function capturarMuestra() {
     setError(null);
@@ -256,6 +293,21 @@ function FichajeInner() {
             <div className="absolute inset-x-0 bottom-0 bg-emerald-600/90 px-4 py-3 text-center">
               <p className="text-lg font-semibold text-white">Hola, {reconocido.nombre}</p>
               <p className="text-xs text-emerald-100">distancia {reconocido.distancia.toFixed(2)}</p>
+              {fichaje ? (
+                <p className="mt-2 rounded bg-white/20 px-3 py-1.5 text-sm font-semibold text-white">
+                  {fichaje.accion === 'entrada' ? 'Entrada' : 'Salida'} registrada
+                  {fichaje.hora ? ` a las ${new Date(fichaje.hora).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}` : ''}
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  disabled={fichando}
+                  onClick={ficharAhora}
+                  className="mt-2 rounded bg-white px-4 py-1.5 text-sm font-semibold text-emerald-700 disabled:opacity-60"
+                >
+                  {fichando ? 'Fichando...' : 'Fichar'}
+                </button>
+              )}
             </div>
           )}
         </div>
