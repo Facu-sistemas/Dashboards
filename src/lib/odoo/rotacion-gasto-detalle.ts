@@ -31,6 +31,10 @@ export interface GastoLinea {
 }
 
 export interface OcPendienteLinea {
+  /** purchase.order.line.id */
+  lineaId: number;
+  /** purchase.order.id */
+  ordenId: number;
   productId: number;
   nombrePantalla: string;
   categoria: string;
@@ -229,6 +233,8 @@ export async function getOcPendientes(empresaIds?: number[]): Promise<OcPendient
       const prodUom = p ? uoms.get(p.uom_id[0]) : undefined;
       const conv = (q: number) => aUnidadProducto(q, lineUom, prodUom);
       return {
+        lineaId: l.id as number,
+        ordenId: l.order_id[0],
         productId: l.product_id[0],
         nombrePantalla: p?.display_name ?? l.product_id[1],
         categoria: p?.categ_id[1] ?? '',

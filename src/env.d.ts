@@ -11,6 +11,8 @@ interface ImportMetaEnv {
   readonly PUBLIC_SUPABASE_URL: string;
   readonly PUBLIC_SUPABASE_ANON_KEY: string;
   readonly SUPABASE_SERVICE_ROLE_KEY: string;
+  /** Secreto de la corrida automática de Compras MP (/api/compras-mp/cron). Sin él, esa ruta queda cerrada. */
+  readonly CRON_SECRET?: string;
   // Vercel's own System Environment Variables — present automatically on
   // every deployment (build + runtime), absent in local `astro dev`.
   readonly VERCEL_GIT_COMMIT_SHA?: string;

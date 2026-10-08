@@ -452,8 +452,6 @@ function Inner() {
           Descargar OC pendientes de recibir
         </a>
       </div>
-      <Rotacion seleccion={seleccion} />
-      <GastoReal seleccion={seleccion} />
     </div>
   );
 }

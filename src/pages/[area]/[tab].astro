@@ -2,10 +2,8 @@
 import AreaLayout from '../../layouts/AreaLayout.astro';
 import PlaceholderTab from '../../components/nav/PlaceholderTab.astro';
 import FacturacionTab from '../../components/finanzas/FacturacionTab.astro';
-import PresupuestoProyectadoTab from '../../components/compras/PresupuestoProyectadoTab.astro';
 import RotacionGastoTab from '../../components/compras/RotacionGastoTab.astro';
 import RawMaterialConsumptionTab from '../../components/finanzas/RawMaterialConsumptionTab.astro';
-import PoliticaVsRealTab from '../../components/finanzas/PoliticaVsRealTab.astro';
 import TendenciaPreciosTab from '../../components/comercial/TendenciaPreciosTab.astro';
 import CarteraClientesTab from '../../components/comercial/CarteraClientesTab.astro';
 import ClientesActivosTab from '../../components/comercial/ClientesActivosTab.astro';
@@ -29,7 +27,6 @@ import CumpleanosTab from '../../components/test/CumpleanosTab.astro';
 import FlujoTab from '../../components/test/FlujoTab.astro';
 import FichajeReconocerTab from '../../components/fichaje/FichajeReconocerTab.astro';
 import FichajeRegistrarTab from '../../components/fichaje/FichajeRegistrarTab.astro';
-import PronosticoTab from '../../components/test/PronosticoTab.astro';
 import VentasTab from '../../components/gerencia/VentasTab.astro';
 import ProduccionGerenciaTab from '../../components/gerencia/ProduccionTab.astro';
 import ProduccionDetalleTab from '../../components/gerencia/ProduccionDetalleTab.astro';
@@ -41,6 +38,7 @@ import MapaDestinosTab from '../../components/logistica/MapaDestinosTab.astro';
 import CostoDevolucionesTab from '../../components/calidad/CostoDevolucionesTab.astro';
 import CreditoChequesTab from '../../components/mejora-continua/CreditoChequesTab.astro';
 import DistribucionChequesTab from '../../components/mejora-continua/DistribucionChequesTab.astro';
+import ComprasMpTab from '../../components/compras/mp/ComprasMpTab.astro';
 import { getArea } from '../../lib/areas.config';
 
 export const prerender = false;
@@ -53,11 +51,10 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
 ---
 
 <AreaLayout areaSlug={area.slug} tabSlug={tabSlug!}>
-  {area.slug === 'finanzas' && tabSlug === 'presupuesto-proyectado' && <PresupuestoProyectadoTab />}
   {area.slug === 'finanzas' && tabSlug === 'rotacion-gasto' && <RotacionGastoTab />}
+  {area.slug === 'finanzas' && tabSlug === 'compras-mp' && <ComprasMpTab />}
   {area.slug === 'finanzas' && tabSlug === 'facturacion' && <FacturacionTab />}
   {area.slug === 'finanzas' && tabSlug === 'consumo-mp' && <RawMaterialConsumptionTab />}
-  {area.slug === 'finanzas' && tabSlug === 'politica-vs-real' && <PoliticaVsRealTab />}
   {area.slug === 'comercial' && tabSlug === 'tendencia-precios' && <TendenciaPreciosTab />}
   {area.slug === 'comercial' && tabSlug === 'salud-cartera' && <CarteraClientesTab />}
   {area.slug === 'manufactura' && tabSlug === 'mas-detalles' && <PlanProduccionDetalleTab />}
@@ -79,7 +76,6 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
   {area.slug === 'test' && tabSlug === 'flujo' && <FlujoTab />}
   {area.slug === 'fichaje' && tabSlug === 'reconocer' && <FichajeReconocerTab />}
   {area.slug === 'fichaje' && tabSlug === 'registrar' && <FichajeRegistrarTab />}
-  {area.slug === 'test' && tabSlug === 'pronostico' && <PronosticoTab />}
   {area.slug === 'gerencia-general' && tabSlug === 'ventas' && <VentasTab />}
   {area.slug === 'gerencia-general' && tabSlug === 'produccion' && <ProduccionGerenciaTab />}
   {area.slug === 'gerencia-general' && tabSlug === 'detalle-produccion' && <ProduccionDetalleTab />}

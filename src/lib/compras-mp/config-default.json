@@ -1,0 +1,399 @@
+{
+ "sommier_pct_ventas": 0.15,
+ "pocket_x18_mes": 600,
+ "eps_semana": 150,
+ "semanas_mes": 4.333333333333333,
+ "umbral_A": 0.8,
+ "umbral_B": 0.95,
+ "dias_por_semana": 7,
+ "umbral_tendencia": 0.3,
+ "plan_mes_siguiente": {
+  "prod_colchones": null,
+  "prod_sillones": null,
+  "ventas_colchones": null
+ },
+ "plan_enero_siguiente": {
+  "prod_colchones": null,
+  "prod_sillones": null,
+  "ventas_colchones": null
+ },
+ "origenes": {
+  "Local": {
+   "lead_dias": 14,
+   "ss_min": 0,
+   "ciclo": 1
+  },
+  "Brasil": {
+   "lead_dias": 40,
+   "ss_min": 4,
+   "ciclo": 1
+  },
+  "China": {
+   "lead_dias": 90,
+   "ss_min": 6,
+   "ciclo": 4
+  }
+ },
+ "ss_abc": {
+  "A": 1,
+  "B": 2,
+  "C": 4
+ },
+ "ciclo_abc": {
+  "A": 2,
+  "B": 3,
+  "C": 4
+ },
+ "ss_critico": 4,
+ "linea_por_categoria": {
+  "Tela Colchon": "Colchones",
+  "TNT": "Colchones",
+  "Bases": "Colchones",
+  "Alambre": "Colchones",
+  "Cartones": "Ambos",
+  "Mercería": "Ambos",
+  "Químicos": "Ambos"
+ },
+ "colecciones": {
+  "BOUCLE LENNY": "BOUCLE LENNY",
+  "BOUCLE NOVA": "BOUCLE NOVA",
+  "BOUCLE 5#": "BOUCLE #5",
+  "PANA BLONDIE": "PANA BLONDIE",
+  "PANA RIFF": "PANA RIFF",
+  "PANA CROSS": "PANA CROSS",
+  "PEVECRON LE MANS": "PEVECRON LE MANS",
+  "VELVET TWIST": "VELVET TWIST",
+  "CUERO SILK / STIK": "CUERO SILK / STIK",
+  "DENSE HERMES": "DENSE HERMES",
+  "FORM / GIVENCHY": "GIVENCHY",
+  "TC SUNNY": "SUNNY"
+ },
+ "prefijos_tela_living": [
+  "ALPHA",
+  "BOUCLE",
+  "BRUMA",
+  "CORANO",
+  "CUERO",
+  "CUEROTEX",
+  "DENSE",
+  "FLOW",
+  "FLOYD",
+  "FORM",
+  "JAGUAR",
+  "LIO",
+  "MILANO",
+  "ORION",
+  "PANA",
+  "PEVECRON",
+  "SHOT",
+  "SYDNEY",
+  "TC",
+  "VELVET",
+  "CAMBRIDGE",
+  "MONT",
+  "NAC"
+ ],
+ "quimicos_principales": [
+  "TDI (DI ISIOCANATO DE TOLUENO)",
+  "VORANOL (POLIOL)",
+  "VORANOL 3943 (COPO)"
+ ],
+ "colecciones_discontinuadas": [],
+ "origen_proveedor": {
+  "Foshan Shunbang Import & Export Co., Ltd.": "China",
+  "Foshan Win Star Furniture Accessory Co., Limited": "China",
+  "Guangdong Quanli Sleep Technology Co., Ltd.": "China",
+  "HUZHOU FORNICE TEXTILE CO.,LTD": "China",
+  "Jiangsu SOHO Innovation & Technology Group Co., Ltd.": "China",
+  "Yuyao Dafa Chemical Fiber Co., Ltd.": "China",
+  "ZHE JIANG UNITED SERVICE CORPORATION LTD.": "China",
+  "ZHEIJIANG QLNGSONG LIGHT TEXTILE CO.,LTD": "China",
+  "BEICHI HARDWARE": "China",
+  "COLORFLEX ESTAMPARIA LTDA": "Brasil",
+  "FITAFLEX INDUSTRIA E COMERCIO LTDA": "Brasil"
+ },
+ "excepciones": {
+  "GRAMPA CLIP CL34 - 22*17": {
+   "costo": 15
+  },
+  "GRAMPA CLIP CC32 - 11*14": {
+   "costo": 12.15
+  },
+  "V406": {
+   "consumo_forzado": 1900,
+   "origen": "China",
+   "respaldo": "Brasil"
+  },
+  "V1551": {
+   "origen": "China",
+   "respaldo": "Brasil"
+  },
+  "V1554": {
+   "origen": "China",
+   "respaldo": "Brasil"
+  },
+  "V1553": {
+   "origen": "China",
+   "respaldo": "Brasil"
+  },
+  "V1558": {
+   "origen": "China",
+   "respaldo": "Brasil"
+  },
+  "V368": {
+   "origen": "China",
+   "respaldo": "Brasil"
+  },
+  "BASE R POCKET 135X185X18 S/M S/E": {
+   "origen": "Brasil"
+  },
+  "BASE R POCKET 155X195X18 S/M S/E": {
+   "origen": "Brasil"
+  },
+  "BASE R POCKET 175X195X18 S/M S/E": {
+   "origen": "Brasil"
+  },
+  "BASE R POCKET 195X195X18 S/M S/E": {
+   "origen": "Brasil"
+  },
+  "BASE R POCKET 75X185X18 S/M S/E": {
+   "origen": "Brasil"
+  },
+  "BASE R POCKET 85X185X18 S/M S/E": {
+   "origen": "Brasil"
+  },
+  "BASE R POCKET 95X185X18 S/M S/E": {
+   "origen": "Brasil"
+  },
+  "CUERO SILK / STIK #3": {
+   "metodo": "Discontinuado"
+  },
+  "DENSE HERMES 20#": {
+   "metodo": "Discontinuado"
+  },
+  "FORM / GIVENCHY 4#": {
+   "metodo": "Discontinuado"
+  },
+  "BASE R POCKET 175X195X23 S/M S/E": {
+   "metodo": "Discontinuado"
+  },
+  "BASE R POCKET 75X185X23 S/M S/E": {
+   "metodo": "Discontinuado"
+  },
+  "BASE R POCKET 85X185X23 S/M S/E": {
+   "metodo": "Discontinuado"
+  },
+  "BOUCLE NOVA #15": {
+   "metodo": "Discontinuado"
+  },
+  "BOUCLE NOVA #16": {
+   "metodo": "Discontinuado"
+  },
+  "BOUCLE NOVA #18": {
+   "metodo": "Discontinuado"
+  },
+  "BOUCLE NOVA #2": {
+   "metodo": "Discontinuado"
+  },
+  "BOUCLE NOVA #21": {
+   "metodo": "Discontinuado"
+  },
+  "BOUCLE NOVA #3": {
+   "metodo": "Discontinuado"
+  },
+  "BOUCLE NOVA #4": {
+   "metodo": "Discontinuado"
+  },
+  "BOUCLE NOVA #5": {
+   "metodo": "Discontinuado"
+  },
+  "BOUCLE NOVA #8": {
+   "metodo": "Discontinuado"
+  },
+  "CUERO SILK / STIK #2": {
+   "metodo": "Discontinuado"
+  },
+  "CUERO SILK / STIK #7": {
+   "metodo": "Discontinuado"
+  },
+  "CUERO SILK / STIK #8": {
+   "metodo": "Discontinuado"
+  },
+  "CUERO SILK / STIK #9": {
+   "metodo": "Discontinuado"
+  },
+  "DENSE HERMES 10#": {
+   "metodo": "Discontinuado"
+  },
+  "DENSE HERMES 18#": {
+   "metodo": "Discontinuado"
+  },
+  "DENSE HERMES 21#": {
+   "metodo": "Discontinuado"
+  },
+  "DENSE HERMES 22#": {
+   "metodo": "Discontinuado"
+  },
+  "DENSE HERMES 23#": {
+   "metodo": "Discontinuado"
+  },
+  "DENSE HERMES 5#": {
+   "metodo": "Discontinuado"
+  },
+  "FORM / GIVENCHY 1#": {
+   "metodo": "Discontinuado"
+  },
+  "FORM / GIVENCHY 10#": {
+   "metodo": "Discontinuado"
+  },
+  "FORM / GIVENCHY 11#": {
+   "metodo": "Discontinuado"
+  },
+  "FORM / GIVENCHY 14#": {
+   "metodo": "Discontinuado"
+  },
+  "FORM / GIVENCHY 6#": {
+   "metodo": "Discontinuado"
+  },
+  "FORM / GIVENCHY 8#": {
+   "metodo": "Discontinuado"
+  },
+  "FORM / GIVENCHY 9#": {
+   "metodo": "Discontinuado"
+  },
+  "ENGANCHADORES (PAR)": {
+   "origen": "China",
+   "respaldo": "Local"
+  },
+  "MECANISMO EXTENSIBLE ASIENTO (PAR)": {
+   "origen": "China",
+   "respaldo": "Local"
+  },
+  "MOVI RESPALDO (H5)": {
+   "origen": "China",
+   "respaldo": "Local"
+  },
+  "ANCLAJE COCODRILO MACHO": {
+   "origen": "China",
+   "respaldo": "Local"
+  },
+  "ANCLAJE COCODRILO HEMBRA": {
+   "origen": "China",
+   "respaldo": "Local"
+  },
+  "CONJUNTO MOTOR 516D (PIN / CLIP)": {
+   "origen": "China",
+   "respaldo": "Ninguno"
+  },
+  "LATERAL DERECHO MEC. 516D": {
+   "origen": "China",
+   "respaldo": "Ninguno"
+  },
+  "LATERAL IZQUIERDO MEC. 516D": {
+   "origen": "China",
+   "respaldo": "Ninguno"
+  },
+  "RESORTE 516D": {
+   "origen": "China",
+   "respaldo": "Ninguno"
+  },
+  "TUBO ACERO MEC. 516D L537,8": {
+   "origen": "China",
+   "respaldo": "Ninguno"
+  },
+  "TUBO ACERO MEC. 516D L671,8": {
+   "origen": "China",
+   "respaldo": "Ninguno"
+  },
+  "BRAZO METALICO DERECHO MEC. 8102D": {
+   "metodo": "Agotar stock",
+   "origen": "China",
+   "respaldo": "Ninguno"
+  },
+  "BRAZO METALICO IZQUIERDO MEC. 8102D": {
+   "metodo": "Agotar stock",
+   "origen": "China",
+   "respaldo": "Ninguno"
+  },
+  "CONJUNTO MOTOR 8102D (MOTOR / TORNILLO)": {
+   "metodo": "Agotar stock",
+   "origen": "China",
+   "respaldo": "Ninguno"
+  },
+  "GATILLO DERECHO MEC. 8102M": {
+   "metodo": "Agotar stock",
+   "origen": "China",
+   "respaldo": "Ninguno"
+  },
+  "GATILLO LATERAL IZQUIERDO 8102M": {
+   "metodo": "Agotar stock",
+   "origen": "China",
+   "respaldo": "Ninguno"
+  },
+  "LATERAL DERECHO MEC. 8102D": {
+   "metodo": "Agotar stock",
+   "origen": "China",
+   "respaldo": "Ninguno"
+  },
+  "LATERAL DERECHO MEC. 8102M": {
+   "metodo": "Agotar stock",
+   "origen": "China",
+   "respaldo": "Ninguno"
+  },
+  "LATERAL IZQUIERDO MEC. 8102D": {
+   "metodo": "Agotar stock",
+   "origen": "China",
+   "respaldo": "Ninguno"
+  },
+  "LATERAL IZQUIERDO MEC. 8102M": {
+   "metodo": "Agotar stock",
+   "origen": "China",
+   "respaldo": "Ninguno"
+  },
+  "RESORTE 8102D": {
+   "metodo": "Agotar stock",
+   "origen": "China",
+   "respaldo": "Ninguno"
+  },
+  "RESORTE 8102M": {
+   "metodo": "Agotar stock",
+   "origen": "China",
+   "respaldo": "Ninguno"
+  },
+  "RESORTE BLOQUEO 8102M": {
+   "metodo": "Agotar stock",
+   "origen": "China",
+   "respaldo": "Ninguno"
+  },
+  "TUBO ACERO MEC. 8102M L482,6": {
+   "metodo": "Agotar stock",
+   "origen": "China",
+   "respaldo": "Ninguno"
+  },
+  "TUBO ACERO MEC. 8102M L568,4": {
+   "metodo": "Agotar stock",
+   "origen": "China",
+   "respaldo": "Ninguno"
+  }
+ },
+ "cond_pago_default": {
+  "Local": {
+   "dias": 30,
+   "anticipado": false,
+   "iva": 0.21,
+   "perc": 0
+  },
+  "Brasil": {
+   "dias": 60,
+   "anticipado": false,
+   "iva": 0,
+   "perc": 0
+  },
+  "China": {
+   "dias": 0,
+   "anticipado": true,
+   "iva": 0,
+   "perc": 0
+  }
+ }
+}

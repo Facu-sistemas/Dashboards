@@ -16,7 +16,8 @@ import react from '@astrojs/react';
 // support Astro 5+/7, so it's left out on purpose.
 export default defineConfig({
   output: 'server',
-  adapter: vercel(),
+  // La actualización de Compras MP lee Odoo y calcula en una sola llamada (~40 s): se sube el límite de 10 s por defecto.
+  adapter: vercel({ maxDuration: 60 }),
   integrations: [react()],
   server: {
     port: 4321,
