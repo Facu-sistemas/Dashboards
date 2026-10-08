@@ -3,6 +3,7 @@ import { getFronteraCompany } from './reference';
 import { COLCHONES_CATEG_IDS, LIVING_CATEG_IDS } from './oee';
 import { currentMonthKey, lastMonthKeys, monthsBetween, rangePresetStartDate, type DateRangePreset } from '../date';
 import type { OdooDomain } from './types';
+import { fetchNotasDevolucionColchon, type NotaDevolucion } from './notas-credito-devolucion';
 
 const TREND_MONTHS = 12;
 
@@ -282,29 +283,16 @@ async function fetchProductionRows(categIds: number[], companyId: number, startD
   return searchReadAll<ProductionRow>({ model: 'mrp.production', domain, fields: ['date_finished', 'qty_produced'] });
 }
 
-type CreditNoteRow = { invoice_date: string; amount_total_signed: number; x_studio_motivo: string | false };
-
 /**
- * Notas de crédito de Colchón por Garantía + No conformidad — fuente que
- * Calidad pidió usar en vez de `repair.order` para el sector Colchón:
- * tienen mejor cobertura/carga que las órdenes de reparación. Deliberately
- * NOT scoped to `company_id` (same reasoning as `getNotasCreditoGarantia`:
- * restricting to one company undercounts real rows — confirmed live for
- * Garantía, assumed to hold here too since it's the same model/field).
+ * Notas de crédito de Colchón por devolución (Calidad, Garantía/Logística,
+ * transporte, errores de carga) — fuente que Calidad pidió usar en vez de
+ * `repair.order` para el sector Colchón: tienen mejor cobertura de carga.
+ * No entran los descuentos, acuerdos comerciales ni publicidad. La
+ * clasificación es la misma que usa Costo de no calidad
+ * (`fetchNotasDevolucionColchon`).
  */
-async function fetchNotasCreditoColchon(startDate: string | null): Promise<CreditNoteRow[]> {
-  const domain: OdooDomain = [
-    ['move_type', '=', 'out_refund'],
-    ['state', '=', 'posted'],
-    ['x_studio_sector', '=', 'Colchon'],
-    ['x_studio_motivo', 'in', [CREDIT_NOTE_WARRANTY_MOTIVO, CREDIT_NOTE_NO_CONFORMIDAD_MOTIVO]],
-  ];
-  if (startDate) domain.push(['invoice_date', '>=', startDate]);
-  return searchReadAll<CreditNoteRow>({ model: 'account.move', domain, fields: ['invoice_date', 'amount_total_signed', 'x_studio_motivo'] });
-}
-
 function bucketColchon(
-  creditNoteRows: CreditNoteRow[],
+  creditNoteRows: NotaDevolucion[],
   repairRows: RepairRow[],
   productionRows: ProductionRow[],
   months: string[]
@@ -312,12 +300,12 @@ function bucketColchon(
   const emptyBucket = () => ({ cantidad: 0, monto: 0, cantGarantia: 0, montoGarantia: 0, cantCalidad: 0, montoCalidad: 0 });
   const ncByMonth = new Map<string, ReturnType<typeof emptyBucket>>();
   for (const r of creditNoteRows) {
-    const month = r.invoice_date.slice(0, 7);
+    const month = r.invoiceDate.slice(0, 7);
     const bucket = ncByMonth.get(month) ?? emptyBucket();
-    const monto = Math.abs(r.amount_total_signed);
+    const monto = r.amount;
     bucket.cantidad += 1;
     bucket.monto += monto;
-    if (r.x_studio_motivo === CREDIT_NOTE_WARRANTY_MOTIVO) {
+    if (r.grupo === 'garantia') {
       bucket.cantGarantia += 1;
       bucket.montoGarantia += monto;
     } else {
@@ -358,7 +346,7 @@ function bucketColchon(
 
   return {
     totalNotasCredito: creditNoteRows.length,
-    totalMontoNotasCredito: creditNoteRows.reduce((sum, r) => sum + Math.abs(r.amount_total_signed), 0),
+    totalMontoNotasCredito: creditNoteRows.reduce((sum, r) => sum + r.amount, 0),
     totalHoras: repairRows.reduce((sum, r) => sum + r.x_studio_horas_de_reparacion, 0),
     totalUnidadesFabricadas: productionRows.reduce((sum, r) => sum + r.qty_produced, 0),
     mensual,
@@ -412,7 +400,7 @@ function bucketSector(repairRows: RepairRow[], productionRows: ProductionRow[], 
  * que se hizo con Colchón (ver abajo).
  *
  * Colchón, a pedido de Calidad, usa Notas de Crédito (Garantía + No
- * conformidad, ver `fetchNotasCreditoColchon`) como fuente de "devoluciones"
+ * conformidad, ver `fetchNotasDevolucionColchon`) como fuente de "devoluciones"
  * en vez de `repair.order` — tienen mejor cobertura de carga para ese
  * sector. Las horas de reparación siguen viniendo de `repair.order` (único
  * lugar donde se cargan) y se muestran como dato complementario, no como
@@ -439,7 +427,7 @@ export async function getReparaciones(range: DateRangePreset): Promise<Reparacio
       fetchProductionRows(LIVING_CATEG_IDS, companyId, startDate),
       fetchRepairRows(COLCHONES_CATEG_IDS, companyId, startDate),
       fetchProductionRows(COLCHONES_CATEG_IDS, companyId, startDate),
-      fetchNotasCreditoColchon(startDate),
+      fetchNotasDevolucionColchon(startDate),
       searchCount('repair.order', totalDomain),
     ]);
 
@@ -448,7 +436,7 @@ export async function getReparaciones(range: DateRangePreset): Promise<Reparacio
       [...livingRepairs, ...colchonRepairs]
         .map((r) => r.create_date.slice(0, 7))
         .concat([...livingProduction, ...colchonProduction].map((r) => r.date_finished.slice(0, 7)))
-        .concat(colchonCreditNotes.map((r) => r.invoice_date.slice(0, 7)))
+        .concat(colchonCreditNotes.map((r) => r.invoiceDate.slice(0, 7)))
     ),
   ].sort();
   const months = allMonthKeys.length > 0 ? monthsBetween(allMonthKeys[0]!, currentMonthKey()) : [];

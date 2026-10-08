@@ -174,8 +174,8 @@ export function calcular(data: CostoDevolucionesData, f: Filtros, t: TarifasMes)
     porProvincia.set(c.provincia, fila);
 
     if (c.causa === 'sinmotivo') datos.sinMotivo++;
-    if (c.origen === 'reparacion' && c.horas <= 0) datos.sinHoras++;
-    if (c.origen === 'reparacion' && (c.causa === 'transporte' || c.causa === 'postventa') && !c.vinculado) datos.sinVincular++;
+    if (c.origen === 'reparacion' && !c.enCurso && c.horas <= 0) datos.sinHoras++;
+    if (c.origen !== 'nota-credito' && (c.causa === 'transporte' || c.causa === 'postventa') && !c.vinculado) datos.sinVincular++;
     if (c.fuenteFlete === 'sin-dato') datos.sinFlete++;
   }
 

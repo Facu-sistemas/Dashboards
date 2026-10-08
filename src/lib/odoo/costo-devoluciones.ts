@@ -1,22 +1,13 @@
 import { searchRead, searchReadAll } from './client';
 import { getPartners, normalizarProvincia } from './mapa-destinos';
+import { fetchNotasDevolucionColchon, type Causa } from './notas-credito-devolucion';
 import { COLCHONES_CATEG_IDS, LIVING_CATEG_IDS } from './oee';
 import { getArgentinaTodayIso } from './oee';
 import { lastMonthKeys, monthBounds } from '../date';
-import type { OdooDomain } from './types';
 
 export type SectorDevolucion = 'living' | 'colchon';
 
-/**
- * Por qué volvió (o se rompió) algo. Es lo que separa "no calidad" de lo
- * que se le cobra a otro:
- *  - calidad: falla nuestra de producto — no se recupera, el producto vuelve.
- *  - transporte: se rompió en el viaje — se le factura al transportista.
- *  - postventa: servicio al cliente (retapizar, etc.) — se le factura al cliente.
- *  - logistica: error propio de carga / pedido / facturación / no entregado.
- *  - sinmotivo: no se cargó el motivo en Odoo (no se puede clasificar).
- */
-export type Causa = 'calidad' | 'transporte' | 'postventa' | 'logistica' | 'sinmotivo';
+export type { Causa };
 
 export interface EmpresaOption {
   id: number;
@@ -31,10 +22,15 @@ export interface EmpresaOption {
  */
 export interface DevolucionRegistro {
   ref: string;
-  origen: 'reparacion' | 'nota-credito';
+  origen: 'reparacion' | 'nota-credito' | 'ticket';
   /** Ticket de soporte de la reparación, si lo tiene. */
   ticket: string | null;
+  /** Mes de apertura (fecha de creación de la orden / ticket / nota): es el que ordena el resumen mensual. */
   mes: string; // "YYYY-MM"
+  /** Fecha de apertura "YYYY-MM-DD". */
+  abierto: string;
+  /** Fecha de cierre del ticket "YYYY-MM-DD", o null si sigue abierto o no aplica. */
+  cerrado: string | null;
   sector: SectorDevolucion;
   empresa: number;
   cliente: string;
@@ -46,6 +42,8 @@ export interface DevolucionRegistro {
   /** true = cuenta como devolución del índice (Living: orden de reparación; Colchón: nota de crédito). Las reparaciones de Colchón no cuentan, pero sus horas sí cuestan. */
   cuenta: boolean;
   horas: number;
+  /** Todavía no se terminó de reparar (o ni empezó): las horas aún pueden cargarse. */
+  enCurso: boolean;
   /** Plata de materia/producto que no se pudo recuperar ($): costo del producto − lo recuperado (Living) o costo del colchón devuelto. */
   material: number;
   /** Lo que se le facturó a otro por este caso ($, sin IVA): al transportista o al cliente (post-venta). */
@@ -78,16 +76,6 @@ export interface CostoDevolucionesData {
 
 const MESES_VENTANA = 12;
 
-// Motivos de la nota de crédito (x_studio_motivo_1 → x_motivo_n_c) y sus notas (x_studio_nota → x_nota_n_c).
-const NC_MOTIVO_CALIDAD = 'Calidad';
-const NC_MOTIVO_LOGISTICO = 'Logístico';
-const NC_NOTA_ROTURA_CAMIONERO = 'Rotura camionero';
-const NC_NOTA_POSTVENTA = 'Servicio post venta';
-const NC_NOTA_GARANTIA_NO_REAL = 'Garantía no real';
-// Campos viejos de la nota de crédito, anteriores al motivo/nota nuevo (18-sep-2026).
-const NC_OLD_WARRANTY = 'Garantatía';
-const NC_OLD_PRODUCTO = 'Producto';
-
 interface RepairRow extends Record<string, unknown> {
   id: number;
   name: string;
@@ -96,6 +84,7 @@ interface RepairRow extends Record<string, unknown> {
   create_date: string;
   product_id: [number, string] | false;
   product_qty: number;
+  state: string;
   ticket_id: [number, string] | false;
   sale_order_id: [number, string] | false;
   x_studio_horas_de_reparacion: number;
@@ -107,28 +96,14 @@ interface TicketRow extends Record<string, unknown> {
   name: string;
   x_studio_motivo: string | false;
   sale_order_id: [number, string] | false;
+  close_date: string | false;
 }
 
-interface CreditNoteRow extends Record<string, unknown> {
-  id: number;
-  name: string;
+interface TicketSinOrdenRow extends TicketRow {
+  create_date: string;
   partner_id: [number, string] | false;
   company_id: [number, string] | false;
-  invoice_date: string;
-  amount_total_signed: number;
-  amount_untaxed_signed: number;
-  x_studio_sector: string | false;
-  x_studio_motivo: string | false;
-  x_studio_motivo_1: [number, string] | false;
-  x_studio_nota: [number, string] | false;
-  x_studio_notagaranta: string | false;
-  x_studio_notaproducto: string | false;
-}
-
-interface CreditNoteLineRow extends Record<string, unknown> {
-  move_id: [number, string];
   product_id: [number, string] | false;
-  quantity: number;
 }
 
 interface ProductRow extends Record<string, unknown> {
@@ -146,8 +121,9 @@ interface ProductionRow extends Record<string, unknown> {
 function fetchRepairs(categIds: number[], desde: string): Promise<RepairRow[]> {
   return searchReadAll<RepairRow>({
     model: 'repair.order',
+    // Cuenta desde que se confirma, no recién al terminar: un ticket cargado hoy ya es un caso de este mes.
     domain: [
-      ['state', '=', 'done'],
+      ['state', 'in', ['confirmed', 'under_repair', 'done']],
       ['product_id.categ_id', 'in', categIds],
       ['create_date', '>=', `${desde} 00:00:00`],
     ],
@@ -158,6 +134,7 @@ function fetchRepairs(categIds: number[], desde: string): Promise<RepairRow[]> {
       'create_date',
       'product_id',
       'product_qty',
+      'state',
       'ticket_id',
       'sale_order_id',
       'x_studio_horas_de_reparacion',
@@ -178,41 +155,6 @@ function fetchProduction(categIds: number[], desde: string): Promise<ProductionR
   });
 }
 
-/**
- * Notas de crédito candidatas a devolución: las del esquema viejo (motivo
- * Producto / Garantía) y todas las que ya tienen el motivo nuevo. Después se
- * clasifican en `causaNotaCredito`, que descarta las comerciales/financieras
- * (descuentos, acuerdos comerciales), que no son devoluciones.
- */
-function fetchNotasCredito(desde: string): Promise<CreditNoteRow[]> {
-  const domain: OdooDomain = [
-    ['move_type', '=', 'out_refund'],
-    ['state', '=', 'posted'],
-    ['invoice_date', '>=', desde],
-    '|',
-    ['x_studio_motivo', 'in', [NC_OLD_WARRANTY, NC_OLD_PRODUCTO]],
-    ['x_studio_motivo_1', '!=', false],
-  ];
-  return searchReadAll<CreditNoteRow>({
-    model: 'account.move',
-    domain,
-    fields: [
-      'name',
-      'partner_id',
-      'company_id',
-      'invoice_date',
-      'amount_total_signed',
-      'amount_untaxed_signed',
-      'x_studio_sector',
-      'x_studio_motivo',
-      'x_studio_motivo_1',
-      'x_studio_nota',
-      'x_studio_notagaranta',
-      'x_studio_notaproducto',
-    ],
-  });
-}
-
 const CAUSA_TICKET: Record<string, Causa> = {
   Calidad: 'calidad',
   Transporte: 'transporte',
@@ -220,43 +162,6 @@ const CAUSA_TICKET: Record<string, Causa> = {
   // "Devolución" no dice por qué volvió: queda sin clasificar hasta que se cargue la causa real.
   Devolución: 'sinmotivo',
 };
-
-/**
- * Causa y motivo legible de una nota de crédito, o null si no es una
- * devolución (comercial / financiera). Usa el motivo y la nota nuevos si
- * están cargados; si no, el esquema viejo.
- */
-function causaNotaCredito(n: CreditNoteRow): { causa: Causa; motivo: string } | null {
-  const motivoNuevo = n.x_studio_motivo_1 ? n.x_studio_motivo_1[1] : null;
-  const nota = n.x_studio_nota ? n.x_studio_nota[1] : null;
-  if (motivoNuevo) {
-    const motivo = nota ? `${motivoNuevo} / ${nota}` : motivoNuevo;
-    if (nota === NC_NOTA_POSTVENTA) return { causa: 'postventa', motivo };
-    if (motivoNuevo === NC_MOTIVO_CALIDAD) return { causa: nota === NC_NOTA_GARANTIA_NO_REAL ? 'postventa' : 'calidad', motivo };
-    if (motivoNuevo === NC_MOTIVO_LOGISTICO) return { causa: nota === NC_NOTA_ROTURA_CAMIONERO ? 'transporte' : 'logistica', motivo };
-    return null; // Comercial / Financiero
-  }
-
-  // Esquema viejo.
-  const producto = n.x_studio_notaproducto || null;
-  if (n.x_studio_motivo === NC_OLD_PRODUCTO) {
-    if (producto === 'Transporte') return { causa: 'transporte', motivo: 'Producto / Transporte' };
-    if (producto === 'Post-venta') return { causa: 'postventa', motivo: 'Producto / Post-venta' };
-    if (producto === 'Error de carga/Facturación' || producto === 'Error de pedido') {
-      return { causa: 'logistica', motivo: `Producto / ${producto}` };
-    }
-    // "Fuera de garantía" se muestra en Odoo como "Financiamiento": son descuentos, no devoluciones.
-    if (producto === 'Fuera de garantía') return null;
-    return { causa: 'calidad', motivo: 'Producto' };
-  }
-  if (n.x_studio_motivo === NC_OLD_WARRANTY) {
-    if (producto === 'Transporte') return { causa: 'transporte', motivo: 'Garantía / Transporte' };
-    if (n.x_studio_notagaranta === 'Comercio') return null;
-    if (n.x_studio_notagaranta === 'Por calidad') return { causa: 'calidad', motivo: 'Garantía / Por calidad' };
-    return { causa: 'sinmotivo', motivo: 'Garantía' };
-  }
-  return null;
-}
 
 /** "CORDOBA - 5%" → 5 · "COSTA BS AS - 12,5%" → 12.5 · sin % → null. */
 function parseRecargoPct(regionName: string | undefined): number | null {
@@ -317,11 +222,11 @@ export async function getCostoDevolucionesData(): Promise<CostoDevolucionesData>
   const mesesAsc = lastMonthKeys(MESES_VENTANA);
   const desde = monthBounds(mesesAsc[0]!).start;
 
-  const [empresas, livingRepairs, colchonRepairs, notasCreditoAll, livingProd, colchonProd] = await Promise.all([
+  const [empresas, livingRepairs, colchonRepairs, notasCredito, livingProd, colchonProd] = await Promise.all([
     searchRead<{ id: number; name: string }>({ model: 'res.company', fields: ['name'], order: 'id asc' }),
     fetchRepairs(LIVING_CATEG_IDS, desde),
     fetchRepairs(COLCHONES_CATEG_IDS, desde),
-    fetchNotasCredito(desde),
+    fetchNotasDevolucionColchon(desde),
     fetchProduction(LIVING_CATEG_IDS, desde),
     fetchProduction(COLCHONES_CATEG_IDS, desde),
   ]);
@@ -333,16 +238,30 @@ export async function getCostoDevolucionesData(): Promise<CostoDevolucionesData>
     const rows = await searchReadAll<TicketRow>({
       model: 'helpdesk.ticket',
       domain: [['id', 'in', [...new Set(ticketIds)]]],
-      fields: ['name', 'x_studio_motivo', 'sale_order_id'],
+      fields: ['name', 'x_studio_motivo', 'sale_order_id', 'close_date'],
       context: { active_test: false },
     });
     for (const t of rows) tickets.set(t.id, t);
   }
 
+  // Tickets de Living con motivo cargado que todavía no tienen orden de reparación: ya son un caso aunque no se haya empezado a reparar.
+  const ticketsSinOrden = await searchReadAll<TicketSinOrdenRow>({
+    model: 'helpdesk.ticket',
+    domain: [
+      ['create_date', '>=', `${desde} 00:00:00`],
+      ['repair_ids', '=', false],
+      ['x_studio_motivo', '!=', false],
+      ['stage_id.name', '!=', 'Canceled'],
+      ['ticket_type_id.name', '!=', 'Colchones'],
+    ],
+    fields: ['name', 'x_studio_motivo', 'sale_order_id', 'close_date', 'create_date', 'partner_id', 'company_id', 'product_id'],
+  });
+
   // Importe de las ventas vinculadas (lo que se le facturó al transportista / cliente).
   const soIds = [
     ...[...tickets.values()].flatMap((t) => (t.sale_order_id ? [t.sale_order_id[0]] : [])),
     ...[...livingRepairs, ...colchonRepairs].flatMap((r) => (r.sale_order_id ? [r.sale_order_id[0]] : [])),
+    ...ticketsSinOrden.flatMap((t) => (t.sale_order_id ? [t.sale_order_id[0]] : [])),
   ];
   const ventas = new Map<number, number>();
   if (soIds.length > 0) {
@@ -355,52 +274,15 @@ export async function getCostoDevolucionesData(): Promise<CostoDevolucionesData>
     for (const s of rows) ventas.set(s.id, s.amount_untaxed);
   }
 
-  // Líneas de las notas de crédito: producto y cantidad (costo del colchón devuelto + sector).
-  const ncIds = notasCreditoAll.map((n) => n.id);
-  const lineas: CreditNoteLineRow[] = [];
-  for (let i = 0; i < ncIds.length; i += 1000) {
-    lineas.push(
-      ...(await searchReadAll<CreditNoteLineRow>({
-        model: 'account.move.line',
-        domain: [
-          ['move_id', 'in', ncIds.slice(i, i + 1000)],
-          ['display_type', '=', 'product'],
-        ],
-        fields: ['move_id', 'product_id', 'quantity'],
-      }))
-    );
-  }
-
-  const productos = await getProductos([
-    ...lineas.flatMap((l) => (l.product_id ? [l.product_id[0]] : [])),
-    ...[...livingRepairs, ...colchonRepairs].flatMap((r) => (r.product_id ? [r.product_id[0]] : [])),
-  ]);
-  const colchonSet = new Set(COLCHONES_CATEG_IDS);
-
-  // Por nota de crédito: costo de lo devuelto y si alguna línea es de Colchón.
-  const ncInfo = new Map<number, { costo: number; esColchon: boolean }>();
-  for (const l of lineas) {
-    if (!l.product_id) continue;
-    const p = productos.get(l.product_id[0]);
-    if (!p) continue;
-    const info = ncInfo.get(l.move_id[0]) ?? { costo: 0, esColchon: false };
-    info.costo += Math.abs(l.quantity) * p.standard_price;
-    if (p.categ_id && colchonSet.has(p.categ_id[0])) info.esColchon = true;
-    ncInfo.set(l.move_id[0], info);
-  }
-
-  // Solo las que son devolución (descarta descuentos/acuerdos) y de Colchón: el sector sale del campo
-  // y, si no está cargado, de la categoría de los productos de la nota.
-  const notasCredito = notasCreditoAll.flatMap((n) => {
-    const clasif = causaNotaCredito(n);
-    if (!clasif) return [];
-    const esColchon = n.x_studio_sector ? n.x_studio_sector === 'Colchon' : (ncInfo.get(n.id)?.esColchon ?? false);
-    return esColchon ? [{ n, ...clasif }] : [];
-  });
-
-  const partnerIds = [...livingRepairs, ...colchonRepairs, ...notasCredito.map((x) => x.n)].flatMap((r) =>
-    r.partner_id ? [r.partner_id[0]] : []
+  const productos = await getProductos(
+    [...livingRepairs, ...colchonRepairs].flatMap((r) => (r.product_id ? [r.product_id[0]] : []))
   );
+
+  const partnerIds = [
+    ...[...livingRepairs, ...colchonRepairs].flatMap((r) => (r.partner_id ? [r.partner_id[0]] : [])),
+    ...ticketsSinOrden.flatMap((t) => (t.partner_id ? [t.partner_id[0]] : [])),
+    ...notasCredito.flatMap((n) => (n.partnerId ? [n.partnerId[0]] : [])),
+  ];
   const [partners, regiones] = await Promise.all([getPartners(partnerIds), getRegiones(partnerIds)]);
   const provinciaDe = (partnerId: [number, string] | false): string => {
     const state = partnerId ? partners.get(partnerId[0])?.state_id : undefined;
@@ -422,6 +304,8 @@ export async function getCostoDevolucionesData(): Promise<CostoDevolucionesData>
       origen: 'reparacion',
       ticket: ticket ? ticket.name : null,
       mes: r.create_date.slice(0, 7),
+      abierto: r.create_date.slice(0, 10),
+      cerrado: ticket && ticket.close_date ? ticket.close_date.slice(0, 10) : null,
       sector,
       empresa: r.company_id ? r.company_id[0] : 0,
       cliente: r.partner_id ? r.partner_id[1] : '—',
@@ -431,6 +315,7 @@ export async function getCostoDevolucionesData(): Promise<CostoDevolucionesData>
       motivo: motivoTicket ?? 'Sin motivo',
       cuenta,
       horas: r.x_studio_horas_de_reparacion,
+      enCurso: r.state !== 'done',
       // Lo que no se recuperó de la unidad desarmada; nunca negativo (si se recuperó de más, no es ganancia).
       material: Math.max(0, costoProducto - r.x_studio_total_recuperado),
       facturado: soId !== null ? (ventas.get(soId) ?? 0) : 0,
@@ -442,29 +327,59 @@ export async function getCostoDevolucionesData(): Promise<CostoDevolucionesData>
   };
   for (const r of livingRepairs) reparacion(r, 'living', true);
   for (const r of colchonRepairs) reparacion(r, 'colchon', false);
-  for (const { n, causa, motivo } of notasCredito) {
+  for (const t of ticketsSinOrden) {
+    const soId = t.sale_order_id ? t.sale_order_id[0] : null;
+    registros.push({
+      ref: t.name,
+      origen: 'ticket',
+      ticket: t.name,
+      mes: t.create_date.slice(0, 7),
+      abierto: t.create_date.slice(0, 10),
+      cerrado: t.close_date ? t.close_date.slice(0, 10) : null,
+      sector: 'living',
+      empresa: t.company_id ? t.company_id[0] : 0,
+      cliente: t.partner_id ? t.partner_id[1] : '—',
+      provincia: provinciaDe(t.partner_id),
+      producto: t.product_id ? t.product_id[1] : '—',
+      causa: (t.x_studio_motivo && CAUSA_TICKET[t.x_studio_motivo]) || 'sinmotivo',
+      motivo: t.x_studio_motivo || 'Sin motivo',
+      cuenta: true,
+      horas: 0,
+      enCurso: true,
+      material: 0,
+      facturado: soId !== null ? (ventas.get(soId) ?? 0) : 0,
+      vinculado: soId !== null,
+      notaCredito: 0,
+      recargoPct: recargoDe(t.partner_id),
+      baseFlete: 0,
+    });
+  }
+  for (const n of notasCredito) {
     registros.push({
       ref: n.name,
       origen: 'nota-credito',
       ticket: null,
-      mes: n.invoice_date.slice(0, 7),
+      mes: n.invoiceDate.slice(0, 7),
+      abierto: n.invoiceDate,
+      cerrado: null,
       sector: 'colchon',
-      empresa: n.company_id ? n.company_id[0] : 0,
-      cliente: n.partner_id ? n.partner_id[1] : '—',
-      provincia: provinciaDe(n.partner_id),
+      empresa: n.companyId,
+      cliente: n.partnerId ? n.partnerId[1] : '—',
+      provincia: provinciaDe(n.partnerId),
       producto: '—',
-      causa,
-      motivo,
+      causa: n.causa,
+      motivo: n.motivo,
       cuenta: true,
       horas: 0,
+      enCurso: false,
       // El colchón dañado (calidad, rotura en el viaje) o sin motivo no se revende: se pierde su costo. En un error
       // propio de carga/pedido vuelve intacto y en post-venta es un servicio, así que no hay producto perdido.
-      material: causa === 'logistica' || causa === 'postventa' ? 0 : (ncInfo.get(n.id)?.costo ?? 0),
+      material: n.causa === 'logistica' || n.causa === 'postventa' ? 0 : n.costoProducto,
       facturado: 0,
       vinculado: false,
-      notaCredito: Math.abs(n.amount_total_signed),
-      recargoPct: recargoDe(n.partner_id),
-      baseFlete: Math.abs(n.amount_untaxed_signed),
+      notaCredito: n.amount,
+      recargoPct: recargoDe(n.partnerId),
+      baseFlete: n.amountUntaxed,
     });
   }
 
