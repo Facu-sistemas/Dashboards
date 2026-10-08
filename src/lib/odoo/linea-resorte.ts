@@ -1,11 +1,12 @@
 import { searchReadAll, readGroup } from './client';
-import { familiaDeProducto, stripReferencePrefix } from '../linea-config';
+import { familiaDeProducto, medidaDeProducto, stripReferencePrefix } from '../linea-config';
 import type { OrdenLinea } from '../linea-calc';
 import type { OdooDomain } from './types';
 
 /**
- * "Colchón Línea Resorte" — copia literal del filtro guardado del usuario en
- * Odoo (categorías 21/22/18/19, estados pendientes, y los prefijos de TAP).
+ * "Colchones Línea" — filtro guardado del usuario en Odoo: categorías
+ * 21/22/18/19, estados pendientes y todo TAP menos las TAPA. Las familias de
+ * TAP sin regla aparecen solas en el editor para asignarles mesas.
  * El tiempo de cada orden sale de `estimated_time` ("Tiempo estimado (hs)"):
  * es un campo computado NO almacenado, así que no se puede sumar con
  * read_group — se lee por orden y se suma acá.
@@ -14,16 +15,10 @@ const LINEA_RESORTE_DOMAIN: OdooDomain = [
   '&',
   ['product_id.categ_id', 'in', [21, 22, 18, 19]],
   '&',
+  ['product_id', 'ilike', 'TAP'],
+  '&',
+  ['product_id', 'not ilike', 'TAPA'],
   ['state', 'in', ['draft', 'confirmed', 'progress', 'to_close']],
-  '|', '|', '|', '|', '|', '|', '|',
-  ['product_id', 'ilike', 'TAP-BASE'],
-  ['product_id', 'ilike', 'TAP-R'],
-  ['product_id', 'ilike', 'TAP-PO'],
-  ['product_id', 'ilike', 'TAP-EHARM'],
-  ['product_id', 'ilike', 'TAP-ECOMFY'],
-  ['product_id', 'ilike', 'TAP-ESERE'],
-  ['product_id', 'ilike', 'TAP-TMAGN'],
-  ['product_id', 'ilike', 'TAP-EPURI'],
 ];
 
 /** Odoo's placeholder for "not scheduled yet" (mismo sentinel que odoo/vertical.ts). */
@@ -108,11 +103,20 @@ export async function getLineaOrdenes(dateIso: string): Promise<OrdenLinea[]> {
   return rows.map((r) => toOrden(r, dateIso));
 }
 
+export interface MedidaDetectada {
+  /** "140X190", '' si no se pudo leer del nombre. */
+  medida: string;
+  ordenes: number;
+  unidades: number;
+  horas: number;
+}
+
 export interface FamiliaDetectada {
   familia: string;
   ordenes: number;
   horas: number;
   ejemplos: string[];
+  medidas: MedidaDetectada[];
 }
 
 /** Todas las familias de TAP con órdenes pendientes (cualquier día) — alimenta el editor de reglas. */
@@ -126,11 +130,21 @@ export async function getLineaFamilias(): Promise<FamiliaDetectada[]> {
   const byFamilia = new Map<string, FamiliaDetectada>();
   for (const o of rows.map((r) => toOrden(r, SIN_AGENDAR_DATE))) {
     const familia = familiaDeProducto(o.producto);
-    const f = byFamilia.get(familia) ?? { familia, ordenes: 0, horas: 0, ejemplos: [] };
+    const f = byFamilia.get(familia) ?? { familia, ordenes: 0, horas: 0, ejemplos: [], medidas: [] };
     f.ordenes += 1;
     f.horas += o.horas;
+    const medida = medidaDeProducto(o.producto);
+    let m = f.medidas.find((x) => x.medida === medida);
+    if (!m) {
+      m = { medida, ordenes: 0, unidades: 0, horas: 0 };
+      f.medidas.push(m);
+    }
+    m.ordenes += 1;
+    m.unidades += o.cantidad;
+    m.horas += o.horas;
     if (f.ejemplos.length < 3 && !f.ejemplos.includes(o.producto)) f.ejemplos.push(o.producto);
     byFamilia.set(familia, f);
   }
+  for (const f of byFamilia.values()) f.medidas.sort((a, b) => a.medida.localeCompare(b.medida, 'es', { numeric: true }));
   return [...byFamilia.values()].sort((a, b) => a.familia.localeCompare(b.familia));
 }

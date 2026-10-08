@@ -2,8 +2,10 @@ import {
   JORNADA,
   MESAS,
   PAUSA_EN_TRABAJO_MIN,
+  claveRegla,
   familiaDeProducto,
   formatHora,
+  medidaDeProducto,
   relojDesdeTrabajo,
   resolverRegla,
   type ModoTap,
@@ -37,6 +39,10 @@ export interface OrdenLinea {
 
 export interface ItemLinea {
   familia: string;
+  /** Medida (ej. "140X190"), '' si no se pudo leer del nombre. Cada medida de una familia es un item propio. */
+  medida: string;
+  /** Unidades de este item (suma de cantidad × fracción de sus órdenes). */
+  unidades: number;
   origen: OrigenLinea;
   modo: ModoTap | null;
   prioridad: number;
@@ -52,6 +58,9 @@ export interface ItemLinea {
 
 export interface TramoMesa {
   familia: string;
+  medida: string;
+  /** Unidades que esta mesa hace en este tramo (en paralelo es su parte; en serie, todas pasan por cada mesa). */
+  unidades: number;
   modo: ModoTap;
   origen: OrigenLinea;
   desde: string;
@@ -91,7 +100,7 @@ export interface PlanLinea {
 const redondear = (n: number) => Math.round(n * 10) / 10;
 
 /** Corta un tramo en el desayuno (09:00) y en el fin de la jornada (488 min), para que cada pedazo tenga una hora de reloj continua. */
-function partirTramo(base: Pick<TramoMesa, 'familia' | 'modo' | 'origen'>, inicio: number, fin: number): TramoMesa[] {
+function partirTramo(base: Pick<TramoMesa, 'familia' | 'medida' | 'modo' | 'origen'>, inicio: number, fin: number, unidades: number): TramoMesa[] {
   const cortes = [PAUSA_EN_TRABAJO_MIN, JORNADA.capacidadMin].filter((c) => c > inicio && c < fin);
   const puntos = [inicio, ...cortes, fin];
   const out: TramoMesa[] = [];
@@ -102,6 +111,7 @@ function partirTramo(base: Pick<TramoMesa, 'familia' | 'modo' | 'origen'>, inici
     if (b - a < 0.5) continue;
     out.push({
       ...base,
+      unidades: fin > inicio ? (unidades * (b - a)) / (fin - inicio) : 0,
       inicioMin: a,
       finMin: b,
       minutos: redondear(b - a),
@@ -123,13 +133,14 @@ function partirTramo(base: Pick<TramoMesa, 'familia' | 'modo' | 'origen'>, inici
  * Lo que pasa de los 488 minutos se marca como excedente (`excedeMin` por item).
  */
 export function planificarLinea(ordenes: OrdenLinea[], reglas: ReglaTap[], mesasActivas: Set<string>): PlanLinea {
-  const grupos = new Map<string, { familia: string; origen: OrigenLinea; ordenes: OrdenLinea[] }>();
+  const grupos = new Map<string, { familia: string; medida: string; origen: OrigenLinea; ordenes: OrdenLinea[] }>();
   for (const o of ordenes) {
     const familia = familiaDeProducto(o.producto);
+    const medida = medidaDeProducto(o.producto);
     // Lo adelantado se separa además por fecha, para terminar primero lo del día más cercano
     // (si no, al recortar lo que no entra se recortaría parejo entre fechas distintas).
-    const key = o.origen === 'adelantado' ? `${o.origen}|${familia}|${o.fecha}` : `${o.origen}|${familia}`;
-    const g = grupos.get(key) ?? { familia, origen: o.origen, ordenes: [] };
+    const key = o.origen === 'adelantado' ? `${o.origen}|${familia}|${medida}|${o.fecha}` : `${o.origen}|${familia}|${medida}`;
+    const g = grupos.get(key) ?? { familia, medida, origen: o.origen, ordenes: [] };
     g.ordenes.push(o);
     grupos.set(key, g);
   }
@@ -139,12 +150,15 @@ export function planificarLinea(ordenes: OrdenLinea[], reglas: ReglaTap[], mesas
   const sinRegla: ItemLinea[] = [];
   const sinMesa: ItemLinea[] = [];
 
-  for (const { familia, origen, ordenes: ords } of grupos.values()) {
-    const regla = resolverRegla(familia, reglas);
+  for (const { familia, medida, origen, ordenes: ords } of grupos.values()) {
+    const regla = resolverRegla(claveRegla(familia, medida), reglas);
     const totalMin = redondear(ords.reduce((s, o) => s + o.horas * 60 * o.fraccion, 0));
+    const unidades = ords.reduce((s, o) => s + o.cantidad * o.fraccion, 0);
     const mesas = (regla?.mesas ?? []).filter((m) => mesasActivas.has(m));
     const item: ItemLinea = {
       familia,
+      medida,
+      unidades,
       origen,
       modo: regla?.modo ?? null,
       prioridad: regla?.prioridad ?? 99,
@@ -170,7 +184,8 @@ export function planificarLinea(ordenes: OrdenLinea[], reglas: ReglaTap[], mesas
       ORDEN_ORIGEN[a.origen] - ORDEN_ORIGEN[b.origen] ||
       fechaAdelantado(a).localeCompare(fechaAdelantado(b)) ||
       a.prioridad - b.prioridad ||
-      a.familia.localeCompare(b.familia)
+      a.familia.localeCompare(b.familia) ||
+      a.medida.localeCompare(b.medida, 'es', { numeric: true })
   );
 
   const cursor = new Map<string, number>();
@@ -184,20 +199,21 @@ export function planificarLinea(ordenes: OrdenLinea[], reglas: ReglaTap[], mesas
 
   for (const item of planificables) {
     const modo = item.modo as Exclude<ModoTap, 'excluido'>;
-    const base = { familia: item.familia, modo, origen: item.origen };
+    const base = { familia: item.familia, medida: item.medida, modo, origen: item.origen };
     let excede = 0;
     if (modo === 'paralelo') {
       const porMesa = item.totalMin / item.mesas.length;
+      const unidadesPorMesa = item.unidades / item.mesas.length;
       for (const m of item.mesas) {
         const inicio = cursor.get(m)!;
-        tramos.get(m)!.push(...partirTramo(base, inicio, inicio + porMesa));
+        tramos.get(m)!.push(...partirTramo(base, inicio, inicio + porMesa, unidadesPorMesa));
         cursor.set(m, inicio + porMesa);
         excede += fueraDeJornada(inicio, inicio + porMesa);
       }
     } else {
       const inicio = Math.max(...item.mesas.map((m) => cursor.get(m)!));
       for (const m of item.mesas) {
-        tramos.get(m)!.push(...partirTramo(base, inicio, inicio + item.totalMin));
+        tramos.get(m)!.push(...partirTramo(base, inicio, inicio + item.totalMin, item.unidades));
         cursor.set(m, inicio + item.totalMin);
       }
       // En serie el circuito avanza junto: lo que no entra es el mismo tramo en todas las mesas, se cuenta una vez.
@@ -283,7 +299,7 @@ function armarDia(cola: OrdenLinea[], dia: string, reglas: ReglaTap[], mesasActi
   const futuras = cola
     .filter((o) => o.fecha > dia)
     .filter((o) => {
-      const regla = resolverRegla(familiaDeProducto(o.producto), reglas);
+      const regla = resolverRegla(claveRegla(familiaDeProducto(o.producto), medidaDeProducto(o.producto)), reglas);
       return regla && regla.modo !== 'excluido' && regla.mesas.some((m) => mesasActivas.has(m));
     })
     .map((o) => ({ ...o, origen: 'adelantado' as OrigenLinea }));

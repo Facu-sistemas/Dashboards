@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { MESAS, mergeReglas, resolverRegla, type ModoTap, type ReglaTap } from '../../lib/linea-config';
+import { Fragment, useMemo, useState } from 'react';
+import { MESAS, claveRegla, mergeReglas, resolverRegla, type ModoTap, type ReglaTap } from '../../lib/linea-config';
 import { MODO_LABEL, colorFamilia, formatMin, postConfigLinea, type ConfigLineaDto } from './linea-shared';
 
 interface Props {
@@ -7,17 +7,37 @@ interface Props {
   onChanged: () => void;
 }
 
-interface FilaFamilia {
-  familia: string;
-  ordenes: number;
-  horas: number;
+/** Una fila editable: una familia de TAP, o una medida de esa familia (`sub`). */
+interface FilaRegla {
+  /** Clave con la que se guarda la regla: "TAP-BASE NEGRO" o "TAP-BASE NEGRO 140X190". */
+  clave: string;
+  titulo: string;
   ejemplos: string[];
+  ordenes: number;
+  unidades: number;
+  horas: number;
   regla: ReglaTap | null;
-  /** La regla es propia de esta familia (guardada), no heredada de un prefijo default. */
+  /** La regla es propia de esta clave (guardada), no heredada de la familia o de un prefijo default. */
   propia: boolean;
+  sub: boolean;
+  /** Solo familias: cuántas medidas tienen regla propia. */
+  medidasConRegla: number;
 }
 
-function FilaEditor({ fila, mesasInactivas, disponible, onChanged }: { fila: FilaFamilia; mesasInactivas: string[]; disponible: boolean; onChanged: () => void }) {
+interface FilaFamilia extends FilaRegla {
+  medidas: FilaRegla[];
+}
+
+interface FilaEditorProps {
+  fila: FilaRegla;
+  mesasInactivas: string[];
+  disponible: boolean;
+  onChanged: () => void;
+  expandida?: boolean;
+  onToggle?: () => void;
+}
+
+function FilaEditor({ fila, mesasInactivas, disponible, onChanged, expandida, onToggle }: FilaEditorProps) {
   const [modo, setModo] = useState<ModoTap | ''>(fila.regla?.modo ?? '');
   const [mesas, setMesas] = useState<string[]>(fila.regla?.mesas ?? []);
   const [prioridad, setPrioridad] = useState(fila.regla?.prioridad ?? 1);
@@ -31,7 +51,7 @@ function FilaEditor({ fila, mesasInactivas, disponible, onChanged }: { fila: Fil
     setGuardando(true);
     setError(null);
     try {
-      await postConfigLinea({ tipo: 'regla', familia: fila.familia, regla });
+      await postConfigLinea({ tipo: 'regla', familia: fila.clave, regla });
       onChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar');
@@ -46,17 +66,31 @@ function FilaEditor({ fila, mesasInactivas, disponible, onChanged }: { fila: Fil
   }
 
   return (
-    <tr className="border-t border-slate-800 align-top">
-      <td className="px-3 py-2">
+    <tr className={`border-t border-slate-800 align-top ${fila.sub ? 'bg-slate-900/50' : ''}`}>
+      <td className={`px-3 py-2 ${fila.sub ? 'pl-9' : ''}`}>
         <div className="flex items-center gap-2">
-          <span className={`inline-block h-3 w-3 rounded-sm border ${colorFamilia(fila.familia)}`} />
-          <span className="font-semibold text-slate-100">{fila.familia}</span>
+          {onToggle && (
+            <button type="button" onClick={onToggle} className="w-4 text-slate-400 hover:text-slate-200" title={expandida ? 'Ocultar medidas' : 'Ver medidas'}>
+              {expandida ? '▾' : '▸'}
+            </button>
+          )}
+          {!fila.sub && <span className={`inline-block h-3 w-3 rounded-sm border ${colorFamilia(fila.clave)}`} />}
+          <span className={fila.sub ? 'font-medium text-slate-200' : 'font-semibold text-slate-100'}>{fila.titulo}</span>
         </div>
-        <div className="mt-1 text-[11px] text-slate-500">{fila.ejemplos.join(' · ')}</div>
+        {fila.ejemplos.length > 0 && <div className="mt-1 text-[11px] text-slate-500">{fila.ejemplos.join(' · ')}</div>}
         <div className="mt-1 text-[11px] text-slate-500">
-          {fila.ordenes > 0 ? `${fila.ordenes} orden(es) pendientes · ${formatMin(fila.horas * 60)}` : 'Sin órdenes pendientes'}
+          {fila.ordenes > 0 ? `${fila.ordenes} orden(es) · ${Math.round(fila.unidades)} u. · ${formatMin(fila.horas * 60)}` : 'Sin órdenes pendientes'}
           {' · '}
-          {fila.regla ? (fila.propia ? 'regla propia' : `regla por defecto (${fila.regla.familia})`) : <span className="text-amber-400">sin regla</span>}
+          {fila.regla ? (
+            fila.propia ? (
+              'regla propia'
+            ) : (
+              `hereda de ${fila.regla.familia}`
+            )
+          ) : (
+            <span className="text-amber-400">sin regla</span>
+          )}
+          {fila.medidasConRegla > 0 && <span className="text-brand-400"> · {fila.medidasConRegla} medida(s) con regla propia</span>}
         </div>
       </td>
       <td className="px-3 py-2">
@@ -121,7 +155,7 @@ function FilaEditor({ fila, mesasInactivas, disponible, onChanged }: { fila: Fil
           </button>
           {fila.propia && (
             <button type="button" disabled={!disponible || guardando} onClick={() => void guardar(null)} className="text-[11px] text-slate-400 hover:text-slate-200">
-              Volver a la default
+              {fila.sub ? 'Volver a la de la familia' : 'Volver a la default'}
             </button>
           )}
           {error && <span className="text-[11px] text-red-400">{error}</span>}
@@ -131,33 +165,82 @@ function FilaEditor({ fila, mesasInactivas, disponible, onChanged }: { fila: Fil
   );
 }
 
-/** Familias de TAP detectadas en Odoo + la regla que les toca. Guardar crea una regla propia para esa familia (pisa a la default por prefijo). */
+/** Familias de TAP detectadas en Odoo + la regla que les toca, y dentro de cada una sus medidas. Guardar crea una regla propia para esa familia o medida (la de la medida pisa a la de la familia). */
 export default function LineaReglasTaps({ config, onChanged }: Props) {
+  const [abiertas, setAbiertas] = useState<Set<string>>(new Set());
+
   const filas = useMemo<FilaFamilia[]>(() => {
     const reglas = mergeReglas(config.reglas);
     const propias = new Set(config.reglas.map((r) => r.familia));
     const byFamilia = new Map(config.familias.map((f) => [f.familia, f]));
-    // También las reglas propias de familias que hoy no tienen órdenes, para poder editarlas o borrarlas.
+    // También las reglas propias de familias que hoy no tienen órdenes, para poder editarlas o borrarlas
+    // (las de una medida cuelgan de su familia, no van como fila aparte).
     for (const r of config.reglas) {
-      if (!byFamilia.has(r.familia)) byFamilia.set(r.familia, { familia: r.familia, ordenes: 0, horas: 0, ejemplos: [] });
+      if (!byFamilia.has(r.familia) && ![...byFamilia.keys()].some((k) => r.familia.startsWith(`${k} `))) {
+        byFamilia.set(r.familia, { familia: r.familia, ordenes: 0, horas: 0, ejemplos: [], medidas: [] });
+      }
     }
     return [...byFamilia.values()]
-      .map((f) => ({ ...f, regla: resolverRegla(f.familia, reglas), propia: propias.has(f.familia) }))
-      .sort((a, b) => (a.regla?.prioridad ?? 0) - (b.regla?.prioridad ?? 0) || a.familia.localeCompare(b.familia));
+      .map((f) => {
+        // Sin medida legible la orden usa la clave de la familia: no hay fila de medida para ella.
+        const medidas: FilaRegla[] = f.medidas
+          .filter((m) => m.medida !== '')
+          .map((m) => {
+            const clave = claveRegla(f.familia, m.medida);
+            return {
+              clave,
+              titulo: m.medida.replace('X', ' x '),
+              ejemplos: [],
+              ordenes: m.ordenes,
+              unidades: m.unidades,
+              horas: m.horas,
+              regla: resolverRegla(clave, reglas),
+              propia: propias.has(clave),
+              sub: true,
+              medidasConRegla: 0,
+            };
+          });
+        return {
+          clave: f.familia,
+          titulo: f.familia,
+          ejemplos: f.ejemplos,
+          ordenes: f.ordenes,
+          unidades: f.medidas.reduce((s, m) => s + m.unidades, 0),
+          horas: f.horas,
+          regla: resolverRegla(f.familia, reglas),
+          propia: propias.has(f.familia),
+          sub: false,
+          medidasConRegla: medidas.filter((m) => m.propia).length,
+          medidas,
+        };
+      })
+      .sort((a, b) => (a.regla?.prioridad ?? 0) - (b.regla?.prioridad ?? 0) || a.clave.localeCompare(b.clave));
   }, [config]);
+
+  function toggle(clave: string) {
+    setAbiertas((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(clave)) next.add(clave);
+      return next;
+    });
+  }
+
+  // La key incluye la regla vigente: si cambia en el server (guardado o reset), el editor se re-inicializa con los valores nuevos.
+  const keyDe = (f: FilaRegla) => `${f.clave}|${f.regla?.familia}|${f.regla?.modo}|${f.regla?.mesas.join(',')}|${f.regla?.prioridad}`;
 
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-slate-400">
-        Se detectan solas a partir de las órdenes pendientes del filtro "Colchón Línea Resorte". <strong>Paralelo</strong>: el tiempo se reparte en partes
-        iguales entre las mesas (ej. Bases en M1 y M2). <strong>Serie</strong>: ocupa todas sus mesas a la vez durante todo el tiempo (Pocket / Magnum por
-        M1 → M2 → Costurero → Embolsadora). <strong>Prioridad</strong>: menor número se planifica antes.
+        Se detectan solas a partir de las órdenes pendientes del filtro "Colchones Línea" (todo TAP menos TAPA). <strong>Paralelo</strong>: el tiempo se
+        reparte en partes iguales entre las mesas (ej. Bases en M1 y M2). <strong>Serie</strong>: ocupa todas sus mesas a la vez durante todo el tiempo
+        (Pocket / Magnum por M1 → M2 → Costurero → Embolsadora). <strong>Prioridad</strong>: menor número se planifica antes. Desplegá una familia (▸)
+        para darle a una <strong>medida</strong> sus propias mesas, modo o prioridad, o excluirla; si no, hereda la de la familia.
       </p>
       <div className="overflow-x-auto rounded-lg border border-slate-800">
         <table className="w-full min-w-[760px] text-xs text-slate-300">
           <thead className="bg-slate-800/60 text-left text-slate-400">
             <tr>
-              <th className="px-3 py-2 font-normal">Familia de TAP</th>
+              <th className="px-3 py-2 font-normal">Familia de TAP / medida</th>
               <th className="px-3 py-2 font-normal">Cómo se trabaja</th>
               <th className="px-3 py-2 font-normal">Mesas</th>
               <th className="px-3 py-2 font-normal">Prioridad</th>
@@ -165,16 +248,26 @@ export default function LineaReglasTaps({ config, onChanged }: Props) {
             </tr>
           </thead>
           <tbody>
-            {filas.map((f) => (
-              <FilaEditor
-                // La key incluye la regla vigente: si cambia en el server (guardado o reset), el editor se re-inicializa con los valores nuevos.
-                key={`${f.familia}|${f.regla?.familia}|${f.regla?.modo}|${f.regla?.mesas.join(',')}|${f.regla?.prioridad}`}
-                fila={f}
-                mesasInactivas={config.mesasInactivas}
-                disponible={config.disponible}
-                onChanged={onChanged}
-              />
-            ))}
+            {filas.map((f) => {
+              const abierta = abiertas.has(f.clave);
+              return (
+                <Fragment key={f.clave}>
+                  <FilaEditor
+                    key={keyDe(f)}
+                    fila={f}
+                    mesasInactivas={config.mesasInactivas}
+                    disponible={config.disponible}
+                    onChanged={onChanged}
+                    expandida={abierta}
+                    onToggle={f.medidas.length > 0 ? () => toggle(f.clave) : undefined}
+                  />
+                  {abierta &&
+                    f.medidas.map((m) => (
+                      <FilaEditor key={keyDe(m)} fila={m} mesasInactivas={config.mesasInactivas} disponible={config.disponible} onChanged={onChanged} />
+                    ))}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>

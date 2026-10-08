@@ -5,7 +5,7 @@ import { useApiQuery } from '../dashboard/useApiQuery';
 import LastUpdated from '../shared/LastUpdated';
 import LineaMesasPlano from './LineaMesasPlano';
 import LineaReglasTaps from './LineaReglasTaps';
-import { MODO_LABEL, ORIGEN_BORDE, ORIGEN_LABEL, colorFamilia, formatCantidad, formatMin, formatOcupacion, type ConfigLineaDto } from './linea-shared';
+import { MODO_LABEL, ORIGEN_BORDE, ORIGEN_LABEL, colorFamilia, etiquetaTap, formatCantidad, formatMin, formatOcupacion, formatUnidades, type ConfigLineaDto } from './linea-shared';
 import { generarPdfLinea } from './linea-pdf';
 import { MESAS } from '../../lib/linea-config';
 import type { DiaSimulado, ItemLinea, MesaPlan, PlanLinea } from '../../lib/linea-calc';
@@ -97,10 +97,12 @@ function Gantt({ plan }: { plan: PlanResponse }) {
                       t.excede ? 'opacity-50 ring-1 ring-red-400' : ''
                     } ${ORIGEN_BORDE[t.origen]}`}
                     style={{ left: pct(t.inicioMin), width: `calc(${pct(t.finMin)} - ${pct(t.inicioMin)})` }}
-                    title={`${t.familia} (${ORIGEN_LABEL[t.origen]}) —${t.excede ? 'fuera de jornada' : `${t.desde} a ${t.hasta}`} (${formatMin(t.minutos)})`}
+                    title={`${etiquetaTap(t.familia, t.medida)} · ${formatUnidades(t.unidades)} (${ORIGEN_LABEL[t.origen]}) — ${t.excede ? 'fuera de jornada' : `${t.desde} a ${t.hasta}`} (${formatMin(t.minutos)})`}
                   >
-                    <div className="truncate font-semibold">{t.familia.replace(/^TAP-/, '')}</div>
-                    <div className="truncate opacity-90">{t.excede ? 'no entra' : `${t.desde}–${t.hasta}`}</div>
+                    <div className="truncate font-semibold">{etiquetaTap(t.familia, t.medida)}</div>
+                    <div className="truncate opacity-90">
+                      {formatUnidades(t.unidades)} · {t.excede ? 'no entra' : `${t.desde}–${t.hasta}`}
+                    </div>
                   </div>
                 ))}
                 <div className="absolute inset-y-0 w-0.5 bg-amber-400/80" style={{ left: pct(pausaEnTrabajoMin) }} title={`Desayuno ${pausaDesde}–${pausaHasta}`} />
@@ -146,7 +148,7 @@ function SecuenciaMesa({ mesa }: { mesa: MesaPlan }) {
               <span className="w-24 shrink-0 font-mono">{t.excede ? 'no entra' : `${t.desde}–${t.hasta}`}</span>
               <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-sm border ${colorFamilia(t.familia)}`} />
               <span className="flex-1 truncate">
-                {t.familia}
+                {etiquetaTap(t.familia, t.medida)} <span className="text-slate-500">· {formatUnidades(t.unidades)}</span>
                 {t.origen === 'atrasado' && <span className="ml-1 text-amber-400">(atrasado)</span>}
                 {t.origen === 'adelantado' && <span className="ml-1 text-sky-400">(adelantado)</span>}
               </span>
@@ -169,10 +171,11 @@ function TablaItems({ titulo, items, nota, tono }: { titulo: string; items: Item
       </div>
       <div className="flex flex-col">
         {items.map((it) => (
-          <details key={`${it.origen}|${it.familia}`} className="border-t border-slate-800/60 first:border-t-0">
+          <details key={`${it.origen}|${it.familia}|${it.medida}|${it.ordenes[0]?.fecha ?? ''}`} className="border-t border-slate-800/60 first:border-t-0">
             <summary className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-xs text-slate-300">
               <span className={`inline-block h-2.5 w-2.5 rounded-sm border ${colorFamilia(it.familia)}`} />
-              <span className="font-semibold text-slate-100">{it.familia}</span>
+              <span className="font-semibold text-slate-100">{etiquetaTap(it.familia, it.medida)}</span>
+              <span className="text-slate-400">{Math.round(it.unidades)} u</span>
               {it.origen === 'atrasado' && <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">ATRASADO</span>}
               {it.origen === 'adelantado' && <span className="rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-sky-300">ADELANTADO</span>}
               {it.modo && it.modo !== 'excluido' && <span className="text-slate-500">{MODO_LABEL[it.modo]}</span>}

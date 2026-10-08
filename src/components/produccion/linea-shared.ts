@@ -75,6 +75,17 @@ export function formatOcupacion(mesas: { nombre: string; activa: boolean; ocupad
     .join(' · ');
 }
 
+/** Unidades de un tramo; pueden ser fraccionarias (paralelo, partido por el desayuno): "≈6 u" / "12 u". */
+export function formatUnidades(unidades: number): string {
+  const r = Math.round(unidades);
+  return `${Math.abs(unidades - r) < 0.05 ? '' : '≈'}${Math.max(unidades > 0 ? 1 : 0, r)} u`;
+}
+
+/** Nombre corto de lo que se hace en un tramo/item: "BASE NEGRO 140 x 190". */
+export function etiquetaTap(familia: string, medida: string): string {
+  return `${familia.replace(/^TAP-/, '')}${medida ? ` ${medida.replace('X', ' x ')}` : ''}`;
+}
+
 export function formatMin(min: number): string {
   const total = Math.round(min);
   if (total < 60) return `${total} min`;

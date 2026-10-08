@@ -99,6 +99,34 @@ export function familiaDeProducto(nombreProducto: string): string {
 }
 
 /**
+ * Medida (ancho X largo) de un TAP, o '' si no se puede leer:
+ * "TAP-BASE NEGRO 140X190" → "140X190",
+ * "TAP-POSURE10019028E" → "100X190" (ancho 100, largo 190, alto 28),
+ * "TAP-EJENS9019024" → "90X190", "TAP-FHOTE180200" → "180X200".
+ */
+export function medidaDeProducto(nombreProducto: string): string {
+  const n = stripReferencePrefix(nombreProducto).toUpperCase().trim();
+  const explicita = n.match(/(\d{2,3})\s*X\s*(\d{2,3})/);
+  if (explicita) return `${explicita[1]}X${explicita[2]}`;
+  const compacta = n.match(/(\d{6,8})/);
+  if (!compacta) return '';
+  const d = compacta[1]!;
+  // 6 dígitos: ancho+largo · 7: ancho(2)+largo(3)+alto(2) · 8: ancho(3)+largo(3)+alto(2)
+  if (d.length === 6) return `${d.slice(0, 3)}X${d.slice(3, 6)}`;
+  if (d.length === 7) return `${d.slice(0, 2)}X${d.slice(2, 5)}`;
+  return `${d.slice(0, 3)}X${d.slice(3, 6)}`;
+}
+
+/**
+ * Clave con la que se busca la regla de una medida: "TAP-BASE NEGRO 140X190".
+ * Como `resolverRegla` gana la clave más larga que matchee por prefijo, una
+ * regla guardada con esa clave pisa a la de la familia solo para esa medida.
+ */
+export function claveRegla(familia: string, medida: string): string {
+  return medida ? `${familia} ${medida}` : familia;
+}
+
+/**
  * Reglas efectivas: las guardadas por el usuario pisan a las default con la
  * misma clave. Gana la clave más larga que matchee (familia exacta > prefijo),
  * así "TAP-BASE OLIMPO" puede tener su propia regla sin tocar al resto de las Bases.

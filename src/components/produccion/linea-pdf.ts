@@ -3,7 +3,7 @@ import autoTable from 'jspdf-autotable';
 import { LOGO_GRIS_PNG_BASE64 } from '../../lib/logos';
 import { MESAS } from '../../lib/linea-config';
 import type { PlanLinea } from '../../lib/linea-calc';
-import { ORIGEN_LABEL, formatCantidad, formatMin, formatOcupacion } from './linea-shared';
+import { ORIGEN_LABEL, etiquetaTap, formatCantidad, formatMin, formatOcupacion, formatUnidades } from './linea-shared';
 
 const GRIS_LOGO_ASPECT = 389 / 116; // ancho/alto reales del PNG embebido (mismo logo que VerticalApp)
 const LOGO_WIDTH_PT = 90;
@@ -61,24 +61,25 @@ export function generarPdfLinea(plan: PlanLinea, diaLabel: string): jsPDF {
   autoTable(doc, {
     startY: MARGEN + LOGO_HEIGHT_PT + 94,
     margin: { left: MARGEN, right: MARGEN },
-    head: [['Mesa', 'Desde', 'Hasta', 'Tap', 'Min', 'Origen']],
+    head: [['Mesa', 'Desde', 'Hasta', 'Tap / medida', 'Cant.', 'Min', 'Origen']],
     body: plan.mesas
       .filter((m) => m.activa)
       .flatMap((m) =>
         m.tramos.length === 0
-          ? [[m.nombre, '—', '—', 'Sin trabajo asignado', '', '']]
+          ? [[m.nombre, '—', '—', 'Sin trabajo asignado', '', '', '']]
           : m.tramos.map((t, i) => [
               i === 0 ? m.nombre : '',
               t.excede ? 'no entra' : t.desde,
               t.excede ? '' : t.hasta,
-              t.familia,
+              etiquetaTap(t.familia, t.medida),
+              formatUnidades(t.unidades),
               Math.round(t.minutos).toString(),
               t.origen === 'dia' ? '' : ORIGEN_LABEL[t.origen],
             ])
       ),
     styles: { font: 'helvetica', fontSize: 9, cellPadding: 4, textColor: [15, 23, 42] },
     headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255] },
-    columnStyles: { 0: { fontStyle: 'bold' }, 4: { halign: 'right' } },
+    columnStyles: { 0: { fontStyle: 'bold' }, 4: { halign: 'right' }, 5: { halign: 'right' } },
     didParseCell: (data) => {
       // Línea separadora más marcada al empezar cada mesa.
       if (data.section === 'body' && data.column.index === 0 && data.cell.raw) data.cell.styles.fillColor = [241, 245, 249];
@@ -116,7 +117,7 @@ export function generarPdfLinea(plan: PlanLinea, diaLabel: string): jsPDF {
     doc.setTextColor(15, 23, 42);
     for (const it of pendientes) {
       y += 13;
-      doc.text(`- ${it.familia}: ${it.ordenes.length} orden(es), ${formatMin(it.totalMin)}`, MARGEN, y);
+      doc.text(`- ${etiquetaTap(it.familia, it.medida)}: ${it.ordenes.length} orden(es), ${formatMin(it.totalMin)}`, MARGEN, y);
     }
   }
 
