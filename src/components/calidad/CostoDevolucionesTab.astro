@@ -35,15 +35,16 @@ const SQL_MIGRACION = `alter table costo_devoluciones_tarifas
 
 const inputClass =
   'mt-1 w-full rounded border border-slate-700 bg-slate-950 px-3 py-1.5 text-slate-200 focus:border-brand-500 focus:outline-none';
+const card = 'rounded-lg border border-slate-800 bg-slate-900 p-4';
 ---
 
 <div>
   <header class="mb-6">
-    <h2 class="text-lg font-semibold text-slate-100">Costo de devoluciones</h2>
+    <h2 class="text-lg font-semibold text-slate-100">Costo de no calidad</h2>
     <p class="mt-1 text-sm text-slate-400">
-      Resumen mensual: cruza las devoluciones con la provincia del cliente y las costea (flete de ida y vuelta + horas de
-      reparación). Los fletes y el costo por hora no están en Odoo: se cargan acá, se guardan mes a mes y el resumen se
-      puede bajar en PDF.
+      Cuánto nos cuesta por mes lo que vuelve o se rompe: flete de ida y vuelta, horas de reparación y el material o
+      producto que se pierde, menos lo que se le factura al transportista o al cliente. Colchón sale de las notas de
+      crédito; Living, de las reparaciones del soporte al cliente. El flete y la hora se cargan acá y se guardan mes a mes.
     </p>
   </header>
 
@@ -72,7 +73,7 @@ const inputClass =
   {
     data && (
       <>
-        <section class="mb-6 grid gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4 sm:grid-cols-3">
+        <section class={`mb-6 grid gap-4 sm:grid-cols-3 ${card}`}>
           <label class="block text-sm text-slate-400">
             Mes
             <select id="cd-mes" class={inputClass}></select>
@@ -94,36 +95,54 @@ const inputClass =
           </label>
         </section>
 
-        <section class="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <div class="rounded-lg border border-slate-800 bg-slate-900 p-4" id="cd-card-living">
-            <p class="text-xs text-slate-400">Living: devoluciones cada 1.000 fabricadas</p>
-            <p id="cd-kpi-living" class="mt-1 text-2xl font-semibold text-slate-100">—</p>
-            <p id="cd-kpi-living-sub" class="mt-1 text-xs text-slate-500"></p>
+        <section class="mb-6 grid gap-3 lg:grid-cols-3">
+          <div class={`lg:col-span-2 ${card}`}>
+            <p class="text-xs text-slate-400">Costo neto de no calidad — <span id="cd-hero-mes"></span></p>
+            <p id="cd-hero" class="mt-1 text-4xl font-semibold text-status-red">—</p>
+            <p id="cd-hero-sub" class="mt-2 text-sm text-slate-400"></p>
+            <div id="cd-comp-bar" class="mt-4 flex h-3 overflow-hidden rounded bg-slate-800"></div>
+            <div id="cd-comp-leyenda" class="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-400"></div>
           </div>
-          <div class="rounded-lg border border-slate-800 bg-slate-900 p-4" id="cd-card-colchon">
-            <p class="text-xs text-slate-400">Colchón: devoluciones cada 1.000 fabricadas</p>
-            <p id="cd-kpi-colchon" class="mt-1 text-2xl font-semibold text-slate-100">—</p>
-            <p id="cd-kpi-colchon-sub" class="mt-1 text-xs text-slate-500"></p>
-          </div>
-          <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
-            <p class="text-xs text-slate-400">Devoluciones del mes</p>
-            <p id="cd-kpi-dev" class="mt-1 text-2xl font-semibold text-slate-100">—</p>
-          </div>
-          <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
-            <p class="text-xs text-slate-400">Costo estimado (flete + reparación)</p>
-            <p id="cd-kpi-costo" class="mt-1 text-2xl font-semibold text-status-red">—</p>
+          <div class="grid grid-cols-2 gap-3 lg:grid-cols-1">
+            <div class={card} id="cd-card-living">
+              <p class="text-xs text-slate-400">Living: devoluciones cada 1.000 fabricadas</p>
+              <p id="cd-kpi-living" class="mt-1 text-2xl font-semibold text-slate-100">—</p>
+              <p id="cd-kpi-living-sub" class="mt-1 text-xs text-slate-500"></p>
+            </div>
+            <div class={card} id="cd-card-colchon">
+              <p class="text-xs text-slate-400">Colchón: devoluciones cada 1.000 fabricadas</p>
+              <p id="cd-kpi-colchon" class="mt-1 text-2xl font-semibold text-slate-100">—</p>
+              <p id="cd-kpi-colchon-sub" class="mt-1 text-xs text-slate-500"></p>
+            </div>
           </div>
         </section>
 
-        <section class="mb-6 rounded-lg border border-slate-800 bg-slate-900 p-4">
-          <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h3 class="text-sm font-medium text-slate-200">Tarifas de <span id="cd-tarifas-mes"></span></h3>
-            <p id="cd-tarifas-estado" class="text-xs text-slate-500"></p>
-          </div>
-          <div class="grid gap-4 sm:grid-cols-2">
+        <section class="mb-6">
+          <h3 class="mb-2 text-sm font-medium text-slate-200">Por motivo</h3>
+          <div id="cd-causas" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5"></div>
+        </section>
+
+        <section class={`mb-6 ${card}`}>
+          <h3 class="mb-1 text-sm font-medium text-slate-200">Mes a mes</h3>
+          <p class="mb-3 text-xs text-slate-500">Costo neto de cada mes con las tarifas de ese mes. Tocá un mes para verlo en detalle.</p>
+          <div id="cd-serie" class="space-y-1"></div>
+        </section>
+
+        <section id="cd-datos-card" class="mb-6 hidden rounded-lg border border-amber-900 bg-amber-950/30 p-4">
+          <h3 class="mb-1 text-sm font-medium text-amber-200">Datos que faltan en Odoo</h3>
+          <p class="mb-2 text-xs text-amber-200/70">Cada uno de estos casos hace que el costo real sea distinto del que se ve acá.</p>
+          <ul id="cd-datos" class="list-disc space-y-1 pl-5 text-sm text-amber-100/90"></ul>
+        </section>
+
+        <details class={`mb-6 ${card}`}>
+          <summary class="cursor-pointer text-sm font-medium text-slate-200">
+            Tarifas de <span id="cd-tarifas-mes"></span> <span id="cd-tarifas-estado" class="ml-2 text-xs font-normal text-slate-500"></span>
+          </summary>
+          <div class="mt-4 grid gap-4 sm:grid-cols-2">
             <label class="block text-sm text-slate-400">
-              Costo por hora de reparación ($)
+              Valor de la hora de reparación ($)
               <input id="cd-hora" type="number" min="0" step="any" inputmode="decimal" class={inputClass} />
+              <span class="mt-1 block text-xs text-slate-500">Lo que vale una hora de esa persona: lo que costó pagarla y lo que se dejó de producir. Ej.: 3 horas de un Luxor = $60.000 → $20.000.</span>
             </label>
             <label class="block text-sm text-slate-400">
               Viajes de flete por devolución
@@ -131,27 +150,26 @@ const inputClass =
               <span class="mt-1 block text-xs text-slate-500">2 = el envío original + la vuelta. 3 si además se reenvía reparado.</span>
             </label>
           </div>
-          <div class="mt-4 flex flex-wrap items-center gap-3">
-            <button id="cd-guardar" type="button" class="rounded bg-brand-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50">Guardar tarifas del mes</button>
-            <p id="cd-guardar-msg" class="text-sm text-slate-400" role="status"></p>
-          </div>
-        </section>
 
-        <section class="mb-6 rounded-lg border border-slate-800 bg-slate-900 p-4">
-          <div class="mb-3 flex flex-wrap items-end justify-between gap-3">
+          <div class="mt-5 flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h3 class="text-sm font-medium text-slate-200">Flete por provincia</h3>
-              <p class="mt-1 text-xs text-slate-500">Costo de un viaje a cada provincia. Se guarda junto con las demás tarifas del mes.</p>
+              <h4 class="text-sm font-medium text-slate-200">Flete por provincia</h4>
+              <p class="mt-1 text-xs text-slate-500">Costo de un viaje a cada provincia. Si una provincia queda vacía, el flete se estima con el recargo de la región del cliente (el % que ya se le cobra en la nota de venta) sobre el valor del producto.</p>
             </div>
             <div class="flex gap-2">
               <input id="cd-flete-todas" type="number" min="0" step="any" inputmode="decimal" placeholder="Mismo valor para todas" class="w-48 rounded border border-slate-700 bg-slate-950 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-500 focus:border-brand-500 focus:outline-none" />
               <button id="cd-flete-aplicar" type="button" class="rounded border border-slate-700 px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-800">Aplicar</button>
             </div>
           </div>
-          <div id="cd-fletes" class="grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"></div>
-        </section>
+          <div id="cd-fletes" class="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"></div>
 
-        <section class="mb-6 rounded-lg border border-slate-800 bg-slate-900 p-4">
+          <div class="mt-4 flex flex-wrap items-center gap-3">
+            <button id="cd-guardar" type="button" class="rounded bg-brand-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50">Guardar tarifas del mes</button>
+            <p id="cd-guardar-msg" class="text-sm text-slate-400" role="status"></p>
+          </div>
+        </details>
+
+        <section class={`mb-6 ${card}`}>
           <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
             <h3 class="text-sm font-medium text-slate-200">Resumen</h3>
             <button id="cd-pdf" type="button" class="rounded border border-slate-700 px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-800 disabled:opacity-50">Descargar PDF</button>
@@ -159,34 +177,60 @@ const inputClass =
           <p id="cd-resumen" class="text-sm leading-relaxed text-slate-300"></p>
         </section>
 
-        <section class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+        <section class={`mb-6 ${card}`}>
           <h3 class="mb-3 text-sm font-medium text-slate-200">Por provincia</h3>
           <div class="overflow-x-auto">
-            <table id="cd-table" class="w-full text-left text-sm">
+            <table class="w-full text-left text-sm">
               <thead class="text-xs text-slate-400">
                 <tr class="border-b border-slate-800">
                   <th class="py-2 pr-4 font-medium">Provincia</th>
                   <th class="py-2 pr-4 text-right font-medium">Living</th>
                   <th class="py-2 pr-4 text-right font-medium">Colchón</th>
-                  <th class="py-2 pr-4 text-right font-medium">Total</th>
-                  <th class="py-2 pr-4 text-right font-medium">Flete por viaje</th>
-                  <th class="py-2 pr-4 text-right font-medium">Flete total</th>
-                  <th class="py-2 pr-4 text-right font-medium">Horas rep.</th>
-                  <th class="py-2 pr-4 text-right font-medium">Reparación</th>
-                  <th class="py-2 pr-4 text-right font-medium">Costo total</th>
+                  <th class="py-2 pr-4 text-right font-medium">Recargo región</th>
+                  <th class="py-2 pr-4 text-right font-medium">Flete</th>
+                  <th class="py-2 pr-4 text-right font-medium">Mano de obra</th>
+                  <th class="py-2 pr-4 text-right font-medium">Material</th>
+                  <th class="py-2 pr-4 text-right font-medium">Facturado</th>
+                  <th class="py-2 pr-4 text-right font-medium">Costo neto</th>
                   <th class="py-2 text-right font-medium">Notas de crédito</th>
                 </tr>
               </thead>
               <tbody id="cd-tbody"></tbody>
               <tfoot id="cd-tfoot"></tfoot>
             </table>
-            <p id="cd-vacio" class="hidden py-6 text-center text-sm text-slate-500">No hubo devoluciones con estos filtros.</p>
+            <p id="cd-vacio" class="hidden py-6 text-center text-sm text-slate-500">No hubo casos con estos filtros.</p>
+          </div>
+        </section>
+
+        <section class={card}>
+          <h3 class="mb-1 text-sm font-medium text-slate-200">Detalle de casos</h3>
+          <p class="mb-3 text-xs text-slate-500">Cada fila es una orden de reparación o una nota de crédito, ordenadas por costo neto. "~" marca un flete estimado con el recargo de la región.</p>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+              <thead class="text-xs text-slate-400">
+                <tr class="border-b border-slate-800">
+                  <th class="py-2 pr-4 font-medium">Caso</th>
+                  <th class="py-2 pr-4 font-medium">Cliente</th>
+                  <th class="py-2 pr-4 font-medium">Provincia</th>
+                  <th class="py-2 pr-4 font-medium">Sector</th>
+                  <th class="py-2 pr-4 font-medium">Motivo</th>
+                  <th class="py-2 pr-4 text-right font-medium">Horas</th>
+                  <th class="py-2 pr-4 text-right font-medium">Flete</th>
+                  <th class="py-2 pr-4 text-right font-medium">Mano de obra</th>
+                  <th class="py-2 pr-4 text-right font-medium">Material</th>
+                  <th class="py-2 pr-4 text-right font-medium">Facturado</th>
+                  <th class="py-2 text-right font-medium">Costo neto</th>
+                </tr>
+              </thead>
+              <tbody id="cd-casos"></tbody>
+            </table>
+            <p id="cd-casos-mas" class="hidden pt-3 text-center text-xs text-slate-500"></p>
           </div>
           <p class="mt-3 text-xs text-slate-500">
-            Devoluciones = mismo criterio que la pestaña Reparaciones: Living por órdenes de reparación, Colchón por notas
-            de crédito de Garantía y Calidad. La provincia es la del cliente de cada nota u orden. Las horas incluyen las
-            reparaciones de Colchón. Las notas de crédito son lo que se le devolvió al cliente (solo Colchón). Hoy las
-            reparaciones y la producción son todas de Frontera Living S.A.: filtrar por Presupuesto solo deja notas de crédito.
+            Devoluciones del índice = Living: órdenes de reparación terminadas; Colchón: notas de crédito de Calidad, Garantía
+            y Logística (los descuentos y acuerdos comerciales no cuentan). Las horas incluyen reparaciones de Colchón. El
+            material es lo que no se recupera: costo del producto menos lo recuperado al desarmarlo (Living) o costo del
+            colchón devuelto (Colchón). La provincia es la del cliente.
           </p>
         </section>
 
@@ -198,6 +242,9 @@ const inputClass =
 
 <script>
   import {
+    CAUSAS,
+    CAUSA_AYUDA,
+    CAUSA_LABEL,
     SECTOR_LABEL,
     armarResumen,
     calcular,
@@ -205,8 +252,12 @@ const inputClass =
     fmtHoras,
     fmtMil,
     fmtMonto,
+    fmtPct,
+    mesCorto,
     mesLabel,
     positivo,
+    serieMensual,
+    tarifasDeMes,
     type Filtros,
     type Resultado,
   } from './costo-devoluciones-calc';
@@ -229,8 +280,6 @@ const inputClass =
     const guardarBtn = $<HTMLButtonElement>('cd-guardar');
     const guardarMsg = $('cd-guardar-msg');
     const pdfBtn = $<HTMLButtonElement>('cd-pdf');
-    const tbody = $('cd-tbody');
-    const tfoot = $('cd-tfoot');
 
     for (const m of data.meses) mesSel.add(new Option(mesLabel(m), m));
     mesSel.value = data.mesActual;
@@ -243,8 +292,7 @@ const inputClass =
     });
 
     // Tarifas del mes en edición. Un mes sin guardar hereda las del último mes anterior guardado.
-    const TARIFAS_VACIAS: TarifasMes = { costoHora: 0, viajes: 2, fletes: {} };
-    let tarifas: TarifasMes = { ...TARIFAS_VACIAS, fletes: {} };
+    let tarifas: TarifasMes = { costoHora: 0, viajes: 2, fletes: {} };
     let dirty = false;
     let origen = '';
 
@@ -253,20 +301,14 @@ const inputClass =
 
     function cargarTarifasDelMes() {
       const mes = mesSel.value;
-      const propio = guardadas.porMes[mes];
-      const anterior = Object.keys(guardadas.porMes)
-        .filter((m) => m < mes)
-        .sort()
-        .pop();
-      const fuente = propio ?? (anterior ? guardadas.porMes[anterior] : undefined);
-      tarifas = fuente
-        ? { costoHora: fuente.costoHora, viajes: fuente.viajes, fletes: { ...fuente.fletes } }
-        : { ...TARIFAS_VACIAS, fletes: {} };
+      const r = tarifasDeMes(guardadas.porMes, mes);
+      tarifas = r.tarifas;
       dirty = false;
+      const propio = guardadas.porMes[mes];
       origen = propio
         ? `Guardadas${propio.actualizadoPor ? ` por ${propio.actualizadoPor}` : ''} el ${fechaLarga(propio.updatedAt)}`
-        : anterior
-          ? `Sin guardar para este mes: se partió de las de ${mesLabel(anterior)}`
+        : r.heredadoDe
+          ? `Sin guardar para este mes: se partió de las de ${mesLabel(r.heredadoDe)}`
           : 'Sin tarifas guardadas todavía';
       horaIn.value = tarifas.costoHora ? String(tarifas.costoHora) : '';
       viajesIn.value = String(tarifas.viajes);
@@ -280,43 +322,186 @@ const inputClass =
       return e;
     }
 
+    const celda = (tr: HTMLElement, text: string, className = '') => tr.append(el('td', text, `py-2 pr-4 tabular-nums ${className}`));
+    const monto = (n: number) => (n === 0 ? '—' : fmtMonto(n));
+
     let resultado: Resultado;
 
-    function actualizarCalculo() {
-      const f = filtros();
-      resultado = calcular(data, f, tarifas);
-      const r = resultado;
+    function renderHero(r: Resultado, f: Filtros) {
+      const t = r.totales;
+      $('cd-hero-mes').textContent = mesLabel(f.mes);
+      $('cd-hero').textContent = t.bruto > 0 ? fmtMonto(t.neto) : t.casos > 0 ? 'Cargá las tarifas' : fmtMonto(0);
+      const partes = [`${fmt(t.casos)} ${t.casos === 1 ? 'caso' : 'casos'}`];
+      if (r.netoPorUnidad !== null && t.bruto > 0) partes.push(`${fmtMonto(r.netoPorUnidad)} por unidad fabricada (${fmt(r.unidades)} unidades)`);
+      if (t.facturado > 0) partes.push(`${fmtMonto(t.bruto)} de costo − ${fmtMonto(t.facturado)} facturado`);
+      $('cd-hero-sub').textContent = partes.join(' · ');
 
+      const bar = $('cd-comp-bar');
+      const leyenda = $('cd-comp-leyenda');
+      bar.replaceChildren();
+      leyenda.replaceChildren();
+      const comps = [
+        { k: 'Flete', v: t.flete, c: 'bg-brand-500' },
+        { k: 'Mano de obra', v: t.manoObra, c: 'bg-status-yellow' },
+        { k: 'Material y producto perdido', v: t.material, c: 'bg-status-red' },
+      ];
+      for (const c of comps) {
+        if (t.bruto > 0 && c.v > 0) {
+          const seg = el('div', undefined, c.c);
+          seg.style.width = `${(c.v / t.bruto) * 100}%`;
+          bar.append(seg);
+        }
+        const item = el('span', undefined, 'inline-flex items-center gap-1.5');
+        item.append(el('span', undefined, `inline-block h-2 w-2 rounded-sm ${c.c}`), el('span', `${c.k}: ${fmtMonto(c.v)}`));
+        leyenda.append(item);
+      }
+    }
+
+    function renderIndices(r: Resultado, f: Filtros) {
       $('cd-card-living').classList.toggle('hidden', f.sector === 'colchon');
       $('cd-card-colchon').classList.toggle('hidden', f.sector === 'living');
       $('cd-kpi-living').textContent = fmtMil(r.living.porMil);
       $('cd-kpi-living-sub').textContent = `${fmt(r.living.devoluciones)} sobre ${fmt(r.living.unidades)} unidades`;
       $('cd-kpi-colchon').textContent = fmtMil(r.colchon.porMil);
       $('cd-kpi-colchon-sub').textContent = `${fmt(r.colchon.devoluciones)} sobre ${fmt(r.colchon.unidades)} unidades`;
-      $('cd-kpi-dev').textContent = fmt(r.totales.dev);
-      $('cd-kpi-costo').textContent = r.totales.costo > 0 ? fmtMonto(r.totales.costo) : 'Cargá las tarifas';
-      $('cd-resumen').textContent = armarResumen(r, f, tarifas);
-      $('cd-tarifas-mes').textContent = mesLabel(f.mes);
-      $('cd-tarifas-estado').textContent = dirty ? 'Cambios sin guardar' : origen;
+    }
 
-      for (const fila of r.filas) {
-        const tr = tbody.querySelector<HTMLTableRowElement>(`tr[data-prov="${CSS.escape(fila.provincia)}"]`);
-        if (!tr) continue;
-        tr.querySelector('[data-c="tarifa"]')!.textContent = fmtMonto(positivo(tarifas.fletes[fila.provincia]));
-        tr.querySelector('[data-c="flete"]')!.textContent = fmtMonto(fila.flete);
-        tr.querySelector('[data-c="reparacion"]')!.textContent = fmtMonto(fila.reparacion);
-        tr.querySelector('[data-c="costo"]')!.textContent = fmtMonto(fila.costo);
+    function renderCausas(r: Resultado) {
+      const box = $('cd-causas');
+      box.replaceChildren();
+      for (const causa of CAUSAS) {
+        const m = r.porCausa[causa];
+        const c = el('div', undefined, 'rounded-lg border border-slate-800 bg-slate-900 p-3');
+        c.title = CAUSA_AYUDA[causa];
+        c.append(el('p', CAUSA_LABEL[causa], 'text-xs text-slate-400'));
+        c.append(el('p', m.casos > 0 && r.totales.bruto > 0 ? fmtMonto(m.neto) : '—', 'mt-1 text-lg font-semibold text-slate-100 tabular-nums'));
+        const sub = m.casos === 0 ? 'Sin casos' : `${fmt(m.casos)} ${m.casos === 1 ? 'caso' : 'casos'}${m.facturado > 0 ? ` · ${fmtMonto(m.facturado)} facturado` : ''}`;
+        c.append(el('p', sub, 'mt-1 text-xs text-slate-500'));
+        box.append(c);
+      }
+    }
+
+    function renderSerie() {
+      const f = filtros();
+      const serie = serieMensual(data, { sector: f.sector, empresa: f.empresa }, (mes) =>
+        mes === f.mes ? tarifas : tarifasDeMes(guardadas.porMes, mes).tarifas
+      );
+      const max = Math.max(...serie.map((p) => p.neto), 1);
+      const box = $('cd-serie');
+      box.replaceChildren();
+      for (const p of serie) {
+        const fila = el('button', undefined, 'flex w-full items-center gap-3 rounded px-1 py-0.5 text-left text-xs hover:bg-slate-800/60');
+        fila.type = 'button';
+        if (p.mes === f.mes) fila.classList.add('bg-slate-800');
+        fila.append(el('span', mesCorto(p.mes), 'w-14 shrink-0 text-slate-400'));
+        const pista = el('span', undefined, 'h-2.5 flex-1 overflow-hidden rounded bg-slate-800');
+        const barra = el('span', undefined, `block h-full rounded ${p.mes === f.mes ? 'bg-status-red' : 'bg-slate-600'}`);
+        barra.style.width = `${Math.max(0, (p.neto / max) * 100)}%`;
+        pista.append(barra);
+        fila.append(pista);
+        fila.append(el('span', p.bruto > 0 ? fmtMonto(p.neto) : p.casos > 0 ? 'sin tarifas' : '—', 'w-28 shrink-0 text-right tabular-nums text-slate-200'));
+        fila.append(el('span', `${fmt(p.casos)} casos`, 'w-16 shrink-0 text-right tabular-nums text-slate-500'));
+        fila.addEventListener('click', () => {
+          mesSel.value = p.mes;
+          mesSel.dispatchEvent(new Event('change'));
+        });
+        box.append(fila);
+      }
+    }
+
+    function renderDatos(r: Resultado) {
+      const items: string[] = [];
+      const d = r.datos;
+      if (d.sinMotivo > 0) items.push(`${fmt(d.sinMotivo)} casos sin motivo: en el ticket de soporte, elegir el Motivo (Calidad, Transporte, Post-Venta) — hoy casi ninguno lo tiene cargado.`);
+      if (d.sinVincular > 0) items.push(`${fmt(d.sinVincular)} casos de transporte o post-venta sin nota de venta: vincular en el ticket la nota de venta que se le hizo al transportista o al cliente, así se resta lo facturado.`);
+      if (d.sinHoras > 0) items.push(`${fmt(d.sinHoras)} reparaciones sin horas cargadas: la mano de obra de esos casos figura en $0.`);
+      if (d.sinFlete > 0) items.push(`${fmt(d.sinFlete)} devoluciones sin flete: ni hay tarifa de su provincia ni el cliente tiene región con recargo.`);
+      $('cd-datos-card').classList.toggle('hidden', items.length === 0);
+      const ul = $('cd-datos');
+      ul.replaceChildren();
+      for (const i of items) ul.append(el('li', i));
+    }
+
+    function renderProvincias(r: Resultado) {
+      const tbody = $('cd-tbody');
+      const tfoot = $('cd-tfoot');
+      tbody.replaceChildren();
+      tfoot.replaceChildren();
+      $('cd-vacio').classList.toggle('hidden', r.filas.length > 0);
+      if (r.filas.length === 0) return;
+
+      for (const x of r.filas) {
+        const tr = el('tr', undefined, 'border-b border-slate-800/60 text-slate-300');
+        tr.append(el('td', x.provincia, 'py-2 pr-4 whitespace-nowrap'));
+        celda(tr, fmt(x.living), 'text-right');
+        celda(tr, fmt(x.colchon), 'text-right');
+        celda(tr, fmtPct(x.recargoPct), 'text-right');
+        celda(tr, monto(x.flete), 'text-right');
+        celda(tr, monto(x.manoObra), 'text-right');
+        celda(tr, monto(x.material), 'text-right');
+        celda(tr, monto(x.facturado), 'text-right');
+        celda(tr, monto(x.neto), 'text-right font-medium text-slate-100');
+        tr.append(el('td', monto(x.notaCredito), 'py-2 text-right tabular-nums whitespace-nowrap'));
+        tbody.append(tr);
       }
       const t = r.totales;
-      const set = (k: string, v: string) => (tfoot.querySelector(`[data-t="${k}"]`)!.textContent = v);
-      set('living', fmt(t.living));
-      set('colchon', fmt(t.colchon));
-      set('dev', fmt(t.dev));
-      set('flete', fmtMonto(t.flete));
-      set('horas', fmtHoras(t.horas));
-      set('reparacion', fmtMonto(t.reparacion));
-      set('costo', fmtMonto(t.costo));
-      set('nc', fmtMonto(t.notaCredito));
+      const pie = el('tr', undefined, 'font-medium text-slate-100');
+      pie.append(el('td', 'Total', 'py-2 pr-4'));
+      celda(pie, fmt(t.living), 'text-right');
+      celda(pie, fmt(t.colchon), 'text-right');
+      celda(pie, '', 'text-right');
+      celda(pie, monto(t.flete), 'text-right');
+      celda(pie, monto(t.manoObra), 'text-right');
+      celda(pie, monto(t.material), 'text-right');
+      celda(pie, monto(t.facturado), 'text-right');
+      celda(pie, monto(t.neto), 'text-right');
+      pie.append(el('td', monto(t.notaCredito), 'py-2 text-right tabular-nums whitespace-nowrap'));
+      tfoot.append(pie);
+    }
+
+    const MAX_CASOS = 150;
+    function renderCasos(r: Resultado) {
+      const tbody = $('cd-casos');
+      tbody.replaceChildren();
+      for (const c of r.casos.slice(0, MAX_CASOS)) {
+        const tr = el('tr', undefined, 'border-b border-slate-800/60 text-slate-300');
+        const ref = el('td', undefined, 'py-2 pr-4 whitespace-nowrap');
+        ref.append(el('span', c.ref));
+        if (c.ticket) ref.append(el('span', ` · ${c.ticket.slice(0, 28)}`, 'text-xs text-slate-500'));
+        tr.append(ref);
+        tr.append(el('td', c.cliente, 'py-2 pr-4'));
+        tr.append(el('td', c.provincia, 'py-2 pr-4 whitespace-nowrap'));
+        tr.append(el('td', c.sector === 'living' ? 'Living' : 'Colchón', 'py-2 pr-4'));
+        const motivo = el('td', CAUSA_LABEL[c.causa], 'py-2 pr-4 whitespace-nowrap');
+        if (c.causa === 'sinmotivo') motivo.classList.add('text-status-yellow');
+        motivo.title = c.motivo;
+        tr.append(motivo);
+        celda(tr, c.horas > 0 ? fmtHoras(c.horas) : '—', 'text-right');
+        celda(tr, c.fuenteFlete === 'recargo' ? `~${fmtMonto(c.flete)}` : monto(c.flete), 'text-right');
+        celda(tr, monto(c.manoObra), 'text-right');
+        celda(tr, monto(c.material), 'text-right');
+        celda(tr, monto(c.facturado), 'text-right');
+        tr.append(el('td', fmtMonto(c.neto), 'py-2 text-right font-medium tabular-nums text-slate-100'));
+        tbody.append(tr);
+      }
+      const mas = $('cd-casos-mas');
+      mas.classList.toggle('hidden', r.casos.length <= MAX_CASOS);
+      mas.textContent = `Se muestran los ${MAX_CASOS} de mayor costo, de ${fmt(r.casos.length)} casos. El PDF y los totales incluyen todos.`;
+    }
+
+    function actualizar() {
+      const f = filtros();
+      resultado = calcular(data, f, tarifas);
+      renderHero(resultado, f);
+      renderIndices(resultado, f);
+      renderCausas(resultado);
+      renderSerie();
+      renderDatos(resultado);
+      renderProvincias(resultado);
+      renderCasos(resultado);
+      $('cd-resumen').textContent = armarResumen(resultado, f);
+      $('cd-tarifas-mes').textContent = mesLabel(f.mes);
+      $('cd-tarifas-estado').textContent = dirty ? 'Cambios sin guardar' : origen;
     }
 
     const provincias = [...new Set(data.registros.map((r) => r.provincia))].sort((x, y) => x.localeCompare(y, 'es'));
@@ -339,75 +524,22 @@ const inputClass =
         input.addEventListener('input', () => {
           tarifas.fletes[provincia] = positivo(Number(input.value));
           dirty = true;
-          actualizarCalculo();
+          actualizar();
         });
         label.append(input);
         fletesBox.append(label);
       }
     }
 
-    function armarTabla() {
-      const r = calcular(data, filtros(), tarifas);
-      tbody.replaceChildren();
-      tfoot.replaceChildren();
-      $('cd-vacio').classList.toggle('hidden', r.filas.length > 0);
-
-      for (const fila of r.filas) {
-        const tr = el('tr', undefined, 'border-b border-slate-800/60 text-slate-300');
-        tr.dataset.prov = fila.provincia;
-        tr.append(el('td', fila.provincia, 'py-2 pr-4 whitespace-nowrap'));
-        tr.append(el('td', fmt(fila.living), 'py-2 pr-4 text-right tabular-nums'));
-        tr.append(el('td', fmt(fila.colchon), 'py-2 pr-4 text-right tabular-nums'));
-        tr.append(el('td', fmt(fila.dev), 'py-2 pr-4 text-right tabular-nums'));
-
-        const tarifa = el('td', undefined, 'py-2 pr-4 text-right tabular-nums');
-        tarifa.dataset.c = 'tarifa';
-        tr.append(tarifa);
-
-        const flete = el('td', undefined, 'py-2 pr-4 text-right tabular-nums');
-        flete.dataset.c = 'flete';
-        tr.append(flete);
-        tr.append(el('td', fmtHoras(fila.horas), 'py-2 pr-4 text-right tabular-nums'));
-        const rep = el('td', undefined, 'py-2 pr-4 text-right tabular-nums');
-        rep.dataset.c = 'reparacion';
-        tr.append(rep);
-        const costo = el('td', undefined, 'py-2 pr-4 text-right font-medium tabular-nums text-slate-100');
-        costo.dataset.c = 'costo';
-        tr.append(costo);
-        tr.append(el('td', fmtMonto(fila.notaCredito), 'py-2 text-right tabular-nums whitespace-nowrap'));
-        tbody.append(tr);
-      }
-
-      const pie = el('tr', undefined, 'font-medium text-slate-100');
-      const celda = (k: string | null, className: string, text = '') => {
-        const td = el('td', text, className);
-        if (k) td.dataset.t = k;
-        pie.append(td);
-      };
-      celda(null, 'py-2 pr-4', 'Total');
-      celda('living', 'py-2 pr-4 text-right tabular-nums');
-      celda('colchon', 'py-2 pr-4 text-right tabular-nums');
-      celda('dev', 'py-2 pr-4 text-right tabular-nums');
-      celda(null, 'py-2 pr-4');
-      celda('flete', 'py-2 pr-4 text-right tabular-nums');
-      celda('horas', 'py-2 pr-4 text-right tabular-nums');
-      celda('reparacion', 'py-2 pr-4 text-right tabular-nums');
-      celda('costo', 'py-2 pr-4 text-right tabular-nums');
-      celda('nc', 'py-2 text-right tabular-nums whitespace-nowrap');
-      tfoot.append(pie);
-
-      actualizarCalculo();
-    }
-
     horaIn.addEventListener('input', () => {
       tarifas.costoHora = positivo(Number(horaIn.value));
       dirty = true;
-      actualizarCalculo();
+      actualizar();
     });
     viajesIn.addEventListener('input', () => {
       tarifas.viajes = positivo(Number(viajesIn.value));
       dirty = true;
-      actualizarCalculo();
+      actualizar();
     });
 
     $('cd-flete-aplicar').addEventListener('click', () => {
@@ -416,7 +548,7 @@ const inputClass =
       for (const provincia of provincias) tarifas.fletes[provincia] = valor;
       dirty = true;
       armarFletes();
-      actualizarCalculo();
+      actualizar();
     });
 
     guardarBtn.addEventListener('click', async () => {
@@ -435,7 +567,7 @@ const inputClass =
         dirty = false;
         origen = `Guardadas por ${body.data.actualizadoPor ?? '—'} el ${fechaLarga(body.data.updatedAt)}`;
         guardarMsg.textContent = `Tarifas de ${mesLabel(mes)} guardadas.`;
-        actualizarCalculo();
+        actualizar();
       } catch (err) {
         guardarMsg.textContent = err instanceof Error ? err.message : 'No se pudo guardar';
       } finally {
@@ -454,7 +586,7 @@ const inputClass =
         const sufijo = [f.sector !== 'todos' ? SECTOR_LABEL[f.sector].toLowerCase() : '', f.empresa !== 0 ? empresa.toLowerCase().replace(/[^a-z0-9]+/g, '-') : '']
           .filter(Boolean)
           .join('-');
-        doc.save(`costo-devoluciones-${f.mes}${sufijo ? `-${sufijo}` : ''}.pdf`);
+        doc.save(`costo-no-calidad-${f.mes}${sufijo ? `-${sufijo}` : ''}.pdf`);
       } finally {
         pdfBtn.disabled = false;
       }
@@ -463,13 +595,13 @@ const inputClass =
     mesSel.addEventListener('change', () => {
       cargarTarifasDelMes();
       armarFletes();
-      armarTabla();
+      actualizar();
     });
-    sectorSel.addEventListener('change', armarTabla);
-    empresaSel.addEventListener('change', armarTabla);
+    sectorSel.addEventListener('change', actualizar);
+    empresaSel.addEventListener('change', actualizar);
 
     cargarTarifasDelMes();
     armarFletes();
-    armarTabla();
+    actualizar();
   }
 </script>

@@ -3,12 +3,15 @@ import autoTable from 'jspdf-autotable';
 import { LOGO_GRIS_PNG_BASE64 } from '../../lib/logos';
 import type { TarifasMes } from '../../lib/supabase/costo-devoluciones-tarifas';
 import {
+  CAUSAS,
+  CAUSA_LABEL,
   SECTOR_LABEL,
   armarResumen,
   fmt,
   fmtHoras,
   fmtMil,
   fmtMonto,
+  fmtPct,
   mesLabel,
   positivo,
   type Filtros,
@@ -30,17 +33,22 @@ const generado = () =>
     minute: '2-digit',
   }).format(new Date())}`;
 
-/** Resumen mensual de costo de devoluciones, para guardar. A4 apaisado (la tabla por provincia tiene 9 columnas). */
+const monto = (n: number) => (n === 0 ? '—' : fmtMonto(n));
+
+/** Resumen mensual del costo de no calidad, para guardar. A4 apaisado (las tablas tienen muchas columnas). */
 export function generarPdfCostoDevoluciones(r: Resultado, f: Filtros, t: TarifasMes, empresaNombre: string): jsPDF {
   const doc = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'landscape' });
   const anchoUtil = doc.internal.pageSize.getWidth() - MARGEN * 2;
   const finY = () => (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY;
+  const tabla = { margin: { left: MARGEN, right: MARGEN }, headStyles: { fillColor: [30, 41, 59] as [number, number, number] } };
+  const derecha = (desde: number, hasta: number) =>
+    Object.fromEntries(Array.from({ length: hasta - desde + 1 }, (_, i) => [desde + i, { halign: 'right' as const }]));
 
   doc.addImage(`data:image/png;base64,${LOGO_GRIS_PNG_BASE64}`, 'PNG', MARGEN, MARGEN, LOGO_WIDTH_PT, LOGO_HEIGHT_PT);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(16);
   doc.setTextColor(15, 23, 42);
-  doc.text(`Costo de devoluciones — ${mesLabel(f.mes)}`, MARGEN, MARGEN + LOGO_HEIGHT_PT + 24);
+  doc.text(`Costo de no calidad — ${mesLabel(f.mes)}`, MARGEN, MARGEN + LOGO_HEIGHT_PT + 24);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
@@ -49,68 +57,96 @@ export function generarPdfCostoDevoluciones(r: Resultado, f: Filtros, t: Tarifas
 
   doc.setFontSize(10.5);
   doc.setTextColor(30, 41, 59);
-  const lineas = doc.splitTextToSize(armarResumen(r, f, t), anchoUtil);
+  const lineas = doc.splitTextToSize(armarResumen(r, f), anchoUtil);
   doc.text(lineas, MARGEN, MARGEN + LOGO_HEIGHT_PT + 62);
   let y = MARGEN + LOGO_HEIGHT_PT + 62 + lineas.length * 14 + 8;
 
+  // Índice de devoluciones.
   const indices: string[][] = [];
   if (f.sector !== 'colchon') indices.push(['Living', fmt(r.living.devoluciones), fmt(r.living.unidades), fmtMil(r.living.porMil)]);
   if (f.sector !== 'living') indices.push(['Colchón', fmt(r.colchon.devoluciones), fmt(r.colchon.unidades), fmtMil(r.colchon.porMil)]);
   autoTable(doc, {
+    ...tabla,
     startY: y,
-    margin: { left: MARGEN, right: MARGEN },
     head: [['Sector', 'Devoluciones', 'Unidades fabricadas', 'Cada 1.000 fabricadas']],
     body: indices,
     styles: { fontSize: 9 },
-    headStyles: { fillColor: [30, 41, 59] },
-    columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' } },
+    columnStyles: derecha(1, 3),
     tableWidth: 420,
   });
   y = finY() + 14;
 
+  // Por motivo.
   autoTable(doc, {
+    ...tabla,
     startY: y,
-    margin: { left: MARGEN, right: MARGEN },
-    head: [['Provincia', 'Living', 'Colchón', 'Total', 'Flete por viaje', 'Flete total', 'Horas rep.', 'Reparación', 'Costo total', 'Notas de crédito']],
+    head: [['Motivo', 'Casos', 'Flete', 'Mano de obra', 'Material', 'Costo bruto', 'Facturado', 'Costo neto']],
+    body: CAUSAS.filter((c) => r.porCausa[c].casos > 0).map((c) => {
+      const m = r.porCausa[c];
+      return [CAUSA_LABEL[c], fmt(m.casos), monto(m.flete), monto(m.manoObra), monto(m.material), monto(m.bruto), monto(m.facturado), monto(m.neto)];
+    }),
+    foot: [
+      [
+        'Total',
+        fmt(r.totales.casos),
+        monto(r.totales.flete),
+        monto(r.totales.manoObra),
+        monto(r.totales.material),
+        monto(r.totales.bruto),
+        monto(r.totales.facturado),
+        monto(r.totales.neto),
+      ],
+    ],
+    styles: { fontSize: 8.5 },
+    footStyles: { fillColor: [226, 232, 240], textColor: [15, 23, 42], fontStyle: 'bold' },
+    columnStyles: derecha(1, 7),
+  });
+  y = finY() + 14;
+
+  // Por provincia.
+  autoTable(doc, {
+    ...tabla,
+    startY: y,
+    head: [['Provincia', 'Living', 'Colchón', 'Recargo región', 'Flete', 'Mano de obra', 'Horas', 'Material', 'Facturado', 'Costo neto']],
     body: r.filas.map((x) => [
       x.provincia,
       fmt(x.living),
       fmt(x.colchon),
-      fmt(x.dev),
-      fmtMonto(positivo(t.fletes[x.provincia])),
-      fmtMonto(x.flete),
+      fmtPct(x.recargoPct),
+      monto(x.flete),
+      monto(x.manoObra),
       fmtHoras(x.horas),
-      fmtMonto(x.reparacion),
-      fmtMonto(x.costo),
-      fmtMonto(x.notaCredito),
+      monto(x.material),
+      monto(x.facturado),
+      monto(x.neto),
     ]),
     foot: [
       [
         'Total',
         fmt(r.totales.living),
         fmt(r.totales.colchon),
-        fmt(r.totales.dev),
         '',
-        fmtMonto(r.totales.flete),
+        monto(r.totales.flete),
+        monto(r.totales.manoObra),
         fmtHoras(r.totales.horas),
-        fmtMonto(r.totales.reparacion),
-        fmtMonto(r.totales.costo),
-        fmtMonto(r.totales.notaCredito),
+        monto(r.totales.material),
+        monto(r.totales.facturado),
+        monto(r.totales.neto),
       ],
     ],
     styles: { fontSize: 8.5 },
-    headStyles: { fillColor: [30, 41, 59] },
     footStyles: { fillColor: [226, 232, 240], textColor: [15, 23, 42], fontStyle: 'bold' },
-    columnStyles: Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => [i, { halign: 'right' as const }])),
+    columnStyles: derecha(1, 9),
   });
   y = finY() + 14;
 
   doc.setFontSize(8.5);
   doc.setTextColor(100, 116, 139);
   const notas = doc.splitTextToSize(
-    `Tarifas usadas: costo por hora de reparación ${fmtMonto(positivo(t.costoHora))}; ${fmt(positivo(t.viajes))} viajes de flete por devolución; flete por viaje por provincia según la tabla. ` +
-      'Devoluciones: Living = órdenes de reparación; Colchón = notas de crédito de Garantía y Calidad (las horas incluyen reparaciones de Colchón). ' +
-      'La provincia es la del cliente de cada nota u orden.',
+    `Tarifas usadas: hora de reparación ${fmtMonto(positivo(t.costoHora))}; ${fmt(positivo(t.viajes))} viajes de flete por devolución, a la tarifa de cada provincia o, si no hay, al recargo de la región del cliente sobre el valor del producto. ` +
+      'Material = costo del producto menos lo recuperado al desarmarlo (Living) o costo del colchón devuelto (Colchón). ' +
+      'Facturado = importe de la nota de venta vinculada al ticket (transportista o cliente). Costo neto = flete + mano de obra + material − facturado. ' +
+      'Los descuentos y acuerdos comerciales no se cuentan como devoluciones.',
     anchoUtil
   );
   doc.text(notas, MARGEN, y);
