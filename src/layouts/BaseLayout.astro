@@ -147,7 +147,7 @@ const commitMessage = import.meta.env.VERCEL_GIT_COMMIT_MESSAGE?.split('\n')[0];
     <slot />
 
     {
-      usuario?.rol === 'dev' && commitShort && (
+      (usuario?.rol === 'dev' || usuario?.username.toLowerCase().includes('aure')) && commitShort && (
         <p
           class="pointer-events-none fixed bottom-3 right-4 z-40 font-mono text-[11px] text-slate-600"
           title={commitMessage ? `${commitMessage} (${commitSha})` : commitSha}
