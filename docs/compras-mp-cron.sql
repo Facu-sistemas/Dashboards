@@ -24,3 +24,18 @@ select cron.schedule(
 
 -- Para ver si corrió:        select * from cron.job_run_details order by start_time desc limit 5;
 -- Para desprogramarlo:       select cron.unschedule('compras-mp-corrida-diaria');
+
+-- ---------------------------------------------------------------------------------------------------------------------------
+-- ALTERNATIVA: dos jobs (solo si la llamada única de arriba falla por el límite de tiempo de Vercel, que es de 60 s).
+-- La corrida se parte: el primer job lee Odoo (~40 s) y el segundo, cinco minutos después, calcula (~10 s).
+-- Primero desprogramar el job único:  select cron.unschedule('compras-mp-corrida-diaria');
+--
+-- select cron.schedule('compras-mp-leer-odoo', '0 9 * * *', $$
+--   select net.http_post(url := 'https://TU-DOMINIO/api/compras-mp/cron?paso=leer',
+--     headers := jsonb_build_object('Authorization', 'Bearer TU-SECRETO', 'Content-Type', 'application/json'),
+--     body := '{}'::jsonb, timeout_milliseconds := 120000); $$);
+--
+-- select cron.schedule('compras-mp-calcular', '5 9 * * *', $$
+--   select net.http_post(url := 'https://TU-DOMINIO/api/compras-mp/cron?paso=calcular',
+--     headers := jsonb_build_object('Authorization', 'Bearer TU-SECRETO', 'Content-Type', 'application/json'),
+--     body := '{}'::jsonb, timeout_milliseconds := 120000); $$);
