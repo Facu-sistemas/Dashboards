@@ -1,7 +1,9 @@
 import type { APIRoute } from 'astro';
 import ExcelJS from 'exceljs';
 import { z } from 'zod';
-import { getGastoLineas, getOcPendientes, getStockDetalle } from '../../lib/odoo/rotacion-gasto-detalle';
+import { getGastoLineas, getOcPendientes, getRecepcionesSinFacturarDetalle, getStockDetalle } from '../../lib/odoo/rotacion-gasto-detalle';
+import { getFinanzasMp } from '../../lib/compras-mp/odoo/finanzas';
+import { getTipoCambio } from '../../lib/compras-mp/odoo/otros';
 import { ApiValidationError, jsonResponse } from '../../lib/api-helpers';
 import { OdooError } from '../../lib/odoo/types';
 import { LOGO_GRIS_PNG_BASE64 } from '../../lib/logos';
@@ -135,15 +137,59 @@ async function stockWorkbook(empresas?: number[]): Promise<ExcelJS.Workbook> {
   return wb;
 }
 
+/** Hoja genérica: encabezado de reporte, fila de títulos, filas de datos y columnas numéricas con formato. */
+function addTableSheet(wb: ExcelJS.Workbook, name: string, headers: string[], widths: number[], rows: (string | number | null)[][], numCols: number[] = []) {
+  const ws = wb.addWorksheet(name);
+  addReportHeader(wb, ws);
+  ws.getRow(HEADER_ROW).values = headers;
+  styleBand(ws.getRow(HEADER_ROW), headers.length);
+  ws.columns = widths.map((width) => ({ width }));
+  for (const r of rows) ws.addRow(r);
+  for (const c of numCols) ws.getColumn(c).numFmt = NUM_FMT;
+  ws.views = [{ state: 'frozen', ySplit: HEADER_ROW }];
+}
+
+async function sinFacturarWorkbook(empresas?: number[]): Promise<ExcelJS.Workbook> {
+  const lineas = await getRecepcionesSinFacturarDetalle(empresas);
+  const wb = new ExcelJS.Workbook();
+  addTableSheet(
+    wb,
+    'Recepciones sin facturar',
+    ['Orden', 'Proveedor', 'ID producto', 'Nombre en pantalla', 'Fecha orden', 'Cantidad recibida', 'Cantidad facturada', 'Diferencia', 'Última recepción', 'Precio unitario', 'Moneda'],
+    [14, 34, 12, 38, 14, 18, 18, 14, 16, 16, 10],
+    lineas.map((l) => [l.orden, l.proveedor, l.productId, l.nombrePantalla, l.fechaOrden, l.recibida, l.facturada, l.diferencia, l.ultimaRecepcion, l.precioUnitario, l.moneda]),
+    [6, 7, 8, 10]
+  );
+  return wb;
+}
+
+async function desembolsosWorkbook(): Promise<ExcelJS.Workbook> {
+  const [fin, tc] = await Promise.all([getFinanzasMp(), getTipoCambio('USD')]);
+  const wb = new ExcelJS.Workbook();
+  addTableSheet(wb, 'Condiciones de pago', ['Proveedor', 'Condición de pago', 'Detalle'], [38, 34, 40],
+    Object.entries(fin.condPago).map(([proveedor, c]) => [proveedor, c.cond, c.resumen]));
+  addTableSheet(wb, 'Facturas abiertas', ['Proveedor', 'Número', 'Moneda', 'Total sin IVA', 'Total con IVA', 'Saldo pendiente', 'Vencimiento'], [34, 24, 10, 18, 18, 18, 14],
+    fin.facturas.map((f) => [f.proveedor, f.numero, f.moneda, f.neto, f.total, f.saldo, f.vencimiento ?? '']), [4, 5, 6]);
+  addTableSheet(wb, 'Pagos', ['Fecha', 'Moneda', 'Importe original', 'Importe ARS', 'Facturas que cancela'], [14, 10, 18, 18, 50],
+    fin.pagos.map((p) => [p.fecha, p.moneda, p.importeOriginal, p.importeArs, p.facturas]), [3, 4]);
+  addTableSheet(wb, 'Impuestos por factura', ['Proveedor', 'Número', 'Moneda', 'Neto', 'IVA', 'Percepciones', 'Total'], [34, 24, 10, 18, 18, 18, 18],
+    fin.impuestos.map((i) => [i.proveedor, i.numero, i.moneda, i.neto, i.iva, i.percepciones, i.total]), [4, 5, 6, 7]);
+  addTableSheet(wb, 'Gastos de importación', ['Fecha', 'Concepto', 'Importe ARS'], [14, 44, 18],
+    fin.gastos.map((g) => [g.fecha, g.tipo, g.importeArs]), [3]);
+  addTableSheet(wb, 'Tipo de cambio', ['Moneda', 'Fecha de cotización', 'Pesos por unidad', 'Fecha de exportación'], [10, 20, 18, 20],
+    [['USD', tc?.fecha ?? '', tc?.pesos ?? null, new Date().toISOString().slice(0, 10)]], [3]);
+  return wb;
+}
+
 const querySchema = z.object({
-  tipo: z.enum(['gasto', 'stock', 'oc']),
+  tipo: z.enum(['gasto', 'stock', 'oc', 'sin-facturar', 'desembolsos']),
   empresas: z
     .string()
     .optional()
     .transform((v) => (v ? v.split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0) : undefined)),
 });
 
-// GET /api/rotacion-gasto-export?tipo=gasto|stock|oc&empresas=1,2 — Excel de detalle por producto, con ID y nombre en pantalla.
+// GET /api/rotacion-gasto-export?tipo=gasto|stock|oc|sin-facturar|desembolsos&empresas=1,2 — Excel de detalle por producto, con ID y nombre en pantalla.
 export const GET: APIRoute = async ({ url, locals }) => {
   if (!locals.usuario?.areasPermitidas.includes('finanzas')) {
     return jsonResponse({ ok: false, error: 'No autorizado' }, { status: 403 });
@@ -152,13 +198,18 @@ export const GET: APIRoute = async ({ url, locals }) => {
     const parsed = querySchema.safeParse(Object.fromEntries(url.searchParams.entries()));
     if (!parsed.success) throw new ApiValidationError(parsed.error.issues.map((i) => i.message).join('; '));
     const { tipo, empresas } = parsed.data;
-    const wb = tipo === 'gasto' ? await gastoWorkbook(empresas) : tipo === 'oc' ? await ocPendientesWorkbook(empresas) : await stockWorkbook(empresas);
+    const wb =
+      tipo === 'gasto' ? await gastoWorkbook(empresas)
+      : tipo === 'oc' ? await ocPendientesWorkbook(empresas)
+      : tipo === 'sin-facturar' ? await sinFacturarWorkbook(empresas)
+      : tipo === 'desembolsos' ? await desembolsosWorkbook()
+      : await stockWorkbook(empresas);
     const buffer = await wb.xlsx.writeBuffer();
     return new Response(buffer, {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="${{ gasto: 'gasto_real_mp', stock: 'stock_fin_de_mes', oc: 'oc_pendientes_mp' }[tipo]}.xlsx"`,
+        'Content-Disposition': `attachment; filename="${{ gasto: 'gasto_real_mp', stock: 'stock_fin_de_mes', oc: 'oc_pendientes_mp', 'sin-facturar': 'recepciones_sin_facturar_mp', desembolsos: 'desembolsos_mp' }[tipo]}.xlsx"`,
         'Cache-Control': 'no-store',
       },
     });

@@ -258,6 +258,77 @@ export async function getOcPendientes(empresaIds?: number[]): Promise<OcPendient
   });
 }
 
+export interface RecepcionSinFacturarLinea {
+  orden: string;
+  proveedor: string;
+  productId: number;
+  nombrePantalla: string;
+  fechaOrden: string;
+  /** Cantidades en la unidad de compra de la línea. */
+  recibida: number;
+  facturada: number;
+  diferencia: number;
+  ultimaRecepcion: string;
+  precioUnitario: number;
+  moneda: string;
+}
+
+/**
+ * Líneas de OC confirmadas de Materia Prima con más cantidad recibida que facturada. Sin límite de antigüedad:
+ * las facturas viejas cargadas sin vincular a la OC dejan `qty_invoiced` en 0, por eso va la fecha de la orden para filtrar.
+ */
+export async function getRecepcionesSinFacturarDetalle(empresaIds?: number[]): Promise<RecepcionSinFacturarLinea[]> {
+  const { seleccion } = await resolverEmpresas(empresaIds);
+  return withTtlCache(`rotacion-gasto-detalle:sin-facturar:${seleccion.join(',')}`, CACHE_TTL_MS, async () => {
+    type Line = {
+      id: number;
+      product_id: [number, string];
+      order_id: [number, string];
+      partner_id: [number, string] | false;
+      qty_received: number;
+      qty_invoiced: number;
+      price_unit: number;
+      currency_id: [number, string] | false;
+    };
+    const [lines, productos] = await Promise.all([
+      searchReadAll<Line>({
+        model: 'purchase.order.line',
+        domain: [['order_id.state', 'in', ['purchase', 'done']], ['order_id.company_id', 'in', seleccion], ['display_type', '=', false], ...MP_DOMAIN],
+        fields: ['product_id', 'order_id', 'partner_id', 'qty_received', 'qty_invoiced', 'price_unit', 'currency_id'],
+        order: 'order_id asc, id asc',
+      }),
+      getProductos(true),
+    ]);
+    const sinFacturar = lines.filter((l) => l.qty_received - l.qty_invoiced > 1e-6);
+    const orderIds = [...new Set(sinFacturar.map((l) => l.order_id[0]))];
+    const orders = orderIds.length
+      ? await searchReadAll<{ id: number; date_approve: string | false; date_order: string | false }>({
+          model: 'purchase.order',
+          domain: [['id', 'in', orderIds]],
+          fields: ['date_approve', 'date_order'],
+        })
+      : [];
+    const orderById = new Map(orders.map((o) => [o.id, o]));
+    const recepciones = await getRecepcionesPorLinea(sinFacturar.map((l) => l.id));
+    return sinFacturar.map((l) => {
+      const o = orderById.get(l.order_id[0]);
+      return {
+        orden: l.order_id[1],
+        proveedor: l.partner_id ? l.partner_id[1].trim() : '',
+        productId: l.product_id[0],
+        nombrePantalla: productos.get(l.product_id[0])?.display_name ?? l.product_id[1],
+        fechaOrden: String((o && (o.date_approve || o.date_order)) || '').slice(0, 10),
+        recibida: l.qty_received,
+        facturada: l.qty_invoiced,
+        diferencia: l.qty_received - l.qty_invoiced,
+        ultimaRecepcion: recepciones.get(l.id)?.ultima ?? '',
+        precioUnitario: l.price_unit,
+        moneda: l.currency_id ? l.currency_id[1] : '',
+      };
+    });
+  });
+}
+
 interface RecepcionLinea {
   ultima: string;
   programada: string;
