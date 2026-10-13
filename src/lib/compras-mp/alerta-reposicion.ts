@@ -6,6 +6,7 @@ import { searchReadAll } from '../odoo/client';
 export interface FilaAlerta {
   reglaId: number;
   sku: string;
+  ubicacion: string;
   disponible: number;
   pronostico: number;
   min: number;
@@ -22,7 +23,6 @@ export interface FilaAlerta {
 }
 
 export interface ResultadoAlerta {
-  ubicacion: string;
   filas: FilaAlerta[];
   totalReglas: number;
   leidoEn: string;
@@ -31,6 +31,7 @@ export interface ResultadoAlerta {
 type ReglaOdoo = {
   id: number;
   product_id: [number, string];
+  location_id: [number, string];
   product_min_qty: number;
   product_max_qty: number;
   qty_multiple: number;
@@ -43,11 +44,11 @@ type ReglaOdoo = {
 
 const redondear = (v: number) => Math.round(v * 100) / 100;
 
-export async function construirAlertaReposicion(ubicacion: string): Promise<ResultadoAlerta> {
+export async function construirAlertaReposicion(): Promise<ResultadoAlerta> {
   const reglas = await searchReadAll<ReglaOdoo>({
     model: 'stock.warehouse.orderpoint',
-    domain: [['location_id.complete_name', '=', ubicacion], ['active', '=', true]],
-    fields: ['product_id', 'product_min_qty', 'product_max_qty', 'qty_multiple', 'trigger', 'qty_on_hand', 'qty_forecast', 'qty_to_order', 'product_uom'],
+    domain: [['active', '=', true], ['product_min_qty', '>', 0]],
+    fields: ['product_id', 'location_id', 'product_min_qty', 'product_max_qty', 'qty_multiple', 'trigger', 'qty_on_hand', 'qty_forecast', 'qty_to_order', 'product_uom'],
   });
   // qty_forecast no se puede filtrar en el dominio (no está almacenado): se filtra acá.
   const bajoMinimo = reglas.filter((r) => r.qty_forecast < r.product_min_qty);
@@ -69,6 +70,7 @@ export async function construirAlertaReposicion(ubicacion: string): Promise<Resu
       return {
         reglaId: r.id,
         sku: r.product_id[1],
+        ubicacion: r.location_id[1],
         disponible: redondear(r.qty_on_hand),
         pronostico: redondear(r.qty_forecast),
         min: r.product_min_qty,
@@ -83,5 +85,5 @@ export async function construirAlertaReposicion(ubicacion: string): Promise<Resu
     })
     .sort((a, b) => a.pronostico / (a.min || 1) - b.pronostico / (b.min || 1));
 
-  return { ubicacion, filas, totalReglas: reglas.length, leidoEn: new Date().toISOString() };
+  return { filas, totalReglas: reglas.length, leidoEn: new Date().toISOString() };
 }

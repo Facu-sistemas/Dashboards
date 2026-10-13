@@ -73,6 +73,7 @@ export const AREAS: AreaConfig[] = [
       { slug: 'compras-mp', name: 'Compras MP' },
       { slug: 'facturacion', name: 'Facturación' },
       { slug: 'consumo-mp', name: 'Consumo MP vs Stock' },
+      { slug: 'alerta-reposicion', name: 'Alerta de reposición' },
       { slug: 'rotacion-gasto', name: 'Descargas' },
     ],
   },

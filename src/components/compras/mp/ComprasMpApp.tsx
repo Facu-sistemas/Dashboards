@@ -4,7 +4,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import QueryProvider from '../../QueryProvider';
 import { useApiQuery } from '../../dashboard/useApiQuery';
 import type { CorridaGuardada } from '../../../lib/compras-mp/corrida';
-import AlertaReposicion from './AlertaReposicion';
 import BandaControles from './BandaControles';
 import Evolucion from './Evolucion';
 import FichaSku from './FichaSku';
@@ -18,7 +17,7 @@ import Seguimiento from './Seguimiento';
 import { postJson } from './acciones';
 import { Segmentos, fechaHora, fechaCorta } from './ui';
 
-type Pantalla = 'rendicion' | 'evolucion' | 'presupuesto' | 'inventario' | 'sku' | 'seguimiento' | 'oc' | 'reposicion' | 'alerta' | 'parametros';
+type Pantalla = 'rendicion' | 'evolucion' | 'presupuesto' | 'inventario' | 'sku' | 'seguimiento' | 'oc' | 'reposicion' | 'parametros';
 const PANTALLAS: { valor: Pantalla; texto: string; soloCompras?: boolean }[] = [
   { valor: 'rendicion', texto: 'Rendición de cuentas' },
   { valor: 'evolucion', texto: 'Evolución' },
@@ -27,7 +26,6 @@ const PANTALLAS: { valor: Pantalla; texto: string; soloCompras?: boolean }[] = [
   { valor: 'sku', texto: 'Ficha SKU' },
   { valor: 'seguimiento', texto: 'Seguimiento' },
   { valor: 'oc', texto: 'OC vencidas' },
-  { valor: 'alerta', texto: 'Alerta de reposición' },
   { valor: 'reposicion', texto: 'Reglas de reabastecimiento' },
   { valor: 'parametros', texto: 'Parámetros', soloCompras: true },
 ];
@@ -122,7 +120,6 @@ function Inner() {
       {pantalla === 'sku' && <FichaSku clave={clave} onElegir={setClave} />}
       {pantalla === 'seguimiento' && <Seguimiento onSku={verSku} />}
       {pantalla === 'oc' && <OcVencidas onSku={verSku} puedeEditar={puedeEditar} />}
-      {pantalla === 'alerta' && <AlertaReposicion />}
       {pantalla === 'reposicion' && <Reposicion />}
       {pantalla === 'parametros' && puedeEditar && <Parametros />}
     </div>
