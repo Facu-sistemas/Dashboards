@@ -285,6 +285,10 @@ export interface RecepcionSinFacturarLinea {
   /** diferencia × precio unitario, en la moneda de la OC. */
   importePendiente: number;
   condicionPago: string;
+  /** `product_qty` de la línea, en la unidad de compra. */
+  pedida: number;
+  /** Lo recibido supera 1,5 veces lo pedido: probable unidad de compra mal cargada en la OC (p. ej. conos cargados como metros). */
+  revisarUnidad: boolean;
 }
 
 /**
@@ -299,6 +303,7 @@ export async function getRecepcionesSinFacturarDetalle(empresaIds?: number[]): P
       product_id: [number, string];
       order_id: [number, string];
       partner_id: [number, string] | false;
+      product_qty: number;
       qty_received: number;
       qty_invoiced: number;
       price_unit: number;
@@ -309,7 +314,7 @@ export async function getRecepcionesSinFacturarDetalle(empresaIds?: number[]): P
       searchReadAll<Line>({
         model: 'purchase.order.line',
         domain: [['order_id.state', 'in', ['purchase', 'done']], ['order_id.company_id', 'in', seleccion], ['display_type', '=', false], ...MP_DOMAIN],
-        fields: ['product_id', 'order_id', 'partner_id', 'qty_received', 'qty_invoiced', 'price_unit', 'product_uom', 'currency_id'],
+        fields: ['product_id', 'order_id', 'partner_id', 'product_qty', 'qty_received', 'qty_invoiced', 'price_unit', 'product_uom', 'currency_id'],
         order: 'order_id asc, id asc',
       }),
       getProductos(true),
@@ -342,6 +347,8 @@ export async function getRecepcionesSinFacturarDetalle(empresaIds?: number[]): P
         unidadCompra: l.product_uom[1],
         importePendiente: (l.qty_received - l.qty_invoiced) * l.price_unit,
         condicionPago: o?.payment_term_id ? o.payment_term_id[1] : '',
+        pedida: l.product_qty,
+        revisarUnidad: l.qty_received > 1.5 * l.product_qty,
       };
     });
   });
