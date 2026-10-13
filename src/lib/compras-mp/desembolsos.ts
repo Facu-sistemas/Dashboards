@@ -43,6 +43,11 @@ export interface GastoImportacion {
   fecha: string;
   tipo: string;
   importeArs: number;
+  /** Número de la factura (asiento). Las corridas guardadas antes de agregarlo no lo traen. */
+  comprobante?: string;
+  proveedor?: string;
+  /** OC o carpeta de despacho tal como figura en la factura (origen o referencia). */
+  referenciaImportacion?: string;
 }
 /** Condición por defecto cuando el proveedor no tiene una cargada. */
 export interface CondDefault {

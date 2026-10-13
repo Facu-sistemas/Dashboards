@@ -176,8 +176,8 @@ async function desembolsosWorkbook(): Promise<ExcelJS.Workbook> {
     fin.pagos.map((p) => [p.proveedor ?? '', p.fecha, p.moneda, p.importeOriginal, p.importeArs, p.facturas]), [4, 5]);
   addTableSheet(wb, 'Impuestos por factura', ['Proveedor', 'Número', 'Moneda', 'Neto', 'IVA', 'Percepciones', 'Total'], [34, 24, 10, 18, 18, 18, 18],
     fin.impuestos.map((i) => [i.proveedor, i.numero, i.moneda, i.neto, i.iva, i.percepciones, i.total]), [4, 5, 6, 7]);
-  addTableSheet(wb, 'Gastos de importación', ['Fecha', 'Concepto', 'Importe ARS'], [14, 44, 18],
-    fin.gastos.map((g) => [g.fecha, g.tipo, g.importeArs]), [3]);
+  addTableSheet(wb, 'Gastos de importación', ['Fecha', 'Concepto', 'Importe ARS', 'Referencia de importación', 'Comprobante', 'Proveedor'], [14, 44, 18, 28, 26, 34],
+    fin.gastos.map((g) => [g.fecha, g.tipo, g.importeArs, g.referenciaImportacion ?? '', g.comprobante ?? '', g.proveedor ?? '']), [3]);
   addTableSheet(wb, 'Tipo de cambio', ['Moneda', 'Fecha de cotización', 'Pesos por unidad', 'Fecha de exportación'], [10, 20, 18, 20],
     [['USD', tc?.fecha ?? '', tc?.pesos ?? null, new Date().toISOString().slice(0, 10)]], [3]);
   return wb;

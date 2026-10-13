@@ -156,16 +156,19 @@ export async function getFinanzasMp(desde = `${new Date().getFullYear()}-01-01`)
   });
 
   // --- 6. gastos de importación desde `desde`
-  type GLine = { date: string; account_id: [number, string]; balance: number };
+  type GLine = { date: string; account_id: [number, string]; balance: number; move_id: [number, string]; partner_id: [number, string] | false };
   const gLines = await searchReadAll<GLine>({
     model: 'account.move.line',
     domain: [['move_id.move_type', 'in', ['in_invoice', 'in_refund']], ['move_id.state', '=', 'posted'], ['company_id', '=', companyId], ['date', '>=', desde],
       ['display_type', '=', 'product'], ['account_id.code', 'in', Object.keys(CUENTAS_IMPORTACION)]],
-    fields: ['date', 'account_id', 'balance'],
+    fields: ['date', 'account_id', 'balance', 'move_id', 'partner_id'],
     order: 'date asc, id asc',
   });
+  const facGastos = await leerPorIds<{ id: number; invoice_origin: string | false; ref: string | false }>('account.move', [...new Set(gLines.map((l) => l.move_id[0]))], ['invoice_origin', 'ref']);
+  const refGasto = new Map(facGastos.map((m) => [m.id, (m.invoice_origin || m.ref || '').trim()]));
   const gastos: GastoImportacion[] = gLines.map((l) => ({
     fecha: l.date, tipo: CUENTAS_IMPORTACION[l.account_id[1].split(' ')[0] ?? ''] ?? '', importeArs: l.balance,
+    comprobante: l.move_id[1], proveedor: l.partner_id ? l.partner_id[1].trim() : '', referenciaImportacion: refGasto.get(l.move_id[0]) ?? '',
   }));
 
   return { condPago, facturas, pagos, impuestos, gastos };
