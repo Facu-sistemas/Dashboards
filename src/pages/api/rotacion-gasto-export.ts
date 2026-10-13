@@ -157,9 +157,9 @@ async function sinFacturarWorkbook(empresas?: number[]): Promise<ExcelJS.Workboo
   addTableSheet(
     wb,
     'Recepciones sin facturar',
-    ['Orden', 'Proveedor', 'ID producto', 'Nombre en pantalla', 'Fecha orden', 'Cantidad recibida', 'Cantidad facturada', 'Diferencia', 'Última recepción', 'Precio unitario', 'Moneda', 'Unidad de compra', 'Importe pendiente'],
-    [14, 34, 12, 38, 14, 18, 18, 14, 16, 16, 10, 16, 18],
-    lineas.map((l) => [l.orden, l.proveedor, l.productId, l.nombrePantalla, l.fechaOrden, l.recibida, l.facturada, l.diferencia, l.ultimaRecepcion, l.precioUnitario, l.moneda, l.unidadCompra, l.importePendiente]),
+    ['Orden', 'Proveedor', 'ID producto', 'Nombre en pantalla', 'Fecha orden', 'Cantidad recibida', 'Cantidad facturada', 'Diferencia', 'Última recepción', 'Precio unitario', 'Moneda', 'Unidad de compra', 'Importe pendiente', 'Condición de pago'],
+    [14, 34, 12, 38, 14, 18, 18, 14, 16, 16, 10, 16, 18, 28],
+    lineas.map((l) => [l.orden, l.proveedor, l.productId, l.nombrePantalla, l.fechaOrden, l.recibida, l.facturada, l.diferencia, l.ultimaRecepcion, l.precioUnitario, l.moneda, l.unidadCompra, l.importePendiente, l.condicionPago]),
     [6, 7, 8, 10, 13]
   );
   return wb;

@@ -284,6 +284,7 @@ export interface RecepcionSinFacturarLinea {
   unidadCompra: string;
   /** diferencia × precio unitario, en la moneda de la OC. */
   importePendiente: number;
+  condicionPago: string;
 }
 
 /**
@@ -316,10 +317,10 @@ export async function getRecepcionesSinFacturarDetalle(empresaIds?: number[]): P
     const sinFacturar = lines.filter((l) => l.qty_received - l.qty_invoiced > 1e-6);
     const orderIds = [...new Set(sinFacturar.map((l) => l.order_id[0]))];
     const orders = orderIds.length
-      ? await searchReadAll<{ id: number; date_approve: string | false; date_order: string | false }>({
+      ? await searchReadAll<{ id: number; date_approve: string | false; date_order: string | false; payment_term_id: [number, string] | false }>({
           model: 'purchase.order',
           domain: [['id', 'in', orderIds]],
-          fields: ['date_approve', 'date_order'],
+          fields: ['date_approve', 'date_order', 'payment_term_id'],
         })
       : [];
     const orderById = new Map(orders.map((o) => [o.id, o]));
@@ -340,6 +341,7 @@ export async function getRecepcionesSinFacturarDetalle(empresaIds?: number[]): P
         moneda: l.currency_id ? l.currency_id[1] : '',
         unidadCompra: l.product_uom[1],
         importePendiente: (l.qty_received - l.qty_invoiced) * l.price_unit,
+        condicionPago: o?.payment_term_id ? o.payment_term_id[1] : '',
       };
     });
   });
