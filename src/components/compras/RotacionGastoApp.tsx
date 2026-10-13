@@ -460,9 +460,6 @@ function Inner() {
         <a href="/api/rotacion-gasto-export?tipo=desembolsos" className="rounded-md border border-slate-700 px-3 py-1.5 hover:bg-slate-800">
           Descargar desembolsos (condiciones de pago, facturas, pagos, impuestos, gastos de importación y tipo de cambio)
         </a>
-        <a href="/api/rotacion-gasto-export?tipo=alerta-reposicion" className="rounded-md border border-slate-700 px-3 py-1.5 hover:bg-slate-800">
-          Descargar alerta de reposición (insumos bajo el mínimo y cantidad a pedir)
-        </a>
       </div>
     </div>
   );

@@ -20,6 +20,8 @@ export interface FacturaAbierta {
   vencimiento: string | null;
 }
 export interface Pago {
+  /** Proveedor del pago (las corridas guardadas antes de agregarlo no lo traen). */
+  proveedor?: string;
   /** AAAA-MM-DD */
   fecha: string;
   moneda: string;

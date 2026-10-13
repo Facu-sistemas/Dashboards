@@ -59,6 +59,12 @@ export interface OcPendienteLinea {
   /** `scheduled_date` (fecha AR) del remito de entrada todavía abierto de la línea. */
   recepcionProgramada: string;
   remitoAbierto: string;
+  unidadCompra: string;
+  unidadProducto: string;
+  /** Cuántas unidades del producto hay en 1 unidad de compra. */
+  factorUnidad: number;
+  /** `precioUnitario` expresado por unidad del producto. */
+  precioUnitarioProducto: number;
 }
 
 export interface StockProductoRow {
@@ -253,6 +259,10 @@ export async function getOcPendientes(empresaIds?: number[]): Promise<OcPendient
         ultimaRecepcion: rec?.ultima ?? '',
         recepcionProgramada: rec?.programada ?? '',
         remitoAbierto: rec?.remito ?? '',
+        unidadCompra: l.product_uom[1],
+        unidadProducto: p?.uom_id[1] ?? '',
+        factorUnidad: conv(1),
+        precioUnitarioProducto: conv(1) > 0 ? l.price_unit / conv(1) : l.price_unit,
       };
     });
   });
@@ -271,6 +281,9 @@ export interface RecepcionSinFacturarLinea {
   ultimaRecepcion: string;
   precioUnitario: number;
   moneda: string;
+  unidadCompra: string;
+  /** diferencia × precio unitario, en la moneda de la OC. */
+  importePendiente: number;
 }
 
 /**
@@ -288,13 +301,14 @@ export async function getRecepcionesSinFacturarDetalle(empresaIds?: number[]): P
       qty_received: number;
       qty_invoiced: number;
       price_unit: number;
+      product_uom: [number, string];
       currency_id: [number, string] | false;
     };
     const [lines, productos] = await Promise.all([
       searchReadAll<Line>({
         model: 'purchase.order.line',
         domain: [['order_id.state', 'in', ['purchase', 'done']], ['order_id.company_id', 'in', seleccion], ['display_type', '=', false], ...MP_DOMAIN],
-        fields: ['product_id', 'order_id', 'partner_id', 'qty_received', 'qty_invoiced', 'price_unit', 'currency_id'],
+        fields: ['product_id', 'order_id', 'partner_id', 'qty_received', 'qty_invoiced', 'price_unit', 'product_uom', 'currency_id'],
         order: 'order_id asc, id asc',
       }),
       getProductos(true),
@@ -324,6 +338,8 @@ export async function getRecepcionesSinFacturarDetalle(empresaIds?: number[]): P
         ultimaRecepcion: recepciones.get(l.id)?.ultima ?? '',
         precioUnitario: l.price_unit,
         moneda: l.currency_id ? l.currency_id[1] : '',
+        unidadCompra: l.product_uom[1],
+        importePendiente: (l.qty_received - l.qty_invoiced) * l.price_unit,
       };
     });
   });

@@ -7,7 +7,6 @@ import { getTipoCambio } from '../../lib/compras-mp/odoo/otros';
 import { ApiValidationError, jsonResponse } from '../../lib/api-helpers';
 import { OdooError } from '../../lib/odoo/types';
 import { LOGO_GRIS_PNG_BASE64 } from '../../lib/logos';
-import { construirAlertaReposicion } from '../../lib/compras-mp/alerta-reposicion';
 
 export const prerender = false;
 
@@ -81,15 +80,17 @@ async function ocPendientesWorkbook(empresas?: number[]): Promise<ExcelJS.Workbo
   addReportHeader(wb, ws);
   const headers = ['ID producto', 'Nombre en pantalla', 'Categoría', 'Orden', 'Proveedor', 'Fecha orden', 'Fecha prevista entrega', 'Cantidad pedida (u producto)', 'Cantidad recibida (u producto)', 'Cantidad pendiente (u producto)', 'Precio unitario', 'Moneda',
     // Columnas nuevas, al final para no mover las que el libro ya lee.
-    'Condición de pago OC', 'Pagado s/ facturas de la OC', 'Pagos del proveedor sin imputar (misma moneda)', 'Última recepción', 'Recepción pendiente programada', 'Remito abierto'];
+    'Condición de pago OC', 'Pagado s/ facturas de la OC', 'Pagos del proveedor sin imputar (misma moneda)', 'Última recepción', 'Recepción pendiente programada', 'Remito abierto',
+    'Unidad de compra', 'Unidad del producto', 'Factor de conversión (1 u compra = X u producto)', 'Precio unitario (por u producto)'];
   ws.getRow(HEADER_ROW).values = headers;
   styleBand(ws.getRow(HEADER_ROW), headers.length);
-  ws.columns = [12, 38, 30, 14, 34, 14, 20, 20, 20, 20, 16, 10, 28, 20, 24, 16, 20, 18].map((width) => ({ width }));
+  ws.columns = [12, 38, 30, 14, 34, 14, 20, 20, 20, 20, 16, 10, 28, 20, 24, 16, 20, 18, 16, 16, 24, 20].map((width) => ({ width }));
   for (const l of lineas) {
     ws.addRow([l.productId, l.nombrePantalla, l.categoria, l.orden, l.proveedor, l.fechaOrden, l.fechaPrevista, l.pedida, l.recibida, l.pendiente, l.precioUnitario, l.moneda,
-      l.condicionPago, l.pagadoFacturas, l.pagosSinImputar || '', l.ultimaRecepcion, l.recepcionProgramada, l.remitoAbierto]);
+      l.condicionPago, l.pagadoFacturas, l.pagosSinImputar || '', l.ultimaRecepcion, l.recepcionProgramada, l.remitoAbierto,
+      l.unidadCompra, l.unidadProducto, l.factorUnidad, l.precioUnitarioProducto]);
   }
-  for (const c of [8, 9, 10, 11, 14, 15]) ws.getColumn(c).numFmt = NUM_FMT;
+  for (const c of [8, 9, 10, 11, 14, 15, 21, 22]) ws.getColumn(c).numFmt = NUM_FMT;
   if (lineas.length > 0) addTotalRow(ws, headers.length, 1, [8, 9, 10], HEADER_ROW + 1, HEADER_ROW + lineas.length);
   ws.views = [{ state: 'frozen', ySplit: HEADER_ROW }];
   return wb;
@@ -156,10 +157,10 @@ async function sinFacturarWorkbook(empresas?: number[]): Promise<ExcelJS.Workboo
   addTableSheet(
     wb,
     'Recepciones sin facturar',
-    ['Orden', 'Proveedor', 'ID producto', 'Nombre en pantalla', 'Fecha orden', 'Cantidad recibida', 'Cantidad facturada', 'Diferencia', 'Última recepción', 'Precio unitario', 'Moneda'],
-    [14, 34, 12, 38, 14, 18, 18, 14, 16, 16, 10],
-    lineas.map((l) => [l.orden, l.proveedor, l.productId, l.nombrePantalla, l.fechaOrden, l.recibida, l.facturada, l.diferencia, l.ultimaRecepcion, l.precioUnitario, l.moneda]),
-    [6, 7, 8, 10]
+    ['Orden', 'Proveedor', 'ID producto', 'Nombre en pantalla', 'Fecha orden', 'Cantidad recibida', 'Cantidad facturada', 'Diferencia', 'Última recepción', 'Precio unitario', 'Moneda', 'Unidad de compra', 'Importe pendiente'],
+    [14, 34, 12, 38, 14, 18, 18, 14, 16, 16, 10, 16, 18],
+    lineas.map((l) => [l.orden, l.proveedor, l.productId, l.nombrePantalla, l.fechaOrden, l.recibida, l.facturada, l.diferencia, l.ultimaRecepcion, l.precioUnitario, l.moneda, l.unidadCompra, l.importePendiente]),
+    [6, 7, 8, 10, 13]
   );
   return wb;
 }
@@ -171,8 +172,8 @@ async function desembolsosWorkbook(): Promise<ExcelJS.Workbook> {
     Object.entries(fin.condPago).map(([proveedor, c]) => [proveedor, c.cond, c.resumen]));
   addTableSheet(wb, 'Facturas abiertas', ['Proveedor', 'Número', 'Moneda', 'Total sin IVA', 'Total con IVA', 'Saldo pendiente', 'Vencimiento'], [34, 24, 10, 18, 18, 18, 14],
     fin.facturas.map((f) => [f.proveedor, f.numero, f.moneda, f.neto, f.total, f.saldo, f.vencimiento ?? '']), [4, 5, 6]);
-  addTableSheet(wb, 'Pagos', ['Fecha', 'Moneda', 'Importe original', 'Importe ARS', 'Facturas que cancela'], [14, 10, 18, 18, 50],
-    fin.pagos.map((p) => [p.fecha, p.moneda, p.importeOriginal, p.importeArs, p.facturas]), [3, 4]);
+  addTableSheet(wb, 'Pagos', ['Proveedor', 'Fecha', 'Moneda', 'Importe original', 'Importe ARS', 'Facturas que cancela'], [34, 14, 10, 18, 18, 50],
+    fin.pagos.map((p) => [p.proveedor ?? '', p.fecha, p.moneda, p.importeOriginal, p.importeArs, p.facturas]), [4, 5]);
   addTableSheet(wb, 'Impuestos por factura', ['Proveedor', 'Número', 'Moneda', 'Neto', 'IVA', 'Percepciones', 'Total'], [34, 24, 10, 18, 18, 18, 18],
     fin.impuestos.map((i) => [i.proveedor, i.numero, i.moneda, i.neto, i.iva, i.percepciones, i.total]), [4, 5, 6, 7]);
   addTableSheet(wb, 'Gastos de importación', ['Fecha', 'Concepto', 'Importe ARS'], [14, 44, 18],
@@ -182,30 +183,15 @@ async function desembolsosWorkbook(): Promise<ExcelJS.Workbook> {
   return wb;
 }
 
-async function alertaReposicionWorkbook(): Promise<ExcelJS.Workbook> {
-  const { filas } = await construirAlertaReposicion();
-  const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet('Alerta de reposición');
-  addReportHeader(wb, ws);
-  const headers = ['Insumo', 'Ubicación', 'Unidad', 'Disponible', 'Pronóstico', 'Mínimo', 'Máximo', 'A pedir (máx − pronóstico)', 'A pedir según Odoo', 'En RFQ (sin confirmar)', 'Disparador'];
-  ws.getRow(HEADER_ROW).values = headers;
-  styleBand(ws.getRow(HEADER_ROW), headers.length);
-  ws.columns = [44, 18, 10, 14, 14, 12, 12, 24, 20, 22, 14].map((width) => ({ width }));
-  for (const f of filas) ws.addRow([f.sku, f.ubicacion, f.unidad, f.disponible, f.pronostico, f.min, f.max, f.aPedir, f.aPedirOdoo, f.enRfq, f.trigger === 'manual' ? 'Manual' : 'Automático']);
-  for (const c of [4, 5, 6, 7, 8, 9, 10]) ws.getColumn(c).numFmt = NUM_FMT;
-  ws.views = [{ state: 'frozen', ySplit: HEADER_ROW }];
-  return wb;
-}
-
 const querySchema = z.object({
-  tipo: z.enum(['gasto', 'stock', 'oc', 'sin-facturar', 'desembolsos', 'alerta-reposicion']),
+  tipo: z.enum(['gasto', 'stock', 'oc', 'sin-facturar', 'desembolsos']),
   empresas: z
     .string()
     .optional()
     .transform((v) => (v ? v.split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0) : undefined)),
 });
 
-// GET /api/rotacion-gasto-export?tipo=gasto|stock|oc|sin-facturar|desembolsos|alerta-reposicion&empresas=1,2 — Excel de detalle por producto, con ID y nombre en pantalla.
+// GET /api/rotacion-gasto-export?tipo=gasto|stock|oc|sin-facturar|desembolsos&empresas=1,2 — Excel de detalle por producto, con ID y nombre en pantalla.
 export const GET: APIRoute = async ({ url, locals }) => {
   if (!locals.usuario?.areasPermitidas.includes('finanzas')) {
     return jsonResponse({ ok: false, error: 'No autorizado' }, { status: 403 });
@@ -219,14 +205,13 @@ export const GET: APIRoute = async ({ url, locals }) => {
       : tipo === 'oc' ? await ocPendientesWorkbook(empresas)
       : tipo === 'sin-facturar' ? await sinFacturarWorkbook(empresas)
       : tipo === 'desembolsos' ? await desembolsosWorkbook()
-      : tipo === 'alerta-reposicion' ? await alertaReposicionWorkbook()
       : await stockWorkbook(empresas);
     const buffer = await wb.xlsx.writeBuffer();
     return new Response(buffer, {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="${{ gasto: 'gasto_real_mp', stock: 'stock_fin_de_mes', oc: 'oc_pendientes_mp', 'sin-facturar': 'recepciones_sin_facturar_mp', desembolsos: 'desembolsos_mp', 'alerta-reposicion': 'alerta_reposicion_mp' }[tipo]}.xlsx"`,
+        'Content-Disposition': `attachment; filename="${{ gasto: 'gasto_real_mp', stock: 'stock_fin_de_mes', oc: 'oc_pendientes_mp', 'sin-facturar': 'recepciones_sin_facturar_mp', desembolsos: 'desembolsos_mp' }[tipo]}.xlsx"`,
         'Cache-Control': 'no-store',
       },
     });

@@ -109,18 +109,19 @@ export async function getFinanzasMp(desde = `${new Date().getFullYear()}-01-01`)
   }
 
   // --- 3. pagos a proveedores desde `desde`
-  type Payment = { id: number; date: string; amount: number; currency_id: [number, string]; amount_company_currency_signed: number; reconciled_bill_ids: number[] };
+  type Payment = { id: number; partner_id: [number, string] | false; date: string; amount: number; currency_id: [number, string]; amount_company_currency_signed: number; reconciled_bill_ids: number[] };
   const pagosRaw = await searchReadAll<Payment>({
     model: 'account.payment',
     domain: [['company_id', '=', companyId], ['payment_type', '=', 'outbound'], ['partner_type', '=', 'supplier'], ['state', 'in', ['posted', 'paid']],
       ['date', '>=', desde], ['partner_id', 'in', [...new Set([...commercialIds, ...partnerIds])]]],
-    fields: ['date', 'amount', 'currency_id', 'amount_company_currency_signed', 'reconciled_bill_ids'],
+    fields: ['partner_id', 'date', 'amount', 'currency_id', 'amount_company_currency_signed', 'reconciled_bill_ids'],
     order: 'date asc, id asc',
   });
   const billIds = [...new Set(pagosRaw.flatMap((p) => p.reconciled_bill_ids))];
   const bills = await leerPorIds<{ id: number; name: string }>('account.move', billIds, ['name']);
   const billName = new Map(bills.map((b) => [b.id, b.name]));
   const pagos: Pago[] = pagosRaw.map((p) => ({
+    proveedor: p.partner_id ? p.partner_id[1].trim() : '',
     fecha: p.date, moneda: nm(p.currency_id), importeOriginal: p.amount, importeArs: Math.abs(p.amount_company_currency_signed),
     facturas: p.reconciled_bill_ids.map((i) => billName.get(i)).filter(Boolean).join(', '),
   }));
