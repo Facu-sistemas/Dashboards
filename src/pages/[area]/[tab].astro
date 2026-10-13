@@ -39,6 +39,7 @@ import CostoDevolucionesTab from '../../components/calidad/CostoDevolucionesTab.
 import CreditoChequesTab from '../../components/mejora-continua/CreditoChequesTab.astro';
 import DistribucionChequesTab from '../../components/mejora-continua/DistribucionChequesTab.astro';
 import ComprasMpTab from '../../components/compras/mp/ComprasMpTab.astro';
+import AlertaReposicionTab from '../../components/compras/mp/AlertaReposicionTab.astro';
 import { getArea } from '../../lib/areas.config';
 
 export const prerender = false;
@@ -52,6 +53,7 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
 
 <AreaLayout areaSlug={area.slug} tabSlug={tabSlug!}>
   {area.slug === 'finanzas' && tabSlug === 'rotacion-gasto' && <RotacionGastoTab />}
+  {area.slug === 'finanzas' && tabSlug === 'alerta-reposicion' && <AlertaReposicionTab />}
   {area.slug === 'finanzas' && tabSlug === 'compras-mp' && <ComprasMpTab />}
   {area.slug === 'finanzas' && tabSlug === 'facturacion' && <FacturacionTab />}
   {area.slug === 'finanzas' && tabSlug === 'consumo-mp' && <RawMaterialConsumptionTab />}

@@ -1,10 +1,11 @@
 // Alerta de reposición: insumos cuyo pronóstico en Odoo quedó bajo el mínimo y cuánto pedir (máximo − pronóstico).
 import { useMemo, useState } from 'react';
+import QueryProvider from '../../QueryProvider';
 import { useApiQuery } from '../../dashboard/useApiQuery';
 import type { ResultadoAlerta } from '../../../lib/compras-mp/alerta-reposicion';
 import { Cabeza, Cargando, Cuerpo, ErrorCaja, Grilla, Seccion, Tabla, Tarjeta, Vacio, fechaHora, num, td, tdR, th, thR } from './ui';
 
-export default function AlertaReposicion() {
+function Inner() {
   const q = useApiQuery<ResultadoAlerta>(['cmp', 'alerta-reposicion'], '/api/compras-mp/alerta-reposicion');
   const [busca, setBusca] = useState('');
   const v = q.data ?? null;
@@ -24,7 +25,7 @@ export default function AlertaReposicion() {
   return (
     <div className="flex flex-col gap-8">
       <Grilla>
-        <Tarjeta codigo="" titulo="Para reponer" valor={num(v.filas.length)} tono={v.filas.length ? 'aviso' : 'normal'} detalle={`de ${num(v.totalReglas)} reglas en ${v.ubicacion}`} />
+        <Tarjeta codigo="" titulo="Para reponer" valor={num(v.filas.length)} tono={v.filas.length ? 'aviso' : 'normal'} detalle={`de ${num(v.totalReglas)} reglas con mínimo`} />
         <Tarjeta codigo="" titulo="Pronóstico negativo" valor={num(negativos)} tono={negativos ? 'aviso' : 'normal'} detalle="Falta material para lo ya comprometido" />
         <Tarjeta codigo="" titulo="Disparador manual" valor={num(manuales)} detalle="Odoo no los compra ni avisa solo" />
       </Grilla>
@@ -44,6 +45,7 @@ export default function AlertaReposicion() {
             <Cabeza>
               <tr>
                 <th className={th}>Insumo</th>
+                <th className={th}>Ubicación</th>
                 <th className={thR}>Disponible</th>
                 <th className={thR}>Pronóstico</th>
                 <th className={thR}>Mínimo</th>
@@ -58,6 +60,7 @@ export default function AlertaReposicion() {
               {filas.map((f) => (
                 <tr key={f.reglaId}>
                   <td className={td}>{f.sku}</td>
+                  <td className={td}>{f.ubicacion}</td>
                   <td className={tdR}>{num(f.disponible, 2)}</td>
                   <td className={`${tdR} ${f.pronostico < 0 ? 'text-status-red' : ''}`}>{num(f.pronostico, 2)}</td>
                   <td className={tdR}>{num(f.min)}</td>
@@ -73,5 +76,13 @@ export default function AlertaReposicion() {
         )}
       </Seccion>
     </div>
+  );
+}
+
+export default function AlertaReposicion() {
+  return (
+    <QueryProvider>
+      <Inner />
+    </QueryProvider>
   );
 }
