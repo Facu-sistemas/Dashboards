@@ -7,6 +7,7 @@ import { getTipoCambio } from '../../lib/compras-mp/odoo/otros';
 import { ApiValidationError, jsonResponse } from '../../lib/api-helpers';
 import { OdooError } from '../../lib/odoo/types';
 import { LOGO_GRIS_PNG_BASE64 } from '../../lib/logos';
+import { construirAlertaReposicion } from '../../lib/compras-mp/alerta-reposicion';
 
 export const prerender = false;
 
@@ -181,15 +182,30 @@ async function desembolsosWorkbook(): Promise<ExcelJS.Workbook> {
   return wb;
 }
 
+async function alertaReposicionWorkbook(): Promise<ExcelJS.Workbook> {
+  const { filas } = await construirAlertaReposicion();
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Alerta de reposición');
+  addReportHeader(wb, ws);
+  const headers = ['Insumo', 'Ubicación', 'Unidad', 'Disponible', 'Pronóstico', 'Mínimo', 'Máximo', 'A pedir (máx − pronóstico)', 'A pedir según Odoo', 'En RFQ (sin confirmar)', 'Disparador'];
+  ws.getRow(HEADER_ROW).values = headers;
+  styleBand(ws.getRow(HEADER_ROW), headers.length);
+  ws.columns = [44, 18, 10, 14, 14, 12, 12, 24, 20, 22, 14].map((width) => ({ width }));
+  for (const f of filas) ws.addRow([f.sku, f.ubicacion, f.unidad, f.disponible, f.pronostico, f.min, f.max, f.aPedir, f.aPedirOdoo, f.enRfq, f.trigger === 'manual' ? 'Manual' : 'Automático']);
+  for (const c of [4, 5, 6, 7, 8, 9, 10]) ws.getColumn(c).numFmt = NUM_FMT;
+  ws.views = [{ state: 'frozen', ySplit: HEADER_ROW }];
+  return wb;
+}
+
 const querySchema = z.object({
-  tipo: z.enum(['gasto', 'stock', 'oc', 'sin-facturar', 'desembolsos']),
+  tipo: z.enum(['gasto', 'stock', 'oc', 'sin-facturar', 'desembolsos', 'alerta-reposicion']),
   empresas: z
     .string()
     .optional()
     .transform((v) => (v ? v.split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0) : undefined)),
 });
 
-// GET /api/rotacion-gasto-export?tipo=gasto|stock|oc|sin-facturar|desembolsos&empresas=1,2 — Excel de detalle por producto, con ID y nombre en pantalla.
+// GET /api/rotacion-gasto-export?tipo=gasto|stock|oc|sin-facturar|desembolsos|alerta-reposicion&empresas=1,2 — Excel de detalle por producto, con ID y nombre en pantalla.
 export const GET: APIRoute = async ({ url, locals }) => {
   if (!locals.usuario?.areasPermitidas.includes('finanzas')) {
     return jsonResponse({ ok: false, error: 'No autorizado' }, { status: 403 });
@@ -203,13 +219,14 @@ export const GET: APIRoute = async ({ url, locals }) => {
       : tipo === 'oc' ? await ocPendientesWorkbook(empresas)
       : tipo === 'sin-facturar' ? await sinFacturarWorkbook(empresas)
       : tipo === 'desembolsos' ? await desembolsosWorkbook()
+      : tipo === 'alerta-reposicion' ? await alertaReposicionWorkbook()
       : await stockWorkbook(empresas);
     const buffer = await wb.xlsx.writeBuffer();
     return new Response(buffer, {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="${{ gasto: 'gasto_real_mp', stock: 'stock_fin_de_mes', oc: 'oc_pendientes_mp', 'sin-facturar': 'recepciones_sin_facturar_mp', desembolsos: 'desembolsos_mp' }[tipo]}.xlsx"`,
+        'Content-Disposition': `attachment; filename="${{ gasto: 'gasto_real_mp', stock: 'stock_fin_de_mes', oc: 'oc_pendientes_mp', 'sin-facturar': 'recepciones_sin_facturar_mp', desembolsos: 'desembolsos_mp', 'alerta-reposicion': 'alerta_reposicion_mp' }[tipo]}.xlsx"`,
         'Cache-Control': 'no-store',
       },
     });
