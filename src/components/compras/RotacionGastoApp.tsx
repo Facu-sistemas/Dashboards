@@ -451,6 +451,15 @@ function Inner() {
         >
           Descargar OC pendientes de recibir
         </a>
+        <a
+          href={`/api/rotacion-gasto-export?tipo=sin-facturar${empresasParam(seleccion)}`}
+          className="rounded-md border border-slate-700 px-3 py-1.5 hover:bg-slate-800"
+        >
+          Descargar recepciones sin facturar
+        </a>
+        <a href="/api/rotacion-gasto-export?tipo=desembolsos" className="rounded-md border border-slate-700 px-3 py-1.5 hover:bg-slate-800">
+          Descargar desembolsos (condiciones de pago, facturas, pagos, impuestos, gastos de importación y tipo de cambio)
+        </a>
       </div>
     </div>
   );
