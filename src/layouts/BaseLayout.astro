@@ -1,5 +1,6 @@
 ---
 import '@/styles/global.css';
+import ScrollToTop from '@/components/nav/ScrollToTop.astro';
 
 interface Props {
   title: string;
@@ -145,6 +146,7 @@ const commitMessage = import.meta.env.VERCEL_GIT_COMMIT_MESSAGE?.split('\n')[0];
     </script>
 
     <slot />
+    <ScrollToTop />
 
     {
       (usuario?.rol === 'dev' || usuario?.username.toLowerCase().includes('aure')) && commitShort && (

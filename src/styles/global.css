@@ -97,3 +97,20 @@
     animation: pulse 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 }
+
+/* Entrada del contenido de cada tab: fade + deslizamiento suave al cargar la página.
+   Es una animación CSS común (no View Transitions: esas dejaban en blanco las gráficas de Recharts). */
+@keyframes tab-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+.tab-enter {
+  animation: tab-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tab-enter {
+    animation: none;
+  }
+}

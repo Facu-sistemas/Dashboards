@@ -1,0 +1,51 @@
+---
+// Botón flotante "volver arriba": aparece (fade + slide desde la derecha) al bajar más de un viewport.
+---
+<button
+  id="scroll-to-top"
+  type="button"
+  aria-label="Volver arriba"
+  title="Volver arriba"
+  tabindex="-1"
+  class="pointer-events-none fixed bottom-12 right-4 z-40 flex h-10 w-10 translate-x-16 items-center justify-center rounded-full border border-slate-700 bg-slate-800 text-slate-200 opacity-0 shadow-lg transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-brand-500 hover:text-brand-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 motion-reduce:transition-none print:hidden"
+>
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M12 19V5M5 12l7-7 7 7"></path>
+  </svg>
+</button>
+
+<script>
+  const btn = document.getElementById('scroll-to-top');
+  if (btn) {
+    const SHOW = ['translate-x-0', 'opacity-100', 'pointer-events-auto'];
+    const HIDE = ['translate-x-16', 'opacity-0', 'pointer-events-none'];
+    let visible = false;
+    let ticking = false;
+
+    const sync = () => {
+      ticking = false;
+      const show = window.scrollY > window.innerHeight;
+      if (show === visible) return;
+      visible = show;
+      btn.classList.remove(...(show ? HIDE : SHOW));
+      btn.classList.add(...(show ? SHOW : HIDE));
+      btn.tabIndex = show ? 0 : -1;
+    };
+
+    window.addEventListener(
+      'scroll',
+      () => {
+        if (!ticking) {
+          ticking = true;
+          requestAnimationFrame(sync);
+        }
+      },
+      { passive: true },
+    );
+    btn.addEventListener('click', () => {
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+    });
+    sync();
+  }
+</script>

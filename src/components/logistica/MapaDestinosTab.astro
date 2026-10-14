@@ -11,7 +11,7 @@ try {
 }
 
 const fmtFecha = (iso: string) => iso.split('-').reverse().join('/');
-// `<` escapado para que ningún nombre de cliente pueda cerrar el <script>.
+// `<` escapado para que ningún nombre de cliente pueda cerrar la etiqueta de script.
 const json = data ? JSON.stringify(data).replace(/</g, '\\u003c') : '';
 ---
 

@@ -2,8 +2,8 @@ import { getSupabaseAdminClient } from './admin';
 
 /**
  * Descriptores faciales (vectores de 128 números, nunca fotos) vinculados a un
- * hr.employee de Odoo. Tabla `fichaje_caras` — se crea a mano en Supabase
- * (SQL en docs/fichaje-caras.sql). RLS default-deny: único acceso vía estas
+ * hr.employee de Odoo. Tabla `fichaje_caras` — se crea a mano en Supabase.
+ * RLS default-deny: único acceso vía estas
  * funciones desde /api routes, mismo patrón que vertical-sobrantes.ts.
  */
 

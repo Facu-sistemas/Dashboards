@@ -27,11 +27,6 @@ búsqueda) resuelven la consulta contra Odoo en el momento vía una API route �
 
 ## Documentación
 
-Las decisiones de diseño y los supuestos validados contra datos reales de Odoo (dominios
-de filtros, categorías, campos técnicos, exclusiones) están documentados por feature en
-`docs/` — son la fuente de verdad antes de tocar código en cada dashboard nuevo o
-iteración.
-
 La lógica de negocio de cada dashboard vive en `src/lib/odoo/<nombre>.ts`, con las
 decisiones no obvias documentadas ahí mismo (monedas, matching de presupuesto,
 exclusiones de categorías, etc.).
