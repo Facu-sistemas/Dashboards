@@ -19,7 +19,7 @@ const INTERVALO_MS = 400;
 const RESULTADO_MS = 3000;
 const PREF_PANTALLA_COMPLETA = 'fichaje-pantalla-completa';
 
-function FichajeReconocerInner() {
+function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
   const carasQ = useApiQuery<CaraRegistrada[]>(['fichaje-caras'], '/api/fichaje-caras');
   const caras = carasQ.data ?? [];
 
@@ -78,10 +78,16 @@ function FichajeReconocerInner() {
           candidato = null;
           racha = 0;
           setReconocido(null);
+          // A los empleados no se les muestra con quién se parecen ni distancias: eso es un dato de diagnóstico para
+          // el dev (y para RRHH, en el reporte "Pares parecidos" del admin).
           setEstado(
-            ambigua
-              ? `No estoy seguro (parecido a ${mejor!.nombre} y a ${segunda!.nombre}). Mirá de frente a la cámara.`
-              : `Cara no reconocida (distancia ${mejor?.distancia.toFixed(2)}).`
+            esDev
+              ? ambigua
+                ? `Ambigua: ${mejor!.nombre} ${mejor!.distancia.toFixed(2)} vs ${segunda!.nombre} ${segunda!.distancia.toFixed(2)}`
+                : `Cara no reconocida (distancia ${mejor?.distancia.toFixed(2)}).`
+              : ambigua
+                ? 'No pude identificarte con seguridad. Mirá de frente a la cámara.'
+                : 'Cara no reconocida.'
           );
         }
       }
@@ -91,7 +97,7 @@ function FichajeReconocerInner() {
     return () => {
       cancelado = true;
     };
-  }, [camaraActiva, detectar, setEstado, fichando, fichaje]);
+  }, [camaraActiva, detectar, setEstado, fichando, fichaje, esDev]);
 
   // El resultado del fichaje queda en pantalla unos segundos y después se vuelve a buscar caras.
   useEffect(() => {
@@ -191,7 +197,7 @@ function FichajeReconocerInner() {
           reconocido && (
             <div className={`absolute inset-x-0 bottom-0 bg-sky-700/90 px-4 text-center ${pantallaCompleta ? 'py-6' : 'py-3'}`}>
               <p className={`font-semibold text-white ${pantallaCompleta ? 'text-2xl' : 'text-lg'}`}>Hola, {reconocido.nombre}</p>
-              <p className="text-xs text-sky-100">distancia {reconocido.distancia.toFixed(2)}</p>
+              {esDev && <p className="text-xs text-sky-100">distancia {reconocido.distancia.toFixed(2)}</p>}
               <button
                 type="button"
                 disabled={fichando}
@@ -216,10 +222,10 @@ function FichajeReconocerInner() {
 }
 
 /** Entry point mounted as an Astro client island (`client:only="react"`), same pattern as the other tabs. */
-export default function FichajeReconocerApp() {
+export default function FichajeReconocerApp({ esDev }: { esDev: boolean }) {
   return (
     <QueryProvider>
-      <FichajeReconocerInner />
+      <FichajeReconocerInner esDev={esDev} />
     </QueryProvider>
   );
 }

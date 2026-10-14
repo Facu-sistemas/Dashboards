@@ -1,5 +1,8 @@
 ---
 import FichajeReconocerApp from './FichajeReconocerApp';
+
+// Solo el dev ve distancias de diagnostico en la pantalla; a los empleados no se les muestra nada de eso.
+const esDev = Astro.locals.usuario?.rol === 'dev';
 ---
 
 <div>
@@ -11,5 +14,5 @@ import FichajeReconocerApp from './FichajeReconocerApp';
     </p>
   </header>
 
-  <FichajeReconocerApp client:only="react" />
+  <FichajeReconocerApp client:only="react" esDev={esDev} />
 </div>
