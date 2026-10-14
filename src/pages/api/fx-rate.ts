@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
-import { getUsdToArsRate } from '../../lib/odoo/currency';
-import { handleApiRoute } from '../../lib/api-helpers';
+import { getUsdToArsRate } from '@/lib/odoo/currency';
+import { handleApiRoute } from '@/lib/api-helpers';
 
 export const prerender = false;
 

@@ -1,6 +1,7 @@
 import { readGroup, searchRead, searchReadAll } from './client';
-import { addDaysIso } from '../date';
+import { addDaysIso } from '@/lib/date';
 import { getArgentinaTodayIso } from './oee';
+import { listCarasResumen } from '@/lib/supabase/fichaje-caras';
 import type { OdooReadGroupResult } from './types';
 
 /**
@@ -53,6 +54,10 @@ export interface EmpleadoVacacionesRow {
   jornada: string | null;
   horasSemanales: number | null;
   enLicenciaActualmente: boolean;
+  /** Fichado ahora mismo (última hr.attendance sin check_out). */
+  fichado: boolean;
+  /** Tiene al menos un descriptor facial cargado en Supabase (fichaje_caras). */
+  tieneBiometricos: boolean;
 
   vacacionesAsignadas: number;
   vacacionesTomadas: number;
@@ -83,6 +88,7 @@ type EmployeeRow = {
   job_id: [number, string] | false;
   resource_calendar_id: [number, string] | false;
   current_leave_state: string | false;
+  attendance_state: 'checked_in' | 'checked_out';
   x_studio_fecha_ingreso: string | false;
   x_studio_categora_de_convenio: [number, string] | false;
   x_studio_saldo_banco_horas: number;
@@ -164,7 +170,7 @@ export async function getRrhhVacaciones(): Promise<RrhhVacacionesResult> {
   const today = getArgentinaTodayIso();
   const desdeHoras = addDaysIso(today, -HORAS_CARGADAS_DIAS);
 
-  const [employees, allocations, leaves, contracts, hoursByEmployee30d, hoursByEmployeeTotal, hoursPerWeekByCalendar] =
+  const [employees, allocations, leaves, contracts, hoursByEmployee30d, hoursByEmployeeTotal, hoursPerWeekByCalendar, caras] =
     await Promise.all([
       searchReadAll<EmployeeRow>({
         model: 'hr.employee',
@@ -176,6 +182,7 @@ export async function getRrhhVacaciones(): Promise<RrhhVacacionesResult> {
           'job_id',
           'resource_calendar_id',
           'current_leave_state',
+          'attendance_state',
           'x_studio_fecha_ingreso',
           'x_studio_categora_de_convenio',
           'x_studio_saldo_banco_horas',
@@ -219,8 +226,10 @@ export async function getRrhhVacaciones(): Promise<RrhhVacacionesResult> {
         groupBy: ['employee_id'],
       }) as Promise<HoursGroupRow[]>,
       getHorasPorSemana(),
+      listCarasResumen(),
     ]);
 
+  const biometricosIds = new Set(caras.map((c) => c.empleadoId));
   const asignadoMap = sumByEmployee(allocations, (a) => a.number_of_days);
   const tomadoMap = sumByEmployee(leaves, (l) => l.number_of_days);
   const asignacionesMap = groupByEmployee(allocations);
@@ -248,6 +257,8 @@ export async function getRrhhVacaciones(): Promise<RrhhVacacionesResult> {
       jornada: e.resource_calendar_id ? e.resource_calendar_id[1] : null,
       horasSemanales: e.resource_calendar_id ? hoursPerWeekByCalendar.get(e.resource_calendar_id[0]) ?? null : null,
       enLicenciaActualmente: Boolean(e.current_leave_state),
+      fichado: e.attendance_state === 'checked_in',
+      tieneBiometricos: biometricosIds.has(e.id),
 
       vacacionesAsignadas: asignado,
       vacacionesTomadas: tomado,

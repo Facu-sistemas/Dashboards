@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
-import { getSobrantesDisponibles } from '../../lib/supabase/vertical-sobrantes';
-import { handleApiRoute } from '../../lib/api-helpers';
+import { getSobrantesDisponibles } from '@/lib/supabase/vertical-sobrantes';
+import { handleApiRoute } from '@/lib/api-helpers';
 
 export const prerender = false;
 

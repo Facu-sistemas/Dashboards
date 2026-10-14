@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
-import { getPoliticaVsReal } from '../../lib/odoo/politica-vs-real';
-import { handleApiRoute } from '../../lib/api-helpers';
+import { getPoliticaVsReal } from '@/lib/odoo/politica-vs-real';
+import { handleApiRoute } from '@/lib/api-helpers';
 
 export const prerender = false;
 

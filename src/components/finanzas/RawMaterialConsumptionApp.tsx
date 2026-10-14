@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import type { DehydratedState } from '@tanstack/react-query';
-import QueryProvider from '../QueryProvider';
-import { useApiQuery } from '../dashboard/useApiQuery';
-import LastUpdated from '../shared/LastUpdated';
+import QueryProvider from '@/components/QueryProvider';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import LastUpdated from '@/components/shared/LastUpdated';
 import RawMaterialTable from './RawMaterialTable';
 import MaterialStatRow from './MaterialStatRow';
 import MaterialHistoryChart from './MaterialHistoryChart';
-import type { ConsumptionLookbackDays, MaterialHistory, RawMaterialConsumptionResult, RawMaterialRow } from '../manufactura/types';
+import type { ConsumptionLookbackDays, MaterialHistory, RawMaterialConsumptionResult, RawMaterialRow } from '@/components/manufactura/types';
 
 interface Props {
   initialCategoryId: number | null;

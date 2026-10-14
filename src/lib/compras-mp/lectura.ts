@@ -1,5 +1,5 @@
 // Lectura de lo que dejó una corrida en Supabase (calc_*). Las pantallas solo leen: nunca calculan.
-import { getSupabaseAdminClient } from '../supabase/admin';
+import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import type { FilaCompleta } from './indicadores';
 import type { FilaControlOc } from './control-oc';
 import { ultimaCorrida, type CorridaGuardada } from './corrida';

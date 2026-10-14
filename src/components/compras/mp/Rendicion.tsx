@@ -1,9 +1,9 @@
 // Rendición de cuentas de Compras: compras (N1/N2) e inventario (N1/N2) de la última corrida, con selector de período.
 import { useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { useApiQuery } from '../../dashboard/useApiQuery';
-import { useChartTheme } from '../../shared/useChartTheme';
-import type { VistaRendicion } from '../../../lib/compras-mp/vistas';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import { useChartTheme } from '@/components/shared/useChartTheme';
+import type { VistaRendicion } from '@/lib/compras-mp/vistas';
 import { Cabeza, Cargando, Cuerpo, ErrorCaja, Etiqueta, Grilla, Seccion, Segmentos, Tabla, Tarjeta, Vacio, mesCorto, mm, num, pct, td, tdMuted, tdR, th, thR, veces } from './ui';
 
 type Periodo = 'horizonte' | '0' | '1' | '2' | '3';

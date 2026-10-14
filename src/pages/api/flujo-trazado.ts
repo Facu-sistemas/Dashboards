@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { getFlujoTrace } from '../../lib/odoo/flujo-fabrica';
-import { handleApiRoute, ApiValidationError } from '../../lib/api-helpers';
+import { getFlujoTrace } from '@/lib/odoo/flujo-fabrica';
+import { handleApiRoute, ApiValidationError } from '@/lib/api-helpers';
 
 export const prerender = false;
 

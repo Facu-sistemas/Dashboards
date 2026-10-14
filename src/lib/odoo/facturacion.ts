@@ -1,6 +1,6 @@
 import { searchRead, searchReadAll } from './client';
 import { parseOdooDomainLiteral } from './domain-parser';
-import { monthBounds, lastMonthKeys } from '../date';
+import { monthBounds, lastMonthKeys } from '@/lib/date';
 import { OdooError } from './types';
 import type { OdooDomain, OdooDomainLeaf } from './types';
 

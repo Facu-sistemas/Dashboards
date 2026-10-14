@@ -1,5 +1,5 @@
-import type { Bloque } from '../../lib/multicorte-calc';
-import { esDisponible } from '../../lib/multicorte-calc';
+import type { Bloque } from '@/lib/multicorte-calc';
+import { esDisponible } from '@/lib/multicorte-calc';
 
 /**
  * Side-view (Largo x Alto) diagram of one physical block — port of

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MESAS, type MesaDef } from '../../lib/linea-config';
+import { MESAS, type MesaDef } from '@/lib/linea-config';
 import { postConfigLinea } from './linea-shared';
 
 interface Props {

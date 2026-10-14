@@ -1,5 +1,5 @@
 import { Bar, BarChart, CartesianGrid, Cell, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { useChartTheme } from '../shared/useChartTheme';
+import { useChartTheme } from '@/components/shared/useChartTheme';
 import { getSemaforo, type PoliticaSemaforoStatus } from './politica-vs-real-utils';
 import type { PoliticaVsRealGroupRow } from './types';
 

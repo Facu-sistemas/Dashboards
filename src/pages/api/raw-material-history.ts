@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { getMaterialHistory } from '../../lib/odoo/raw-material-consumption';
-import { handleApiRoute, ApiValidationError } from '../../lib/api-helpers';
+import { getMaterialHistory } from '@/lib/odoo/raw-material-consumption';
+import { handleApiRoute, ApiValidationError } from '@/lib/api-helpers';
 
 export const prerender = false;
 

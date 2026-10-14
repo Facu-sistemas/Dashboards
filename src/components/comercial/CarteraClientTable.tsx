@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { computeMovimiento, type Categoria, type ClienteStat, type Estado, type Movimiento, type Snapshot } from './cartera-clientes-calc';
-import { formatCompactCurrency } from '../gerencia/format';
+import { formatCompactCurrency } from '@/components/gerencia/format';
 import { imprimirCarteraClientes } from './cartera-clientes-print';
 
 interface Props {

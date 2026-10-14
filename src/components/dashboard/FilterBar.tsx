@@ -1,5 +1,5 @@
 import { useApiQuery } from './useApiQuery';
-import { monthOptions } from '../shared/monthOptions';
+import { monthOptions } from '@/components/shared/monthOptions';
 import type { CategoryOption, DashboardFilters } from './types';
 
 interface Props {

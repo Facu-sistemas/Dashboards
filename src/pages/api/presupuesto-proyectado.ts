@@ -1,8 +1,8 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { getPresupuestoProyectado, LINEAS } from '../../lib/odoo/presupuesto-proyectado';
-import { getEtiquetasLinea, setEtiquetaLinea } from '../../lib/supabase/presupuesto-mp-linea';
-import { handleApiRoute, jsonResponse, ApiValidationError } from '../../lib/api-helpers';
+import { getPresupuestoProyectado, LINEAS } from '@/lib/odoo/presupuesto-proyectado';
+import { getEtiquetasLinea, setEtiquetaLinea } from '@/lib/supabase/presupuesto-mp-linea';
+import { handleApiRoute, jsonResponse, ApiValidationError } from '@/lib/api-helpers';
 
 export const prerender = false;
 

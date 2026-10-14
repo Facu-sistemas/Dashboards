@@ -1,6 +1,6 @@
 import { searchReadAll } from './client';
 import { getFronteraCompany } from './reference';
-import { addDaysIso, periodBounds, type PeriodKind } from '../date';
+import { addDaysIso, periodBounds, type PeriodKind } from '@/lib/date';
 import { COLCHONES_CATEG_IDS, getArgentinaTodayIso } from './oee';
 
 export type DetalleFamilia = 'living' | 'colchones';

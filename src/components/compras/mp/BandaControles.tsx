@@ -1,6 +1,6 @@
 // Banda de controles de calidad de datos: resumen por estado y detalle de cada control.
 import { useState } from 'react';
-import type { Control, EstadoControl } from '../../../lib/compras-mp/controles';
+import type { Control, EstadoControl } from '@/lib/compras-mp/controles';
 import { Etiqueta } from './ui';
 
 const ORDEN: EstadoControl[] = ['REVISAR', 'AVISO', 'PENDIENTE', 'OK'];

@@ -1,5 +1,5 @@
-import { getOdooConfig } from '../env';
-import { withTtlCache, cacheKey } from '../cache';
+import { getOdooConfig } from '@/lib/env';
+import { withTtlCache, cacheKey } from '@/lib/cache';
 import {
   OdooError,
   type OdooDomain,

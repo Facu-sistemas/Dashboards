@@ -1,6 +1,6 @@
 // Reglas de reabastecimiento (mínimo y máximo) para importar en Odoo. La web NUNCA escribe en Odoo: genera un archivo
 // y una persona lo importa a mano, primero en staging. Mismo criterio que la hoja "Para Odoo" del libro v12.
-import { searchReadAll } from '../odoo/client';
+import { searchReadAll } from '@/lib/odoo/client';
 import type { FilaCompleta } from './indicadores';
 
 export interface FilaReposicion {

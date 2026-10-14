@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react';
 import type { DehydratedState } from '@tanstack/react-query';
-import QueryProvider from '../QueryProvider';
-import { useApiQuery } from '../dashboard/useApiQuery';
-import LastUpdated from '../shared/LastUpdated';
+import QueryProvider from '@/components/QueryProvider';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import LastUpdated from '@/components/shared/LastUpdated';
 import ClientesActivosTable, { type ClientesActivosSortBy } from './ClientesActivosTable';
 import UltimasVentasCarousel from './UltimasVentasCarousel';
 import TendenciaMensualSection from './TendenciaMensualSection';
-import { formatCompactCurrency, formatNumber } from '../gerencia/format';
-import type { ClientesActivosFuente, ClientesActivosPeriodo, ClientesActivosResult, UltimaVentaRow } from '../../lib/odoo/clientes-activos';
+import { formatCompactCurrency, formatNumber } from '@/components/gerencia/format';
+import type { ClientesActivosFuente, ClientesActivosPeriodo, ClientesActivosResult, UltimaVentaRow } from '@/lib/odoo/clientes-activos';
 
 interface Props {
   initialPeriodo: ClientesActivosPeriodo;

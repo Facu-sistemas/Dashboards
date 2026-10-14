@@ -1,6 +1,6 @@
 // Decisiones de Compras sobre las OC vencidas (Llega / Cerrar saldo / Reclamar / Reprogramada).
 // Se guardan como historial (solo insertar); vale la última de cada OC + producto.
-import { getSupabaseAdminClient } from '../supabase/admin';
+import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 
 import { DECISIONES, type Decision } from './constantes';
 

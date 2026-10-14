@@ -5,7 +5,7 @@ import {
   getProductCategories,
 } from './odoo/purchase-budget';
 import { getUsdToArsRate } from './odoo/currency';
-import type { DashboardFilters } from '../components/dashboard/types';
+import type { DashboardFilters } from '@/components/dashboard/types';
 
 const TREND_MONTHS = 6;
 

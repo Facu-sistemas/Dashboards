@@ -1,6 +1,6 @@
 import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { useChartTheme } from '../shared/useChartTheme';
-import { formatCompactCurrency, formatNumber } from '../gerencia/format';
+import { useChartTheme } from '@/components/shared/useChartTheme';
+import { formatCompactCurrency, formatNumber } from '@/components/gerencia/format';
 import { ISC_TARGET, isc, pctDeltaRaw, type ObjetivoPoint, type Snapshot, type TrailingPoint } from './cartera-clientes-calc';
 
 interface Props {

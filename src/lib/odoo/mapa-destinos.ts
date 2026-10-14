@@ -1,5 +1,5 @@
 import { searchReadAll } from './client';
-import { addDaysIso } from '../date';
+import { addDaysIso } from '@/lib/date';
 import { getArgentinaTodayIso } from './oee';
 
 export type MapaModo = 'pendientes' | 'despachados';

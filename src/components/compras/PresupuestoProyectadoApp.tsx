@@ -1,12 +1,12 @@
 import { Fragment, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import QueryProvider from '../QueryProvider';
-import { useApiQuery } from '../dashboard/useApiQuery';
-import LastUpdated from '../shared/LastUpdated';
-import KpiCard from '../shared/KpiCard';
+import QueryProvider from '@/components/QueryProvider';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import LastUpdated from '@/components/shared/LastUpdated';
+import KpiCard from '@/components/shared/KpiCard';
 import PresupuestoChart from './PresupuestoChart';
 import { dec, int, money, monthShort, qty } from './format';
-import type { Linea, PresupuestoProyectadoResult, PresupuestoProyectadoRow } from '../../lib/odoo/presupuesto-proyectado';
+import type { Linea, PresupuestoProyectadoResult, PresupuestoProyectadoRow } from '@/lib/odoo/presupuesto-proyectado';
 
 const LINEA_LABEL: Record<Linea, string> = { colchones: 'Colchones', living: 'Living', ambos: 'Ambos' };
 const SELECT_CLASS = 'rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-slate-100 focus:border-brand-500 focus:outline-none';

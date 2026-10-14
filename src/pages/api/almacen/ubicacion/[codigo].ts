@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { getUbicacionStock } from '../../../../lib/odoo/almacen';
-import { handleApiRoute, ApiValidationError } from '../../../../lib/api-helpers';
+import { getUbicacionStock } from '@/lib/odoo/almacen';
+import { handleApiRoute, ApiValidationError } from '@/lib/api-helpers';
 
 export const prerender = false;
 

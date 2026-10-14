@@ -1,7 +1,7 @@
 // Arma el Seguimiento (cumplimiento) de la versión aprobada vigente con los datos reales de una corrida.
-import { getSupabaseAdminClient } from '../supabase/admin';
+import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import { idCorridaRaw } from './raw';
-import type { GastoLinea, StockDetalleResult } from '../odoo/rotacion-gasto-detalle';
+import type { GastoLinea, StockDetalleResult } from '@/lib/odoo/rotacion-gasto-detalle';
 import { getGastoRealMp } from './odoo/otros';
 import type { ConsumoMensual } from './odoo/consumo';
 import type { HistoriaStockProducto } from './inventario';

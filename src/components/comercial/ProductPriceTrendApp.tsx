@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import type { DehydratedState } from '@tanstack/react-query';
-import QueryProvider from '../QueryProvider';
-import { useApiQuery } from '../dashboard/useApiQuery';
+import QueryProvider from '@/components/QueryProvider';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
 import ProductSearchTable from './ProductSearchTable';
 import ProductPriceChart from './ProductPriceChart';
 import QuotationDetailModal from './QuotationDetailModal';
-import LastUpdated from '../shared/LastUpdated';
+import LastUpdated from '@/components/shared/LastUpdated';
 import type { ProductPriceTrend } from './types';
 
 interface Props {

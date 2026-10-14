@@ -1,6 +1,6 @@
 // Versiones aprobadas del presupuesto: congelan el presupuesto y el desembolso proyectado del horizonte de una corrida.
 // Son inmutables (triggers de Supabase): una corrección es una versión nueva, nunca una modificación.
-import { getSupabaseAdminClient } from '../supabase/admin';
+import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import { leerDesembolsos, leerFilas, resolverCorrida } from './lectura';
 
 /** Una fila por insumo y mes del horizonte congelada al aprobar. */

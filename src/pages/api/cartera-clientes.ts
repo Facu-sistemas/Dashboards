@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
-import { getCarteraClientes } from '../../lib/odoo/cartera-clientes';
-import { handleApiRoute } from '../../lib/api-helpers';
+import { getCarteraClientes } from '@/lib/odoo/cartera-clientes';
+import { handleApiRoute } from '@/lib/api-helpers';
 
 export const prerender = false;
 

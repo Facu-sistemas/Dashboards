@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
-import { getEmpleadosActivos } from '../../lib/odoo/employees';
-import { handleApiRoute, jsonResponse } from '../../lib/api-helpers';
+import { getEmpleadosActivos } from '@/lib/odoo/employees';
+import { handleApiRoute, jsonResponse } from '@/lib/api-helpers';
 
 export const prerender = false;
 

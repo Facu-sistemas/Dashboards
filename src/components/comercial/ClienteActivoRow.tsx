@@ -1,5 +1,5 @@
-import type { ClienteActivoRow as ClienteActivoRowType } from '../../lib/odoo/clientes-activos';
-import { formatCompactCurrency, formatNumber } from '../gerencia/format';
+import type { ClienteActivoRow as ClienteActivoRowType } from '@/lib/odoo/clientes-activos';
+import { formatCompactCurrency, formatNumber } from '@/components/gerencia/format';
 
 interface Props {
   row: ClienteActivoRowType;

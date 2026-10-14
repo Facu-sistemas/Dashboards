@@ -1,4 +1,4 @@
-import type { ApiEnvelope } from '../dashboard/types';
+import type { ApiEnvelope } from '@/components/dashboard/types';
 
 export interface Empleado {
   id: number;
@@ -26,7 +26,7 @@ export interface ResultadoFichaje {
   hora: string | null;
 }
 
-export { UMBRAL_RECONOCIMIENTO, UMBRAL_PARECIDO, MARGEN_RECONOCIMIENTO } from '../../lib/fichaje-matching';
+export { UMBRAL_RECONOCIMIENTO, UMBRAL_PARECIDO, MARGEN_RECONOCIMIENTO } from '@/lib/fichaje-matching';
 
 export type FaceApi = typeof import('@vladmandic/face-api');
 

@@ -1,8 +1,8 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { getPlanProduccionDiaria } from '../../lib/odoo/plan-produccion';
-import { handleApiRoute, ApiValidationError } from '../../lib/api-helpers';
-import { getArgentinaTodayIso } from '../../lib/odoo/oee';
+import { getPlanProduccionDiaria } from '@/lib/odoo/plan-produccion';
+import { handleApiRoute, ApiValidationError } from '@/lib/api-helpers';
+import { getArgentinaTodayIso } from '@/lib/odoo/oee';
 
 export const prerender = false;
 

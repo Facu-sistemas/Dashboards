@@ -1,5 +1,5 @@
 import { searchReadAll, readGroup } from './client';
-import { rangePresetStartDate, type DateRangePreset } from '../date';
+import { rangePresetStartDate, type DateRangePreset } from '@/lib/date';
 import type { OdooDomain, OdooReadGroupResult } from './types';
 
 const TOP_N = 10;

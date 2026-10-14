@@ -1,7 +1,7 @@
 // Inventario frente a la política: por categoría, por clase ABC y detalle por insumo.
 import { useMemo, useState } from 'react';
-import { useApiQuery } from '../../dashboard/useApiQuery';
-import type { VistaInventario } from '../../../lib/compras-mp/vistas';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import type { VistaInventario } from '@/lib/compras-mp/vistas';
 import { Cabeza, Cargando, Cuerpo, ErrorCaja, Etiqueta, Grilla, Seccion, Selector, Tabla, Tarjeta, Vacio, mm, num, pct, pesos, td, tdR, th, thR, unidades, veces } from './ui';
 
 const ESTADOS = ['Debajo del stock de seguridad', 'Debajo del objetivo', 'En rango', 'Exceso', 'Discontinuado', 'Agotar stock', 'Consignado', 'Sin consumo proyectado', 'Sin stock ni consumo'];

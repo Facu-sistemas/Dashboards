@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { getMonthlyComplianceTrend } from '../../lib/odoo/purchase-budget';
-import { handleApiRoute, ApiValidationError } from '../../lib/api-helpers';
+import { getMonthlyComplianceTrend } from '@/lib/odoo/purchase-budget';
+import { handleApiRoute, ApiValidationError } from '@/lib/api-helpers';
 
 export const prerender = false;
 

@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import QueryProvider from '../QueryProvider';
-import { useApiQuery } from '../dashboard/useApiQuery';
-import LastUpdated from '../shared/LastUpdated';
+import QueryProvider from '@/components/QueryProvider';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import LastUpdated from '@/components/shared/LastUpdated';
 import LineaMesasPlano from './LineaMesasPlano';
 import LineaReglasTaps from './LineaReglasTaps';
 import { MODO_LABEL, ORIGEN_BORDE, ORIGEN_LABEL, colorFamilia, etiquetaTap, formatCantidad, formatMin, formatOcupacion, formatUnidades, type ConfigLineaDto } from './linea-shared';
 import { generarPdfLinea } from './linea-pdf';
-import { MESAS } from '../../lib/linea-config';
-import type { DiaSimulado, ItemLinea, MesaPlan, PlanLinea } from '../../lib/linea-calc';
+import { MESAS } from '@/lib/linea-config';
+import type { DiaSimulado, ItemLinea, MesaPlan, PlanLinea } from '@/lib/linea-calc';
 
 interface DiaOption {
   date: string;

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { useChartTheme, type ChartTheme } from '../shared/useChartTheme';
+import { useChartTheme, type ChartTheme } from '@/components/shared/useChartTheme';
 import { formatNumber } from './format';
 import { colorFor } from './produccion-detalle-palette';
 

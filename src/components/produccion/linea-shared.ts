@@ -1,6 +1,6 @@
-import type { ReglaTap } from '../../lib/linea-config';
-import type { FamiliaDetectada } from '../../lib/odoo/linea-resorte';
-import type { OrigenLinea } from '../../lib/linea-calc';
+import type { ReglaTap } from '@/lib/linea-config';
+import type { FamiliaDetectada } from '@/lib/odoo/linea-resorte';
+import type { OrigenLinea } from '@/lib/linea-calc';
 
 export interface ConfigLineaDto {
   disponible: boolean;

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useApiQuery } from '../dashboard/useApiQuery';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
 import type { SellableProductPage } from './types';
 
 interface Props {

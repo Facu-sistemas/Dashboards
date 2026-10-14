@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
-import { getProduccionDetalle } from '../../lib/odoo/produccion-detalle';
-import { handleApiRoute } from '../../lib/api-helpers';
+import { getProduccionDetalle } from '@/lib/odoo/produccion-detalle';
+import { handleApiRoute } from '@/lib/api-helpers';
 
 export const prerender = false;
 

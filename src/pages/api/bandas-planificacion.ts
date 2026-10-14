@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { getBandasPlanificacion } from '../../lib/odoo/bandas';
-import { handleApiRoute, ApiValidationError } from '../../lib/api-helpers';
+import { getBandasPlanificacion } from '@/lib/odoo/bandas';
+import { handleApiRoute, ApiValidationError } from '@/lib/api-helpers';
 
 export const prerender = false;
 

@@ -1,9 +1,9 @@
 import type { APIRoute } from 'astro';
-import { jsonResponse } from '../../../lib/api-helpers';
-import { cargarConfig } from '../../../lib/compras-mp/config';
-import { leerFilas, resolverCorrida } from '../../../lib/compras-mp/lectura';
-import { aCsvOdoo, construirReposicion } from '../../../lib/compras-mp/reposicion';
-import { puedeVerCompras } from '../../../lib/compras-mp/permisos';
+import { jsonResponse } from '@/lib/api-helpers';
+import { cargarConfig } from '@/lib/compras-mp/config';
+import { leerFilas, resolverCorrida } from '@/lib/compras-mp/lectura';
+import { aCsvOdoo, construirReposicion } from '@/lib/compras-mp/reposicion';
+import { puedeVerCompras } from '@/lib/compras-mp/permisos';
 
 export const prerender = false;
 

@@ -1,7 +1,7 @@
 import { searchRead, searchReadAll, searchCount } from './client';
 import { getFronteraCompany } from './reference';
 import { COLCHONES_CATEG_IDS, LIVING_CATEG_IDS } from './oee';
-import { currentMonthKey, lastMonthKeys, monthsBetween, rangePresetStartDate, type DateRangePreset } from '../date';
+import { currentMonthKey, lastMonthKeys, monthsBetween, rangePresetStartDate, type DateRangePreset } from '@/lib/date';
 import type { OdooDomain } from './types';
 import { fetchNotasDevolucionColchon, type NotaDevolucion } from './notas-credito-devolucion';
 

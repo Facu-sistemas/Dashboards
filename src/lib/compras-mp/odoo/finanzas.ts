@@ -1,16 +1,16 @@
 // Conectores de solo lectura para los desembolsos: condiciones de pago, facturas abiertas, pagos,
 // impuestos por factura y gastos de importación. Misma lógica que scripts/build-desembolsos-mp.mjs
 // (el archivo que Compras usó para el libro), pero tipada y filtrada por la compañía operativa.
-import { searchReadAll } from '../../odoo/client';
-import { getFronteraCompany } from '../../odoo/reference';
-import { MATERIA_PRIMA_CATEG_ID } from '../../odoo/raw-material-consumption';
+import { searchReadAll } from '@/lib/odoo/client';
+import { getFronteraCompany } from '@/lib/odoo/reference';
+import { MATERIA_PRIMA_CATEG_ID } from '@/lib/odoo/raw-material-consumption';
 import type {
   CondPagoProveedor,
   FacturaAbierta,
   GastoImportacion,
   ImpuestoFactura,
   Pago,
-} from '../desembolsos';
+} from '@/lib/compras-mp/desembolsos';
 
 const nm = (m2o: [number, string] | false | undefined) => (m2o ? m2o[1] : '');
 const VALUE: Record<string, string> = { balance: 'Saldo', percent: '%', fixed: 'Monto fijo' };

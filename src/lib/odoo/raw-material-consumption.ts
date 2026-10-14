@@ -1,7 +1,7 @@
 import { searchReadAll, searchRead, readGroup } from './client';
 import { getFronteraCompany } from './reference';
-import { withTtlCache } from '../cache';
-import { lastMonthKeys, monthBounds } from '../date';
+import { withTtlCache } from '@/lib/cache';
+import { lastMonthKeys, monthBounds } from '@/lib/date';
 import type { OdooDomain, OdooReadGroupResult } from './types';
 
 export const MATERIA_PRIMA_CATEG_ID = 14;

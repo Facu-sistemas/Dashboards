@@ -1,7 +1,7 @@
 // Edición de la configuración de Compras MP (parámetros, reglas, excepciones y plan). Solo la usa el perfil de Compras.
 // Cada cambio se valida, se guarda y queda auditado en cfg_auditoria (quién, cuándo, valor anterior y nuevo).
 import { z } from 'zod';
-import { getSupabaseAdminClient } from '../supabase/admin';
+import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import { CLAVES_PARAMETROS, CLAVES_EXTRA, CONCEPTOS_PLAN, TIPOS_REGLA, cargarConfig, cargarPlan } from './config';
 
 export class EdicionError extends Error {}

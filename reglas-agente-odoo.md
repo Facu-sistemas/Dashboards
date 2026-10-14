@@ -49,3 +49,9 @@ Necesito que todo documento que se importa de la web lleve el logo de la empresa
 
 Dentro de .env vas a encontrar 2 variables llamadas user_page y pass_page, citando esas 2
 variables vas poder iniciar sesion y hacer, consultar, lo que necesites.
+
+---
+
+## 7. Escritura de codigo
+
+Me gusta usar rutas absolutas con el alias "@" en vez de la tipica "../../"

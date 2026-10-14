@@ -1,19 +1,25 @@
 import { useMemo, useState } from 'react';
 import type { DehydratedState } from '@tanstack/react-query';
-import QueryProvider from '../QueryProvider';
-import { useApiQuery } from '../dashboard/useApiQuery';
-import LastUpdated from '../shared/LastUpdated';
+import QueryProvider from '@/components/QueryProvider';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import LastUpdated from '@/components/shared/LastUpdated';
 import EmpleadoCard from './EmpleadoCard';
 import { formatDias, formatHoras } from './format';
 import { buildConvenioColors, convenioDe, cumplimiento, resumirPorConvenio } from './resumen-utils';
-import { RRHH_VACACIONES_QUERY_KEY } from '../../lib/rrhh-vacaciones-ssr';
-import type { RrhhVacacionesResult } from '../../lib/odoo/rrhh-vacaciones';
+import { RRHH_VACACIONES_QUERY_KEY } from '@/lib/rrhh-vacaciones-ssr';
+import type { EmpleadoVacacionesRow, RrhhVacacionesResult } from '@/lib/odoo/rrhh-vacaciones';
 
 interface Props {
   dehydratedState?: DehydratedState;
 }
 
-type Orden = 'banco-desc' | 'banco-asc' | 'horas-desc' | 'cumplimiento-asc' | 'nombre';
+type Orden = 'banco-desc' | 'banco-asc' | 'horas-desc' | 'cumplimiento-asc' | 'nombre' | 'estado-fichaje';
+
+/** Mismo criterio que el punto del avatar: fichado (0), sin fichar (1), sin datos biométricos (2). */
+function rangoFichaje(r: EmpleadoVacacionesRow): number {
+  if (!r.tieneBiometricos) return 2;
+  return r.fichado ? 0 : 1;
+}
 
 const ORDEN_OPTIONS: { value: Orden; label: string }[] = [
   { value: 'banco-desc', label: 'Más horas a favor' },
@@ -21,6 +27,7 @@ const ORDEN_OPTIONS: { value: Orden; label: string }[] = [
   { value: 'horas-desc', label: 'Más horas cargadas (30 d)' },
   { value: 'cumplimiento-asc', label: 'Menor cumplimiento' },
   { value: 'nombre', label: 'Nombre (A-Z)' },
+  { value: 'estado-fichaje', label: 'Estado de fichaje' },
 ];
 
 function Kpi({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone?: string }) {
@@ -98,11 +105,11 @@ function ResumenInner() {
       'horas-desc': (a, b) => b.horasCargadas30d - a.horasCargadas30d,
       'cumplimiento-asc': (a, b) => (cumplimiento(a) ?? Infinity) - (cumplimiento(b) ?? Infinity),
       nombre: (a, b) => a.nombre.localeCompare(b.nombre, 'es'),
+      'estado-fichaje': (a, b) => rangoFichaje(a) - rangoFichaje(b) || a.nombre.localeCompare(b.nombre, 'es'),
     };
     return filtered.sort(sorters[orden]);
   }, [allRows, convenio, departamento, busqueda, orden]);
 
-  const maxConvenio = Math.max(1, ...convenios.map((c) => c.empleados));
   const selectClass =
     'rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-slate-100 focus:border-brand-500 focus:outline-none';
 
@@ -142,48 +149,6 @@ function ResumenInner() {
             hint="Hs cargadas vs. jornada"
           />
         </div>
-      )}
-
-      {!query.isLoading && convenios.length > 0 && (
-        <section className="rounded-lg border border-slate-800 bg-slate-900 p-4">
-          <h3 className="mb-3 text-sm font-medium text-slate-300">Por convenio</h3>
-          <div className="flex flex-col gap-2">
-            {convenios.map((c) => {
-              const color = colors.get(c.nombre)!;
-              const activo = convenio === c.nombre;
-              return (
-                <button
-                  key={c.nombre}
-                  type="button"
-                  onClick={() => setConvenio(activo ? '' : c.nombre)}
-                  className={`grid grid-cols-[minmax(7rem,12rem)_1fr_auto] items-center gap-3 rounded px-2 py-1.5 text-left text-sm transition-colors hover:bg-slate-800/60 ${
-                    activo ? 'bg-slate-800/80 ring-1 ring-slate-600' : ''
-                  }`}
-                >
-                  <span className="truncate text-slate-200">{c.nombre}</span>
-                  <span className="flex items-center gap-2">
-                    <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-800">
-                      <span className={`block h-full rounded-full ${color.bar}`} style={{ width: `${(c.empleados / maxConvenio) * 100}%` }} />
-                    </span>
-                    <span className="w-8 text-right text-slate-300">{c.empleados}</span>
-                  </span>
-                  <span className="flex gap-4 text-xs text-slate-500">
-                    <span>
-                      banco{' '}
-                      <span className={c.bancoTotal < 0 ? 'text-rose-400' : 'text-emerald-400'}>
-                        {c.bancoTotal > 0 ? '+' : ''}
-                        {formatDias(c.bancoTotal)}
-                      </span>
-                    </span>
-                    <span className="hidden sm:inline">
-                      prom. 30 d <span className="text-slate-300">{formatDias(c.horas30dPromedio)} hs</span>
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
       )}
 
       <div className="flex flex-wrap items-end justify-between gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
@@ -234,10 +199,24 @@ function ResumenInner() {
         <LastUpdated dataUpdatedAt={query.dataUpdatedAt} />
       </div>
 
-      <p className="-mb-3 text-xs text-slate-500">
-        {data ? `${rows.length} de ${data.totalEmpleados} empleados` : ''} · El anillo mide horas cargadas en los últimos 30 días contra las
-        que corresponden a su jornada.
-      </p>
+      <div className="-mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+        <span>{data ? `${rows.length} de ${data.totalEmpleados} empleados` : ''} · El anillo mide horas cargadas en los últimos 30 días contra las que corresponden a su jornada.</span>
+        <span className="flex items-center gap-1.5">
+          <span className="relative inline-flex h-2.5 w-2.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+          </span>
+          Fichado
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-flex h-2.5 w-2.5 rounded-full bg-rose-500" />
+          No fichado
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-flex h-2.5 w-2.5 rounded-full border-2 border-dashed border-slate-500" />
+          Sin datos biométricos
+        </span>
+      </div>
 
       {query.isLoading ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">

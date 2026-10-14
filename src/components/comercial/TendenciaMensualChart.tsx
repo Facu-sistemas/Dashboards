@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { useChartTheme } from '../shared/useChartTheme';
-import { formatCompactCurrency, formatNumber } from '../gerencia/format';
-import type { ClientesActivosFuente, TendenciaMensualRow } from '../../lib/odoo/clientes-activos';
+import { useChartTheme } from '@/components/shared/useChartTheme';
+import { formatCompactCurrency, formatNumber } from '@/components/gerencia/format';
+import type { ClientesActivosFuente, TendenciaMensualRow } from '@/lib/odoo/clientes-activos';
 
 interface Props {
   rows: TendenciaMensualRow[];

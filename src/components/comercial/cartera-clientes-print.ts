@@ -1,6 +1,6 @@
-import { LOGO_GRIS_PNG_BASE64 } from '../../lib/logos';
+import { LOGO_GRIS_PNG_BASE64 } from '@/lib/logos';
 import type { ClienteStat, Estado, Movimiento } from './cartera-clientes-calc';
-import { formatCompactCurrency } from '../gerencia/format';
+import { formatCompactCurrency } from '@/components/gerencia/format';
 
 /** Mirrors src/components/produccion/bandas-print.ts's pattern: a standalone printable
  * window (plain inline CSS, no Tailwind there) that triggers window.print() on load, so

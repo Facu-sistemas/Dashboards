@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import QueryProvider from '../QueryProvider';
-import { useApiQuery } from '../dashboard/useApiQuery';
-import { useChartTheme } from '../shared/useChartTheme';
-import LastUpdated from '../shared/LastUpdated';
+import QueryProvider from '@/components/QueryProvider';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import { useChartTheme } from '@/components/shared/useChartTheme';
+import LastUpdated from '@/components/shared/LastUpdated';
 import { dateToWeekValue, weekValueToDate } from './isoWeek';
-import type { DetalleCounts, PlanProduccionDetalleResult } from '../../lib/odoo/plan-produccion-detalle';
+import type { DetalleCounts, PlanProduccionDetalleResult } from '@/lib/odoo/plan-produccion-detalle';
 
 type Familia = 'living' | 'colchones';
 type Periodo = 'week' | 'month' | 'year';

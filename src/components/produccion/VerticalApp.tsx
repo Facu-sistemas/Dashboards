@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import type { DehydratedState } from '@tanstack/react-query';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import QueryProvider from '../QueryProvider';
-import { useApiQuery } from '../dashboard/useApiQuery';
-import LastUpdated from '../shared/LastUpdated';
-import { LOGO_GRIS_PNG_BASE64 } from '../../lib/logos';
+import QueryProvider from '@/components/QueryProvider';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import LastUpdated from '@/components/shared/LastUpdated';
+import { LOGO_GRIS_PNG_BASE64 } from '@/lib/logos';
 import VerticalBlockVisual from './VerticalBlockVisual';
 import {
   calcularCobertura,
@@ -15,7 +15,7 @@ import {
   type SobranteDisponible,
   type BlockCargado,
   type CoberturaColor,
-} from '../../lib/vertical-calc';
+} from '@/lib/vertical-calc';
 
 interface Props {
   dehydratedState?: DehydratedState;

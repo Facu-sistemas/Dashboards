@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { generateEtiquetaPdf, buildEtiquetaFilename } from '../../lib/etiqueta-pdf';
+import { generateEtiquetaPdf, buildEtiquetaFilename } from '@/lib/etiqueta-pdf';
 
 export const prerender = false;
 

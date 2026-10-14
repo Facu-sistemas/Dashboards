@@ -1,4 +1,4 @@
-import type { EmpleadoVacacionesRow } from '../../lib/odoo/rrhh-vacaciones';
+import type { EmpleadoVacacionesRow } from '@/lib/odoo/rrhh-vacaciones';
 import { formatAntiguedad, formatDias, formatHoras } from './format';
 import { convenioDe, cumplimiento, cumplimientoColor, horasEsperadas30d, iniciales, type CONVENIO_PALETTE } from './resumen-utils';
 
@@ -65,6 +65,32 @@ function BancoBar({ saldo, maxAbs }: { saldo: number; maxAbs: number }) {
   );
 }
 
+/**
+ * Estado de fichaje sobre el avatar: verde titilando = fichado, rojo = no fichado,
+ * gris punteado = sin datos biométricos cargados (no puede fichar con la cara).
+ */
+function EstadoFichaje({ row }: { row: EmpleadoVacacionesRow }) {
+  if (!row.tieneBiometricos) {
+    return (
+      <span
+        title="Sin datos biométricos cargados"
+        className="absolute -right-1 -top-1 h-3.5 w-3.5 rounded-full border-2 border-dashed border-slate-500 bg-slate-900 ring-2 ring-slate-900"
+      />
+    );
+  }
+  if (row.fichado) {
+    return (
+      <span title="Fichado" className="absolute -right-1 -top-1 flex h-3.5 w-3.5 ring-2 ring-slate-900 rounded-full">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+        <span className="relative inline-flex h-full w-full rounded-full bg-emerald-500" />
+      </span>
+    );
+  }
+  return (
+    <span title="No fichado" className="absolute -right-1 -top-1 h-3.5 w-3.5 rounded-full bg-rose-500 ring-2 ring-slate-900" />
+  );
+}
+
 export default function EmpleadoCard({ row, today, color, maxAbsBanco }: Props) {
   const saldo = row.bancoHorasSaldo;
   const saldoColor = saldo > 0 ? 'text-emerald-400' : saldo < 0 ? 'text-rose-400' : 'text-slate-300';
@@ -74,9 +100,10 @@ export default function EmpleadoCard({ row, today, color, maxAbsBanco }: Props) 
     <article className="flex flex-col gap-4 rounded-xl border border-slate-800 bg-slate-900 p-4 transition-colors hover:border-slate-700">
       <header className="flex items-center gap-3">
         <div
-          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold ring-1 ${color.avatar}`}
+          className={`relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold ring-1 ${color.avatar}`}
         >
           {iniciales(row.nombre)}
+          <EstadoFichaje row={row} />
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-slate-100" title={row.nombre}>

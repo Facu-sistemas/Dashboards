@@ -1,5 +1,5 @@
 // Ayudas comunes de las rutas /api/compras-mp que escriben: control de permisos y lectura del cuerpo.
-import { jsonResponse } from '../api-helpers';
+import { jsonResponse } from '@/lib/api-helpers';
 import { puedeEditarCompras } from './permisos';
 import { recalcularUltima } from './corrida';
 

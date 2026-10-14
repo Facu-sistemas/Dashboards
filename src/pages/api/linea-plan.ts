@@ -1,13 +1,13 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { getLineaOrdenes } from '../../lib/odoo/linea-resorte';
-import { getBusinessDayChecker } from '../../lib/odoo/business-calendar';
-import { getArgentinaTodayIso } from '../../lib/odoo/oee';
-import { getConfigLinea } from '../../lib/supabase/linea-config';
-import { MESA_CODIGOS, mergeReglas } from '../../lib/linea-config';
-import { simularLinea } from '../../lib/linea-calc';
-import { addDaysIso } from '../../lib/date';
-import { handleApiRoute, ApiValidationError } from '../../lib/api-helpers';
+import { getLineaOrdenes } from '@/lib/odoo/linea-resorte';
+import { getBusinessDayChecker } from '@/lib/odoo/business-calendar';
+import { getArgentinaTodayIso } from '@/lib/odoo/oee';
+import { getConfigLinea } from '@/lib/supabase/linea-config';
+import { MESA_CODIGOS, mergeReglas } from '@/lib/linea-config';
+import { simularLinea } from '@/lib/linea-calc';
+import { addDaysIso } from '@/lib/date';
+import { handleApiRoute, ApiValidationError } from '@/lib/api-helpers';
 
 export const prerender = false;
 

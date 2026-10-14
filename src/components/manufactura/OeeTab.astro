@@ -1,7 +1,7 @@
 ---
 import OeeApp from './OeeApp';
-import { buildOeeDehydratedState } from '../../lib/oee-ssr';
-import { getArgentinaTodayIso, type OeePeriodKind } from '../../lib/odoo/oee';
+import { buildOeeDehydratedState } from '@/lib/oee-ssr';
+import { getArgentinaTodayIso, type OeePeriodKind } from '@/lib/odoo/oee';
 
 const PERIOD_VALUES: OeePeriodKind[] = ['day', 'week', 'month'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;

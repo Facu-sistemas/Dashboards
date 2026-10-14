@@ -1,8 +1,8 @@
 import type { APIRoute } from 'astro';
-import { jsonResponse } from '../../../lib/api-helpers';
-import { calcularCorrida, corridaLeidaPendiente, CorridaEnCursoError, ejecutarCorrida, leerOdoo } from '../../../lib/compras-mp/corrida';
-import { leerJson } from '../../../lib/compras-mp/api';
-import { puedeEditarCompras } from '../../../lib/compras-mp/permisos';
+import { jsonResponse } from '@/lib/api-helpers';
+import { calcularCorrida, corridaLeidaPendiente, CorridaEnCursoError, ejecutarCorrida, leerOdoo } from '@/lib/compras-mp/corrida';
+import { leerJson } from '@/lib/compras-mp/api';
+import { puedeEditarCompras } from '@/lib/compras-mp/permisos';
 
 export const prerender = false;
 

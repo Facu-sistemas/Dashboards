@@ -1,7 +1,7 @@
 // Seguimiento: cumplimiento del presupuesto aprobado contra las llegadas reales de los meses cerrados.
 import { useMemo, useState } from 'react';
-import { useApiQuery } from '../../dashboard/useApiQuery';
-import type { VistaSeguimiento } from '../../../lib/compras-mp/vistas';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import type { VistaSeguimiento } from '@/lib/compras-mp/vistas';
 import { Cabeza, Cargando, Cuerpo, ErrorCaja, Grilla, Seccion, Selector, Tabla, Tarjeta, Vacio, fechaHora, mesCorto, mm, num, pct, pesos, td, tdMuted, tdR, th, thR, unidades } from './ui';
 
 const sum = (xs: number[]) => xs.reduce((s, v) => s + v, 0);

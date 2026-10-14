@@ -1,6 +1,6 @@
 import { searchRead, searchReadAll, readGroup } from './client';
-import { addDaysIso } from '../date';
-import { BANDAS_TABLAS_FALLBACK, type BandasTablasOdoo } from '../bandas-calc';
+import { addDaysIso } from '@/lib/date';
+import { BANDAS_TABLAS_FALLBACK, type BandasTablasOdoo } from '@/lib/bandas-calc';
 import type { OdooDomain } from './types';
 
 /**

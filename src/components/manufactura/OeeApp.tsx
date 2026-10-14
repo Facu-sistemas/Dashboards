@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import type { DehydratedState } from '@tanstack/react-query';
-import QueryProvider from '../QueryProvider';
-import { useApiQuery } from '../dashboard/useApiQuery';
+import QueryProvider from '@/components/QueryProvider';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
 import OeeGaugeCard from './OeeGaugeCard';
 import OeeMonthlySummary from './OeeMonthlySummary';
 import OeeOrderList from './OeeOrderList';
-import LastUpdated from '../shared/LastUpdated';
+import LastUpdated from '@/components/shared/LastUpdated';
 import { dateToWeekValue, weekValueToDate } from './isoWeek';
 import type { OeeCategoryGauge, OeePeriodKind, OeeResult } from './types';
 

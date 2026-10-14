@@ -1,16 +1,16 @@
 import type { APIRoute } from 'astro';
-import { jsonResponse } from '../../../lib/api-helpers';
-import { puedeEditarCompras, puedeVerCompras } from '../../../lib/compras-mp/permisos';
-import { leerControlOc, leerDesembolsos, leerFilas, resolverCorrida } from '../../../lib/compras-mp/lectura';
-import { construirSeguimiento } from '../../../lib/compras-mp/seguimiento-datos';
-import { ultimasDecisiones } from '../../../lib/compras-mp/decisiones-oc';
-import { listarCierres } from '../../../lib/compras-mp/cierres';
-import { listarVersiones, versionVigente } from '../../../lib/compras-mp/versiones';
-import { cargarPlan } from '../../../lib/compras-mp/config';
-import { getEmpresas } from '../../../lib/odoo/rotacion-gasto';
+import { jsonResponse } from '@/lib/api-helpers';
+import { puedeEditarCompras, puedeVerCompras } from '@/lib/compras-mp/permisos';
+import { leerControlOc, leerDesembolsos, leerFilas, resolverCorrida } from '@/lib/compras-mp/lectura';
+import { construirSeguimiento } from '@/lib/compras-mp/seguimiento-datos';
+import { ultimasDecisiones } from '@/lib/compras-mp/decisiones-oc';
+import { listarCierres } from '@/lib/compras-mp/cierres';
+import { listarVersiones, versionVigente } from '@/lib/compras-mp/versiones';
+import { cargarPlan } from '@/lib/compras-mp/config';
+import { getEmpresas } from '@/lib/odoo/rotacion-gasto';
 import {
   vistaEvolucion, vistaInventario, vistaOc, vistaPresupuesto, vistaRendicion, vistaSeguimiento, vistaSku, type VistaSeguimiento,
-} from '../../../lib/compras-mp/vistas';
+} from '@/lib/compras-mp/vistas';
 
 export const prerender = false;
 

@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { timingSafeEqual } from 'node:crypto';
-import { jsonResponse } from '../../../lib/api-helpers';
-import { calcularCorrida, corridaLeidaPendiente, CorridaEnCursoError, ejecutarCorrida, leerOdoo } from '../../../lib/compras-mp/corrida';
+import { jsonResponse } from '@/lib/api-helpers';
+import { calcularCorrida, corridaLeidaPendiente, CorridaEnCursoError, ejecutarCorrida, leerOdoo } from '@/lib/compras-mp/corrida';
 
 export const prerender = false;
 

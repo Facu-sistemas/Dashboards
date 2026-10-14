@@ -1,8 +1,8 @@
 // Instantánea de Odoo para una corrida de Compras MP: junta todas las fuentes (solo lectura), les calcula un hash
 // y las guarda como fotos crudas en `raw_compras`, para poder reproducir y auditar cualquier corrida.
 import { createHash } from 'node:crypto';
-import { getSupabaseAdminClient } from '../../supabase/admin';
-import type { GastoLinea, OcPendienteLinea, StockDetalleResult } from '../../odoo/rotacion-gasto-detalle';
+import { getSupabaseAdminClient } from '@/lib/supabase/admin';
+import type { GastoLinea, OcPendienteLinea, StockDetalleResult } from '@/lib/odoo/rotacion-gasto-detalle';
 import { getBaseMp, type BaseMp } from './base';
 import { getConsumoMensual, type ConsumoMensual } from './consumo';
 import { getFinanzasMp, type FinanzasMp } from './finanzas';

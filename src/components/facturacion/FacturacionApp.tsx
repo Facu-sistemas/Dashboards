@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import type { DehydratedState } from '@tanstack/react-query';
-import QueryProvider from '../QueryProvider';
-import { useApiQuery } from '../dashboard/useApiQuery';
-import { monthOptions } from '../shared/monthOptions';
-import KpiCard from '../shared/KpiCard';
-import LastUpdated from '../shared/LastUpdated';
+import QueryProvider from '@/components/QueryProvider';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import { monthOptions } from '@/components/shared/monthOptions';
+import KpiCard from '@/components/shared/KpiCard';
+import LastUpdated from '@/components/shared/LastUpdated';
 import ComparisonTable from './ComparisonTable';
 import FacturacionSplitPieChart from './FacturacionSplitPieChart';
 import FacturacionTrendChart from './FacturacionTrendChart';

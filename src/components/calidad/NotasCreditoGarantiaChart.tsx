@@ -1,5 +1,5 @@
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { useChartTheme } from '../shared/useChartTheme';
+import { useChartTheme } from '@/components/shared/useChartTheme';
 import type { NotasCreditoGarantiaPoint } from './types';
 
 interface Props {

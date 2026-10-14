@@ -1,8 +1,8 @@
 // Alerta de reposición: insumos cuyo pronóstico en Odoo quedó bajo el mínimo y cuánto pedir (máximo − pronóstico).
 import { useMemo, useState } from 'react';
-import QueryProvider from '../../QueryProvider';
-import { useApiQuery } from '../../dashboard/useApiQuery';
-import type { ResultadoAlerta } from '../../../lib/compras-mp/alerta-reposicion';
+import QueryProvider from '@/components/QueryProvider';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import type { ResultadoAlerta } from '@/lib/compras-mp/alerta-reposicion';
 import { Cabeza, Cargando, Cuerpo, ErrorCaja, Grilla, Seccion, Tabla, Tarjeta, Vacio, fechaHora, num, td, tdR, th, thR } from './ui';
 
 function Inner() {

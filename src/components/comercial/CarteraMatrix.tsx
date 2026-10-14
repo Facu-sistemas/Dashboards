@@ -1,5 +1,5 @@
 import type { Categoria, Estado, Snapshot } from './cartera-clientes-calc';
-import { formatCompactCurrency } from '../gerencia/format';
+import { formatCompactCurrency } from '@/components/gerencia/format';
 
 interface Props {
   snap: Snapshot;

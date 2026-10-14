@@ -1,7 +1,7 @@
 import { searchReadAll, readGroup } from './client';
 import { getFronteraCompany } from './reference';
-import { withTtlCache } from '../cache';
-import { lastMonthKeys, monthBounds } from '../date';
+import { withTtlCache } from '@/lib/cache';
+import { lastMonthKeys, monthBounds } from '@/lib/date';
 import { COLCHONES_CATEG_IDS, LIVING_CATEG_IDS, getArgentinaTodayIso } from './oee';
 import { getObjetivosGerencia } from './gerencia-objetivos';
 import { getDiasHabiles } from './business-calendar';

@@ -1,12 +1,12 @@
 import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import QueryProvider from '../QueryProvider';
-import { useApiQuery } from '../dashboard/useApiQuery';
-import { useChartTheme } from '../shared/useChartTheme';
-import KpiCard from '../shared/KpiCard';
-import LastUpdated from '../shared/LastUpdated';
+import QueryProvider from '@/components/QueryProvider';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import { useChartTheme } from '@/components/shared/useChartTheme';
+import KpiCard from '@/components/shared/KpiCard';
+import LastUpdated from '@/components/shared/LastUpdated';
 import { dec, int, money, monthShort } from './format';
-import type { CriterioGasto, Empresa, GastoRealResult, RotacionResult, Valorizacion } from '../../lib/odoo/rotacion-gasto';
+import type { CriterioGasto, Empresa, GastoRealResult, RotacionResult, Valorizacion } from '@/lib/odoo/rotacion-gasto';
 
 const th = 'px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-500';
 const thR = `${th} text-right`;

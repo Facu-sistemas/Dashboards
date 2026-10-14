@@ -1,4 +1,4 @@
-import type { RawMaterialRow } from '../manufactura/types';
+import type { RawMaterialRow } from '@/components/manufactura/types';
 
 interface Props {
   material: RawMaterialRow;

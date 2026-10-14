@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
-import { getTendenciaMensual } from '../../lib/odoo/clientes-activos';
-import { handleApiRoute } from '../../lib/api-helpers';
+import { getTendenciaMensual } from '@/lib/odoo/clientes-activos';
+import { handleApiRoute } from '@/lib/api-helpers';
 
 export const prerender = false;
 

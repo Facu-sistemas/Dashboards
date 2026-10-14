@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import type { DehydratedState } from '@tanstack/react-query';
-import QueryProvider from '../QueryProvider';
+import QueryProvider from '@/components/QueryProvider';
 import FilterBar from './FilterBar';
 import FxRateBadge from './FxRateBadge';
-import LastUpdated from '../shared/LastUpdated';
+import LastUpdated from '@/components/shared/LastUpdated';
 import CurrencySection from './CurrencySection';
 import ComplianceTrendChart from './ComplianceTrendChart';
 import { useApiQuery } from './useApiQuery';

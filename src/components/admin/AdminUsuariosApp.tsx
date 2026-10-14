@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AREAS } from '../../lib/areas.config';
+import { AREAS } from '@/lib/areas.config';
 
 export interface UsuarioConPermisos {
   id: string;

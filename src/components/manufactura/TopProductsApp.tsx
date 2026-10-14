@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import type { DehydratedState } from '@tanstack/react-query';
-import QueryProvider from '../QueryProvider';
-import { useApiQuery } from '../dashboard/useApiQuery';
-import { useChartTheme } from '../shared/useChartTheme';
-import LastUpdated from '../shared/LastUpdated';
+import QueryProvider from '@/components/QueryProvider';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import { useChartTheme } from '@/components/shared/useChartTheme';
+import LastUpdated from '@/components/shared/LastUpdated';
 import TopProductsChart from './TopProductsChart';
 import type { TopProductsRange, TopProductsResult } from './types';
 

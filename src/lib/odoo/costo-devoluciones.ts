@@ -3,7 +3,7 @@ import { getPartners, normalizarProvincia } from './mapa-destinos';
 import { fetchNotasDevolucionColchon, type Causa } from './notas-credito-devolucion';
 import { COLCHONES_CATEG_IDS, LIVING_CATEG_IDS } from './oee';
 import { getArgentinaTodayIso } from './oee';
-import { lastMonthKeys, monthBounds } from '../date';
+import { lastMonthKeys, monthBounds } from '@/lib/date';
 
 export type SectorDevolucion = 'living' | 'colchon';
 

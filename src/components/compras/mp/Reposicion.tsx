@@ -1,7 +1,7 @@
 // Reglas de reabastecimiento: mínimos y máximos por insumo y archivo para importar en Odoo (la web nunca escribe en Odoo).
 import { useMemo, useState } from 'react';
-import { useApiQuery } from '../../dashboard/useApiQuery';
-import type { ResultadoReposicion } from '../../../lib/compras-mp/reposicion';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import type { ResultadoReposicion } from '@/lib/compras-mp/reposicion';
 import { Cabeza, Cargando, Cuerpo, ErrorCaja, Etiqueta, Grilla, Seccion, Selector, Tabla, Tarjeta, Vacio, num, td, tdR, th, thR, unidades } from './ui';
 
 type Datos = ResultadoReposicion & { corrida: { id: string; fechaDatos: string } };

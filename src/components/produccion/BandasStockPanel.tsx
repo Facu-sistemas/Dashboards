@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { TELAS_LIST } from '../../lib/bandas-calc';
+import { TELAS_LIST } from '@/lib/bandas-calc';
 
 export interface StockRowInput {
   id: string;

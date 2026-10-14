@@ -1,8 +1,8 @@
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { useChartTheme } from '../shared/useChartTheme';
-import { formatCompactCurrency } from '../gerencia/format';
+import { useChartTheme } from '@/components/shared/useChartTheme';
+import { formatCompactCurrency } from '@/components/gerencia/format';
 import { monthLabel } from './month-label';
-import type { ChequeMesPoint } from '../../lib/odoo/credito-clientes';
+import type { ChequeMesPoint } from '@/lib/odoo/credito-clientes';
 
 interface Props {
   data: ChequeMesPoint[];

@@ -1,5 +1,5 @@
 import { todayIso, type Controles, type ParetoMode } from './cartera-clientes-calc';
-import type { CarteraCompany, CarteraFuente } from '../../lib/odoo/cartera-clientes';
+import type { CarteraCompany, CarteraFuente } from '@/lib/odoo/cartera-clientes';
 
 interface Props {
   controles: Controles;

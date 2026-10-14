@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
-import { getWarehouseLayout } from '../../lib/odoo/almacen';
-import { handleApiRoute } from '../../lib/api-helpers';
+import { getWarehouseLayout } from '@/lib/odoo/almacen';
+import { handleApiRoute } from '@/lib/api-helpers';
 
 export const prerender = false;
 

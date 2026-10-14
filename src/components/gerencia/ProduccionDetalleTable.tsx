@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useChartTheme } from '../shared/useChartTheme';
+import { useChartTheme } from '@/components/shared/useChartTheme';
 import { colorPorRanking } from './produccion-detalle-palette';
 import { formatNumber } from './format';
 

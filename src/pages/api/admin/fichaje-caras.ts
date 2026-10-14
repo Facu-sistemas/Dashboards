@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { borrarCarasDeEmpleado } from '../../../lib/supabase/fichaje-caras';
-import { handleApiRoute, jsonResponse, ApiValidationError } from '../../../lib/api-helpers';
+import { borrarCarasDeEmpleado } from '@/lib/supabase/fichaje-caras';
+import { handleApiRoute, jsonResponse, ApiValidationError } from '@/lib/api-helpers';
 
 export const prerender = false;
 

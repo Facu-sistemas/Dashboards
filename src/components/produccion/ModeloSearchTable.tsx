@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useApiQuery } from '../dashboard/useApiQuery';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
 import type { ModeloCarpinteriaPage } from './types';
 
 // Must match carpinteria-ssr.ts's PAGE_SIZE so the first page hydrates from SSR instead of refetching.

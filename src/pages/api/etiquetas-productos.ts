@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { searchProductosEtiquetas } from '../../lib/odoo/etiquetas';
-import { handleApiRoute, ApiValidationError } from '../../lib/api-helpers';
+import { searchProductosEtiquetas } from '@/lib/odoo/etiquetas';
+import { handleApiRoute, ApiValidationError } from '@/lib/api-helpers';
 
 export const prerender = false;
 

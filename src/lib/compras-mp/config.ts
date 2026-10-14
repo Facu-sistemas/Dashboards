@@ -1,7 +1,7 @@
 // Reglas editables del presupuesto de Compras MP: viven en Supabase (cfg_*) y se leen en cada corrida.
 // Si una tabla está vacía se usan las reglas por defecto del libro v12 (config-default.json).
 import cfgJson from './config-default.json';
-import { getSupabaseAdminClient } from '../supabase/admin';
+import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import type { Config, Excepcion, Origen, PlanMensual } from './motor';
 
 export const CONFIG_DEFAULT = cfgJson as unknown as Config;

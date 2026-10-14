@@ -1,8 +1,8 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { marcarAsistencia } from '../../lib/odoo/asistencia-write';
-import { handleApiRoute, jsonResponse, ApiValidationError } from '../../lib/api-helpers';
-import { OdooError } from '../../lib/odoo/types';
+import { marcarAsistencia } from '@/lib/odoo/asistencia-write';
+import { handleApiRoute, jsonResponse, ApiValidationError } from '@/lib/api-helpers';
+import { OdooError } from '@/lib/odoo/types';
 
 export const prerender = false;
 

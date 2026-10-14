@@ -1,7 +1,7 @@
 // Base de insumos (Materia Prima) para el libro Presupuesto de Compras MP. Reemplaza el export manual de Odoo
 // (Inventario > Productos, filtro Materia Prima). Solo lectura: search_read, nunca escribe.
 import { searchReadAll } from './client';
-import { withTtlCache } from '../cache';
+import { withTtlCache } from '@/lib/cache';
 
 const CATEGORIA_MATERIA_PRIMA = 14;
 const CACHE_TTL_MS = 10 * 60 * 1000;

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useApiQuery } from '../dashboard/useApiQuery';
-import QueryProvider from '../QueryProvider';
-import { agruparPersonas, rankingPersonas } from '../../lib/fichaje-matching';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import QueryProvider from '@/components/QueryProvider';
+import { agruparPersonas, rankingPersonas } from '@/lib/fichaje-matching';
 import {
   marcarEnOdoo,
   MARGEN_RECONOCIMIENTO,

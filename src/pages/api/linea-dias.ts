@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
-import { getLineaDias } from '../../lib/odoo/linea-resorte';
-import { handleApiRoute } from '../../lib/api-helpers';
+import { getLineaDias } from '@/lib/odoo/linea-resorte';
+import { handleApiRoute } from '@/lib/api-helpers';
 
 export const prerender = false;
 

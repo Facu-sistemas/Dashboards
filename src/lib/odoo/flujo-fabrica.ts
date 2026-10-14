@@ -1,6 +1,6 @@
 import { searchRead, searchReadAll } from './client';
 import { getFronteraCompany } from './reference';
-import { withTtlCache } from '../cache';
+import { withTtlCache } from '@/lib/cache';
 import type { OdooDomain } from './types';
 
 /**

@@ -1,8 +1,8 @@
 ---
-import { getCostoDevolucionesData } from '../../lib/odoo/costo-devoluciones';
-import { getTarifasGuardadas } from '../../lib/supabase/costo-devoluciones-tarifas';
-import type { CostoDevolucionesData } from '../../lib/odoo/costo-devoluciones';
-import type { TarifasGuardadas } from '../../lib/supabase/costo-devoluciones-tarifas';
+import { getCostoDevolucionesData } from '@/lib/odoo/costo-devoluciones';
+import { getTarifasGuardadas } from '@/lib/supabase/costo-devoluciones-tarifas';
+import type { CostoDevolucionesData } from '@/lib/odoo/costo-devoluciones';
+import type { TarifasGuardadas } from '@/lib/supabase/costo-devoluciones-tarifas';
 
 let data: CostoDevolucionesData | null = null;
 let tarifas: TarifasGuardadas = { disponible: false, porMes: {} };
@@ -13,7 +13,7 @@ try {
   ssrError = err instanceof Error ? err.message : 'Error desconocido consultando Odoo';
 }
 
-// `<` escapado para que ningún nombre pueda cerrar el <script>.
+// `<` escapado para que ningún nombre pueda cerrar la etiqueta de script.
 const json = data ? JSON.stringify({ data, tarifas }).replace(/</g, '\\u003c') : '';
 
 const SQL = `create table costo_devoluciones_tarifas (
@@ -263,8 +263,8 @@ const card = 'rounded-lg border border-slate-800 bg-slate-900 p-4';
     type Filtros,
     type Resultado,
   } from './costo-devoluciones-calc';
-  import type { CostoDevolucionesData } from '../../lib/odoo/costo-devoluciones';
-  import type { TarifasGuardadas, TarifasMes } from '../../lib/supabase/costo-devoluciones-tarifas';
+  import type { CostoDevolucionesData } from '@/lib/odoo/costo-devoluciones';
+  import type { TarifasGuardadas, TarifasMes } from '@/lib/supabase/costo-devoluciones-tarifas';
 
   const raw = document.getElementById('cd-data')?.dataset.json;
 
@@ -335,6 +335,7 @@ const card = 'rounded-lg border border-slate-800 bg-slate-900 p-4';
       $('cd-hero').textContent = t.bruto > 0 ? fmtMonto(t.neto) : t.casos > 0 ? 'Cargá las tarifas' : fmtMonto(0);
       const partes = [`${fmt(t.casos)} ${t.casos === 1 ? 'caso' : 'casos'}`];
       if (r.netoPorUnidad !== null && t.bruto > 0) partes.push(`${fmtMonto(r.netoPorUnidad)} por unidad fabricada (${fmt(r.unidades)} unidades)`);
+      if (t.notaCredito > 0) partes.push(`${fmtMonto(t.notaCredito)} en notas de crédito emitidas (lo que se le devolvió al cliente, aparte del costo)`);
       if (t.facturado > 0) partes.push(`${fmtMonto(t.bruto)} de costo − ${fmtMonto(t.facturado)} facturado`);
       $('cd-hero-sub').textContent = partes.join(' · ');
 

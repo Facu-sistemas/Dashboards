@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import type { DehydratedState } from '@tanstack/react-query';
-import QueryProvider from '../QueryProvider';
-import { useApiQuery } from '../dashboard/useApiQuery';
-import LastUpdated from '../shared/LastUpdated';
+import QueryProvider from '@/components/QueryProvider';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import LastUpdated from '@/components/shared/LastUpdated';
 import CarteraControls from './CarteraControls';
 import CarteraObjetivos from './CarteraObjetivos';
 import CarteraKpiGrid from './CarteraKpiGrid';
@@ -21,7 +21,7 @@ import {
   trailingSnapshots,
   type Controles,
 } from './cartera-clientes-calc';
-import type { CarteraClientesData, CarteraFuente } from '../../lib/odoo/cartera-clientes';
+import type { CarteraClientesData, CarteraFuente } from '@/lib/odoo/cartera-clientes';
 
 interface Props {
   dehydratedState?: DehydratedState;

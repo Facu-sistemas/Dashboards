@@ -1,5 +1,5 @@
 import { readGroup, searchRead, searchReadAll } from './client';
-import { currentMonthKey, monthsBetween } from '../date';
+import { currentMonthKey, monthsBetween } from '@/lib/date';
 import type { OdooDomain } from './types';
 
 /**

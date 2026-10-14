@@ -1,5 +1,5 @@
 import { searchRead, searchReadAll } from './client';
-import { withTtlCache, cacheKey } from '../cache';
+import { withTtlCache, cacheKey } from '@/lib/cache';
 
 /**
  * Warehouse rack cells follow `WH/Existencias/<RACK>.<COLUMN>.<LEVEL>`

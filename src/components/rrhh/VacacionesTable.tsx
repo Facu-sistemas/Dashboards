@@ -1,5 +1,5 @@
 import { Fragment, useState } from 'react';
-import type { EmpleadoVacacionesRow } from '../../lib/odoo/rrhh-vacaciones';
+import type { EmpleadoVacacionesRow } from '@/lib/odoo/rrhh-vacaciones';
 import EmpleadoDetalle from './EmpleadoDetalle';
 import { formatDias, formatFechaIso } from './format';
 

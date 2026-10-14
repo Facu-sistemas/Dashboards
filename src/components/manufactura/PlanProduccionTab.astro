@@ -1,8 +1,8 @@
 ---
 import PlanProduccionApp from './PlanProduccionApp';
-import { buildPlanProduccionDehydratedState } from '../../lib/plan-produccion-ssr';
-import { getArgentinaTodayIso } from '../../lib/odoo/oee';
-import type { PeriodKind } from '../../lib/odoo/plan-produccion';
+import { buildPlanProduccionDehydratedState } from '@/lib/plan-produccion-ssr';
+import { getArgentinaTodayIso } from '@/lib/odoo/oee';
+import type { PeriodKind } from '@/lib/odoo/plan-produccion';
 
 const PERIOD_VALUES: PeriodKind[] = ['day', 'week', 'month', 'year'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;

@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { getOeeSummary } from '../../lib/odoo/oee';
-import { handleApiRoute, ApiValidationError } from '../../lib/api-helpers';
+import { getOeeSummary } from '@/lib/odoo/oee';
+import { handleApiRoute, ApiValidationError } from '@/lib/api-helpers';
 
 export const prerender = false;
 

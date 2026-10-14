@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import type { DehydratedState } from '@tanstack/react-query';
-import QueryProvider from '../QueryProvider';
-import { useApiQuery } from '../dashboard/useApiQuery';
-import LastUpdated from '../shared/LastUpdated';
+import QueryProvider from '@/components/QueryProvider';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import LastUpdated from '@/components/shared/LastUpdated';
 import PeriodPicker, { idxsForPeriodo } from './PeriodPicker';
 import ProduccionDetalleChart, { type SerieProducto } from './ProduccionDetalleChart';
 import ProduccionDetalleTable, { type FilaDetalle } from './ProduccionDetalleTable';

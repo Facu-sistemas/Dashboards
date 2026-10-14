@@ -1,6 +1,6 @@
 import { searchReadAll, readGroup } from './client';
 import { fetchSpreadsheetSnapshot, parseHeaderedSheet } from './spreadsheet-snapshot';
-import { addDaysIso } from '../date';
+import { addDaysIso } from '@/lib/date';
 import { OdooError } from './types';
 import type { OdooDomain } from './types';
 

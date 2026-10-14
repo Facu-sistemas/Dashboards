@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { DehydratedState } from '@tanstack/react-query';
-import QueryProvider from '../QueryProvider';
-import { useApiQuery } from '../dashboard/useApiQuery';
-import type { EtiquetaProducto } from '../../lib/odoo/etiquetas';
+import QueryProvider from '@/components/QueryProvider';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import type { EtiquetaProducto } from '@/lib/odoo/etiquetas';
 import {
   ETIQUETA_CSS,
   etiquetaCajaHtml,

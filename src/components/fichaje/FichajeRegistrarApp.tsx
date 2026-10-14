@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useApiQuery } from '../dashboard/useApiQuery';
-import QueryProvider from '../QueryProvider';
-import { agruparPersonas, rankingPersonas } from '../../lib/fichaje-matching';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import QueryProvider from '@/components/QueryProvider';
+import { agruparPersonas, rankingPersonas } from '@/lib/fichaje-matching';
 import {
   registrarCaras,
   UMBRAL_PARECIDO,

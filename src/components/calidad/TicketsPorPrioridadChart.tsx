@@ -1,5 +1,5 @@
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
-import { useChartTheme, type ChartTheme } from '../shared/useChartTheme';
+import { useChartTheme, type ChartTheme } from '@/components/shared/useChartTheme';
 import type { TicketsPorPrioridadRow } from './types';
 
 interface Props {

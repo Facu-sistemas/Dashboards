@@ -4,11 +4,11 @@
 // hechas que consumen en una orden de producción, en la unidad de medida del PRODUCTO (quantity_product_uom),
 // por la fecha de la línea. Con esa definición coinciden producto por producto en mayo 2025 y agosto 2026.
 // (Con stock.move.product_uom_qty o con stock.move.product_qty hay diferencias por unidades y fechas.)
-import { readGroup } from '../../odoo/client';
-import { getFronteraCompany } from '../../odoo/reference';
-import type { OdooReadGroupResult } from '../../odoo/types';
+import { readGroup } from '@/lib/odoo/client';
+import { getFronteraCompany } from '@/lib/odoo/reference';
+import type { OdooReadGroupResult } from '@/lib/odoo/types';
 import { listarProductosMp } from './base';
-import type { ConsumoTabla } from '../motor';
+import type { ConsumoTabla } from '@/lib/compras-mp/motor';
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 

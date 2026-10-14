@@ -1,6 +1,6 @@
 ---
-import { getMapaDestinosData } from '../../lib/odoo/mapa-destinos';
-import type { MapaDestinosData } from '../../lib/odoo/mapa-destinos';
+import { getMapaDestinosData } from '@/lib/odoo/mapa-destinos';
+import type { MapaDestinosData } from '@/lib/odoo/mapa-destinos';
 
 let data: MapaDestinosData | null = null;
 let ssrError: string | null = null;
@@ -78,7 +78,7 @@ const json = data ? JSON.stringify(data).replace(/</g, '\\u003c') : '';
 <script>
   import L from 'leaflet';
   import 'leaflet/dist/leaflet.css';
-  import type { MapaDestinosData, MapaModoData, MapaModo, MapaPunto } from '../../lib/odoo/mapa-destinos';
+  import type { MapaDestinosData, MapaModoData, MapaModo, MapaPunto } from '@/lib/odoo/mapa-destinos';
 
   const raw = document.getElementById('mapa-data')?.dataset.json;
   const mapEl = document.getElementById('mapa');

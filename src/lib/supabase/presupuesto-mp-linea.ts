@@ -1,5 +1,5 @@
 import { getSupabaseAdminClient } from './admin';
-import type { Linea } from '../odoo/presupuesto-proyectado';
+import type { Linea } from '@/lib/odoo/presupuesto-proyectado';
 
 /**
  * Etiqueta manual Colchones / Living / Ambos por materia prima (pisa la

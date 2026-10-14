@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
-import { getUltimasVentas } from '../../lib/odoo/clientes-activos';
-import { handleApiRoute } from '../../lib/api-helpers';
+import { getUltimasVentas } from '@/lib/odoo/clientes-activos';
+import { handleApiRoute } from '@/lib/api-helpers';
 
 export const prerender = false;
 

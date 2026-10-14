@@ -1,4 +1,4 @@
-import type { CarteraClientesData, CarteraRecord } from '../../lib/odoo/cartera-clientes';
+import type { CarteraClientesData, CarteraRecord } from '@/lib/odoo/cartera-clientes';
 
 export type Estado = 'Activo' | 'Dormido' | 'Perdido' | 'Nuevo';
 export type Categoria = 'A' | 'B' | 'C';

@@ -8,7 +8,7 @@ import {
   type Categoria,
   type Snapshot,
 } from './cartera-clientes-calc';
-import { formatCompactCurrency, formatNumber } from '../gerencia/format';
+import { formatCompactCurrency, formatNumber } from '@/components/gerencia/format';
 
 interface Props {
   snap: Snapshot;

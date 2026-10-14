@@ -1,5 +1,5 @@
-import { ANCHO_ROLLO, MIN_ROLLO_GRANDE, SEG_ROLLO_CHICO, envivadoraPorTipo, fmtTiempo, type CorteRow, type EnvivadoRow, type MatelRow, type OptimizacionTela } from '../../lib/bandas-calc';
-import { LOGO_LARGE_PNG_BASE64 } from '../../lib/logos';
+import { ANCHO_ROLLO, MIN_ROLLO_GRANDE, SEG_ROLLO_CHICO, envivadoraPorTipo, fmtTiempo, type CorteRow, type EnvivadoRow, type MatelRow, type OptimizacionTela } from '@/lib/bandas-calc';
+import { LOGO_LARGE_PNG_BASE64 } from '@/lib/logos';
 
 /** Builds a standalone printable document per tab (plain inline CSS — this opens in its own window, no Tailwind available there) and triggers the print dialog. Mirrors the original tool's per-solapa print buttons. */
 

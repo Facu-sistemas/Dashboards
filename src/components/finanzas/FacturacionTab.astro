@@ -1,7 +1,7 @@
 ---
-import FacturacionApp from '../facturacion/FacturacionApp';
-import { buildFacturacionDehydratedState } from '../../lib/facturacion-ssr';
-import { currentMonthKey } from '../../lib/date';
+import FacturacionApp from '@/components/facturacion/FacturacionApp';
+import { buildFacturacionDehydratedState } from '@/lib/facturacion-ssr';
+import { currentMonthKey } from '@/lib/date';
 
 const params = Astro.url.searchParams;
 const monthParam = params.get('month');

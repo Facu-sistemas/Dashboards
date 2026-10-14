@@ -1,9 +1,9 @@
 // Conector de solo lectura: base de productos de Materia Prima (reemplaza la exportación "Base de datos").
 // Siempre filtra por la compañía operativa y trae también los productos archivados que todavía tienen stock.
-import { searchReadAll } from '../../odoo/client';
-import { getFronteraCompany } from '../../odoo/reference';
-import { MATERIA_PRIMA_CATEG_ID } from '../../odoo/raw-material-consumption';
-import type { BaseRow } from '../motor';
+import { searchReadAll } from '@/lib/odoo/client';
+import { getFronteraCompany } from '@/lib/odoo/reference';
+import { MATERIA_PRIMA_CATEG_ID } from '@/lib/odoo/raw-material-consumption';
+import type { BaseRow } from '@/lib/compras-mp/motor';
 
 export interface ProductoMp {
   productId: number;

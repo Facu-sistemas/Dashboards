@@ -1,7 +1,7 @@
 // Aprobar versión: congela el presupuesto y el desembolso proyectado del horizonte (solo Compras). Las versiones son inmutables.
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { CabeceraVersion } from '../../../lib/compras-mp/versiones';
+import type { CabeceraVersion } from '@/lib/compras-mp/versiones';
 import { postJson } from './acciones';
 import { ErrorCaja, Seccion, fechaCorta, fechaHora, mesCorto, mm } from './ui';
 

@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { getFacturacionComparison } from '../../lib/odoo/facturacion';
-import { handleApiRoute, ApiValidationError } from '../../lib/api-helpers';
+import { getFacturacionComparison } from '@/lib/odoo/facturacion';
+import { handleApiRoute, ApiValidationError } from '@/lib/api-helpers';
 
 export const prerender = false;
 

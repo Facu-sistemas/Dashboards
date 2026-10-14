@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { ANCHO_ROLLO, calcularSobrantes, type CorteRow, type OptimizacionTela } from '../../lib/bandas-calc';
+import { ANCHO_ROLLO, calcularSobrantes, type CorteRow, type OptimizacionTela } from '@/lib/bandas-calc';
 import { createColorForAlto, desperdicioClasses, telaBadgeClasses } from './bandas-ui';
 
 interface Props {

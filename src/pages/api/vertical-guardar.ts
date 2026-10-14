@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { marcarSobrantesConsumidos, crearSobrante, borrarSobranteDelDia, upsertSesionVertical } from '../../lib/supabase/vertical-sobrantes';
-import { handleApiRoute, jsonResponse, ApiValidationError } from '../../lib/api-helpers';
+import { marcarSobrantesConsumidos, crearSobrante, borrarSobranteDelDia, upsertSesionVertical } from '@/lib/supabase/vertical-sobrantes';
+import { handleApiRoute, jsonResponse, ApiValidationError } from '@/lib/api-helpers';
 
 export const prerender = false;
 

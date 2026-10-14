@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { searchModelosCarpinteria } from '../../lib/odoo/carpinteria';
-import { handleApiRoute, ApiValidationError } from '../../lib/api-helpers';
+import { searchModelosCarpinteria } from '@/lib/odoo/carpinteria';
+import { handleApiRoute, ApiValidationError } from '@/lib/api-helpers';
 
 export const prerender = false;
 

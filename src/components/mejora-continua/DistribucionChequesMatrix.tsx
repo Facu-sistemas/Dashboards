@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { monthLabel } from './month-label';
-import { formatCompactCurrency } from '../gerencia/format';
+import { formatCompactCurrency } from '@/components/gerencia/format';
 import { formatExactCurrency } from './amount-format';
-import type { CreditoClientesData } from '../../lib/odoo/credito-clientes';
+import type { CreditoClientesData } from '@/lib/odoo/credito-clientes';
 
 interface Props {
   data: CreditoClientesData;

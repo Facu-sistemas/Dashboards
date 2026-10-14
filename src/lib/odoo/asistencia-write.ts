@@ -1,4 +1,4 @@
-import { getOdooConfig } from '../env';
+import { getOdooConfig } from '@/lib/env';
 import { OdooError } from './types';
 
 /**

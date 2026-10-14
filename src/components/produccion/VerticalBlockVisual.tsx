@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import type { BarraCorte } from '../../lib/vertical-calc';
-import { ESPESOR_MINIMO_CM } from '../../lib/vertical-calc';
+import type { BarraCorte } from '@/lib/vertical-calc';
+import { ESPESOR_MINIMO_CM } from '@/lib/vertical-calc';
 
 /**
  * Vista lateral apilada de las barras físicas (sobrantes + blocks cargados)

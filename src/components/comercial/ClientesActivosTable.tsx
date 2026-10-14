@@ -1,5 +1,5 @@
 import { Fragment, useState } from 'react';
-import type { ClienteActivoRow as ClienteActivoRowType, ClientesActivosFuente, ClientesActivosPeriodo } from '../../lib/odoo/clientes-activos';
+import type { ClienteActivoRow as ClienteActivoRowType, ClientesActivosFuente, ClientesActivosPeriodo } from '@/lib/odoo/clientes-activos';
 import ClienteActivoTableRow from './ClienteActivoRow';
 import NotasCreditoDetailRow from './NotasCreditoDetailRow';
 

@@ -1,4 +1,4 @@
-import type { ChartTheme } from '../shared/useChartTheme';
+import type { ChartTheme } from '@/components/shared/useChartTheme';
 
 // Mismo truco que RotacionGastoApp: los primeros colores ciclan tokens de tema
 // en vez de hardcodear hex — se mantiene coherente con claro/oscuro. Si se

@@ -1,9 +1,9 @@
 // Módulo Compras MP: navegación entre pantallas, estado de la última corrida y botón "Actualizar ahora".
 import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import QueryProvider from '../../QueryProvider';
-import { useApiQuery } from '../../dashboard/useApiQuery';
-import type { CorridaGuardada } from '../../../lib/compras-mp/corrida';
+import QueryProvider from '@/components/QueryProvider';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import type { CorridaGuardada } from '@/lib/compras-mp/corrida';
 import BandaControles from './BandaControles';
 import Evolucion from './Evolucion';
 import FichaSku from './FichaSku';

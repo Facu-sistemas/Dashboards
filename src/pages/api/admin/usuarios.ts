@@ -1,8 +1,8 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { getSupabaseAdminClient } from '../../../lib/supabase/admin';
-import { jsonResponse } from '../../../lib/api-helpers';
-import { AREA_SLUGS } from '../../../lib/areas.config';
+import { getSupabaseAdminClient } from '@/lib/supabase/admin';
+import { jsonResponse } from '@/lib/api-helpers';
+import { AREA_SLUGS } from '@/lib/areas.config';
 
 export const prerender = false;
 

@@ -1,7 +1,7 @@
 // Corrida completa de Compras MP: Odoo (solo lectura) → fotos crudas → motor → desembolsos → control de OC → controles
 // → resultados guardados en Supabase (calc_*). La web solo lee lo guardado; nunca calcula en el request de una pantalla.
-import { getSupabaseAdminClient } from '../supabase/admin';
-import { getDiasHabiles } from '../odoo/business-calendar';
+import { getSupabaseAdminClient } from '@/lib/supabase/admin';
+import { getDiasHabiles } from '@/lib/odoo/business-calendar';
 import { calcular, type EntradaMotor, type PlanMensual, type ResultadoMotor } from './motor';
 import { calcularDesembolsos, type ResultadoDesembolsos } from './desembolsos';
 import { controlOcVencidas, type FilaControlOc } from './control-oc';

@@ -2,9 +2,9 @@
 // Cada cambio se valida en el servidor, queda auditado y recalcula con las fotos de la última actualización.
 import { useMemo, useState, type ReactNode } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useApiQuery } from '../../dashboard/useApiQuery';
-import type { CambioConfig, ConfigEditable } from '../../../lib/compras-mp/edicion';
-import type { VistaSku } from '../../../lib/compras-mp/vistas';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import type { CambioConfig, ConfigEditable } from '@/lib/compras-mp/edicion';
+import type { VistaSku } from '@/lib/compras-mp/vistas';
 import { postJson } from './acciones';
 import { Cabeza, Cargando, Cuerpo, ErrorCaja, Seccion, Segmentos, Selector, Tabla, Vacio, fechaHora, td, th } from './ui';
 

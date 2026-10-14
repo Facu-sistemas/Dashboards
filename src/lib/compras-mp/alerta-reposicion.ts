@@ -1,7 +1,7 @@
 // Alerta de reposición: reglas de reabastecimiento de Odoo cuyo pronóstico quedó por debajo del mínimo, con la cantidad a pedir
 // (máximo − pronóstico, redondeada al múltiplo). Odoo no avisa con disparador manual: solo lo muestra si alguien abre Reposiciones.
 // Solo lectura: nunca escribe en Odoo.
-import { searchReadAll } from '../odoo/client';
+import { searchReadAll } from '@/lib/odoo/client';
 
 export interface FilaAlerta {
   reglaId: number;

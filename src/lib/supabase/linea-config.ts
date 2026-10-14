@@ -1,5 +1,5 @@
 import { getSupabaseAdminClient } from './admin';
-import { MESA_CODIGOS, type ModoTap, type ReglaTap } from '../linea-config';
+import { MESA_CODIGOS, type ModoTap, type ReglaTap } from '@/lib/linea-config';
 
 /**
  * Configuración editable del Planificado Línea. Tablas creadas a mano en

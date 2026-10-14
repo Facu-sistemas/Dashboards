@@ -1,5 +1,5 @@
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { useChartTheme } from '../shared/useChartTheme';
+import { useChartTheme } from '@/components/shared/useChartTheme';
 import type { TicketsPorTipoRow } from './types';
 
 interface Props {

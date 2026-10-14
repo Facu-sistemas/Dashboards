@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { getTopProductsByCategory } from '../../lib/odoo/top-products';
-import { handleApiRoute, ApiValidationError } from '../../lib/api-helpers';
+import { getTopProductsByCategory } from '@/lib/odoo/top-products';
+import { handleApiRoute, ApiValidationError } from '@/lib/api-helpers';
 
 export const prerender = false;
 

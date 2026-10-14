@@ -1,7 +1,7 @@
 import { searchReadAll } from './client';
 import { getFronteraCompany } from './reference';
-import { monthBounds, lastMonthKeys } from '../date';
-import { withTtlCache, cacheKey } from '../cache';
+import { monthBounds, lastMonthKeys } from '@/lib/date';
+import { withTtlCache, cacheKey } from '@/lib/cache';
 import type { OdooDomain } from './types';
 
 export type OeePeriodKind = 'day' | 'week' | 'month';

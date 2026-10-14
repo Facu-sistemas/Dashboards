@@ -1,12 +1,12 @@
 ---
-import BaseLayout from '../../layouts/BaseLayout.astro';
-import AdminUsuariosApp from '../../components/admin/AdminUsuariosApp';
-import { getSupabaseAdminClient } from '../../lib/supabase/admin';
-import type { UsuarioConPermisos } from '../../components/admin/AdminUsuariosApp';
-import FichajeCarasAdmin from '../../components/admin/FichajeCarasAdmin';
-import FichajeParecidosAdmin from '../../components/admin/FichajeParecidosAdmin';
-import { listCaras, listCarasResumen } from '../../lib/supabase/fichaje-caras';
-import { agruparPersonas, calcularParesParecidos } from '../../lib/fichaje-matching';
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import AdminUsuariosApp from '@/components/admin/AdminUsuariosApp';
+import { getSupabaseAdminClient } from '@/lib/supabase/admin';
+import type { UsuarioConPermisos } from '@/components/admin/AdminUsuariosApp';
+import FichajeCarasAdmin from '@/components/admin/FichajeCarasAdmin';
+import FichajeParecidosAdmin from '@/components/admin/FichajeParecidosAdmin';
+import { listCaras, listCarasResumen } from '@/lib/supabase/fichaje-caras';
+import { agruparPersonas, calcularParesParecidos } from '@/lib/fichaje-matching';
 
 export const prerender = false;
 

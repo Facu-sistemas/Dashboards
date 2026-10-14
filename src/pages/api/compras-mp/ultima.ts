@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
-import { jsonResponse } from '../../../lib/api-helpers';
-import { ultimaCorrida } from '../../../lib/compras-mp/corrida';
-import { puedeEditarCompras, puedeVerCompras } from '../../../lib/compras-mp/permisos';
+import { jsonResponse } from '@/lib/api-helpers';
+import { ultimaCorrida } from '@/lib/compras-mp/corrida';
+import { puedeEditarCompras, puedeVerCompras } from '@/lib/compras-mp/permisos';
 
 export const prerender = false;
 

@@ -1,9 +1,9 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { getVerticalDemanda, getVerticalBaseTecnica } from '../../lib/odoo/vertical';
-import { getSobrantesDisponibles, getSesionesVertical } from '../../lib/supabase/vertical-sobrantes';
-import { construirNecesidad } from '../../lib/vertical-calc';
-import { handleApiRoute, ApiValidationError } from '../../lib/api-helpers';
+import { getVerticalDemanda, getVerticalBaseTecnica } from '@/lib/odoo/vertical';
+import { getSobrantesDisponibles, getSesionesVertical } from '@/lib/supabase/vertical-sobrantes';
+import { construirNecesidad } from '@/lib/vertical-calc';
+import { handleApiRoute, ApiValidationError } from '@/lib/api-helpers';
 
 export const prerender = false;
 

@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useQueryClient, type DehydratedState } from '@tanstack/react-query';
-import QueryProvider from '../QueryProvider';
-import { useApiQuery } from '../dashboard/useApiQuery';
+import QueryProvider from '@/components/QueryProvider';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
 import ModeloSearchTable from './ModeloSearchTable';
 import PedidoListonesTable from './PedidoListonesTable';
-import LastUpdated from '../shared/LastUpdated';
+import LastUpdated from '@/components/shared/LastUpdated';
 import type { PedidoAgregado, PedidoListonRow, RecetaListonRow } from './types';
 
 interface Props {

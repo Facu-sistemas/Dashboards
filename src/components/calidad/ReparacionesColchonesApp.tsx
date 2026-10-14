@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import type { DehydratedState } from '@tanstack/react-query';
-import QueryProvider from '../QueryProvider';
-import { useApiQuery } from '../dashboard/useApiQuery';
-import LastUpdated from '../shared/LastUpdated';
+import QueryProvider from '@/components/QueryProvider';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import LastUpdated from '@/components/shared/LastUpdated';
 import ReparacionesVsProduccionChart from './ReparacionesVsProduccionChart';
 import HorasYRecuperadoChart from './HorasYRecuperadoChart';
 import type { CalidadRange, ReparacionesResult } from './types';

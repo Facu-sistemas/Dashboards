@@ -1,6 +1,6 @@
 import { readGroup, searchReadAll } from './client';
-import { withTtlCache } from '../cache';
-import { monthBounds } from '../date';
+import { withTtlCache } from '@/lib/cache';
+import { monthBounds } from '@/lib/date';
 import { getArgentinaTodayIso } from './oee';
 import { MATERIA_PRIMA_CATEG_ID } from './raw-material-consumption';
 import { inBatches, MP_DOMAIN, resolverEmpresas } from './rotacion-gasto';

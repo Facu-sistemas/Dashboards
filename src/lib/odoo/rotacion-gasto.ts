@@ -1,6 +1,6 @@
 import { readGroup, searchRead, searchReadAll } from './client';
-import { withTtlCache } from '../cache';
-import { lastMonthKeys, monthBounds } from '../date';
+import { withTtlCache } from '@/lib/cache';
+import { lastMonthKeys, monthBounds } from '@/lib/date';
 import { getArgentinaTodayIso } from './oee';
 import { MATERIA_PRIMA_CATEG_ID } from './raw-material-consumption';
 import type { OdooDomain, OdooReadGroupResult } from './types';

@@ -1,13 +1,13 @@
 import type { APIRoute } from 'astro';
 import ExcelJS from 'exceljs';
 import { z } from 'zod';
-import { getGastoLineas, getOcPendientes, getRecepcionesSinFacturarDetalle, getStockDetalle } from '../../lib/odoo/rotacion-gasto-detalle';
-import { getFinanzasMp } from '../../lib/compras-mp/odoo/finanzas';
-import { getTipoCambio } from '../../lib/compras-mp/odoo/otros';
-import { ApiValidationError, jsonResponse } from '../../lib/api-helpers';
-import { OdooError } from '../../lib/odoo/types';
-import { LOGO_GRIS_PNG_BASE64 } from '../../lib/logos';
-import { getBaseInsumos } from '../../lib/odoo/base-insumos';
+import { getGastoLineas, getOcPendientes, getRecepcionesSinFacturarDetalle, getStockDetalle } from '@/lib/odoo/rotacion-gasto-detalle';
+import { getFinanzasMp } from '@/lib/compras-mp/odoo/finanzas';
+import { getTipoCambio } from '@/lib/compras-mp/odoo/otros';
+import { ApiValidationError, jsonResponse } from '@/lib/api-helpers';
+import { OdooError } from '@/lib/odoo/types';
+import { LOGO_GRIS_PNG_BASE64 } from '@/lib/logos';
+import { getBaseInsumos } from '@/lib/odoo/base-insumos';
 
 export const prerender = false;
 

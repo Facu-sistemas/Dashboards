@@ -1,7 +1,7 @@
 // Presupuesto de compras: por categoría y mes de llegada, detalle por insumo con filtros, órdenes a emitir y compras de urgencia.
 import { useMemo, useState } from 'react';
-import { useApiQuery } from '../../dashboard/useApiQuery';
-import type { FilaPresupuesto, VistaPresupuesto } from '../../../lib/compras-mp/vistas';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import type { FilaPresupuesto, VistaPresupuesto } from '@/lib/compras-mp/vistas';
 import AprobarVersion from './AprobarVersion';
 import { Cabeza, Cargando, Cuerpo, ErrorCaja, Grilla, Seccion, Segmentos, Selector, Tabla, Tarjeta, Vacio, mesCorto, mm, num, pesos, td, tdR, th, thR, unidades } from './ui';
 

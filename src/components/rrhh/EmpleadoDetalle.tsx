@@ -1,4 +1,4 @@
-import type { EmpleadoVacacionesRow } from '../../lib/odoo/rrhh-vacaciones';
+import type { EmpleadoVacacionesRow } from '@/lib/odoo/rrhh-vacaciones';
 import { formatAntiguedad, formatDias, formatFechaHora, formatFechaIso, formatHoras, formatWage } from './format';
 
 interface Props {
@@ -17,6 +17,9 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export default function EmpleadoDetalle({ row, today, colSpan }: Props) {
+  const anioPasado = String(Number(today.slice(0, 4)) - 1);
+  const licenciasAnioPasado = row.licenciasTomadas.filter((l) => l.dateFrom.startsWith(anioPasado));
+
   return (
     <tr className="bg-slate-950/60">
       <td colSpan={colSpan} className="p-4">
@@ -62,6 +65,23 @@ export default function EmpleadoDetalle({ row, today, colSpan }: Props) {
           <section>
             <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Vacaciones — detalle</h4>
             <div className="flex flex-col gap-3 text-xs">
+              <div className="rounded-lg border border-brand-500/30 bg-brand-500/5 p-3">
+                <p className="mb-1 font-medium text-brand-300">Tomadas en {anioPasado} (año pasado)</p>
+                {licenciasAnioPasado.length === 0 ? (
+                  <p className="text-slate-400">No tomó vacaciones en {anioPasado}. Revisar antes de asignar.</p>
+                ) : (
+                  <ul className="flex flex-col gap-1">
+                    {licenciasAnioPasado.map((l, i) => (
+                      <li key={i} className="flex justify-between gap-2 text-slate-200">
+                        <span>
+                          {formatFechaHora(l.dateFrom)} → {formatFechaHora(l.dateTo)}
+                        </span>
+                        <span className="shrink-0 text-slate-400">{formatDias(l.numberOfDays)} d</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
               <div>
                 <p className="mb-1 text-slate-500">Asignaciones validadas ({row.asignaciones.length})</p>
                 {row.asignaciones.length === 0 ? (

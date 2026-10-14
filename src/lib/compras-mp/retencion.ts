@@ -1,7 +1,7 @@
 // Limpieza de corridas viejas. Cada corrida guarda varios MB (fotos crudas de Odoo + resultados por SKU y mes): con una corrida diaria
 // la base crecería sin parar. Se conservan las recientes, las últimas N y TODAS las que respaldan una versión aprobada, un cierre mensual
 // o el origen (fotos crudas) de otra corrida que se conserva.
-import { getSupabaseAdminClient } from '../supabase/admin';
+import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 
 export interface ResultadoLimpieza {
   borradas: number;

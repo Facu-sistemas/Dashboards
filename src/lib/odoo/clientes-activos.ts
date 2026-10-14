@@ -1,5 +1,5 @@
 import { readGroup, searchRead } from './client';
-import { addDaysIso, lastMonthKeys, monthBounds } from '../date';
+import { addDaysIso, lastMonthKeys, monthBounds } from '@/lib/date';
 import { getArgentinaTodayIso } from './oee';
 import type { OdooDomain, OdooReadGroupResult } from './types';
 

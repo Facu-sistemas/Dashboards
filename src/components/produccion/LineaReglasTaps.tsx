@@ -1,5 +1,5 @@
 import { Fragment, useMemo, useState } from 'react';
-import { MESAS, claveRegla, mergeReglas, resolverRegla, type ModoTap, type ReglaTap } from '../../lib/linea-config';
+import { MESAS, claveRegla, mergeReglas, resolverRegla, type ModoTap, type ReglaTap } from '@/lib/linea-config';
 import { MODO_LABEL, colorFamilia, formatMin, postConfigLinea, type ConfigLineaDto } from './linea-shared';
 
 interface Props {

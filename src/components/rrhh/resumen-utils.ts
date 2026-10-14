@@ -1,4 +1,4 @@
-import type { EmpleadoVacacionesRow } from '../../lib/odoo/rrhh-vacaciones';
+import type { EmpleadoVacacionesRow } from '@/lib/odoo/rrhh-vacaciones';
 
 /** Semanas en la ventana de "horas cargadas" (30 días) — se usa para estimar las horas esperadas según la jornada. */
 const SEMANAS_VENTANA = 30 / 7;

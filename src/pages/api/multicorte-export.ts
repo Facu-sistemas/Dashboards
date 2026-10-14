@@ -1,9 +1,9 @@
 import type { APIRoute } from 'astro';
 import ExcelJS from 'exceljs';
-import { analizarSobrantes, type Bloque } from '../../lib/multicorte-calc';
-import { ApiValidationError } from '../../lib/api-helpers';
-import { OdooError } from '../../lib/odoo/types';
-import { LOGO_GRIS_PNG_BASE64 } from '../../lib/logos';
+import { analizarSobrantes, type Bloque } from '@/lib/multicorte-calc';
+import { ApiValidationError } from '@/lib/api-helpers';
+import { OdooError } from '@/lib/odoo/types';
+import { LOGO_GRIS_PNG_BASE64 } from '@/lib/logos';
 
 export const prerender = false;
 

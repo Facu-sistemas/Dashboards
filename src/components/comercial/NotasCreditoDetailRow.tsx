@@ -1,6 +1,6 @@
-import { useApiQuery } from '../dashboard/useApiQuery';
-import { formatCompactCurrency } from '../gerencia/format';
-import type { ClientesActivosPeriodo, NotaCreditoCategoria, NotaCreditoRow } from '../../lib/odoo/clientes-activos';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import { formatCompactCurrency } from '@/components/gerencia/format';
+import type { ClientesActivosPeriodo, NotaCreditoCategoria, NotaCreditoRow } from '@/lib/odoo/clientes-activos';
 
 interface Props {
   partnerId: number;

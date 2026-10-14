@@ -1,10 +1,10 @@
 import type { DehydratedState } from '@tanstack/react-query';
-import QueryProvider from '../QueryProvider';
-import { useApiQuery } from '../dashboard/useApiQuery';
-import LastUpdated from '../shared/LastUpdated';
+import QueryProvider from '@/components/QueryProvider';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import LastUpdated from '@/components/shared/LastUpdated';
 import { dayLabel } from './month-label';
 import DistribucionChequesMatrix from './DistribucionChequesMatrix';
-import type { CreditoClientesData } from '../../lib/odoo/credito-clientes';
+import type { CreditoClientesData } from '@/lib/odoo/credito-clientes';
 
 interface Props {
   dehydratedState?: DehydratedState;

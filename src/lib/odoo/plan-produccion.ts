@@ -1,6 +1,6 @@
 import { searchReadAll } from './client';
 import { getFronteraCompany } from './reference';
-import { monthBounds, addDaysIso, periodBounds, type PeriodKind } from '../date';
+import { monthBounds, addDaysIso, periodBounds, type PeriodKind } from '@/lib/date';
 import { COLCHONES_CATEG_IDS, LIVING_CATEG_IDS, getArgentinaTodayIso } from './oee';
 import { getObjetivosGerencia } from './gerencia-objetivos';
 import { getBusinessDayChecker, getDiasHabiles } from './business-calendar';

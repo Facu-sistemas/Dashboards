@@ -21,12 +21,24 @@ import type { OdooDomain } from './types';
  */
 export type Causa = 'calidad' | 'transporte' | 'postventa' | 'logistica' | 'sinmotivo';
 
-// Motivos de la nota de crédito (x_studio_motivo_1 → x_motivo_n_c) y sus notas (x_studio_nota → x_nota_n_c).
+// Motivo (x_studio_motivo_1 → x_motivo_n_c) y nota (x_studio_nota → x_nota_n_c) de la nota de crédito.
+// Manda la nota: el motivo a veces no coincide (hay "Comercial / Error de pedido" que sí es una devolución).
 const NC_MOTIVO_CALIDAD = 'Calidad';
 const NC_MOTIVO_LOGISTICO = 'Logístico';
-const NC_NOTA_ROTURA_CAMIONERO = 'Rotura camionero';
-const NC_NOTA_POSTVENTA = 'Servicio post venta';
-const NC_NOTA_GARANTIA_NO_REAL = 'Garantía no real';
+const NC_NOTA_CAUSA: Record<string, Causa | null> = {
+  'Garantía real': 'calidad',
+  'Garantía no real': 'postventa',
+  'Servicio post venta': 'postventa',
+  'Rotura camionero': 'transporte',
+  'Error de carga': 'logistica',
+  'Error de pedido': 'logistica',
+  'No entregado': 'logistica',
+  // Son errores de papel: el producto no vuelve. Con los descuentos y acuerdos comerciales, no son devoluciones.
+  'Error de facturación de carga': null,
+  'Cambio de facturación': null,
+  'Acuerdo comercial': null,
+  'N/C por descuento': null,
+};
 // Campo viejo (x_studio_motivo), anterior al motivo/nota nuevo del 18-sep-2026. Mismos valores que
 // CREDIT_NOTE_WARRANTY_MOTIVO (con la errata "Garantatía", hoy "Logistica" en la UI) y CREDIT_NOTE_NO_CONFORMIDAD_MOTIVO de calidad.ts.
 const NC_OLD_WARRANTY = 'Garantatía';
@@ -89,13 +101,16 @@ interface ProductRow extends Record<string, unknown> {
 function clasificar(n: CreditNoteRow): { causa: Causa; motivo: string; grupo: NotaDevolucion['grupo'] } | null {
   const motivoNuevo = n.x_studio_motivo_1 ? n.x_studio_motivo_1[1] : null;
   const nota = n.x_studio_nota ? n.x_studio_nota[1] : null;
-  if (motivoNuevo) {
-    const motivo = nota ? `${motivoNuevo} / ${nota}` : motivoNuevo;
-    const grupo = motivoNuevo === NC_MOTIVO_LOGISTICO ? 'garantia' : 'calidad';
-    if (nota === NC_NOTA_POSTVENTA) return { causa: 'postventa', motivo, grupo };
-    if (motivoNuevo === NC_MOTIVO_CALIDAD) return { causa: nota === NC_NOTA_GARANTIA_NO_REAL ? 'postventa' : 'calidad', motivo, grupo };
-    if (motivoNuevo === NC_MOTIVO_LOGISTICO) return { causa: nota === NC_NOTA_ROTURA_CAMIONERO ? 'transporte' : 'logistica', motivo, grupo };
-    return null; // Comercial / Financiero
+  if (motivoNuevo || nota) {
+    const motivo = motivoNuevo && nota ? `${motivoNuevo} / ${nota}` : (nota ?? motivoNuevo ?? '');
+    let causa: Causa | null;
+    if (nota && nota in NC_NOTA_CAUSA) causa = NC_NOTA_CAUSA[nota]!;
+    else if (nota) causa = null; // nota que no conocemos: no se cuenta hasta clasificarla
+    else if (motivoNuevo === NC_MOTIVO_CALIDAD) causa = 'calidad';
+    else if (motivoNuevo === NC_MOTIVO_LOGISTICO) causa = 'logistica';
+    else causa = null; // Comercial / Financiero sin nota
+    if (causa === null) return null;
+    return { causa, motivo, grupo: causa === 'logistica' || causa === 'transporte' ? 'garantia' : 'calidad' };
   }
 
   // Esquema viejo.
@@ -133,7 +148,9 @@ export async function fetchNotasDevolucionColchon(desde: string | null): Promise
     ['state', '=', 'posted'],
     '|',
     ['x_studio_motivo', 'in', [NC_OLD_WARRANTY, NC_OLD_PRODUCTO]],
+    '|',
     ['x_studio_motivo_1', '!=', false],
+    ['x_studio_nota', '!=', false],
   ];
   if (desde) domain.push(['invoice_date', '>=', desde]);
   const notas = await searchReadAll<CreditNoteRow>({

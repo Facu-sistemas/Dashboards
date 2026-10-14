@@ -1,5 +1,5 @@
 import { searchRead } from './client';
-import { withTtlCache } from '../cache';
+import { withTtlCache } from '@/lib/cache';
 import { OdooError } from './types';
 
 /**

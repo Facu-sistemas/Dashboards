@@ -1,5 +1,5 @@
 // Cierres mensuales de indicadores (N1/N2 de compras e inventario). Son inmutables: una corrección es una revisión nueva.
-import { getSupabaseAdminClient } from '../supabase/admin';
+import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 import { kpisCompras, kpisInventario, type KpisCompras, type KpisInventario } from './indicadores';
 import { leerDesembolsos, leerFilas, resolverCorrida } from './lectura';
 import { construirSeguimiento } from './seguimiento-datos';

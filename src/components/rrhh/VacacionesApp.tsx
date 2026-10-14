@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import type { DehydratedState } from '@tanstack/react-query';
-import QueryProvider from '../QueryProvider';
-import { useApiQuery } from '../dashboard/useApiQuery';
-import LastUpdated from '../shared/LastUpdated';
+import QueryProvider from '@/components/QueryProvider';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import LastUpdated from '@/components/shared/LastUpdated';
 import VacacionesTable from './VacacionesTable';
-import { formatNumber } from '../gerencia/format';
-import { RRHH_VACACIONES_QUERY_KEY } from '../../lib/rrhh-vacaciones-ssr';
-import type { RrhhVacacionesResult } from '../../lib/odoo/rrhh-vacaciones';
+import { imprimirVacacionesAnio } from './vacaciones-print';
+import { formatNumber } from '@/components/gerencia/format';
+import { RRHH_VACACIONES_QUERY_KEY } from '@/lib/rrhh-vacaciones-ssr';
+import type { RrhhVacacionesResult } from '@/lib/odoo/rrhh-vacaciones';
 
 interface Props {
   dehydratedState?: DehydratedState;
@@ -47,6 +48,15 @@ function VacacionesInner() {
       return true;
     });
   }, [data, filtro, departamento, busqueda]);
+
+  const anioPasado = Number((data?.generatedAt ?? '').slice(0, 4)) - 1;
+  const filtroLabel = [
+    FILTRO_OPTIONS.find((o) => o.value === filtro)?.label,
+    departamento ? `Depto: ${departamento}` : null,
+    busqueda.trim() ? `Búsqueda: "${busqueda.trim()}"` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   const totalNegativo = data?.rows.filter((r) => r.anomalia === 'negativo').length ?? 0;
   const totalAlto = data?.rows.filter((r) => r.anomalia === 'alto').length ?? 0;
@@ -126,9 +136,19 @@ function VacacionesInner() {
       )}
 
       <section className="flex flex-col gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
-        <h3 className="text-sm font-medium text-slate-300">
-          Empleados {data ? `(${formatNumber(rows.length)} de ${formatNumber(data.totalEmpleados)})` : ''}
-        </h3>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-sm font-medium text-slate-300">
+            Empleados {data ? `(${formatNumber(rows.length)} de ${formatNumber(data.totalEmpleados)})` : ''}
+          </h3>
+          <button
+            type="button"
+            disabled={!data || rows.length === 0}
+            onClick={() => imprimirVacacionesAnio(rows, anioPasado, filtroLabel || 'Todos los empleados')}
+            className="rounded border border-slate-700 bg-slate-950 px-3 py-1.5 text-sm text-slate-200 transition-colors hover:border-brand-500 hover:text-brand-300 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Exportar PDF · vacaciones {anioPasado}
+          </button>
+        </div>
         <p className="text-xs text-slate-500">Click en una fila para ver el detalle de contrato, horas cargadas y vacaciones.</p>
         {query.isLoading ? (
           <div className="h-64 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />

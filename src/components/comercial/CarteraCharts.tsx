@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { useChartTheme } from '../shared/useChartTheme';
+import { useChartTheme } from '@/components/shared/useChartTheme';
 import { activosRentables, isc, type CarteraRecord, type Categoria, type Estado, type Snapshot, type TrailingPoint } from './cartera-clientes-calc';
 
 interface Props {

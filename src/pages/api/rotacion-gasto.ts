@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { getEmpresas, getGastoReal, getRotacionPorCategoria } from '../../lib/odoo/rotacion-gasto';
-import { handleApiRoute, jsonResponse, ApiValidationError } from '../../lib/api-helpers';
+import { getEmpresas, getGastoReal, getRotacionPorCategoria } from '@/lib/odoo/rotacion-gasto';
+import { handleApiRoute, jsonResponse, ApiValidationError } from '@/lib/api-helpers';
 
 export const prerender = false;
 

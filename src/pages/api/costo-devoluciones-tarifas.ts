@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { setTarifasMes } from '../../lib/supabase/costo-devoluciones-tarifas';
-import { handleApiRoute, jsonResponse, ApiValidationError } from '../../lib/api-helpers';
+import { setTarifasMes } from '@/lib/supabase/costo-devoluciones-tarifas';
+import { handleApiRoute, jsonResponse, ApiValidationError } from '@/lib/api-helpers';
 
 export const prerender = false;
 

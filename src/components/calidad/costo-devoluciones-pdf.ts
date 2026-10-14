@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { LOGO_GRIS_PNG_BASE64 } from '../../lib/logos';
-import type { TarifasMes } from '../../lib/supabase/costo-devoluciones-tarifas';
+import { LOGO_GRIS_PNG_BASE64 } from '@/lib/logos';
+import type { TarifasMes } from '@/lib/supabase/costo-devoluciones-tarifas';
 import {
   CAUSAS,
   CAUSA_LABEL,

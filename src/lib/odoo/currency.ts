@@ -1,6 +1,6 @@
 import { searchRead } from './client';
 import { getFronteraCompany } from './reference';
-import { withTtlCache } from '../cache';
+import { withTtlCache } from '@/lib/cache';
 import { OdooError } from './types';
 
 export interface FxRateInfo {

@@ -1,9 +1,9 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { getLineaFamilias } from '../../lib/odoo/linea-resorte';
-import { getConfigLinea, setMesaActiva, setReglaTap } from '../../lib/supabase/linea-config';
-import { MESA_CODIGOS, REGLAS_DEFAULT } from '../../lib/linea-config';
-import { handleApiRoute, jsonResponse, ApiValidationError } from '../../lib/api-helpers';
+import { getLineaFamilias } from '@/lib/odoo/linea-resorte';
+import { getConfigLinea, setMesaActiva, setReglaTap } from '@/lib/supabase/linea-config';
+import { MESA_CODIGOS, REGLAS_DEFAULT } from '@/lib/linea-config';
+import { handleApiRoute, jsonResponse, ApiValidationError } from '@/lib/api-helpers';
 
 export const prerender = false;
 

@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
-import { jsonResponse } from '../../../lib/api-helpers';
-import { construirAlertaReposicion } from '../../../lib/compras-mp/alerta-reposicion';
-import { puedeVerCompras } from '../../../lib/compras-mp/permisos';
+import { jsonResponse } from '@/lib/api-helpers';
+import { construirAlertaReposicion } from '@/lib/compras-mp/alerta-reposicion';
+import { puedeVerCompras } from '@/lib/compras-mp/permisos';
 
 export const prerender = false;
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import QueryProvider from '../QueryProvider';
-import { useApiQuery } from '../dashboard/useApiQuery';
+import QueryProvider from '@/components/QueryProvider';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
 
 interface FlujoProductOption {
   id: number;

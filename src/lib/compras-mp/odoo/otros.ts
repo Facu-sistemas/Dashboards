@@ -1,11 +1,11 @@
 // Conectores de solo lectura: OC pendientes, stock de fin de mes, gasto real, tipo de cambio y recepciones sin facturar.
 // Las tres primeras reutilizan las consultas de la pestaña Descargas (ya validadas por Compras), acotadas a la compañía operativa.
-import { searchRead, searchReadAll } from '../../odoo/client';
-import { getFronteraCompany } from '../../odoo/reference';
-import { MATERIA_PRIMA_CATEG_ID } from '../../odoo/raw-material-consumption';
-import { getGastoLineas, getOcPendientes, getStockDetalle } from '../../odoo/rotacion-gasto-detalle';
-import type { GastoLinea, OcPendienteLinea, StockDetalleResult } from '../../odoo/rotacion-gasto-detalle';
-import type { OcLinea } from '../motor';
+import { searchRead, searchReadAll } from '@/lib/odoo/client';
+import { getFronteraCompany } from '@/lib/odoo/reference';
+import { MATERIA_PRIMA_CATEG_ID } from '@/lib/odoo/raw-material-consumption';
+import { getGastoLineas, getOcPendientes, getStockDetalle } from '@/lib/odoo/rotacion-gasto-detalle';
+import type { GastoLinea, OcPendienteLinea, StockDetalleResult } from '@/lib/odoo/rotacion-gasto-detalle';
+import type { OcLinea } from '@/lib/compras-mp/motor';
 
 export async function getOcPendientesMp(): Promise<OcPendienteLinea[]> {
   const { companyId } = await getFronteraCompany();

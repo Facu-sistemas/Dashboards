@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { getClientesActivos } from '../../lib/odoo/clientes-activos';
-import { handleApiRoute, ApiValidationError } from '../../lib/api-helpers';
+import { getClientesActivos } from '@/lib/odoo/clientes-activos';
+import { handleApiRoute, ApiValidationError } from '@/lib/api-helpers';
 
 export const prerender = false;
 

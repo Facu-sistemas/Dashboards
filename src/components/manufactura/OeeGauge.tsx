@@ -1,5 +1,5 @@
 import { Cell, Pie, PieChart, ResponsiveContainer } from 'recharts';
-import { useChartTheme, type ChartTheme } from '../shared/useChartTheme';
+import { useChartTheme, type ChartTheme } from '@/components/shared/useChartTheme';
 
 interface Props {
   pct: number;

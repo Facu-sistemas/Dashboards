@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
-import { getObjetivosWriteDate } from '../../lib/odoo/gerencia-objetivos';
-import { invalidateByPrefix } from '../../lib/cache';
-import { handleApiRoute } from '../../lib/api-helpers';
+import { getObjetivosWriteDate } from '@/lib/odoo/gerencia-objetivos';
+import { invalidateByPrefix } from '@/lib/cache';
+import { handleApiRoute } from '@/lib/api-helpers';
 
 export const prerender = false;
 

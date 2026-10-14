@@ -1,8 +1,8 @@
 import { searchRead } from './client';
-import { withTtlCache } from '../cache';
+import { withTtlCache } from '@/lib/cache';
 import { getFronteraCompany } from './reference';
 import { getArgentinaTodayIso } from './oee';
-import { monthBounds, addDaysIso } from '../date';
+import { monthBounds, addDaysIso } from '@/lib/date';
 import { OdooError } from './types';
 
 /**

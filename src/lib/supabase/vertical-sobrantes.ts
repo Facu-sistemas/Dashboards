@@ -1,5 +1,5 @@
 import { getSupabaseAdminClient } from './admin';
-import type { SobranteDisponible, BlockCargado } from '../vertical-calc';
+import type { SobranteDisponible, BlockCargado } from '@/lib/vertical-calc';
 
 /**
  * Sobrante ("saldo") de block que quedó sin cortar al cerrar el día — se

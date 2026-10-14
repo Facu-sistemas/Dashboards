@@ -1,6 +1,6 @@
 import { searchReadAll } from './client';
 import { getFronteraCompany, getComprasAnalyticAccountId } from './reference';
-import { monthBounds, lastMonthKeys } from '../date';
+import { monthBounds, lastMonthKeys } from '@/lib/date';
 import type {
   CategoryBudgetStatus,
   ComplianceStatus,

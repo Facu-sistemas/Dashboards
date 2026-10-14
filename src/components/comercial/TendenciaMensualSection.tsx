@@ -1,7 +1,7 @@
-import { useApiQuery } from '../dashboard/useApiQuery';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
 import TendenciaMensualChart from './TendenciaMensualChart';
 import TendenciaMensualTable from './TendenciaMensualTable';
-import type { ClientesActivosFuente, TendenciaMensualRow } from '../../lib/odoo/clientes-activos';
+import type { ClientesActivosFuente, TendenciaMensualRow } from '@/lib/odoo/clientes-activos';
 
 interface Props {
   /** Mismo checkbox "Traer todas las NC" del resto del tab — si está tildado, la columna de notas de crédito suma todas, no solo las que no tienen categoría. Solo aplica en fuente 'facturas'. */

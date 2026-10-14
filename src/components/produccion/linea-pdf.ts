@@ -1,8 +1,8 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { LOGO_GRIS_PNG_BASE64 } from '../../lib/logos';
-import { MESAS } from '../../lib/linea-config';
-import type { PlanLinea } from '../../lib/linea-calc';
+import { LOGO_GRIS_PNG_BASE64 } from '@/lib/logos';
+import { MESAS } from '@/lib/linea-config';
+import type { PlanLinea } from '@/lib/linea-calc';
 import { ORIGEN_LABEL, etiquetaTap, formatCantidad, formatMin, formatOcupacion, formatUnidades } from './linea-shared';
 
 const GRIS_LOGO_ASPECT = 389 / 116; // ancho/alto reales del PNG embebido (mismo logo que VerticalApp)

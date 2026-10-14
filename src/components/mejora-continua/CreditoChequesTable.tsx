@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useState } from 'react';
 import { monthLabel } from './month-label';
 import { formatExactCurrency } from './amount-format';
-import type { ChequeMesPoint, ClienteCreditoRow } from '../../lib/odoo/credito-clientes';
+import type { ChequeMesPoint, ClienteCreditoRow } from '@/lib/odoo/credito-clientes';
 
 export type CreditoSortBy = 'totalCredito' | 'totalPorCobrar' | 'totalChequesActivos' | 'pedidosPendientes' | 'limiteCredito';
 

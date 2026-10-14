@@ -1,7 +1,7 @@
 import { searchRead, searchReadAll, searchCount, readGroup } from './client';
 import { getListPriceFieldId } from './reference';
-import { withTtlCache } from '../cache';
-import { monthsBetween, currentMonthKey } from '../date';
+import { withTtlCache } from '@/lib/cache';
+import { monthsBetween, currentMonthKey } from '@/lib/date';
 import { OdooError } from './types';
 import type { OdooDomain, OdooReadGroupResult } from './types';
 

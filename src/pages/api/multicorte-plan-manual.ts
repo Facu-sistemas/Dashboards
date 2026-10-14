@@ -1,8 +1,8 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { getMulticorteBaseTecnica } from '../../lib/odoo/multicorte';
-import { procesarOptimizacion, resolverDemandaManual } from '../../lib/multicorte-calc';
-import { handleApiRoute, ApiValidationError } from '../../lib/api-helpers';
+import { getMulticorteBaseTecnica } from '@/lib/odoo/multicorte';
+import { procesarOptimizacion, resolverDemandaManual } from '@/lib/multicorte-calc';
+import { handleApiRoute, ApiValidationError } from '@/lib/api-helpers';
 
 export const prerender = false;
 

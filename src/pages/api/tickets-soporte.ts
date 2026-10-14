@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { getTicketsSoporte } from '../../lib/odoo/calidad';
-import { handleApiRoute, ApiValidationError } from '../../lib/api-helpers';
+import { getTicketsSoporte } from '@/lib/odoo/calidad';
+import { handleApiRoute, ApiValidationError } from '@/lib/api-helpers';
 
 export const prerender = false;
 

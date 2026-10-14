@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
-import { createSupabaseServerClient } from '../../../lib/supabase/server';
-import { jsonResponse } from '../../../lib/api-helpers';
-import { SESSION_STARTED_COOKIE } from '../../../lib/auth-constants';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { jsonResponse } from '@/lib/api-helpers';
+import { SESSION_STARTED_COOKIE } from '@/lib/auth-constants';
 
 export const prerender = false;
 

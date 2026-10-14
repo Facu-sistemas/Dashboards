@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { UMBRAL_PARECIDO, UMBRAL_RECONOCIMIENTO, type ParParecido } from '../../lib/fichaje-matching';
+import { UMBRAL_PARECIDO, UMBRAL_RECONOCIMIENTO, type ParParecido } from '@/lib/fichaje-matching';
 
 interface Props {
   pares: ParParecido[];

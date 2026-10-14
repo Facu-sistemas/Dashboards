@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
-import { getMulticorteDias } from '../../lib/odoo/multicorte';
-import { handleApiRoute } from '../../lib/api-helpers';
+import { getMulticorteDias } from '@/lib/odoo/multicorte';
+import { handleApiRoute } from '@/lib/api-helpers';
 
 export const prerender = false;
 

@@ -1,9 +1,9 @@
 // Control de OC vencidas: líneas con fecha prevista pasada y entrante pendiente, con la sugerencia y la decisión de Compras.
 import { Fragment, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useApiQuery } from '../../dashboard/useApiQuery';
-import { DECISIONES } from '../../../lib/compras-mp/constantes';
-import type { FilaOcVista, VistaOc } from '../../../lib/compras-mp/vistas';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import { DECISIONES } from '@/lib/compras-mp/constantes';
+import type { FilaOcVista, VistaOc } from '@/lib/compras-mp/vistas';
 import { postJson } from './acciones';
 import { Cabeza, Cargando, Cuerpo, ErrorCaja, Grilla, Seccion, Selector, Tabla, Tarjeta, Vacio, fechaCorta, fechaHora, mm, num, pct, td, tdR, th, thR, unidades } from './ui';
 

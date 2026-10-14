@@ -1,6 +1,6 @@
 import { searchReadAll, readGroup } from './client';
-import { familiaDeProducto, medidaDeProducto, stripReferencePrefix } from '../linea-config';
-import type { OrdenLinea } from '../linea-calc';
+import { familiaDeProducto, medidaDeProducto, stripReferencePrefix } from '@/lib/linea-config';
+import type { OrdenLinea } from '@/lib/linea-calc';
 import type { OdooDomain } from './types';
 
 /**

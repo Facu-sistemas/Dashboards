@@ -1,6 +1,6 @@
 // Una corrida recalculada (por ejemplo, después de cambiar un parámetro) no vuelve a leer Odoo: usa las fotos crudas de la corrida
 // original, que se guardan UNA sola vez. Esto resuelve de qué corrida hay que leer las fotos.
-import { getSupabaseAdminClient } from '../supabase/admin';
+import { getSupabaseAdminClient } from '@/lib/supabase/admin';
 
 /** Id de la corrida que tiene las fotos crudas de `corridaId` (ella misma, o la original de la que viene por recálculo). */
 export async function idCorridaRaw(corridaId: string): Promise<string> {

@@ -1,5 +1,5 @@
-import type { Causa, CostoDevolucionesData, DevolucionRegistro, SectorDevolucion } from '../../lib/odoo/costo-devoluciones';
-import type { TarifasGuardadas, TarifasMes } from '../../lib/supabase/costo-devoluciones-tarifas';
+import type { Causa, CostoDevolucionesData, DevolucionRegistro, SectorDevolucion } from '@/lib/odoo/costo-devoluciones';
+import type { TarifasGuardadas, TarifasMes } from '@/lib/supabase/costo-devoluciones-tarifas';
 
 /** Cálculo compartido entre la pantalla y el PDF — sin dependencias de servidor. */
 

@@ -1,5 +1,5 @@
 import { Area, Bar, CartesianGrid, Cell, ComposedChart, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { useChartTheme, type ChartTheme } from '../shared/useChartTheme';
+import { useChartTheme, type ChartTheme } from '@/components/shared/useChartTheme';
 import type { PriceSource, ProductPricePoint } from './types';
 
 interface Props {

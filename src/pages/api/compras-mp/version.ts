@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
-import { jsonResponse } from '../../../lib/api-helpers';
-import { errorJson, leerJson, negarSiNoEdita } from '../../../lib/compras-mp/api';
-import { AprobacionError, aprobarVersion } from '../../../lib/compras-mp/versiones';
+import { jsonResponse } from '@/lib/api-helpers';
+import { errorJson, leerJson, negarSiNoEdita } from '@/lib/compras-mp/api';
+import { AprobacionError, aprobarVersion } from '@/lib/compras-mp/versiones';
 
 export const prerender = false;
 

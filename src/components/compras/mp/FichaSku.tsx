@@ -1,8 +1,8 @@
 // Ficha de un insumo: el cálculo del presupuesto paso a paso (método, coeficiente, proyección, política, compra y órdenes).
 import type { ReactNode } from 'react';
-import { useApiQuery } from '../../dashboard/useApiQuery';
-import type { VistaSku } from '../../../lib/compras-mp/vistas';
-import type { FilaCompleta } from '../../../lib/compras-mp/indicadores';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import type { VistaSku } from '@/lib/compras-mp/vistas';
+import type { FilaCompleta } from '@/lib/compras-mp/indicadores';
 import { Cabeza, Cargando, Cuerpo, ErrorCaja, Etiqueta, Seccion, Tabla, Vacio, mesCorto, num, pesos, td, tdR, th, thR, unidades } from './ui';
 
 const MESES = [1, 2, 3, 4] as const;

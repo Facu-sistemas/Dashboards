@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
-import { getCreditoClientes } from '../../lib/odoo/credito-clientes';
-import { handleApiRoute } from '../../lib/api-helpers';
+import { getCreditoClientes } from '@/lib/odoo/credito-clientes';
+import { handleApiRoute } from '@/lib/api-helpers';
 
 export const prerender = false;
 

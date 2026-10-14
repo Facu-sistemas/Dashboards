@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
-import { getBomListonWriteDate } from '../../lib/odoo/carpinteria';
-import { handleApiRoute } from '../../lib/api-helpers';
+import { getBomListonWriteDate } from '@/lib/odoo/carpinteria';
+import { handleApiRoute } from '@/lib/api-helpers';
 
 export const prerender = false;
 

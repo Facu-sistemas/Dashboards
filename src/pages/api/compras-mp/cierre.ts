@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
-import { jsonResponse } from '../../../lib/api-helpers';
-import { errorJson, leerJson, negarSiNoEdita } from '../../../lib/compras-mp/api';
-import { CierreError, registrarCierre } from '../../../lib/compras-mp/cierres';
+import { jsonResponse } from '@/lib/api-helpers';
+import { errorJson, leerJson, negarSiNoEdita } from '@/lib/compras-mp/api';
+import { CierreError, registrarCierre } from '@/lib/compras-mp/cierres';
 
 export const prerender = false;
 

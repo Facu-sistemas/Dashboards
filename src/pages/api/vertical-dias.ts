@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
-import { getVerticalDias } from '../../lib/odoo/vertical';
-import { handleApiRoute } from '../../lib/api-helpers';
+import { getVerticalDias } from '@/lib/odoo/vertical';
+import { handleApiRoute } from '@/lib/api-helpers';
 
 export const prerender = false;
 

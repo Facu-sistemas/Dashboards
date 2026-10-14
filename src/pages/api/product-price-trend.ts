@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { getProductPriceTrend } from '../../lib/odoo/product-price-trend';
-import { handleApiRoute, ApiValidationError } from '../../lib/api-helpers';
+import { getProductPriceTrend } from '@/lib/odoo/product-price-trend';
+import { handleApiRoute, ApiValidationError } from '@/lib/api-helpers';
 
 export const prerender = false;
 

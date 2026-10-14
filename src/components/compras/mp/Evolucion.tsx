@@ -2,9 +2,9 @@
 import { useState } from 'react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useApiQuery } from '../../dashboard/useApiQuery';
-import { useChartTheme } from '../../shared/useChartTheme';
-import type { VistaEvolucion } from '../../../lib/compras-mp/vistas';
+import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import { useChartTheme } from '@/components/shared/useChartTheme';
+import type { VistaEvolucion } from '@/lib/compras-mp/vistas';
 import { postJson } from './acciones';
 import { Cabeza, Cargando, Cuerpo, ErrorCaja, Seccion, Tabla, Vacio, fechaCorta, fechaHora, mesCorto, mm, num, pct, td, tdR, th, thR } from './ui';
 
