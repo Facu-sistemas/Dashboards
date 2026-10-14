@@ -1,6 +1,9 @@
 import { searchRead, searchReadAll } from './client';
 import { parseOdooDomainLiteral } from './domain-parser';
 import { monthBounds, lastMonthKeys } from '@/lib/date';
+import { withTtlCache } from '@/lib/cache';
+import { getFronteraCompany } from './reference';
+import { MATERIA_PRIMA_CATEG_ID } from './raw-material-consumption';
 import { OdooError } from './types';
 import type { OdooDomain, OdooDomainLeaf } from './types';
 
@@ -13,6 +16,47 @@ import type { OdooDomain, OdooDomainLeaf } from './types';
 const BANCO_FILTER_NAME = 'Objetivo finanzas Bancos completo';
 const EFECTIVO_FILTER_NAME = 'Objetivo finanzas efectivo completo';
 const MOVE_LINE_MODEL = 'account.move.line';
+
+const MATERIA_PRIMA_PARTNERS_TTL_MS = 60 * 60 * 1000;
+
+/**
+ * This tab must only show Materia Prima activity (2026-10-14 request) —
+ * the rest shouldn't appear. `account.move.line` here are bank/cash
+ * settlement lines (from the saved Banco/Efectivo filters), not invoice
+ * product lines, so there's no `categ_id` to filter on directly. Same
+ * workaround as `src/lib/compras-mp/odoo/finanzas.ts`'s Desembolsos: find
+ * every partner with a confirmed MP purchase order line, normalize each to
+ * its commercial (top-level) partner, and match `partner_id` against that
+ * set. Cached for an hour — this doesn't change minute to minute and
+ * would otherwise cost 2 extra Odoo round trips per request.
+ */
+async function getMateriaPrimaCommercialPartnerIds(): Promise<number[]> {
+  return withTtlCache('facturacion:mp-partner-ids', MATERIA_PRIMA_PARTNERS_TTL_MS, async () => {
+    const { companyId } = await getFronteraCompany();
+
+    type PoLine = { partner_id: [number, string] | false };
+    const poLines = await searchReadAll<PoLine>({
+      model: 'purchase.order.line',
+      domain: [
+        ['order_id.state', 'in', ['purchase', 'done']],
+        ['order_id.company_id', '=', companyId],
+        ['product_id.categ_id', 'child_of', MATERIA_PRIMA_CATEG_ID],
+      ],
+      fields: ['partner_id'],
+    });
+    const partnerIds = [...new Set(poLines.map((l) => (l.partner_id ? l.partner_id[0] : 0)).filter(Boolean))];
+    if (partnerIds.length === 0) return [];
+
+    type Partner = { id: number; commercial_partner_id: [number, string] };
+    const partners = await searchReadAll<Partner>({
+      model: 'res.partner',
+      domain: [['id', 'in', partnerIds]],
+      fields: ['commercial_partner_id'],
+      context: { active_test: false },
+    });
+    return [...new Set(partners.map((p) => p.commercial_partner_id[0]))];
+  });
+}
 
 export type FacturacionSource = 'banco' | 'efectivo';
 
@@ -98,8 +142,12 @@ function withDateRange(domain: OdooDomain, start: string, endExclusive: string):
 }
 
 async function fetchLines(filterName: string, start: string, endExclusive: string): Promise<FacturacionLine[]> {
-  const baseDomain = await getFilterDomain(filterName);
+  const [baseDomain, mpPartnerIds] = await Promise.all([
+    getFilterDomain(filterName),
+    getMateriaPrimaCommercialPartnerIds(),
+  ]);
   const domain = withDateRange(baseDomain, start, endExclusive);
+  domain.push(['partner_id.commercial_partner_id', 'in', mpPartnerIds]);
 
   type Row = {
     id: number;
