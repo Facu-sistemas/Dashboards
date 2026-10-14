@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { DehydratedState } from '@tanstack/react-query';
 import QueryProvider from '@/components/QueryProvider';
 import { useApiQuery } from '@/components/dashboard/useApiQuery';
@@ -8,8 +8,12 @@ import HorasYRecuperadoChart from './HorasYRecuperadoChart';
 import type { CalidadRange, ReparacionesResult } from './types';
 
 interface Props {
-  initialRange: CalidadRange;
   dehydratedState?: DehydratedState;
+}
+
+interface Seleccion {
+  from: string;
+  to: string;
 }
 
 const RANGE_OPTIONS: { value: CalidadRange; label: string }[] = [
@@ -18,6 +22,41 @@ const RANGE_OPTIONS: { value: CalidadRange; label: string }[] = [
   { value: 'last-12-months', label: 'Últimos 12 meses' },
   { value: 'last-6-months', label: 'Últimos 6 meses' },
 ];
+
+/** Rango de meses que cubre cada atajo, sobre los meses que hay cargados (ordenados de más viejo a más nuevo). */
+function rangoDeAtajo(range: CalidadRange, months: string[]): Seleccion {
+  const first = months[0] ?? '';
+  const last = months[months.length - 1] ?? '';
+  if (range === 'all') return { from: first, to: last };
+  if (range === 'this-year') return { from: months.find((m) => m.slice(0, 4) === last.slice(0, 4)) ?? first, to: last };
+  const n = range === 'last-6-months' ? 6 : 12;
+  return { from: months[Math.max(0, months.length - n)] ?? first, to: last };
+}
+
+/** Deja en los resultados solo los meses elegidos y recalcula los totales a partir de ellos. */
+function filtrarMeses(data: ReparacionesResult, sel: Seleccion): ReparacionesResult {
+  const enRango = (p: { month: string }) => p.month >= sel.from && p.month <= sel.to;
+  const livingMensual = data.living.mensual.filter(enRango);
+  const colchonMensual = data.colchon.mensual.filter(enRango);
+  const suma = <T,>(rows: T[], f: (r: T) => number) => rows.reduce((acc, r) => acc + f(r), 0);
+  return {
+    ...data,
+    living: {
+      totalReparaciones: suma(livingMensual, (p) => p.cantidadReparaciones),
+      totalHoras: suma(livingMensual, (p) => p.horasReparacion),
+      totalRecuperado: suma(livingMensual, (p) => p.totalRecuperado),
+      totalUnidadesFabricadas: suma(livingMensual, (p) => p.unidadesFabricadas),
+      mensual: livingMensual,
+    },
+    colchon: {
+      totalNotasCredito: suma(colchonMensual, (p) => p.cantidadNotasCredito),
+      totalMontoNotasCredito: suma(colchonMensual, (p) => p.montoNotasCredito),
+      totalHoras: suma(colchonMensual, (p) => p.horasReparacion),
+      totalUnidadesFabricadas: suma(colchonMensual, (p) => p.unidadesFabricadas),
+      mensual: colchonMensual,
+    },
+  };
+}
 
 const money = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
 const numero = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
@@ -62,7 +101,7 @@ function LivingSection({ data }: { data: ReparacionesResult['living'] }) {
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <KpiCard label="Reparaciones" value={numero.format(data.totalReparaciones)} />
-        <KpiCard label="Sillones fabricados" value={numero.format(data.totalUnidadesFabricadas)} />
+        <KpiCard label="Unidades equivalentes fabricadas" value={numero.format(data.totalUnidadesFabricadas)} />
         <KpiCard label="Horas de reparación" value={`${numero.format(data.totalHoras)} hs`} />
         <KpiCard label="Plata recuperada" value={money.format(data.totalRecuperado)} />
       </div>
@@ -78,7 +117,7 @@ function LivingSection({ data }: { data: ReparacionesResult['living'] }) {
         </div>
         <ReparacionesVsProduccionChart
           points={puntosVsProduccion}
-          fabricadoLabel="Sillones fabricados"
+          fabricadoLabel="Unidades equivalentes fabricadas"
           cantidadLabel="Reparaciones"
           ratioLabel="Reparaciones por c/1000 fabricadas"
         />
@@ -181,33 +220,60 @@ function ColchonSection({ data }: { data: ReparacionesResult['colchon'] }) {
   );
 }
 
-function ReparacionesColchonesInner({ initialRange }: { initialRange: CalidadRange }) {
-  const [range, setRange] = useState<CalidadRange>(initialRange);
+function ReparacionesColchonesInner() {
+  // Siempre se trae el histórico completo; el período se elige acá, sin volver a consultar.
+  const query = useApiQuery<ReparacionesResult>(['reparaciones', 'all'], `/api/reparaciones-colchones?${new URLSearchParams({ range: 'all' })}`);
+  const [seleccion, setSeleccion] = useState<Seleccion | null>(null);
 
-  const query = useApiQuery<ReparacionesResult>(
-    ['reparaciones', range],
-    `/api/reparaciones-colchones?${new URLSearchParams({ range })}`
+  const full = query.data;
+  const monthsAsc = useMemo(
+    () => (full ? [...new Set([...full.living.mensual, ...full.colchon.mensual].map((p) => p.month))].sort() : []),
+    [full]
   );
+  const sel = seleccion ?? rangoDeAtajo('last-12-months', monthsAsc);
+  const data = useMemo(() => (full ? filtrarMeses(full, sel) : null), [full, sel.from, sel.to]);
 
-  const data = query.data;
+  const atajoActivo = (r: CalidadRange) => {
+    const x = rangoDeAtajo(r, monthsAsc);
+    return x.from === sel.from && x.to === sel.to;
+  };
+  // El desplegable marca un mes solo cuando se está viendo uno; con un atajo queda en "—".
+  const mesUnico = sel.from === sel.to ? sel.from : '';
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
-        <label className="flex flex-col gap-1 text-sm text-slate-300">
-          Período
-          <select
-            value={range}
-            onChange={(e) => setRange(e.target.value as CalidadRange)}
-            className="min-w-[10rem] rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-slate-100 focus:border-brand-500 focus:outline-none"
-          >
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="flex flex-wrap items-center gap-2">
             {RANGE_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => setSeleccion(rangoDeAtajo(o.value, monthsAsc))}
+                className={`rounded border px-3 py-1.5 text-sm ${
+                  atajoActivo(o.value) ? 'border-brand-500 bg-brand-500 font-medium text-white' : 'border-slate-700 text-slate-300 hover:bg-slate-800'
+                }`}
+              >
                 {o.label}
-              </option>
+              </button>
             ))}
-          </select>
-        </label>
+            <label className="flex items-center gap-2 text-sm text-slate-300">
+              Mes
+              <select
+                value={mesUnico}
+                onChange={(e) => e.target.value && setSeleccion({ from: e.target.value, to: e.target.value })}
+                className="min-w-[12rem] rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-slate-100 focus:border-brand-500 focus:outline-none"
+              >
+                <option value="">—</option>
+                {[...monthsAsc].reverse().map((m) => (
+                  <option key={m} value={m}>
+                    {nombreMes(m)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </div>
         <LastUpdated dataUpdatedAt={query.dataUpdatedAt} />
       </div>
 
@@ -225,7 +291,7 @@ function ReparacionesColchonesInner({ initialRange }: { initialRange: CalidadRan
           <ColchonSection data={data.colchon} />
           {data.totalSinSector > 0 && (
             <p className="text-xs text-slate-500">
-              Hay {numero.format(data.totalSinSector)} reparaciones adicionales en el período sin un producto Living/Colchón
+              Hay {numero.format(data.totalSinSector)} reparaciones adicionales en el histórico sin un producto Living/Colchón
               identificable (sin producto cargado, PI, Servicio, Reventa, etc.) — no se cruzan contra una producción propia.
             </p>
           )}
@@ -236,10 +302,10 @@ function ReparacionesColchonesInner({ initialRange }: { initialRange: CalidadRan
 }
 
 /** Entry point mounted as an Astro client island (`client:load`), same pattern as the other tabs. */
-export default function ReparacionesColchonesApp({ dehydratedState, initialRange }: Props) {
+export default function ReparacionesColchonesApp({ dehydratedState }: Props) {
   return (
     <QueryProvider dehydratedState={dehydratedState}>
-      <ReparacionesColchonesInner initialRange={initialRange} />
+      <ReparacionesColchonesInner />
     </QueryProvider>
   );
 }

@@ -257,7 +257,7 @@ export interface ReparacionesResult {
 }
 
 type RepairRow = { create_date: string; x_studio_horas_de_reparacion: number; x_studio_total_recuperado: number };
-type ProductionRow = { date_finished: string; qty_produced: number };
+type ProductionRow = { date_finished: string; qty_produced: number; x_studio_unidades_eq: number };
 
 async function fetchRepairRows(categIds: number[], companyId: number, startDate: string | null): Promise<RepairRow[]> {
   const domain: OdooDomain = [
@@ -280,7 +280,7 @@ async function fetchProductionRows(categIds: number[], companyId: number, startD
     ['product_id.categ_id', 'in', categIds],
   ];
   if (startDate) domain.push(['date_finished', '>=', startDate]);
-  return searchReadAll<ProductionRow>({ model: 'mrp.production', domain, fields: ['date_finished', 'qty_produced'] });
+  return searchReadAll<ProductionRow>({ model: 'mrp.production', domain, fields: ['date_finished', 'qty_produced', 'x_studio_unidades_eq'] });
 }
 
 /**
@@ -367,7 +367,8 @@ function bucketSector(repairRows: RepairRow[], productionRows: ProductionRow[], 
   const productionByMonth = new Map<string, number>();
   for (const r of productionRows) {
     const month = r.date_finished.slice(0, 7);
-    productionByMonth.set(month, (productionByMonth.get(month) ?? 0) + r.qty_produced);
+    // Living en Unidades equivalentes: misma fuente que Gerencia General > Producción.
+    productionByMonth.set(month, (productionByMonth.get(month) ?? 0) + r.x_studio_unidades_eq);
   }
 
   const mensual = months.map((month) => {
@@ -387,7 +388,7 @@ function bucketSector(repairRows: RepairRow[], productionRows: ProductionRow[], 
     totalReparaciones: repairRows.length,
     totalHoras: repairRows.reduce((sum, r) => sum + r.x_studio_horas_de_reparacion, 0),
     totalRecuperado: repairRows.reduce((sum, r) => sum + r.x_studio_total_recuperado, 0),
-    totalUnidadesFabricadas: productionRows.reduce((sum, r) => sum + r.qty_produced, 0),
+    totalUnidadesFabricadas: productionRows.reduce((sum, r) => sum + r.x_studio_unidades_eq, 0),
     mensual,
   };
 }

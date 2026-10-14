@@ -116,6 +116,7 @@ interface ProductionRow extends Record<string, unknown> {
   company_id: [number, string] | false;
   date_finished: string;
   qty_produced: number;
+  x_studio_unidades_eq: number;
 }
 
 function fetchRepairs(categIds: number[], desde: string): Promise<RepairRow[]> {
@@ -151,7 +152,7 @@ function fetchProduction(categIds: number[], desde: string): Promise<ProductionR
       ['product_id.categ_id', 'in', categIds],
       ['date_finished', '>=', `${desde} 00:00:00`],
     ],
-    fields: ['company_id', 'date_finished', 'qty_produced'],
+    fields: ['company_id', 'date_finished', 'qty_produced', 'x_studio_unidades_eq'],
   });
 }
 
@@ -384,18 +385,19 @@ export async function getCostoDevolucionesData(): Promise<CostoDevolucionesData>
   }
 
   const produccion = new Map<string, ProduccionRegistro>();
-  const sumarProduccion = (rows: ProductionRow[], sector: SectorDevolucion) => {
+  // Living se mide en Unidades equivalentes (x_studio_unidades_eq), igual que Gerencia General > Producción.
+  const sumarProduccion = (rows: ProductionRow[], sector: SectorDevolucion, valueOf: (r: ProductionRow) => number) => {
     for (const r of rows) {
       const mes = r.date_finished.slice(0, 7);
       const empresa = r.company_id ? r.company_id[0] : 0;
       const key = `${mes}|${sector}|${empresa}`;
       const reg = produccion.get(key) ?? { mes, sector, empresa, unidades: 0 };
-      reg.unidades += r.qty_produced;
+      reg.unidades += valueOf(r);
       produccion.set(key, reg);
     }
   };
-  sumarProduccion(livingProd, 'living');
-  sumarProduccion(colchonProd, 'colchon');
+  sumarProduccion(livingProd, 'living', (r) => r.x_studio_unidades_eq);
+  sumarProduccion(colchonProd, 'colchon', (r) => r.qty_produced);
 
   return {
     meses: [...mesesAsc].reverse(),

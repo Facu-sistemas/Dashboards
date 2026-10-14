@@ -1,18 +1,11 @@
 ---
 import ReparacionesColchonesApp from './ReparacionesColchonesApp';
 import { buildReparacionesDehydratedState } from '@/lib/reparaciones-colchones-ssr';
-import type { CalidadRange } from './types';
-
-const RANGE_VALUES: CalidadRange[] = ['all', 'this-year', 'last-12-months', 'last-6-months'];
-
-const params = Astro.url.searchParams;
-const rangeParam = params.get('range');
-const initialRange: CalidadRange = RANGE_VALUES.includes(rangeParam as CalidadRange) ? (rangeParam as CalidadRange) : 'last-12-months';
 
 let dehydratedState;
 let ssrError: string | null = null;
 try {
-  dehydratedState = await buildReparacionesDehydratedState(initialRange);
+  dehydratedState = await buildReparacionesDehydratedState('all');
 } catch (err) {
   ssrError = err instanceof Error ? err.message : 'Error desconocido consultando Odoo';
 }
@@ -36,5 +29,5 @@ try {
     )
   }
 
-  <ReparacionesColchonesApp client:load initialRange={initialRange} dehydratedState={dehydratedState} />
+  <ReparacionesColchonesApp client:load dehydratedState={dehydratedState} />
 </div>
