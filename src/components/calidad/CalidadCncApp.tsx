@@ -1,10 +1,12 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useQueries } from '@tanstack/react-query';
 import { createPortal } from 'react-dom';
 import QueryProvider from '../QueryProvider';
 import { useApiQuery } from '../dashboard/useApiQuery';
 import LastUpdated from '../shared/LastUpdated';
 import { monthsBetween } from '../../lib/date';
 import type { CncData } from '../../lib/odoo/calidad-cnc';
+import CncPanel, { type PuntoMes } from './CncPanel';
 import { IMPORTE_MINIMO, PARAMETROS, type ParametroNota } from './calidad-demo-data';
 
 /** Primer mes con el criterio nuevo de motivo/nota en Odoo. */
@@ -28,12 +30,36 @@ const claveNota = (t: string) => ALIAS[clave(t)] ?? clave(t);
 
 /** Parámetro editable de una nota. `pct` es el % del importe que se pierde (garantías, acuerdos). */
 interface ParamEdit {
+  cuenta: boolean;
   flete: boolean;
   horas: number;
   pct: number;
 }
 
 const DUENOS = ['Producción', 'Comercial', 'Logística', 'Finanzas'] as const;
+type Dueno = (typeof DUENOS)[number];
+
+/** Sección plegable: el título es el botón que muestra u oculta el contenido. */
+function Acordeon({ titulo, resumen, children }: { titulo: string; resumen?: string; children: ReactNode }) {
+  const [abierto, setAbierto] = useState(false);
+  return (
+    <section className="rounded-lg border border-slate-700">
+      <button
+        type="button"
+        aria-expanded={abierto}
+        onClick={() => setAbierto((v) => !v)}
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+      >
+        <span className="text-sm font-semibold text-slate-200">{titulo}</span>
+        <span className="flex items-center gap-3 text-xs text-slate-400">
+          {resumen && <span>{resumen}</span>}
+          <span aria-hidden className={`transition-transform ${abierto ? 'rotate-180' : ''}`}>▾</span>
+        </span>
+      </button>
+      {abierto && <div className="border-t border-slate-700 p-4">{children}</div>}
+    </section>
+  );
+}
 
 const money = (n: number) =>
   n.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
@@ -56,6 +82,17 @@ function perdida(
   const flete = p.flete ? importe * fletePct : 0;
   const horas = p.horas * valorHora;
   return { base, flete, horas, total: Math.max(0, base + flete + horas - recupero) };
+}
+
+/** Parámetros de la empresa tal cual vienen del archivo. Solo las notas que se pierden enteras conservan %; el 10% viejo era flete. */
+const paramsPorDefecto = (): Record<string, ParamEdit> =>
+  Object.fromEntries(
+    PARAMETROS.map((p: ParametroNota) => [p.nota, { cuenta: p.cuenta, flete: p.flete, horas: p.horas, pct: p.pct >= 1 ? 1 : 0 }]),
+  );
+
+interface ParametrosGuardados {
+  disponible: boolean;
+  params: Record<string, ParamEdit>;
 }
 
 /** Tooltip al pasar el mouse. Posición fija para que no lo recorte el scroll de las tablas. */
@@ -109,16 +146,16 @@ function Kpi({ label, value, sub, tip }: { label: string; value: string; sub?: s
 
 const T = {
   nc: 'Cantidad de notas de crédito del mes con motivo o nota cargados.\nOdoo: account.move, move_type = out_refund, posteadas, por invoice_date.',
-  cuentan: 'NC cuya nota tiene "¿Cuenta en CNC?" = Sí y con importe ≥ $1.000.\nSERVI POS VENTA y N/C POR DESCUENTO no cuentan.',
+  cuentan: 'NC cuya nota tiene "¿Cuenta?" = Sí y con importe ≥ $1.000.\nSERVI POS VENTA y N/C POR DESCUENTO no cuentan.',
   cnc: 'Suma de la pérdida de cada NC que cuenta:\nimporte × % importe + importe × % flete cliente (si lleva flete) + horas × valor hora − recupero (mínimo 0).',
   cncPct: 'CNC ponderado ÷ facturación neta del mes.\nFacturación neta: Odoo account.move.amount_untaxed_signed de facturas y NC posteadas del mes (las NC restan).',
   inc: 'NC que cuentan ÷ pedidos entregados × 100.\nPedidos entregados: stock.picking de salida en estado hecho (date_done) del mes.',
   rec: 'Suma del recupero de las NC que cuentan (cobro al camionero, outlet, reproceso, cargo al cliente).\nNo está en Odoo: se carga a mano en el detalle (no se guarda).',
   motivo: 'Motivo de la nota (Odoo: account.move.x_studio_motivo_1). Parámetro de la empresa.',
   nota: 'Nota de N/C cargada en la NC. Odoo: account.move.x_studio_nota.',
-  cuenta: 'Parámetro de la empresa: si la nota suma o no al CNC.',
+  cuenta: 'Si la nota suma o no al CNC (editable). Arranca con el parámetro de la empresa.',
   flete: 'Parámetro Sí/No. Si es Sí, a la pérdida se le suma importe × % flete del cliente.\n% flete: región de cada cliente en Odoo (res.partner.region_id, "CORDOBA - 5%"); si no tiene, el % de respaldo.',
-  horas: 'Horas que se estiman por caso de este tipo de nota (autorizadas). Pérdida por horas = horas × valor hora.\nValor hora: se carga arriba (pendiente leerlo de las tarifas de Costo de devoluciones).',
+  horas: 'Horas que se estiman por caso de este tipo de nota (autorizadas). Pérdida por horas = horas × valor hora.\nValor hora: precio de venta de SERVICIO DE REPARACION en Odoo (editable arriba).',
   pct: '% del importe de la NC que se considera pérdida (100% en garantías y acuerdo comercial; 0% en el resto).',
   dueno: 'Área responsable de la nota. Parámetro de la empresa (Parametros col. H).',
   cant: 'Cantidad de NC de esa nota en el mes (Registro_NC).',
@@ -136,37 +173,42 @@ const T = {
 const inputCls =
   'w-20 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-right text-sm text-slate-100';
 
-function Body({ data, selector }: { data: CncData; selector: ReactNode }) {
-  // Valor hora: pendiente de leer de las tarifas (costo-devoluciones). % flete: el de la región de cada cliente; este es el de respaldo.
-  const [valorHora, setValorHora] = useState(8000);
+function Body({
+  data,
+  selector,
+  meses,
+  params,
+  setParam,
+  estadoGuardado,
+}: {
+  data: CncData;
+  selector: ReactNode;
+  meses: CncData[];
+  params: Record<string, ParamEdit>;
+  setParam: (nota: string, patch: Partial<ParamEdit>) => void;
+  estadoGuardado: ReactNode;
+}) {
+  // Valor hora: arranca con el precio de venta de "SERVICIO DE REPARACION" en Odoo; se puede pisar para simular. % flete: el de la región de cada cliente; este es el de respaldo.
+  const [valorHora, setValorHora] = useState(data.valorHora);
+  const [dueno, setDueno] = useState<'Todos' | Dueno>('Todos');
+  // Nota elegida en la tabla de parámetros: filtra el detalle de abajo (misma nota, a nivel de cada NC).
+  const [notaSel, setNotaSel] = useState<string | null>(null);
   const [fletePct, setFletePct] = useState(5);
   // El recupero no está en Odoo todavía: se carga a mano por NC (no se guarda).
   const [recuperos, setRecuperos] = useState<Record<number, number>>({});
-  const [params, setParams] = useState<Record<string, ParamEdit>>(() =>
-    Object.fromEntries(
-      PARAMETROS.map((p: ParametroNota) => [
-        p.nota,
-        // Solo las notas que se pierden enteras conservan %; el 10% viejo era flete.
-        { flete: p.flete, horas: p.horas, pct: p.pct >= 1 ? 1 : 0 },
-      ]),
-    ),
-  );
-
-  const setParam = (nota: string, patch: Partial<ParamEdit>) =>
-    setParams((prev) => ({ ...prev, [nota]: { ...prev[nota]!, ...patch } }));
-
   const calc = useMemo(() => {
     const info = new Map(PARAMETROS.map((p) => [claveNota(p.nota), p]));
     const filas = data.notas.map((n) => {
       const meta = info.get(claveNota(n.nota));
-      const cuenta = !!meta?.cuenta && n.importe >= IMPORTE_MINIMO;
       const p = meta ? params[meta.nota] : undefined;
+      const cuenta = !!p?.cuenta && n.importe >= IMPORTE_MINIMO;
       const recupero = recuperos[n.id] ?? 0;
       const r = cuenta && p ? perdida(n.importe, recupero, p, (n.fletePct ?? fletePct) / 100, valorHora) : null;
       return { ...n, meta, cuenta, recupero, r };
     });
     const sinClasificar = filas.filter((x) => !x.meta).length;
-    const porNota = PARAMETROS.map((meta) => {
+    const delDueno = (m?: ParametroNota) => dueno === 'Todos' || m?.dueno === dueno;
+    const porNotaTodas = PARAMETROS.map((meta) => {
       const f = filas.filter((x) => x.meta === meta);
       const cuentan = f.filter((x) => x.cuenta);
       const sum = (k: 'base' | 'flete' | 'horas' | 'total') => cuentan.reduce((s, x) => s + (x.r?.[k] ?? 0), 0);
@@ -181,37 +223,63 @@ function Body({ data, selector }: { data: CncData; selector: ReactNode }) {
         total: sum('total'),
       };
     });
+    // El filtro por dueño recorta KPIs, parámetros y detalle; las barras "Por dueño" siguen mostrando a todos.
+    const porNota = porNotaTodas.filter((x) => delDueno(x.meta));
+    const filasVis = filas.filter((x) => (dueno === 'Todos' ? true : !!x.meta && delDueno(x.meta)));
     const total = porNota.reduce((s, x) => s + x.total, 0);
     const porDueno = DUENOS.map((d) => {
-      const filasD = porNota.filter((x) => x.meta.dueno === d && x.meta.cuenta);
+      const filasD = porNotaTodas.filter((x) => x.meta.dueno === d && params[x.meta.nota]?.cuenta);
       return { dueno: d, cant: filasD.reduce((s, x) => s + x.cuentan, 0), total: filasD.reduce((s, x) => s + x.total, 0) };
     });
     const incidencias = porNota.reduce((s, x) => s + x.cuentan, 0);
     return {
-      filas,
-      sinClasificar,
+      filas: filasVis,
+      sinClasificar: dueno === 'Todos' ? sinClasificar : 0,
       porNota,
       porDueno,
       total,
       incidencias,
-      brutoTotal: filas.reduce((s, x) => s + x.importe, 0),
-      brutoCnc: filas.filter((x) => x.cuenta).reduce((s, x) => s + x.importe, 0),
-      recupero: filas.filter((x) => x.cuenta).reduce((s, x) => s + x.recupero, 0),
+      brutoTotal: filasVis.reduce((s, x) => s + x.importe, 0),
+      brutoCnc: filasVis.filter((x) => x.cuenta).reduce((s, x) => s + x.importe, 0),
+      recupero: filasVis.filter((x) => x.cuenta).reduce((s, x) => s + x.recupero, 0),
     };
-  }, [data, params, recuperos, fletePct, valorHora]);
+  }, [data, params, recuperos, fletePct, valorHora, dueno]);
+
+  // Un punto por mes con datos: total por dueño y % de la facturación, con los mismos parámetros editados.
+  const historial = useMemo<PuntoMes[]>(() => {
+    const info = new Map(PARAMETROS.map((p) => [claveNota(p.nota), p]));
+    const porMes = new Map(meses.map((m) => [m.mes, m]));
+    return mesesEje().map((mes) => {
+      const m = porMes.get(mes);
+      const objetivo = data.objetivos[Number(mes.slice(5))] ?? null;
+      if (!m) return { mes, pct: null, objetivo, porDueno: null };
+      const porDueno: Record<string, number> = Object.fromEntries(DUENOS.map((d) => [d, 0]));
+      for (const n of m.notas) {
+        const meta = info.get(claveNota(n.nota));
+        const p = meta ? params[meta.nota] : undefined;
+        if (!meta || !p?.cuenta || n.importe < IMPORTE_MINIMO) continue;
+        porDueno[meta.dueno] = (porDueno[meta.dueno] ?? 0) + perdida(n.importe, recuperos[n.id] ?? 0, p, (n.fletePct ?? fletePct) / 100, valorHora).total;
+      }
+      const total = Object.values(porDueno).reduce((s, x) => s + x, 0);
+      return { mes, pct: m.facturacionNeta > 0 ? total / m.facturacionNeta : null, objetivo, porDueno };
+    });
+  }, [meses, params, recuperos, fletePct, valorHora, data.objetivos]);
+
+  const detalle = calc.filas.filter((f) => f.cuenta && f.r && (!notaSel || f.meta?.nota === notaSel));
+  const totalDetalle = detalle.reduce((s, f) => s + f.r!.total, 0);
 
   const maxDueno = Math.max(1, ...calc.porDueno.map((d) => d.total));
 
   return (
     <div className="space-y-8">
-      <section className="flex flex-wrap items-end gap-6 rounded-lg border border-slate-700 bg-slate-800/40 p-4">
+      <section className="flex flex-wrap items-end gap-x-6 gap-y-3 rounded-lg border border-slate-700 bg-slate-800/40 p-4">
         <div className="text-sm text-slate-300">
           {selector}
           <div className="mt-1 text-xs text-slate-500">
             Facturación neta {money(data.facturacionNeta)} · {data.pedidosEntregados} pedidos entregados
           </div>
         </div>
-        <label className="text-xs text-slate-400" title="Costo de una hora de reparación. Valor provisorio editable ($8.000): pendiente leerlo de la tarifa costoHora de Costo de devoluciones.">
+        <label className="text-xs text-slate-400" title="Precio de venta (lst_price) del producto SERVICIO DE REPARACION en Odoo. Se puede cambiar acá para simular; no se guarda.">
           Valor hora ($)
           <input
             type="number"
@@ -222,7 +290,7 @@ function Body({ data, selector }: { data: CncData; selector: ReactNode }) {
           />
         </label>
         <label className="text-xs text-slate-400" title="Recargo de flete de la región de cada cliente (res.partner.region_id, ej. CORDOBA - 5%). Este valor se usa solo si el cliente no tiene región.">
-          % flete de respaldo
+          % flete si el cliente no tiene región
           <input
             type="number"
             min={0}
@@ -232,10 +300,26 @@ function Body({ data, selector }: { data: CncData; selector: ReactNode }) {
             onChange={(e) => setFletePct(Number(e.target.value) || 0)}
           />
         </label>
-        <p className="max-w-md text-xs text-slate-500">
-          NC, facturación y pedidos salen de Odoo. El % de flete es el de la región de cada cliente. Valor hora y
-          recupero se cargan acá y no se guardan.
+        <p className="w-full text-xs text-slate-500">
+          NC, facturación, pedidos y valor hora salen de Odoo. El % de flete se toma de la región de cada cliente; el
+          campo de al lado solo se usa para clientes sin región cargada. Valor hora, % de flete y recupero no se guardan.
         </p>
+      </section>
+
+      <section className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+        <span>Dueño:</span>
+        {(['Todos', ...DUENOS] as const).map((d) => (
+          <button
+            key={d}
+            type="button"
+            onClick={() => setDueno(d)}
+            className={`rounded-full border px-3 py-1 text-sm ${
+              dueno === d ? 'border-purple-500 bg-purple-500/20 text-slate-100' : 'border-slate-600 text-slate-300 hover:border-slate-400'
+            }`}
+          >
+            {d}
+          </button>
+        ))}
       </section>
 
       {calc.sinClasificar > 0 && (
@@ -273,11 +357,29 @@ function Body({ data, selector }: { data: CncData; selector: ReactNode }) {
         </div>
       </section>
 
-      <section>
-        <h3 className="mb-1 text-sm font-semibold text-slate-200">Parámetros y pérdida por nota de N/C</h3>
+      <CncPanel
+        notas={calc.porNota.map((x) => ({
+          motivo: x.meta.motivo,
+          nota: x.meta.nota,
+          cant: x.cuentan,
+          bruto: x.bruto,
+          total: x.total,
+          dueno: x.meta.dueno,
+          cuenta: !!params[x.meta.nota]?.cuenta,
+        }))}
+        duenos={calc.porDueno}
+        totalCnc={calc.porDueno.reduce((s, d) => s + d.total, 0)}
+        facturacionNeta={data.facturacionNeta}
+        historial={historial}
+        objetivoMes={data.objetivos[Number(data.mes.slice(5))] ?? null}
+        duenosOrden={DUENOS}
+      />
+
+      <Acordeon titulo="Parámetros y pérdida por nota de N/C" resumen={`${calc.porNota.length} notas · ${money(calc.total)}`}>
         <p className="mb-3 text-xs text-slate-500">
           Pérdida = importe × % + (importe × % flete cliente, si lleva flete) + horas × valor hora − recupero. Los
-          campos en amarillo se editan y recalculan todo.
+          campos en amarillo se editan y recalculan todo, incluido el detalle. Click en una fila para ver solo sus NC en el detalle.
+          Los cambios de esta tabla se guardan para todos. {estadoGuardado}
         </p>
         <div className="overflow-x-auto rounded-lg border border-slate-700">
           <table className="w-full min-w-[960px] text-sm">
@@ -301,13 +403,27 @@ function Body({ data, selector }: { data: CncData; selector: ReactNode }) {
               {calc.porNota.map(({ meta, cant, bruto, flete, horas, total }) => {
                 const p = params[meta.nota]!;
                 return (
-                  <tr key={meta.nota} className="border-t border-slate-800" title={meta.desc}>
+                  <tr
+                    key={meta.nota}
+                    className={`cursor-pointer border-t border-slate-800 ${notaSel === meta.nota ? 'bg-purple-500/10' : ''}`}
+                    title={meta.desc}
+                    onClick={() => setNotaSel(notaSel === meta.nota ? null : meta.nota)}
+                  >
                     <td className="px-3 py-1.5 text-slate-400">{meta.motivo}</td>
                     <td className="px-3 py-1.5 text-slate-100">{meta.nota}</td>
-                    <td className="px-3 py-1.5 text-center text-slate-400">{meta.cuenta ? 'Sí' : 'No'}</td>
-                    <td className="px-3 py-1.5 text-center">
+                    <td className="px-3 py-1.5 text-center" onClick={(e) => e.stopPropagation()}>
                       <select
-                        disabled={!meta.cuenta}
+                        className="rounded bg-yellow-300 px-1 text-black"
+                        value={p.cuenta ? 'Sí' : 'No'}
+                        onChange={(e) => setParam(meta.nota, { cuenta: e.target.value === 'Sí' })}
+                      >
+                        <option>Sí</option>
+                        <option>No</option>
+                      </select>
+                    </td>
+                    <td className="px-3 py-1.5 text-center" onClick={(e) => e.stopPropagation()}>
+                      <select
+                        disabled={!p.cuenta}
                         className="rounded bg-yellow-300 px-1 text-black disabled:opacity-40"
                         value={p.flete ? 'Sí' : 'No'}
                         onChange={(e) => setParam(meta.nota, { flete: e.target.value === 'Sí' })}
@@ -316,20 +432,20 @@ function Body({ data, selector }: { data: CncData; selector: ReactNode }) {
                         <option>No</option>
                       </select>
                     </td>
-                    <td className="px-3 py-1.5 text-right">
+                    <td className="px-3 py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="number"
                         min={0}
                         step={0.5}
-                        disabled={!meta.cuenta}
+                        disabled={!p.cuenta}
                         className="w-16 rounded bg-yellow-300 px-1 text-right text-black disabled:opacity-40"
                         value={p.horas}
                         onChange={(e) => setParam(meta.nota, { horas: Number(e.target.value) || 0 })}
                       />
                     </td>
-                    <td className="px-3 py-1.5 text-right">
+                    <td className="px-3 py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
                       <select
-                        disabled={!meta.cuenta}
+                        disabled={!p.cuenta}
                         className="rounded bg-yellow-300 px-1 text-black disabled:opacity-40"
                         value={p.pct}
                         onChange={(e) => setParam(meta.nota, { pct: Number(e.target.value) })}
@@ -338,7 +454,7 @@ function Body({ data, selector }: { data: CncData; selector: ReactNode }) {
                         <option value={1}>100%</option>
                       </select>
                     </td>
-                    <td className="px-3 py-1.5 text-slate-300">{meta.cuenta ? meta.dueno : '(fuera de CNC)'}</td>
+                    <td className="px-3 py-1.5 text-slate-300">{p.cuenta ? meta.dueno : '(fuera de CNC)'}</td>
                     <td className="px-3 py-1.5 text-right tabular-nums text-slate-300">{cant}</td>
                     <td className="px-3 py-1.5 text-right tabular-nums text-slate-300">{money(bruto)}</td>
                     <td className="px-3 py-1.5 text-right tabular-nums text-slate-400">{money(flete)}</td>
@@ -350,18 +466,35 @@ function Body({ data, selector }: { data: CncData; selector: ReactNode }) {
             </tbody>
             <tfoot>
               <tr className="border-t border-slate-600 bg-slate-800/60 font-semibold text-slate-100">
-                <td className="px-3 py-2" colSpan={11}>
-                  Total CNC ponderado
+                <td className="px-3 py-2" colSpan={7}>
+                  Totales
                 </td>
+                <td className="px-3 py-2 text-right tabular-nums">{calc.porNota.reduce((s, x) => s + x.cant, 0)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{money(calc.porNota.reduce((s, x) => s + x.bruto, 0))}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{money(calc.porNota.reduce((s, x) => s + x.flete, 0))}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{money(calc.porNota.reduce((s, x) => s + x.horas, 0))}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{money(calc.total)}</td>
+              </tr>
+              <tr className="bg-slate-800/60 text-xs text-slate-400">
+                <td className="px-3 pb-2" colSpan={12}>
+                  La última columna es el total CNC ponderado (pérdida real: % del importe + flete + horas − recupero, solo notas que cuentan).
+                  NC bruta, flete y horas son los totales de cada columna.
+                </td>
               </tr>
             </tfoot>
           </table>
         </div>
-      </section>
+      </Acordeon>
 
-      <section>
-        <h3 className="mb-3 text-sm font-semibold text-slate-200">Detalle de notas que cuentan en CNC</h3>
+      <Acordeon titulo="Detalle de notas que cuentan en CNC" resumen={`${detalle.length} NC · ${money(totalDetalle)}`}>
+        {notaSel && (
+          <p className="mb-3 text-xs text-slate-400">
+            Filtrado por nota: <span className="text-slate-100">{notaSel}</span>{' '}
+            <button type="button" className="underline" onClick={() => setNotaSel(null)}>
+              quitar filtro
+            </button>
+          </p>
+        )}
         <div className="overflow-x-auto rounded-lg border border-slate-700">
           <table className="w-full min-w-[820px] text-sm">
             <thead className="bg-slate-800 text-xs uppercase text-slate-400">
@@ -378,9 +511,7 @@ function Body({ data, selector }: { data: CncData; selector: ReactNode }) {
               </tr>
             </thead>
             <tbody>
-              {calc.filas
-                .filter((f) => f.cuenta && f.r)
-                .map((f) => (
+              {detalle.map((f) => (
                   <tr key={f.id} className="border-t border-slate-800">
                     <td className="whitespace-nowrap px-3 py-1.5 tabular-nums text-slate-400">{fechaAr(f.fecha)}</td>
                     <td className="px-3 py-1.5 text-slate-300">{f.nc}</td>
@@ -401,13 +532,30 @@ function Body({ data, selector }: { data: CncData; selector: ReactNode }) {
                     </td>
                     <td className="px-3 py-1.5 text-right font-medium tabular-nums text-slate-100">{money(f.r!.total)}</td>
                   </tr>
-                ))}
+              ))}
             </tbody>
+            <tfoot>
+              <tr className="border-t border-slate-600 bg-slate-800/60 font-semibold text-slate-100">
+                <td className="px-3 py-2" colSpan={4}>
+                  Totales
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums">{money(detalle.reduce((s, f) => s + f.importe, 0))}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{money(detalle.reduce((s, f) => s + f.r!.flete, 0))}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{money(detalle.reduce((s, f) => s + f.r!.horas, 0))}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{money(detalle.reduce((s, f) => s + f.recupero, 0))}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{money(totalDetalle)}</td>
+              </tr>
+            </tfoot>
           </table>
         </div>
-      </section>
+      </Acordeon>
     </div>
   );
+}
+
+/** Eje de los gráficos mensuales: del primer mes del criterio nuevo a diciembre de 2027. */
+function mesesEje(): string[] {
+  return monthsBetween(PRIMER_MES, '2027-12');
 }
 
 // 2026-10-15 → 15/10/2026
@@ -418,7 +566,63 @@ function CalidadCncInner() {
   const actual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
   const meses = monthsBetween(PRIMER_MES, actual < PRIMER_MES ? PRIMER_MES : actual).reverse();
   const [mes, setMes] = useState(meses[0]!);
+
+  // Parámetros por nota: se guardan en Supabase y valen para todos. Viven acá (no en Body) para sobrevivir al cambio de mes.
+  const guardados = useApiQuery<ParametrosGuardados>(['cnc-parametros'], '/api/cnc-parametros');
+  const [params, setParams] = useState<Record<string, ParamEdit> | null>(null);
+  const [guardado, setGuardado] = useState<'idle' | 'guardando' | 'ok' | 'error'>('idle');
+  const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  useEffect(() => {
+    if (params || guardados.isLoading) return;
+    setParams({ ...paramsPorDefecto(), ...(guardados.data?.params ?? {}) });
+  }, [guardados.data, guardados.isLoading, params]);
+
+  const setParam = (nota: string, patch: Partial<ParamEdit>) => {
+    if (!params) return;
+    const nuevo = { ...params[nota]!, ...patch };
+    setParams({ ...params, [nota]: nuevo });
+    if (guardados.data && !guardados.data.disponible) return;
+    setGuardado('guardando');
+    clearTimeout(timers.current[nota]);
+    timers.current[nota] = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/cnc-parametros', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nota, ...nuevo }),
+        });
+        const body = (await res.json()) as { ok: boolean };
+        setGuardado(res.ok && body.ok ? 'ok' : 'error');
+      } catch {
+        setGuardado('error');
+      }
+    }, 500);
+  };
+
+  const estadoGuardado =
+    guardados.data && !guardados.data.disponible ? (
+      <span className="text-amber-400">Falta crear la tabla en Supabase: por ahora los cambios no se guardan.</span>
+    ) : guardado === 'guardando' ? (
+      <span>Guardando…</span>
+    ) : guardado === 'ok' ? (
+      <span className="text-emerald-500">Guardado.</span>
+    ) : guardado === 'error' ? (
+      <span className="text-red-400">No se pudo guardar el último cambio.</span>
+    ) : null;
   const query = useApiQuery<CncData>(['calidad-cnc', mes], `/api/calidad-cnc?month=${mes}`);
+  // Todos los meses con datos, para los gráficos mensuales (comparten caché con la query del mes elegido).
+  const todos = useQueries({
+    queries: meses.map((m) => ({
+      queryKey: ['calidad-cnc', m],
+      queryFn: async () => {
+        const res = await fetch(`/api/calidad-cnc?month=${m}`, { headers: { Accept: 'application/json' } });
+        const body = (await res.json()) as { ok: boolean; data?: CncData };
+        if (!body.ok || !body.data) throw new Error('No se pudo leer el mes');
+        return body.data;
+      },
+    })),
+  });
+  const cargados = todos.flatMap((q) => (q.data ? [q.data] : []));
 
   const selector = (
     <label className="flex items-center gap-2 text-sm font-medium text-slate-100">
@@ -440,7 +644,7 @@ function CalidadCncInner() {
   if (query.isError) {
     return <p className="rounded-md border border-red-700/50 bg-red-900/20 p-3 text-sm text-red-200">{(query.error as Error).message}</p>;
   }
-  if (!query.data) {
+  if (!query.data || !params) {
     return (
       <div>
         {selector}
@@ -451,7 +655,7 @@ function CalidadCncInner() {
   return (
     <div className="space-y-4">
       <LastUpdated dataUpdatedAt={query.dataUpdatedAt} />
-      <Body key={query.data.mes} data={query.data} selector={selector} />
+      <Body key={query.data.mes} data={query.data} selector={selector} meses={cargados} params={params} setParam={setParam} estadoGuardado={estadoGuardado} />
     </div>
   );
 }
