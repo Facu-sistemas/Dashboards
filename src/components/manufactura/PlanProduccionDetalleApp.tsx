@@ -46,6 +46,11 @@ const monthFmt = new Intl.DateTimeFormat('es-AR', {
 });
 const numFmt = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
 
+/** Series de la rama Tradicional de Living (total, líneas individuales y el herraje J, que también es Tradicional). */
+function isTradicional(key: string): boolean {
+  return key === 'tradicional' || key.startsWith('tradicional:') || key === 'herraje-j';
+}
+
 function utc(dateIso: string): Date {
   const [y, m, d] = dateIso.split('-').map(Number);
   return new Date(Date.UTC(y!, m! - 1, d!));
@@ -80,6 +85,9 @@ function FamiliaSection({ familia, initialDate }: Props & { familia: Familia }) 
   const [vista, setVista] = useState<Vista>('bars');
   // Se muestran todas las series; acá van las que se destildaron.
   const [hidden, setHidden] = useState<string[]>([]);
+  // Tradicional no se muestra salvo que se active (Lean es lo que se sigue de cerca).
+  const [incluirTradicional, setIncluirTradicional] = useState(false);
+  const [rankingAbierto, setRankingAbierto] = useState(false);
 
   const query = useApiQuery<PlanProduccionDetalleResult>(
     ['plan-produccion-detalle', familia, periodo, date],
@@ -87,9 +95,14 @@ function FamiliaSection({ familia, initialDate }: Props & { familia: Familia }) 
   );
   const data = query.data;
 
+  const visibleSeries = useMemo(
+    () => (data?.series ?? []).filter((s) => incluirTradicional || !isTradicional(s.key)),
+    [data, incluirTradicional],
+  );
+
   const selected = useMemo(() => {
-    return (data?.series ?? []).map((s) => s.key).filter((k) => !hidden.includes(k));
-  }, [hidden, data]);
+    return visibleSeries.map((s) => s.key).filter((k) => !hidden.includes(k));
+  }, [hidden, visibleSeries]);
 
   function toggle(key: string) {
     setHidden(selected.includes(key) ? [...hidden, key] : hidden.filter((k) => k !== key));
@@ -142,14 +155,14 @@ function FamiliaSection({ familia, initialDate }: Props & { familia: Familia }) 
 
   const ranking = useMemo(
     () =>
-      (data?.series ?? [])
+      visibleSeries
         .map((s) => ({
           ...s,
           counts: totals[s.key],
           pct: cumplimiento(totals[s.key]),
         }))
         .sort((a, b) => (b.pct ?? -1) - (a.pct ?? -1)),
-    [data, totals],
+    [visibleSeries, totals],
   );
 
   const colorOf = (key: string) => SERIES_COLORS[(data?.series ?? []).findIndex((s) => s.key === key) % SERIES_COLORS.length];
@@ -223,10 +236,23 @@ function FamiliaSection({ familia, initialDate }: Props & { familia: Familia }) 
       ) : (
         <>
           <div className="rounded-lg border border-slate-800 bg-slate-900 p-4">
-            <h3 className="mb-1 text-sm font-medium text-slate-300">Qué comparar</h3>
+            <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-medium text-slate-300">Qué comparar</h3>
+              {familia === 'living' && (
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={incluirTradicional}
+                    onChange={(e) => setIncluirTradicional(e.target.checked)}
+                    className="h-4 w-4 accent-brand-500"
+                  />
+                  Incluir Tradicional
+                </label>
+              )}
+            </div>
             <p className="mb-3 text-xs text-slate-500">Elegí las ramas o líneas individuales que quieras ver en el gráfico.</p>
             <div className="flex flex-wrap gap-2">
-              {(data?.series ?? []).map((s) => {
+              {visibleSeries.map((s) => {
                 const on = selected.includes(s.key);
                 return (
                   <button
@@ -240,7 +266,7 @@ function FamiliaSection({ familia, initialDate }: Props & { familia: Familia }) 
                   </button>
                 );
               })}
-              {(data?.series.length ?? 0) === 0 && <span className="text-sm text-slate-500">Sin órdenes planificadas en este período.</span>}
+              {visibleSeries.length === 0 && <span className="text-sm text-slate-500">Sin órdenes planificadas en este período.</span>}
             </div>
           </div>
 
@@ -340,8 +366,18 @@ function FamiliaSection({ familia, initialDate }: Props & { familia: Familia }) 
           </div>
 
           <div className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-900 p-4">
-            <h3 className="mb-1 text-sm font-medium text-slate-300">¿Qué línea cumple más?</h3>
-            <p className="mb-3 text-xs text-slate-500">
+            <button
+              type="button"
+              onClick={() => setRankingAbierto(!rankingAbierto)}
+              aria-expanded={rankingAbierto}
+              className="flex w-full items-center justify-between text-left"
+            >
+              <span className="text-sm font-medium text-slate-300">¿Qué línea cumple más?</span>
+              <span className="text-xs text-slate-500">{rankingAbierto ? 'Ocultar' : 'Mostrar'}</span>
+            </button>
+            {rankingAbierto && (
+              <>
+            <p className="mb-3 mt-1 text-xs text-slate-500">
               Cumplimiento = producido el mismo día planificado ÷ planificado hasta hoy, sobre todo el período. Cantidades en {unit}.
             </p>
             <table className="w-full text-sm">
@@ -371,6 +407,8 @@ function FamiliaSection({ familia, initialDate }: Props & { familia: Familia }) 
                 ))}
               </tbody>
             </table>
+              </>
+            )}
           </div>
         </>
       )}

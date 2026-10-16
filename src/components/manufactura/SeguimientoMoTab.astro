@@ -1,0 +1,17 @@
+---
+import SeguimientoMoApp from './SeguimientoMoApp';
+
+const puedeEditar = Astro.locals.usuario?.areasPermitidas.includes('manufactura') ?? false;
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Seguimiento de Órdenes de Fabricación</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Cuántos días lleva cada MO abierta en fábrica, contando desde su fecha de creación en Odoo. El semáforo es verde, amarillo o rojo según los días que lleva cada MO (los umbrales de Colchones y Living son distintos y se ajustan desde el panel "Configurar semáforo"). El sector es la categoría del producto. Tocá un cuadro o un sector para ver las órdenes que lo componen.
+      Solo lectura.
+    </p>
+  </header>
+
+  <SeguimientoMoApp client:load puedeEditar={puedeEditar} />
+</div>

@@ -122,7 +122,7 @@ export const AREAS: AreaConfig[] = [
     icon: ICONS.gear,
     tabs: [
       { slug: 'plan-produccion', name: 'Plan de Producción' },
-      { slug: 'oee', name: 'Eficiencia (OEE)' },
+      { slug: 'seguimiento-mo', name: 'Seguimiento MO' },
       { slug: 'mas-detalles', name: 'Más Detalles' },
     ],
   },
