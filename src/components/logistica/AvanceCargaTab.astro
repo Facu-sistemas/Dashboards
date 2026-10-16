@@ -1,0 +1,15 @@
+---
+import AvanceCargaApp from './AvanceCargaApp';
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Avance de carga</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      m³ cargados hoy contra el objetivo diario, y cumplimiento mensual acumulado. Cuenta los movimientos
+      WH/Existencias → WH/Salida al pasar a Hecho, por fecha efectiva del picking. Solo lectura.
+    </p>
+  </header>
+
+  <AvanceCargaApp client:load />
+</div>

@@ -181,6 +181,7 @@ export const AREAS: AreaConfig[] = [
     accent: 'indigo',
     icon: ICONS.truck,
     tabs: [
+      { slug: 'avance-carga', name: 'Avance de carga' },
       { slug: 'despachos', name: 'Despachos' },
       { slug: 'cumplimiento', name: 'Cumplimiento de entrega' },
       { slug: 'pedidos-sin-despachar', name: 'Pedidos sin despachar' },
