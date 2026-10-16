@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import QueryProvider from '../QueryProvider';
 import { useApiQuery } from '../dashboard/useApiQuery';
 import LastUpdated from '../shared/LastUpdated';
@@ -70,14 +71,16 @@ function Tip({ text, children, className }: { text: string; children: ReactNode;
       onMouseLeave={() => setPos(null)}
     >
       {children}
-      {pos && (
-        <span
-          className="pointer-events-none fixed z-50 w-80 whitespace-pre-line rounded-md border border-slate-600 bg-slate-950 p-3 text-left text-xs font-normal normal-case leading-relaxed text-slate-200 shadow-xl"
-          style={{ left: pos.x, top: pos.y }}
-        >
-          {text}
-        </span>
-      )}
+      {pos &&
+        createPortal(
+          <span
+            className="pointer-events-none fixed z-50 w-80 whitespace-pre-line rounded-md border border-slate-600 bg-slate-950 p-3 text-left text-xs font-normal normal-case leading-relaxed text-slate-200 shadow-xl"
+            style={{ left: pos.x, top: pos.y }}
+          >
+            {text}
+          </span>,
+          document.body,
+        )}
     </span>
   );
 }
