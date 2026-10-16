@@ -11,6 +11,7 @@ import PlanProduccionDetalleTab from '@/components/manufactura/PlanProduccionDet
 import SeguimientoMoTab from '@/components/manufactura/SeguimientoMoTab.astro';
 import PlanProduccionTab from '@/components/manufactura/PlanProduccionTab.astro';
 import MapaDepositoTab from '@/components/almacen/MapaDepositoTab.astro';
+import HistorialTab from '@/components/almacen/HistorialTab.astro';
 import CarpinteriaTab from '@/components/produccion/CarpinteriaTab.astro';
 import BandasTab from '@/components/produccion/BandasTab.astro';
 import MulticorteTab from '@/components/produccion/MulticorteTab.astro';
@@ -65,6 +66,7 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
   {area.slug === 'manufactura' && tabSlug === 'seguimiento-mo' && <SeguimientoMoTab />}
   {area.slug === 'manufactura' && tabSlug === 'plan-produccion' && <PlanProduccionTab />}
   {area.slug === 'almacen' && tabSlug === 'mapa-deposito' && <MapaDepositoTab />}
+  {area.slug === 'almacen' && tabSlug === 'historial' && <HistorialTab />}
   {area.slug === 'produccion' && tabSlug === 'calculadora-carpinteria' && <CarpinteriaTab />}
   {area.slug === 'produccion' && tabSlug === 'calculadora-bandas' && <BandasTab />}
   {area.slug === 'produccion' && tabSlug === 'optimizador-multicorte' && <MulticorteTab />}

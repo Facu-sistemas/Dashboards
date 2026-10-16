@@ -145,6 +145,7 @@ export const AREAS: AreaConfig[] = [
     icon: ICONS.box,
     tabs: [
       { slug: 'mapa-deposito', name: 'Mapa de Depósito' },
+      { slug: 'historial', name: 'Historial' },
       { slug: 'etiquetas-proveedor', name: 'Etiquetas de Proveedor' },
     ],
   },
