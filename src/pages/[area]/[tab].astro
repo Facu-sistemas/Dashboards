@@ -25,6 +25,7 @@ import VacacionesTab from '@/components/rrhh/VacacionesTab.astro';
 import ResumenRrhhTab from '@/components/rrhh/ResumenTab.astro';
 import CumpleanosTab from '@/components/test/CumpleanosTab.astro';
 import FlujoTab from '@/components/test/FlujoTab.astro';
+import CalidadCncTab from '@/components/test/CalidadCncTab.astro';
 import FichajeReconocerTab from '@/components/fichaje/FichajeReconocerTab.astro';
 import FichajeRegistrarTab from '@/components/fichaje/FichajeRegistrarTab.astro';
 import VentasTab from '@/components/gerencia/VentasTab.astro';
@@ -76,6 +77,7 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
   {area.slug === 'test' && tabSlug === 'conversor' && <ConversorTab />}
   {area.slug === 'test' && tabSlug === 'cumpleanos' && <CumpleanosTab />}
   {area.slug === 'test' && tabSlug === 'flujo' && <FlujoTab />}
+  {area.slug === 'test' && tabSlug === 'calidad-cnc' && <CalidadCncTab />}
   {area.slug === 'fichaje' && tabSlug === 'reconocer' && <FichajeReconocerTab />}
   {area.slug === 'fichaje' && tabSlug === 'registrar' && <FichajeRegistrarTab />}
   {area.slug === 'gerencia-general' && tabSlug === 'ventas' && <VentasTab />}
