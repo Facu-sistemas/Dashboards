@@ -308,7 +308,7 @@ function Body({ data, selector }: { data: CncData; selector: ReactNode }) {
                     <td className="px-3 py-1.5 text-center">
                       <select
                         disabled={!meta.cuenta}
-                        className="rounded bg-yellow-300 px-1 text-slate-900 disabled:opacity-40"
+                        className="rounded bg-yellow-300 px-1 text-black disabled:opacity-40"
                         value={p.flete ? 'Sí' : 'No'}
                         onChange={(e) => setParam(meta.nota, { flete: e.target.value === 'Sí' })}
                       >
@@ -322,7 +322,7 @@ function Body({ data, selector }: { data: CncData; selector: ReactNode }) {
                         min={0}
                         step={0.5}
                         disabled={!meta.cuenta}
-                        className="w-16 rounded bg-yellow-300 px-1 text-right text-slate-900 disabled:opacity-40"
+                        className="w-16 rounded bg-yellow-300 px-1 text-right text-black disabled:opacity-40"
                         value={p.horas}
                         onChange={(e) => setParam(meta.nota, { horas: Number(e.target.value) || 0 })}
                       />
@@ -330,7 +330,7 @@ function Body({ data, selector }: { data: CncData; selector: ReactNode }) {
                     <td className="px-3 py-1.5 text-right">
                       <select
                         disabled={!meta.cuenta}
-                        className="rounded bg-yellow-300 px-1 text-slate-900 disabled:opacity-40"
+                        className="rounded bg-yellow-300 px-1 text-black disabled:opacity-40"
                         value={p.pct}
                         onChange={(e) => setParam(meta.nota, { pct: Number(e.target.value) })}
                       >
@@ -382,7 +382,7 @@ function Body({ data, selector }: { data: CncData; selector: ReactNode }) {
                 .filter((f) => f.cuenta && f.r)
                 .map((f) => (
                   <tr key={f.id} className="border-t border-slate-800">
-                    <td className="px-3 py-1.5 text-slate-400">{f.fecha}</td>
+                    <td className="whitespace-nowrap px-3 py-1.5 tabular-nums text-slate-400">{fechaAr(f.fecha)}</td>
                     <td className="px-3 py-1.5 text-slate-300">{f.nc}</td>
                     <td className="px-3 py-1.5 text-slate-300">{f.cliente}</td>
                     <td className="px-3 py-1.5 text-slate-100">{f.meta?.nota ?? f.nota}</td>
@@ -393,7 +393,7 @@ function Body({ data, selector }: { data: CncData; selector: ReactNode }) {
                       <input
                         type="number"
                         min={0}
-                        className="w-24 rounded bg-yellow-300 px-1 text-right text-slate-900"
+                        className="w-24 rounded bg-yellow-300 px-1 text-right text-black"
                         value={f.recupero || ''}
                         placeholder="0"
                         onChange={(e) => setRecuperos((prev) => ({ ...prev, [f.id]: Number(e.target.value) || 0 }))}
@@ -409,6 +409,9 @@ function Body({ data, selector }: { data: CncData; selector: ReactNode }) {
     </div>
   );
 }
+
+// 2026-10-15 → 15/10/2026
+const fechaAr = (iso: string) => iso.slice(0, 10).split('-').reverse().join('/');
 
 function CalidadCncInner() {
   const hoy = new Date();

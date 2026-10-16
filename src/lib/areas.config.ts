@@ -111,6 +111,7 @@ export const AREAS: AreaConfig[] = [
       { slug: 'reparaciones-colchones', name: 'Reparaciones' },
       { slug: 'tickets-soporte', name: 'Tickets de Soporte' },
       { slug: 'costo-devoluciones', name: 'Costo de devoluciones' },
+      { slug: 'calidad-cnc', name: 'Calidad (CNC)' },
     ],
   },
   {
@@ -208,7 +209,6 @@ export const AREAS: AreaConfig[] = [
       { slug: 'colchon', name: 'Colchón' },
       { slug: 'cumpleanos', name: 'Cumpleaños' },
       { slug: 'flujo', name: 'Flujo' },
-      { slug: 'calidad-cnc', name: 'Calidad (CNC)' },
     ],
   },
 ];
