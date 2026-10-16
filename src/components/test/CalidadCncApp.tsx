@@ -1,12 +1,29 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import {
-  FACTURACION_NETA_OCT,
-  IMPORTE_MINIMO,
-  NOTAS,
-  PARAMETROS,
-  PEDIDOS_OCT,
-  type ParametroNota,
-} from './calidad-demo-data';
+import QueryProvider from '../QueryProvider';
+import { useApiQuery } from '../dashboard/useApiQuery';
+import LastUpdated from '../shared/LastUpdated';
+import { monthsBetween } from '../../lib/date';
+import type { CncData } from '../../lib/odoo/calidad-cnc';
+import { IMPORTE_MINIMO, PARAMETROS, type ParametroNota } from './calidad-demo-data';
+
+/** Primer mes con el criterio nuevo de motivo/nota en Odoo. */
+const PRIMER_MES = '2026-10';
+
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const mesLabel = (k: string) => {
+  const [y, m] = k.split('-').map(Number);
+  return `${MESES[m! - 1]} ${y}`;
+};
+
+/** Mayúsculas y sin tildes, para cruzar la nota de Odoo ("Garantía real") con el parámetro ("GARANTIA REAL"). */
+const clave = (t: string) =>
+  t
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .trim();
+const ALIAS: Record<string, string> = { 'SERVICIO POST VENTA': 'SERVI POS VENTA' };
+const claveNota = (t: string) => ALIAS[clave(t)] ?? clave(t);
 
 /** Parámetro editable de una nota. `pct` es el % del importe que se pierde (garantías, acuerdos). */
 interface ParamEdit {
@@ -88,17 +105,17 @@ function Kpi({ label, value, sub, tip }: { label: string; value: string; sub?: s
 }
 
 const T = {
-  nc: 'Cantidad de notas de crédito del mes.\nOdoo (versión final): account.move con move_type = out_refund.\nDemo: Excel, hoja Registro_NC.',
+  nc: 'Cantidad de notas de crédito del mes con motivo o nota cargados.\nOdoo: account.move, move_type = out_refund, posteadas, por invoice_date.',
   cuentan: 'NC cuya nota tiene "¿Cuenta en CNC?" = Sí y con importe ≥ $1.000.\nSERVI POS VENTA y N/C POR DESCUENTO no cuentan.',
   cnc: 'Suma de la pérdida de cada NC que cuenta:\nimporte × % importe + importe × % flete cliente (si lleva flete) + horas × valor hora − recupero (mínimo 0).',
-  cncPct: 'CNC ponderado ÷ facturación neta del mes.\nFacturación neta: Odoo account.move.line (facturas − NC), igual que el tab Facturación de Gerencia. Demo: Excel, Resumen_Mensual.',
-  inc: 'NC que cuentan ÷ pedidos entregados × 100.\nPedidos entregados: demo desde Excel (Resumen_Mensual); en Odoo saldría de despachos.',
-  rec: 'Suma del recupero de las NC que cuentan (cobro al camionero, outlet, reproceso, cargo al cliente).\nDemo: Excel, Registro_NC col. G.',
-  motivo: 'Motivo de la nota. Parámetro de la empresa (Excel, hoja Parametros col. A).',
-  nota: 'Nota de N/C elegida al cargar la NC (Registro_NC col. E). Pendiente definir el campo de Odoo donde se carga.',
+  cncPct: 'CNC ponderado ÷ facturación neta del mes.\nFacturación neta: Odoo account.move.amount_untaxed_signed de facturas y NC posteadas del mes (las NC restan).',
+  inc: 'NC que cuentan ÷ pedidos entregados × 100.\nPedidos entregados: stock.picking de salida en estado hecho (date_done) del mes.',
+  rec: 'Suma del recupero de las NC que cuentan (cobro al camionero, outlet, reproceso, cargo al cliente).\nNo está en Odoo: se carga a mano en el detalle (no se guarda).',
+  motivo: 'Motivo de la nota (Odoo: account.move.x_studio_motivo_1). Parámetro de la empresa.',
+  nota: 'Nota de N/C cargada en la NC. Odoo: account.move.x_studio_nota.',
   cuenta: 'Parámetro de la empresa: si la nota suma o no al CNC.',
-  flete: 'Parámetro Sí/No. Si es Sí, a la pérdida se le suma importe × % flete del cliente.\n% flete: región del cliente en Odoo (res.partner.region_id, "CORDOBA - 5%"). Demo: valor único editable.',
-  horas: 'Horas que se estiman por caso de este tipo de nota (autorizadas). Pérdida por horas = horas × valor hora.\nValor hora: tarifa costoHora de Costo de devoluciones (Supabase).',
+  flete: 'Parámetro Sí/No. Si es Sí, a la pérdida se le suma importe × % flete del cliente.\n% flete: región de cada cliente en Odoo (res.partner.region_id, "CORDOBA - 5%"); si no tiene, el % de respaldo.',
+  horas: 'Horas que se estiman por caso de este tipo de nota (autorizadas). Pérdida por horas = horas × valor hora.\nValor hora: se carga arriba (pendiente leerlo de las tarifas de Costo de devoluciones).',
   pct: '% del importe de la NC que se considera pérdida (100% en garantías y acuerdo comercial; 0% en el resto).',
   dueno: 'Área responsable de la nota. Parámetro de la empresa (Parametros col. H).',
   cant: 'Cantidad de NC de esa nota en el mes (Registro_NC).',
@@ -110,16 +127,18 @@ const T = {
   nnc: 'Número de la nota de crédito. Odoo: account.move.name.',
   cliente: 'Cliente de la NC. Odoo: account.move.partner_id.',
   importe: 'Importe sin impuestos. Odoo: account.move.amount_untaxed (valor absoluto).',
-  recupero: 'Lo recuperado de esa NC. Demo: Excel, Registro_NC col. G. Odoo: pendiente de definir.',
+  recupero: 'Lo recuperado de esa NC (cobro al camionero, outlet, reproceso). No está en Odoo: se carga a mano acá.',
 };
 
 const inputCls =
   'w-20 rounded border border-slate-600 bg-slate-900 px-2 py-1 text-right text-sm text-slate-100';
 
-export default function CalidadCncApp() {
-  // Valor hora y % de flete: en producción vienen de las tarifas (costo-devoluciones) y de la región del cliente en Odoo.
+function Body({ data, selector }: { data: CncData; selector: ReactNode }) {
+  // Valor hora: pendiente de leer de las tarifas (costo-devoluciones). % flete: el de la región de cada cliente; este es el de respaldo.
   const [valorHora, setValorHora] = useState(8000);
   const [fletePct, setFletePct] = useState(5);
+  // El recupero no está en Odoo todavía: se carga a mano por NC (no se guarda).
+  const [recuperos, setRecuperos] = useState<Record<number, number>>({});
   const [params, setParams] = useState<Record<string, ParamEdit>>(() =>
     Object.fromEntries(
       PARAMETROS.map((p: ParametroNota) => [
@@ -134,16 +153,18 @@ export default function CalidadCncApp() {
     setParams((prev) => ({ ...prev, [nota]: { ...prev[nota]!, ...patch } }));
 
   const calc = useMemo(() => {
-    const info = new Map(PARAMETROS.map((p) => [p.nota, p]));
-    const filas = NOTAS.map((n) => {
-      const meta = info.get(n.nota);
+    const info = new Map(PARAMETROS.map((p) => [claveNota(p.nota), p]));
+    const filas = data.notas.map((n) => {
+      const meta = info.get(claveNota(n.nota));
       const cuenta = !!meta?.cuenta && n.importe >= IMPORTE_MINIMO;
-      const p = params[n.nota];
-      const r = cuenta && p ? perdida(n.importe, n.recupero, p, fletePct / 100, valorHora) : null;
-      return { ...n, meta, cuenta, r };
+      const p = meta ? params[meta.nota] : undefined;
+      const recupero = recuperos[n.id] ?? 0;
+      const r = cuenta && p ? perdida(n.importe, recupero, p, (n.fletePct ?? fletePct) / 100, valorHora) : null;
+      return { ...n, meta, cuenta, recupero, r };
     });
+    const sinClasificar = filas.filter((x) => !x.meta).length;
     const porNota = PARAMETROS.map((meta) => {
-      const f = filas.filter((x) => x.nota === meta.nota);
+      const f = filas.filter((x) => x.meta === meta);
       const cuentan = f.filter((x) => x.cuenta);
       const sum = (k: 'base' | 'flete' | 'horas' | 'total') => cuentan.reduce((s, x) => s + (x.r?.[k] ?? 0), 0);
       return {
@@ -165,6 +186,7 @@ export default function CalidadCncApp() {
     const incidencias = porNota.reduce((s, x) => s + x.cuentan, 0);
     return {
       filas,
+      sinClasificar,
       porNota,
       porDueno,
       total,
@@ -173,7 +195,7 @@ export default function CalidadCncApp() {
       brutoCnc: filas.filter((x) => x.cuenta).reduce((s, x) => s + x.importe, 0),
       recupero: filas.filter((x) => x.cuenta).reduce((s, x) => s + x.recupero, 0),
     };
-  }, [params, fletePct, valorHora]);
+  }, [data, params, recuperos, fletePct, valorHora]);
 
   const maxDueno = Math.max(1, ...calc.porDueno.map((d) => d.total));
 
@@ -181,12 +203,12 @@ export default function CalidadCncApp() {
     <div className="space-y-8">
       <section className="flex flex-wrap items-end gap-6 rounded-lg border border-slate-700 bg-slate-800/40 p-4">
         <div className="text-sm text-slate-300">
-          <div className="font-medium text-slate-100">Octubre 2026 · línea base</div>
-          <div className="text-xs text-slate-500">
-            Facturación neta {money(FACTURACION_NETA_OCT)} · {PEDIDOS_OCT} pedidos
+          {selector}
+          <div className="mt-1 text-xs text-slate-500">
+            Facturación neta {money(data.facturacionNeta)} · {data.pedidosEntregados} pedidos entregados
           </div>
         </div>
-        <label className="text-xs text-slate-400" title="Costo de una hora de reparación. Supabase: tarifa costoHora de Costo de devoluciones. Demo: valor inventado, editable.">
+        <label className="text-xs text-slate-400" title="Costo de una hora de reparación. Valor provisorio editable ($8.000): pendiente leerlo de la tarifa costoHora de Costo de devoluciones.">
           Valor hora ($)
           <input
             type="number"
@@ -196,8 +218,8 @@ export default function CalidadCncApp() {
             onChange={(e) => setValorHora(Number(e.target.value) || 0)}
           />
         </label>
-        <label className="text-xs text-slate-400" title="Recargo de flete de la región del cliente (res.partner.region_id, ej. CORDOBA - 5%). Demo: un valor único para todos.">
-          % flete del cliente
+        <label className="text-xs text-slate-400" title="Recargo de flete de la región de cada cliente (res.partner.region_id, ej. CORDOBA - 5%). Este valor se usa solo si el cliente no tiene región.">
+          % flete de respaldo
           <input
             type="number"
             min={0}
@@ -208,19 +230,26 @@ export default function CalidadCncApp() {
           />
         </label>
         <p className="max-w-md text-xs text-slate-500">
-          Demo: el valor hora y el % de flete son únicos y editables. En la versión final el % sale de la región de cada
-          cliente (como en Costo de devoluciones) y el valor hora de las tarifas autorizadas.
+          NC, facturación y pedidos salen de Odoo. El % de flete es el de la región de cada cliente. Valor hora y
+          recupero se cargan acá y no se guardan.
         </p>
       </section>
+
+      {calc.sinClasificar > 0 && (
+        <p className="rounded-md border border-amber-600/50 bg-amber-900/20 px-3 py-2 text-xs text-amber-200">
+          {calc.sinClasificar} NC del mes sin nota cargada o con una nota que no está en los parámetros: no suman al
+          CNC hasta clasificarlas.
+        </p>
+      )}
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-6">
         <Kpi label="NC emitidas" tip={T.nc} value={String(calc.filas.length)} sub={money(calc.brutoTotal)} />
         <Kpi label="NC que cuentan en CNC" tip={T.cuentan} value={String(calc.incidencias)} sub={`${money(calc.brutoCnc)} bruto`} />
         <Kpi label="CNC ponderado" tip={T.cnc} value={money(calc.total)} sub="pérdida real estimada" />
-        <Kpi label="CNC % facturación" tip={T.cncPct} value={pctFmt(calc.total / FACTURACION_NETA_OCT, 3)} />
+        <Kpi label="CNC % facturación" tip={T.cncPct} value={data.facturacionNeta > 0 ? pctFmt(calc.total / data.facturacionNeta, 3) : '—'} />
         <Kpi
           label="Incidencias c/100 pedidos" tip={T.inc}
-          value={((calc.incidencias / PEDIDOS_OCT) * 100).toLocaleString('es-AR', { maximumFractionDigits: 1 })}
+          value={data.pedidosEntregados > 0 ? ((calc.incidencias / data.pedidosEntregados) * 100).toLocaleString('es-AR', { maximumFractionDigits: 1 }) : '—'}
         />
         <Kpi label="Recupero" tip={T.rec} value={money(calc.recupero)} />
       </section>
@@ -349,15 +378,24 @@ export default function CalidadCncApp() {
               {calc.filas
                 .filter((f) => f.cuenta && f.r)
                 .map((f) => (
-                  <tr key={f.nc} className="border-t border-slate-800">
+                  <tr key={f.id} className="border-t border-slate-800">
                     <td className="px-3 py-1.5 text-slate-400">{f.fecha}</td>
                     <td className="px-3 py-1.5 text-slate-300">{f.nc}</td>
                     <td className="px-3 py-1.5 text-slate-300">{f.cliente}</td>
-                    <td className="px-3 py-1.5 text-slate-100">{f.nota}</td>
+                    <td className="px-3 py-1.5 text-slate-100">{f.meta?.nota ?? f.nota}</td>
                     <td className="px-3 py-1.5 text-right tabular-nums text-slate-300">{money(f.importe)}</td>
                     <td className="px-3 py-1.5 text-right tabular-nums text-slate-400">{money(f.r!.flete)}</td>
                     <td className="px-3 py-1.5 text-right tabular-nums text-slate-400">{money(f.r!.horas)}</td>
-                    <td className="px-3 py-1.5 text-right tabular-nums text-slate-400">{money(f.recupero)}</td>
+                    <td className="px-3 py-1.5 text-right">
+                      <input
+                        type="number"
+                        min={0}
+                        className="w-24 rounded bg-yellow-300 px-1 text-right text-slate-900"
+                        value={f.recupero || ''}
+                        placeholder="0"
+                        onChange={(e) => setRecuperos((prev) => ({ ...prev, [f.id]: Number(e.target.value) || 0 }))}
+                      />
+                    </td>
                     <td className="px-3 py-1.5 text-right font-medium tabular-nums text-slate-100">{money(f.r!.total)}</td>
                   </tr>
                 ))}
@@ -366,5 +404,57 @@ export default function CalidadCncApp() {
         </div>
       </section>
     </div>
+  );
+}
+
+function CalidadCncInner() {
+  const hoy = new Date();
+  const actual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+  const meses = monthsBetween(PRIMER_MES, actual < PRIMER_MES ? PRIMER_MES : actual).reverse();
+  const [mes, setMes] = useState(meses[0]!);
+  const query = useApiQuery<CncData>(['calidad-cnc', mes], `/api/calidad-cnc?month=${mes}`);
+
+  const selector = (
+    <label className="flex items-center gap-2 text-sm font-medium text-slate-100">
+      Mes
+      <select
+        className="rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm capitalize text-slate-100"
+        value={mes}
+        onChange={(e) => setMes(e.target.value)}
+      >
+        {meses.map((m) => (
+          <option key={m} value={m}>
+            {mesLabel(m)}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+
+  if (query.isError) {
+    return <p className="rounded-md border border-red-700/50 bg-red-900/20 p-3 text-sm text-red-200">{(query.error as Error).message}</p>;
+  }
+  if (!query.data) {
+    return (
+      <div>
+        {selector}
+        <p className="mt-4 text-sm text-slate-400">Cargando notas de crédito desde Odoo…</p>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-4">
+      <LastUpdated dataUpdatedAt={query.dataUpdatedAt} />
+      <Body key={query.data.mes} data={query.data} selector={selector} />
+    </div>
+  );
+}
+
+/** Entry point mounted as an Astro client island (`client:only="react"`), same pattern as the other tabs. */
+export default function CalidadCncApp() {
+  return (
+    <QueryProvider>
+      <CalidadCncInner />
+    </QueryProvider>
   );
 }

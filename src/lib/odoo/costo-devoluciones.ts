@@ -165,13 +165,13 @@ const CAUSA_TICKET: Record<string, Causa> = {
 };
 
 /** "CORDOBA - 5%" → 5 · "COSTA BS AS - 12,5%" → 12.5 · sin % → null. */
-function parseRecargoPct(regionName: string | undefined): number | null {
+export function parseRecargoPct(regionName: string | undefined): number | null {
   if (!regionName) return null;
   const m = regionName.match(/(\d+(?:[.,]\d+)?)\s*%/);
   return m ? Number(m[1]!.replace(',', '.')) : null;
 }
 
-async function getRegiones(partnerIds: number[]): Promise<Map<number, string>> {
+export async function getRegiones(partnerIds: number[]): Promise<Map<number, string>> {
   const unicos = [...new Set(partnerIds)];
   const out = new Map<number, string>();
   const CHUNK = 1000;
