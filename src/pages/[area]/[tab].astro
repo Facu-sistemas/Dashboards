@@ -15,6 +15,7 @@ import HistorialTab from '@/components/almacen/HistorialTab.astro';
 import CarpinteriaTab from '@/components/produccion/CarpinteriaTab.astro';
 import BandasTab from '@/components/produccion/BandasTab.astro';
 import MulticorteTab from '@/components/produccion/MulticorteTab.astro';
+import TelamaxTab from '@/components/produccion/TelamaxTab.astro';
 import VerticalTab from '@/components/produccion/VerticalTab.astro';
 import PlanificadoLineaTab from '@/components/produccion/PlanificadoLineaTab.astro';
 import EtiquetasTab from '@/components/almacen/EtiquetasTab.astro';
@@ -72,6 +73,7 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
   {area.slug === 'produccion' && tabSlug === 'optimizador-multicorte' && <MulticorteTab />}
   {area.slug === 'produccion' && tabSlug === 'optimizador-vertical' && <VerticalTab />}
   {area.slug === 'produccion' && tabSlug === 'planificado-linea' && <PlanificadoLineaTab />}
+  {area.slug === 'produccion' && tabSlug === 'telamax' && <TelamaxTab />}
   {area.slug === 'almacen' && tabSlug === 'etiquetas-proveedor' && <EtiquetasTab />}
   {area.slug === 'gestion-calidad' && tabSlug === 'tickets-soporte' && <TicketsSoporteTab />}
   {area.slug === 'gestion-calidad' && tabSlug === 'reparaciones-colchones' && <ReparacionesColchonesTab />}

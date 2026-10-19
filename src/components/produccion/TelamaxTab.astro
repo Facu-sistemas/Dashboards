@@ -1,0 +1,18 @@
+---
+import TelamaxApp from './TelamaxApp';
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Telamax</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Planifica el flujo de telas: tendido, corte CNC y armado. Las órdenes se leen en vivo de Fabricación (filtro de
+      corte de tela): elegí el día de producción y, si querés, incluí los atrasados ("de esta fecha para atrás").
+      También podés cargar las planillas .xlsx a mano. Las bases (consumos, tiempos y familias de telas) salen del
+      tablero "Telamax" de Odoo — si las editás ahí, tocá "Releer bases". Jornada de 06:00 con 488 minutos de trabajo
+      y desayuno de 09:00 a 09:15.
+    </p>
+  </header>
+
+  <TelamaxApp client:load />
+</div>
