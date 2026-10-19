@@ -1,0 +1,15 @@
+---
+import EmbalajeApp from './EmbalajeApp';
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Embalaje</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Cada código de barras de producto escaneado suma +1. Se compara, producto por producto, con lo que se cerró en Odoo
+      ese día (órdenes de fabricación en estado Hecho). Odoo es solo lectura; los escaneos se guardan aparte.
+    </p>
+  </header>
+
+  <EmbalajeApp client:load />
+</div>
