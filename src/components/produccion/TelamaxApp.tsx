@@ -525,7 +525,6 @@ function TelamaxInner() {
                 ['H. Ruta Armado', () => descargar(generarPdfRutas(plan, ['A'], filtro, resultado.fechaBase), 'Hoja_Ruta_A.pdf')],
                 ['Gantt CNC', () => descargar(generarPdfGantt('Gantt de Ocupación Continua CNC (Tendido + Corte)', ['1. Tendido', '2. CNC'], ganttCnc.barras, ganttCnc.leyenda, maxT), 'Gantt_CNC.pdf')],
                 ['Gantt Armado', () => descargar(generarPdfGantt(`Gantt de Planificación de Armado JIT (${resultado.operarios} Operarios)`, filasArmado, ganttArm.barras, ganttArm.leyenda, maxT), 'Gantt_Armado.pdf')],
-                ['Descargar todo', () => descargar(generarPdfRutas(plan, PROCESOS, filtro, resultado.fechaBase), 'Orden_Completa_JIT.pdf')],
               ] as [string, () => void][]
             ).map(([label, accion]) => (
               <button
