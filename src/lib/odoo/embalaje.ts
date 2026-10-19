@@ -1,13 +1,16 @@
 import { searchRead, searchReadAll } from './client';
 import { withTtlCache } from '@/lib/cache';
 import { addDaysIso } from '@/lib/date';
+import { COLCHONES_CATEG_IDS } from './oee';
 
 /**
  * Lo que Odoo tiene como "cerrado" en un día, por producto: órdenes de
  * fabricación en estado Hecho (`mrp.production`) con `date_finished` dentro del
  * día calendario argentino, sumando `qty_produced`. Se agrupa por el código de
  * barras del producto (`product.product.barcode`), que es lo que escanea
- * embalaje. Solo lectura.
+ * embalaje. Solo cuenta colchones terminados (mismas categorías que el filtro
+ * "CERRADO COLCHONES" de Planificación): quedan fuera Living y los productos
+ * intermedios (PI). Solo lectura.
  */
 
 const ARG_UTC_OFFSET_H = 3; // Argentina = UTC-3, sin horario de verano
@@ -64,6 +67,7 @@ export async function getOdooCerradoDia(fecha: string, desdeHora = '00:00'): Pro
       model: 'mrp.production',
       domain: [
         ['state', '=', 'done'],
+        ['product_id.categ_id', 'in', COLCHONES_CATEG_IDS],
         ['date_finished', '>=', desde],
         ['date_finished', '<', hasta],
       ],
@@ -120,11 +124,14 @@ export interface ProductoPorCodigo {
   barcode: string;
 }
 
-/** Busca un producto por código de barras exacto (sin distinguir mayúsculas). */
+/** Busca un colchón por código de barras exacto (sin distinguir mayúsculas). */
 export async function buscarProductoPorBarcode(codigo: string): Promise<ProductoPorCodigo | null> {
   const rows = await searchRead<{ id: number; name: string; barcode: string } & Record<string, unknown>>({
     model: 'product.product',
-    domain: [['barcode', 'ilike', codigo]],
+    domain: [
+      ['barcode', 'ilike', codigo],
+      ['categ_id', 'in', COLCHONES_CATEG_IDS],
+    ],
     fields: ['name', 'barcode'],
     limit: 20,
   });

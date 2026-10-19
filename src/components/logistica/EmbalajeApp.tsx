@@ -38,10 +38,6 @@ function hoyArgentina(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date());
 }
 
-function horaArgentina(): string {
-  return new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
-}
-
 type Envio = { accion: 'escanear' | 'deshacer'; codigo: string } | { accion: 'anular'; id: number };
 
 async function enviar(envio: Envio, fecha: string): Promise<Aviso> {
@@ -61,28 +57,13 @@ async function enviar(envio: Envio, fecha: string): Promise<Aviso> {
 
 function Inner() {
   const [fecha, setFecha] = useState(hoyArgentina);
-  const [desde, setDesde] = useState(() => {
-    try {
-      return localStorage.getItem('embalaje-desde') ?? '00:00';
-    } catch {
-      return '00:00';
-    }
-  });
-  const cambiarDesde = (h: string) => {
-    setDesde(h);
-    try {
-      localStorage.setItem('embalaje-desde', h);
-    } catch {
-      /* sin almacenamiento: queda solo en memoria */
-    }
-  };
   const [codigo, setCodigo] = useState('');
   const [aviso, setAviso] = useState<Aviso | null>(null);
   const [enviando, setEnviando] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const qc = useQueryClient();
 
-  const query = useApiQuery<EmbalajeResult>(['embalaje', fecha, desde], `/api/embalaje-escaneos?fecha=${fecha}&desde=${desde}`);
+  const query = useApiQuery<EmbalajeResult>(['embalaje', fecha], `/api/embalaje-escaneos?fecha=${fecha}`);
   const { refetch } = query;
   useEffect(() => {
     const id = setInterval(() => void refetch(), REFRESH_MS);
@@ -104,7 +85,7 @@ function Inner() {
     if (enviando) return;
     setEnviando(true);
     setAviso(await enviar(envio, fecha));
-    await qc.invalidateQueries({ queryKey: ['embalaje', fecha, desde] });
+    await qc.invalidateQueries({ queryKey: ['embalaje', fecha] });
     setEnviando(false);
   };
 
@@ -161,24 +142,6 @@ function Inner() {
               className="mt-1 block rounded-md border border-slate-700 bg-slate-950 px-3 py-3 text-slate-100"
             />
           </label>
-          <div>
-            <label>
-              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Contar Odoo desde</span>
-              <input
-                type="time"
-                value={desde}
-                onChange={(e) => e.target.value && cambiarDesde(e.target.value)}
-                className="mt-1 block rounded-md border border-slate-700 bg-slate-950 px-3 py-3 text-slate-100"
-              />
-            </label>
-          </div>
-          <button
-            type="button"
-            onClick={() => cambiarDesde(horaArgentina())}
-            className="rounded-md border border-slate-700 px-3 py-3 text-sm text-slate-200 hover:bg-slate-800"
-          >
-            Empezar desde ahora
-          </button>
         </div>
         <p
           aria-live="polite"
@@ -268,7 +231,7 @@ function Inner() {
               Cerrado en Odoo ({n0.format(d.ordenesCerradas.length)} órdenes)
             </h3>
             {d.ordenesCerradas.length === 0 ? (
-              <p className="px-4 py-6 text-center text-sm text-slate-500">Todavía no se cerró ninguna orden desde esa hora.</p>
+              <p className="px-4 py-6 text-center text-sm text-slate-500">Todavía no se cerró ninguna orden en este día.</p>
             ) : (
               <ul className="max-h-96 divide-y divide-slate-800/60 overflow-y-auto">
                 {d.ordenesCerradas.map((o) => (
@@ -312,7 +275,7 @@ function Inner() {
           </div>
           </div>
           <p className="text-xs text-slate-500">
-            Odoo: unidades producidas en órdenes de fabricación en estado Hecho, por fecha de finalización, desde la hora elegida. «+» = embalaje contó de más; «−» = faltan por
+            Odoo: colchones terminados en órdenes de fabricación en estado Hecho, por fecha de finalización del día elegido. «+» = embalaje contó de más; «−» = faltan por
             embalar o por escanear.
           </p>
           <div className="flex flex-wrap items-center justify-between gap-3">

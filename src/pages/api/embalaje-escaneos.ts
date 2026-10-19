@@ -55,7 +55,7 @@ export const POST: APIRoute = async (context) => {
       throw new ApiValidationError('Es una etiqueta de orden (WH/MO). Escaneá el código de barras del producto.');
     }
     const producto = await buscarProductoPorBarcode(codigo);
-    if (!producto) throw new ApiValidationError(`El código "${codigo}" no corresponde a ningún producto de Odoo.`);
+    if (!producto) throw new ApiValidationError(`El código "${codigo}" no corresponde a ningún colchón de Odoo.`);
 
     if (accion === 'escanear') {
       await registrarEscaneo(producto.barcode, producto.producto, context.locals.usuario!.username);
