@@ -10,6 +10,7 @@ import type { TelamaxBasesResponse } from '@/lib/odoo/telamax';
 import type { TelamaxPedidosResponse } from '@/lib/odoo/telamax-pedidos';
 import TelamaxGantt from './TelamaxGantt';
 import { generarPdfGantt, generarPdfRutas } from './telamax-pdf';
+import { generarPdfReporte, imprimirPdf } from './telamax-reporte';
 import { TITULO_PROCESO, barrasArmado, barrasCnc, diasDelPlan, leerPlanilla, mapaColores, maxTiempo, validarPlanilla } from './telamax-ui';
 
 type Vista = 'rutas' | 'gantt' | 'log';
@@ -181,7 +182,7 @@ function TelamaxInner() {
   const basesQuery = useApiQuery<TelamaxBasesResponse>(['telamax-bases'], '/api/telamax-bases');
   const [planillas, setPlanillas] = useState<Record<ClavePlanilla, PlanillaCargada | null>>({ atrasados: null, dia: null, siguiente: null });
   const [operarios, setOperarios] = useState(4);
-  const [resultado, setResultado] = useState<{ r: ResultadoTelamax; operarios: number; fechaBase: Date } | null>(null);
+  const [resultado, setResultado] = useState<{ r: ResultadoTelamax; operarios: number; fechaBase: Date; origenTexto: string } | null>(null);
   const [origen, setOrigen] = useState<Origen>('odoo');
   const [fecha, setFecha] = useState(() => fechaPorDefecto(hoyArgentina()));
   const [paraAtras, setParaAtras] = useState(true);
@@ -232,16 +233,21 @@ function TelamaxInner() {
     try {
       let entrada: Planillas;
       let fechaBase = hoyArgentina();
+      let origenTexto: string;
+      const fmt = (iso: string) => iso.split('-').reverse().join('/');
       if (origen === 'odoo') {
         if (!odoo) return;
         entrada = odoo.planillas;
         fechaBase = fromISO(fecha);
+        const c = odoo.conteos;
+        origenTexto = `Odoo (Fabricación) - día ${fmt(fecha)}${paraAtras ? '' : ', sin atrasados'}${ignorarTradicional ? ', sin Tradicional' : ''} - atrasados ${c.atrasados}, día ${c.dia}, siguiente ${c.siguiente} (${fmt(odoo.fechaSiguiente)})`;
       } else {
         const quitar = (filas: FilaPlanilla[] | undefined) => (ignorarTradicional ? filtrarTradicionalFilas(filas ?? []).filas : (filas ?? []));
         entrada = { atrasados: quitar(planillas.atrasados?.filas), dia: quitar(planillas.dia?.filas), siguiente: quitar(planillas.siguiente?.filas) };
+        origenTexto = `Planillas cargadas - atrasados ${entrada.atrasados.length}, día ${entrada.dia.length}, siguiente ${entrada.siguiente.length} filas${ignorarTradicional ? ', sin Tradicional' : ''}`;
       }
       const r = planificar(bases, entrada, operarios);
-      setResultado({ r, operarios, fechaBase });
+      setResultado({ r, operarios, fechaBase, origenTexto });
       setFiltro('Todos');
       setVista('rutas');
     } catch (err) {
@@ -512,6 +518,8 @@ function TelamaxInner() {
           <div className="flex flex-wrap gap-2">
             {(
               [
+                ['Reporte completo (PDF)', () => descargar(generarPdfReporte({ resultado: resultado.r, operarios: resultado.operarios, fechaBase: resultado.fechaBase, origenTexto: resultado.origenTexto, filtro }), 'Reporte_Telamax.pdf')],
+                ['Imprimir reporte', () => imprimirPdf(generarPdfReporte({ resultado: resultado.r, operarios: resultado.operarios, fechaBase: resultado.fechaBase, origenTexto: resultado.origenTexto, filtro }))],
                 ['H. Ruta Tendido', () => descargar(generarPdfRutas(plan, ['T'], filtro, resultado.fechaBase), 'Hoja_Ruta_T.pdf')],
                 ['H. Ruta CNC', () => descargar(generarPdfRutas(plan, ['C'], filtro, resultado.fechaBase), 'Hoja_Ruta_C.pdf')],
                 ['H. Ruta Armado', () => descargar(generarPdfRutas(plan, ['A'], filtro, resultado.fechaBase), 'Hoja_Ruta_A.pdf')],

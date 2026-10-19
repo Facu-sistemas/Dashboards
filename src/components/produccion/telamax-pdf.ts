@@ -18,57 +18,60 @@ const generado = () =>
 
 type CeldaPdf = string | { content: string; colSpan: number; styles: Record<string, unknown> };
 
-/** Hojas de ruta (Tendido / CNC / Armado) en A4 apaisado, una por proceso, con separador por día. */
-/** `fechaBase`: día de producción del que parten FECHA CORTE / FECHA PLANIF. (por defecto, hoy). */
+/** Dibuja UNA hoja de ruta (Tendido / CNC / Armado) en la página actual del documento, con separador por día. */
+export function dibujarHojaRuta(doc: jsPDF, plan: Registro[], proc: Proceso, filtro: string, hoy: Date): void {
+  const ancho = doc.internal.pageSize.getWidth();
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.setTextColor(15, 23, 42);
+  doc.text(TITULO_PROCESO[proc], ancho / 2, MARGEN + 8, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`${generado()}${filtro !== 'Todos' ? ` · Modelo: ${filtro}` : ''}`, ancho / 2, MARGEN + 20, { align: 'center' });
+
+  const body: CeldaPdf[][] = [];
+  let diaActual: number | null = null;
+  for (const r of plan) {
+    if (r.proceso !== proc || (filtro !== 'Todos' && r.modelo !== filtro)) continue;
+    const dia = diaDe(r.inicio);
+    if (dia !== diaActual) {
+      diaActual = dia;
+      body.push([{ content: `--- DÍA ${dia} ---`, colSpan: 9, styles: { halign: 'center', fontStyle: 'bold', fillColor: [52, 73, 94], textColor: [245, 245, 245] } }]);
+    }
+    const f = fechasDe(r.procedencia, hoy);
+    body.push([
+      formatTablaH(r.inicio),
+      formatTablaH(r.fin),
+      r.modelo,
+      r.parte.slice(0, 15),
+      r.insumo,
+      r.capas === '-' ? '1' : String(r.capas),
+      proc !== 'A' && typeof r.metros === 'number' ? r.metros.toFixed(2) : '-',
+      f.corte,
+      f.planificacion,
+    ]);
+  }
+
+  autoTable(doc, {
+    startY: MARGEN + 30,
+    margin: { left: MARGEN, right: MARGEN, top: MARGEN, bottom: MARGEN + 12 },
+    rowPageBreak: 'avoid',
+    head: [['INICIO', 'FIN', 'MODELO', 'PARTE', 'INSUMO', 'TENDIDAS', 'METROS', 'FECHA CORTE', 'FECHA PLANIF.']],
+    body,
+    styles: { font: 'helvetica', fontSize: 6.5, cellPadding: 2, halign: 'center', valign: 'middle', lineColor: [0, 0, 0], lineWidth: 0.4, textColor: [15, 23, 42] },
+    headStyles: { fillColor: AZUL_OSCURO, textColor: [245, 245, 245] },
+    alternateRowStyles: { fillColor: [235, 235, 235] },
+    columnStyles: { 0: { cellWidth: 56 }, 1: { cellWidth: 56 }, 2: { cellWidth: 118 }, 3: { cellWidth: 64 }, 5: { cellWidth: 50 }, 6: { cellWidth: 50 }, 7: { cellWidth: 68 }, 8: { cellWidth: 68 } },
+  });
+}
+
+/** Hojas de ruta en A4 apaisado, una por proceso. `fechaBase`: día de producción del que parten FECHA CORTE / FECHA PLANIF. (por defecto, hoy). */
 export function generarPdfRutas(plan: Registro[], procesos: Proceso[], filtro: string, fechaBase: Date = hoyArgentina()): jsPDF {
   const doc = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'landscape' });
-  const hoy = fechaBase;
-  const ancho = doc.internal.pageSize.getWidth();
-
   procesos.forEach((proc, idx) => {
     if (idx > 0) doc.addPage();
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(15);
-    doc.setTextColor(15, 23, 42);
-    doc.text(TITULO_PROCESO[proc], ancho / 2, MARGEN + 8, { align: 'center' });
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(100, 116, 139);
-    doc.text(`${generado()}${filtro !== 'Todos' ? ` · Modelo: ${filtro}` : ''}`, ancho / 2, MARGEN + 20, { align: 'center' });
-
-    const body: CeldaPdf[][] = [];
-    let diaActual: number | null = null;
-    for (const r of plan) {
-      if (r.proceso !== proc || (filtro !== 'Todos' && r.modelo !== filtro)) continue;
-      const dia = diaDe(r.inicio);
-      if (dia !== diaActual) {
-        diaActual = dia;
-        body.push([{ content: `--- DÍA ${dia} ---`, colSpan: 9, styles: { halign: 'center', fontStyle: 'bold', fillColor: [52, 73, 94], textColor: [245, 245, 245] } }]);
-      }
-      const f = fechasDe(r.procedencia, hoy);
-      body.push([
-        formatTablaH(r.inicio),
-        formatTablaH(r.fin),
-        r.modelo,
-        r.parte.slice(0, 15),
-        r.insumo,
-        r.capas === '-' ? '1' : String(r.capas),
-        proc !== 'A' && typeof r.metros === 'number' ? r.metros.toFixed(2) : '-',
-        f.corte,
-        f.planificacion,
-      ]);
-    }
-
-    autoTable(doc, {
-      startY: MARGEN + 30,
-      margin: { left: MARGEN, right: MARGEN, top: MARGEN, bottom: MARGEN },
-      head: [['INICIO', 'FIN', 'MODELO', 'PARTE', 'INSUMO', 'TENDIDAS', 'METROS', 'FECHA CORTE', 'FECHA PLANIF.']],
-      body,
-      styles: { font: 'helvetica', fontSize: 6.5, cellPadding: 2, halign: 'center', valign: 'middle', lineColor: [0, 0, 0], lineWidth: 0.4, textColor: [15, 23, 42] },
-      headStyles: { fillColor: AZUL_OSCURO, textColor: [245, 245, 245] },
-      alternateRowStyles: { fillColor: [235, 235, 235] },
-      columnStyles: { 0: { cellWidth: 56 }, 1: { cellWidth: 56 }, 2: { cellWidth: 118 }, 3: { cellWidth: 64 }, 5: { cellWidth: 50 }, 6: { cellWidth: 50 }, 7: { cellWidth: 68 }, 8: { cellWidth: 68 } },
-    });
+    dibujarHojaRuta(doc, plan, proc, filtro, fechaBase);
   });
   return doc;
 }
