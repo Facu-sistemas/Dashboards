@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import QueryProvider from '@/components/QueryProvider';
 import { useApiQuery } from '@/components/dashboard/useApiQuery';
@@ -79,12 +79,16 @@ function Inner() {
     setEnviando(false);
   };
 
-  const onSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    const c = codigo;
-    setCodigo('');
-    void accionar('escanear', c);
-  };
+  // Algunos scanners no mandan Enter al final: si el código queda quieto un instante, se envía solo.
+  useEffect(() => {
+    if (codigo.trim().length < 4) return;
+    const id = setTimeout(() => {
+      setCodigo('');
+      void accionar('escanear', codigo);
+    }, 400);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [codigo]);
 
   const d = query.data;
   const esHoy = fecha === hoyArgentina();
@@ -92,13 +96,22 @@ function Inner() {
   return (
     <div className="space-y-6">
       <div className="rounded-lg border border-slate-800 bg-slate-900 p-4">
-        <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-4">
+        <div className="flex flex-wrap items-end gap-4">
           <label className="min-w-[16rem] flex-1">
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Escanear código de barras del producto</span>
             <input
               ref={inputRef}
               value={codigo}
               onChange={(e) => setCodigo(e.target.value)}
+              onKeyDown={(e) => {
+                // El scanner termina con Enter; sin <form> con botón el navegador no lo envía solo.
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  const c = codigo;
+                  setCodigo('');
+                  void accionar('escanear', c);
+                }
+              }}
               onBlur={() => setTimeout(() => inputRef.current?.focus(), 150)}
               autoFocus
               autoComplete="off"
@@ -119,7 +132,7 @@ function Inner() {
               className="mt-1 block rounded-md border border-slate-700 bg-slate-950 px-3 py-3 text-slate-100"
             />
           </label>
-        </form>
+        </div>
         <p
           aria-live="polite"
           className={`mt-3 min-h-[1.5rem] text-lg font-semibold ${aviso ? (aviso.ok ? 'text-status-green' : 'text-status-red') : 'text-slate-500'}`}
