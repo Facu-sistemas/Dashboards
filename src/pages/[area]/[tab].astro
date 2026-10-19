@@ -36,7 +36,6 @@ import ProduccionDetalleTab from '@/components/gerencia/ProduccionDetalleTab.ast
 import FacturacionGerenciaTab from '@/components/gerencia/FacturacionTab.astro';
 import DespachosTab from '@/components/logistica/DespachosTab.astro';
 import CumplimientoTab from '@/components/logistica/CumplimientoTab.astro';
-import PedidosSinDespacharTab from '@/components/logistica/PedidosSinDespacharTab.astro';
 import MapaDestinosTab from '@/components/logistica/MapaDestinosTab.astro';
 import AvanceCargaTab from '@/components/logistica/AvanceCargaTab.astro';
 import EmbalajeTab from '@/components/logistica/EmbalajeTab.astro';
@@ -97,7 +96,6 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
   {area.slug === 'finanzas-creditos' && tabSlug === 'distribucion-cheques' && <DistribucionChequesTab />}
   {area.slug === 'logistica' && tabSlug === 'despachos' && <DespachosTab />}
   {area.slug === 'logistica' && tabSlug === 'cumplimiento' && <CumplimientoTab />}
-  {area.slug === 'logistica' && tabSlug === 'pedidos-sin-despachar' && <PedidosSinDespacharTab />}
   {area.slug === 'logistica' && tabSlug === 'mapa-destinos' && <MapaDestinosTab />}
   {area.slug === 'logistica' && tabSlug === 'avance-carga' && <AvanceCargaTab />}
   {area.slug === 'logistica' && tabSlug === 'embalaje' && <EmbalajeTab />}

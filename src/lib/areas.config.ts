@@ -185,9 +185,8 @@ export const AREAS: AreaConfig[] = [
     tabs: [
       { slug: 'avance-carga', name: 'Avance de carga' },
       { slug: 'embalaje', name: 'Embalaje' },
-      { slug: 'despachos', name: 'Despachos' },
+      { slug: 'despachos', name: 'Pendientes de despacho' },
       { slug: 'cumplimiento', name: 'Cumplimiento de entrega' },
-      { slug: 'pedidos-sin-despachar', name: 'Pedidos sin despachar' },
       { slug: 'mapa-destinos', name: 'Mapa de destinos' },
     ],
   },
