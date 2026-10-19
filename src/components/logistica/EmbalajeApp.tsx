@@ -16,6 +16,7 @@ interface EmbalajeFila {
 
 interface EmbalajeResult {
   fecha: string;
+  desdeHora: string;
   disponible: boolean;
   filas: EmbalajeFila[];
   totalOdoo: number;
@@ -314,9 +315,44 @@ function Inner() {
             Odoo: unidades producidas en órdenes de fabricación en estado Hecho, por fecha de finalización, desde la hora elegida. «+» = embalaje contó de más; «−» = faltan por
             embalar o por escanear.
           </p>
-          <LastUpdated dataUpdatedAt={query.dataUpdatedAt} />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <LastUpdated dataUpdatedAt={query.dataUpdatedAt} />
+            <DescargarPdf data={d} />
+          </div>
         </>
       )}
+    </div>
+  );
+}
+
+function DescargarPdf({ data }: { data: EmbalajeResult }) {
+  const [generando, setGenerando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function descargar() {
+    setGenerando(true);
+    setError(null);
+    try {
+      // jsPDF solo se baja cuando se pide el reporte, no pesa en la carga del tab.
+      const { generarPdfEmbalaje, nombreArchivoEmbalaje } = await import('./embalaje-pdf');
+      generarPdfEmbalaje(data).save(nombreArchivoEmbalaje(data.fecha));
+    } catch (e) {
+      console.error('[embalaje-pdf]', e);
+      setError('No se pudo generar el PDF. Recargá la página e intentá de nuevo.');
+    } finally {
+      setGenerando(false);
+    }
+  }
+  return (
+    <div className="flex items-center gap-3">
+      {error && <span className="text-xs text-status-red">{error}</span>}
+      <button
+        type="button"
+        onClick={descargar}
+        disabled={generando}
+        className="rounded border border-slate-700 px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-800 disabled:opacity-50"
+      >
+        {generando ? 'Generando…' : 'Descargar resumen PDF'}
+      </button>
     </div>
   );
 }
