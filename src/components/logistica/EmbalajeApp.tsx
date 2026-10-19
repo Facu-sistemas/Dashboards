@@ -20,6 +20,7 @@ interface EmbalajeResult {
   filas: EmbalajeFila[];
   totalOdoo: number;
   totalEscaneado: number;
+  escaneos: { id: number; barcode: string; producto: string | null; usuario: string | null; creado: string }[];
 }
 
 interface Aviso {
@@ -35,16 +36,22 @@ function hoyArgentina(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date());
 }
 
-async function enviar(accion: 'escanear' | 'deshacer', codigo: string, fecha: string): Promise<Aviso> {
+function horaArgentina(): string {
+  return new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
+}
+
+type Envio = { accion: 'escanear' | 'deshacer'; codigo: string } | { accion: 'anular'; id: number };
+
+async function enviar(envio: Envio, fecha: string): Promise<Aviso> {
   try {
     const res = await fetch('/api/embalaje-escaneos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ accion, codigo, fecha }),
+      body: JSON.stringify({ ...envio, fecha }),
     });
     const body = (await res.json()) as ApiEnvelope<{ producto: string }>;
     if (!res.ok || !body.ok || !body.data) return { ok: false, texto: body.error ?? 'No se pudo registrar el escaneo.' };
-    return { ok: true, texto: `${accion === 'escanear' ? '+1' : '−1'} ${body.data.producto}` };
+    return { ok: true, texto: `${envio.accion === 'escanear' ? '+1' : envio.accion === 'deshacer' ? '−1' : 'Borrado:'} ${body.data.producto}`.trim() };
   } catch {
     return { ok: false, texto: 'Sin conexión con el servidor. Reintentá el escaneo.' };
   }
@@ -52,13 +59,28 @@ async function enviar(accion: 'escanear' | 'deshacer', codigo: string, fecha: st
 
 function Inner() {
   const [fecha, setFecha] = useState(hoyArgentina);
+  const [desde, setDesde] = useState(() => {
+    try {
+      return localStorage.getItem('embalaje-desde') ?? '00:00';
+    } catch {
+      return '00:00';
+    }
+  });
+  const cambiarDesde = (h: string) => {
+    setDesde(h);
+    try {
+      localStorage.setItem('embalaje-desde', h);
+    } catch {
+      /* sin almacenamiento: queda solo en memoria */
+    }
+  };
   const [codigo, setCodigo] = useState('');
   const [aviso, setAviso] = useState<Aviso | null>(null);
   const [enviando, setEnviando] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const qc = useQueryClient();
 
-  const query = useApiQuery<EmbalajeResult>(['embalaje', fecha], `/api/embalaje-escaneos?fecha=${fecha}`);
+  const query = useApiQuery<EmbalajeResult>(['embalaje', fecha, desde], `/api/embalaje-escaneos?fecha=${fecha}&desde=${desde}`);
   const { refetch } = query;
   useEffect(() => {
     const id = setInterval(() => void refetch(), REFRESH_MS);
@@ -73,9 +95,14 @@ function Inner() {
   const accionar = async (accion: 'escanear' | 'deshacer', cod: string) => {
     const limpio = cod.trim();
     if (!limpio || enviando) return;
+    await ejecutar({ accion, codigo: limpio });
+  };
+
+  const ejecutar = async (envio: Envio) => {
+    if (enviando) return;
     setEnviando(true);
-    setAviso(await enviar(accion, limpio, fecha));
-    await qc.invalidateQueries({ queryKey: ['embalaje', fecha] });
+    setAviso(await enviar(envio, fecha));
+    await qc.invalidateQueries({ queryKey: ['embalaje', fecha, desde] });
     setEnviando(false);
   };
 
@@ -132,6 +159,24 @@ function Inner() {
               className="mt-1 block rounded-md border border-slate-700 bg-slate-950 px-3 py-3 text-slate-100"
             />
           </label>
+          <div>
+            <label>
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Contar Odoo desde</span>
+              <input
+                type="time"
+                value={desde}
+                onChange={(e) => e.target.value && cambiarDesde(e.target.value)}
+                className="mt-1 block rounded-md border border-slate-700 bg-slate-950 px-3 py-3 text-slate-100"
+              />
+            </label>
+          </div>
+          <button
+            type="button"
+            onClick={() => cambiarDesde(horaArgentina())}
+            className="rounded-md border border-slate-700 px-3 py-3 text-sm text-slate-200 hover:bg-slate-800"
+          >
+            Empezar desde ahora
+          </button>
         </div>
         <p
           aria-live="polite"
@@ -215,8 +260,36 @@ function Inner() {
               </tbody>
             </table>
           </div>
+          <div className="rounded-lg border border-slate-800 bg-slate-900">
+            <h3 className="border-b border-slate-800 px-4 py-3 text-sm font-semibold text-slate-100">
+              Escaneos registrados ({n0.format(d.escaneos.length)})
+            </h3>
+            {d.escaneos.length === 0 ? (
+              <p className="px-4 py-6 text-center text-sm text-slate-500">Todavía no hay escaneos en este día.</p>
+            ) : (
+              <ul className="max-h-96 divide-y divide-slate-800/60 overflow-y-auto">
+                {d.escaneos.map((e) => (
+                  <li key={e.id} className="flex items-center gap-3 px-4 py-2 text-sm">
+                    <span className="w-14 shrink-0 tabular-nums text-slate-400">{hora.format(new Date(e.creado))}</span>
+                    <span className="min-w-0 flex-1 truncate text-slate-100">{e.producto ?? e.barcode}</span>
+                    <span className="hidden font-mono text-xs text-slate-500 sm:inline">{e.barcode}</span>
+                    {esHoy && (
+                      <button
+                        type="button"
+                        onClick={() => void ejecutar({ accion: 'anular', id: e.id })}
+                        disabled={enviando}
+                        className="rounded border border-status-red/50 px-2 py-1 text-xs text-status-red hover:bg-slate-800 disabled:opacity-50"
+                      >
+                        Borrar
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
           <p className="text-xs text-slate-500">
-            Odoo: unidades producidas en órdenes de fabricación en estado Hecho, por fecha de finalización. «+» = embalaje contó de más; «−» = faltan por
+            Odoo: unidades producidas en órdenes de fabricación en estado Hecho, por fecha de finalización, desde la hora elegida. «+» = embalaje contó de más; «−» = faltan por
             embalar o por escanear.
           </p>
           <LastUpdated dataUpdatedAt={query.dataUpdatedAt} />

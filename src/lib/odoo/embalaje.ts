@@ -31,15 +31,20 @@ interface ProductRow extends Record<string, unknown> {
   barcode: string | false;
 }
 
-/** Límites UTC (formato Odoo) del día argentino `fecha` (YYYY-MM-DD). */
-function limitesDiaUtc(fecha: string): [string, string] {
+/**
+ * Límites UTC (formato Odoo) del día argentino `fecha` (YYYY-MM-DD). `desde`
+ * (HH:MM, hora argentina) recorta el inicio: sirve para empezar a contar a
+ * partir de un momento del día, ignorando lo que Odoo ya había cerrado antes.
+ */
+function limitesDiaUtc(fecha: string, desde = '00:00'): [string, string] {
   const hh = String(ARG_UTC_OFFSET_H).padStart(2, '0');
-  return [`${fecha} ${hh}:00:00`, `${addDaysIso(fecha, 1)} ${hh}:00:00`];
+  const inicio = new Date(`${fecha}T${desde}:00-0${ARG_UTC_OFFSET_H}:00`).toISOString().slice(0, 19).replace('T', ' ');
+  return [inicio, `${addDaysIso(fecha, 1)} ${hh}:00:00`];
 }
 
-export async function getOdooCerradoDia(fecha: string): Promise<OdooCerradoProducto[]> {
-  return withTtlCache(`embalaje-cerrado:${fecha}`, TTL_MS, async () => {
-    const [desde, hasta] = limitesDiaUtc(fecha);
+export async function getOdooCerradoDia(fecha: string, desdeHora = '00:00'): Promise<OdooCerradoProducto[]> {
+  return withTtlCache(`embalaje-cerrado:${fecha}:${desdeHora}`, TTL_MS, async () => {
+    const [desde, hasta] = limitesDiaUtc(fecha, desdeHora);
     const mos = await searchReadAll<MoRow>({
       model: 'mrp.production',
       domain: [

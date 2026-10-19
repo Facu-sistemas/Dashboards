@@ -1,5 +1,5 @@
 import { getOdooCerradoDia } from '@/lib/odoo/embalaje';
-import { getEscaneosDia } from '@/lib/supabase/embalaje-escaneos';
+import { getEscaneosDia, type EscaneoRegistro } from '@/lib/supabase/embalaje-escaneos';
 
 export interface EmbalajeFila {
   barcode: string | null;
@@ -13,14 +13,16 @@ export interface EmbalajeFila {
 
 export interface EmbalajeResult {
   fecha: string;
+  desdeHora: string;
   disponible: boolean;
   filas: EmbalajeFila[];
   totalOdoo: number;
   totalEscaneado: number;
+  escaneos: EscaneoRegistro[];
 }
 
-export async function getEmbalaje(fecha: string): Promise<EmbalajeResult> {
-  const [odoo, esc] = await Promise.all([getOdooCerradoDia(fecha), getEscaneosDia(fecha)]);
+export async function getEmbalaje(fecha: string, desdeHora = '00:00'): Promise<EmbalajeResult> {
+  const [odoo, esc] = await Promise.all([getOdooCerradoDia(fecha, desdeHora), getEscaneosDia(fecha, desdeHora)]);
   const filas = new Map<string, EmbalajeFila>();
   const key = (barcode: string | null, id: number | string) => (barcode ? barcode.toUpperCase() : `odoo-${id}`);
 
@@ -52,9 +54,11 @@ export async function getEmbalaje(fecha: string): Promise<EmbalajeResult> {
   lista.sort((a, b) => Math.abs(b.diferencia) - Math.abs(a.diferencia) || a.producto.localeCompare(b.producto));
   return {
     fecha,
+    desdeHora,
     disponible: esc.disponible,
     filas: lista,
     totalOdoo: lista.reduce((s, f) => s + f.odoo, 0),
     totalEscaneado: lista.reduce((s, f) => s + f.escaneado, 0),
+    escaneos: esc.lista,
   };
 }

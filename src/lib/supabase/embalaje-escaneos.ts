@@ -25,9 +25,10 @@ import { addDaysIso } from '@/lib/date';
 const ARG_UTC_OFFSET_H = 3;
 const TABLA = 'embalaje_escaneos';
 
-function limitesDiaIso(fecha: string): [string, string] {
+function limitesDiaIso(fecha: string, desde = '00:00'): [string, string] {
   const hh = String(ARG_UTC_OFFSET_H).padStart(2, '0');
-  return [`${fecha}T${hh}:00:00Z`, `${addDaysIso(fecha, 1)}T${hh}:00:00Z`];
+  const inicio = new Date(`${fecha}T${desde}:00-0${ARG_UTC_OFFSET_H}:00`).toISOString();
+  return [inicio, `${addDaysIso(fecha, 1)}T${hh}:00:00Z`];
 }
 
 export interface EscaneoProducto {
@@ -37,16 +38,26 @@ export interface EscaneoProducto {
   ultimo: string;
 }
 
+export interface EscaneoRegistro {
+  id: number;
+  barcode: string;
+  producto: string | null;
+  usuario: string | null;
+  creado: string;
+}
+
 export interface EscaneosDia {
   disponible: boolean;
   porProducto: EscaneoProducto[];
+  /** Escaneos individuales vigentes, el más reciente primero (para poder borrar uno). */
+  lista: EscaneoRegistro[];
 }
 
-export async function getEscaneosDia(fecha: string): Promise<EscaneosDia> {
-  const [desde, hasta] = limitesDiaIso(fecha);
+export async function getEscaneosDia(fecha: string, desdeHora = '00:00'): Promise<EscaneosDia> {
+  const [desde, hasta] = limitesDiaIso(fecha, desdeHora);
   const { data, error } = await getSupabaseAdminClient()
     .from(TABLA)
-    .select('barcode, producto, created_at')
+    .select('id, barcode, producto, usuario, created_at')
     .eq('anulado', false)
     .gte('created_at', desde)
     .lt('created_at', hasta)
@@ -54,7 +65,7 @@ export async function getEscaneosDia(fecha: string): Promise<EscaneosDia> {
     .limit(20000);
   if (error) {
     console.error('[embalaje-escaneos]', error.message);
-    return { disponible: false, porProducto: [] };
+    return { disponible: false, porProducto: [], lista: [] };
   }
   const acc = new Map<string, EscaneoProducto>();
   for (const r of data ?? []) {
@@ -67,7 +78,16 @@ export async function getEscaneosDia(fecha: string): Promise<EscaneosDia> {
       ultimo: r.created_at as string,
     });
   }
-  return { disponible: true, porProducto: [...acc.values()] };
+  const lista = (data ?? [])
+    .map((r) => ({
+      id: Number(r.id),
+      barcode: r.barcode as string,
+      producto: (r.producto as string | null) ?? null,
+      usuario: (r.usuario as string | null) ?? null,
+      creado: r.created_at as string,
+    }))
+    .reverse();
+  return { disponible: true, porProducto: [...acc.values()], lista };
 }
 
 export async function registrarEscaneo(barcode: string, producto: string, usuario: string): Promise<void> {
@@ -94,4 +114,11 @@ export async function deshacerEscaneo(barcode: string, fecha: string): Promise<b
   const { error: e2 } = await db.from(TABLA).update({ anulado: true }).eq('id', id);
   if (e2) throw new Error(e2.message);
   return true;
+}
+
+/** Anula un escaneo puntual (el que se cargó dos veces, por ejemplo). Devuelve false si ya no estaba vigente. */
+export async function anularEscaneo(id: number): Promise<boolean> {
+  const { data, error } = await getSupabaseAdminClient().from(TABLA).update({ anulado: true }).eq('id', id).eq('anulado', false).select('id');
+  if (error) throw new Error(error.message);
+  return (data?.length ?? 0) > 0;
 }
