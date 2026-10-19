@@ -13,6 +13,19 @@ import { addDaysIso } from '@/lib/date';
 const ARG_UTC_OFFSET_H = 3; // Argentina = UTC-3, sin horario de verano
 const TTL_MS = 30 * 1000;
 
+export interface OdooOrdenCerrada {
+  orden: string;
+  producto: string;
+  barcode: string | null;
+  unidades: number;
+  cerrada: string;
+}
+
+export interface OdooCerradoDia {
+  porProducto: OdooCerradoProducto[];
+  ordenes: OdooOrdenCerrada[];
+}
+
 export interface OdooCerradoProducto {
   barcode: string | null;
   producto: string;
@@ -22,8 +35,10 @@ export interface OdooCerradoProducto {
 }
 
 interface MoRow extends Record<string, unknown> {
+  name: string;
   product_id: [number, string] | false;
   qty_produced: number;
+  date_finished: string | false;
 }
 
 interface ProductRow extends Record<string, unknown> {
@@ -42,7 +57,7 @@ function limitesDiaUtc(fecha: string, desde = '00:00'): [string, string] {
   return [inicio, `${addDaysIso(fecha, 1)} ${hh}:00:00`];
 }
 
-export async function getOdooCerradoDia(fecha: string, desdeHora = '00:00'): Promise<OdooCerradoProducto[]> {
+export async function getOdooCerradoDia(fecha: string, desdeHora = '00:00'): Promise<OdooCerradoDia> {
   return withTtlCache(`embalaje-cerrado:${fecha}:${desdeHora}`, TTL_MS, async () => {
     const [desde, hasta] = limitesDiaUtc(fecha, desdeHora);
     const mos = await searchReadAll<MoRow>({
@@ -52,7 +67,8 @@ export async function getOdooCerradoDia(fecha: string, desdeHora = '00:00'): Pro
         ['date_finished', '>=', desde],
         ['date_finished', '<', hasta],
       ],
-      fields: ['product_id', 'qty_produced'],
+      fields: ['name', 'product_id', 'qty_produced', 'date_finished'],
+      order: 'date_finished desc',
     });
     const porProducto = new Map<number, { producto: string; unidades: number; ordenes: number }>();
     for (const mo of mos) {
@@ -74,13 +90,27 @@ export async function getOdooCerradoDia(fecha: string, desdeHora = '00:00'): Pro
       });
       for (const p of prods) if (p.barcode) barcodes.set(p.id, p.barcode);
     }
-    return [...porProducto.entries()].map(([productoId, v]) => ({
+    const lista: OdooCerradoProducto[] = [...porProducto.entries()].map(([productoId, v]) => ({
       productoId,
       producto: v.producto,
       barcode: barcodes.get(productoId) ?? null,
       unidades: v.unidades,
       ordenes: v.ordenes,
     }));
+    const ordenes: OdooOrdenCerrada[] = mos
+      .filter((mo) => mo.product_id && mo.date_finished)
+      .map((mo) => {
+        const [id, nombre] = mo.product_id as [number, string];
+        return {
+          orden: mo.name,
+          producto: nombre,
+          barcode: barcodes.get(id) ?? null,
+          unidades: Number(mo.qty_produced) || 0,
+          // Odoo devuelve UTC sin zona: lo marcamos como UTC para que el navegador lo pase a hora argentina.
+          cerrada: `${String(mo.date_finished).replace(' ', 'T')}Z`,
+        };
+      });
+    return { porProducto: lista, ordenes };
   });
 }
 

@@ -20,6 +20,7 @@ interface EmbalajeResult {
   filas: EmbalajeFila[];
   totalOdoo: number;
   totalEscaneado: number;
+  ordenesCerradas: { orden: string; producto: string; barcode: string | null; unidades: number; cerrada: string }[];
   escaneos: { id: number; barcode: string; producto: string | null; usuario: string | null; creado: string }[];
 }
 
@@ -260,6 +261,26 @@ function Inner() {
               </tbody>
             </table>
           </div>
+          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="rounded-lg border border-slate-800 bg-slate-900">
+            <h3 className="border-b border-slate-800 px-4 py-3 text-sm font-semibold text-slate-100">
+              Cerrado en Odoo ({n0.format(d.ordenesCerradas.length)} órdenes)
+            </h3>
+            {d.ordenesCerradas.length === 0 ? (
+              <p className="px-4 py-6 text-center text-sm text-slate-500">Todavía no se cerró ninguna orden desde esa hora.</p>
+            ) : (
+              <ul className="max-h-96 divide-y divide-slate-800/60 overflow-y-auto">
+                {d.ordenesCerradas.map((o) => (
+                  <li key={o.orden} className="flex items-center gap-3 px-4 py-2 text-sm">
+                    <span className="w-14 shrink-0 tabular-nums text-slate-400">{hora.format(new Date(o.cerrada))}</span>
+                    <span className="min-w-0 flex-1 truncate text-slate-100">{o.producto}</span>
+                    <span className="hidden font-mono text-xs text-slate-500 sm:inline">{o.orden}</span>
+                    <span className="w-10 shrink-0 text-right font-semibold tabular-nums text-slate-100">{n0.format(o.unidades)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
           <div className="rounded-lg border border-slate-800 bg-slate-900">
             <h3 className="border-b border-slate-800 px-4 py-3 text-sm font-semibold text-slate-100">
               Escaneos registrados ({n0.format(d.escaneos.length)})
@@ -287,6 +308,7 @@ function Inner() {
                 ))}
               </ul>
             )}
+          </div>
           </div>
           <p className="text-xs text-slate-500">
             Odoo: unidades producidas en órdenes de fabricación en estado Hecho, por fecha de finalización, desde la hora elegida. «+» = embalaje contó de más; «−» = faltan por
