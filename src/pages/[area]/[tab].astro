@@ -40,6 +40,7 @@ import MapaDestinosTab from '@/components/logistica/MapaDestinosTab.astro';
 import AvanceCargaTab from '@/components/logistica/AvanceCargaTab.astro';
 import EmbalajeTab from '@/components/logistica/EmbalajeTab.astro';
 import CostoDevolucionesTab from '@/components/calidad/CostoDevolucionesTab.astro';
+import QuizBandasTab from '@/components/calidad/QuizBandasTab.astro';
 import CreditoChequesTab from '@/components/mejora-continua/CreditoChequesTab.astro';
 import DistribucionChequesTab from '@/components/mejora-continua/DistribucionChequesTab.astro';
 import ComprasMpTab from '@/components/compras/mp/ComprasMpTab.astro';
@@ -78,6 +79,7 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
   {area.slug === 'gestion-calidad' && tabSlug === 'tickets-soporte' && <TicketsSoporteTab />}
   {area.slug === 'gestion-calidad' && tabSlug === 'reparaciones-colchones' && <ReparacionesColchonesTab />}
   {area.slug === 'gestion-calidad' && tabSlug === 'costo-devoluciones' && <CostoDevolucionesTab />}
+  {area.slug === 'gestion-calidad' && tabSlug === 'quiz-bandas' && <QuizBandasTab />}
   {area.slug === 'gerencia-general' && tabSlug === 'calidad-cnc' && <CalidadCncTab />}
   {area.slug === 'test' && tabSlug === 'colchon' && <ColchonTab />}
   {area.slug === 'test' && tabSlug === 'conversor' && <ConversorTab />}

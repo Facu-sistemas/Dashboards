@@ -112,6 +112,7 @@ export const AREAS: AreaConfig[] = [
       { slug: 'reparaciones-colchones', name: 'Reparaciones' },
       { slug: 'tickets-soporte', name: 'Tickets de Soporte' },
       { slug: 'costo-devoluciones', name: 'Costo de devoluciones' },
+      { slug: 'quiz-bandas', name: 'Quiz de Bandas' },
     ],
   },
   {

@@ -1,0 +1,15 @@
+---
+import QuizBandasApp from './QuizBandasApp';
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Quiz de Bandas</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Control de verificación al confirmar las MO de bandas: cuántos aciertan a la primera, dónde se equivocan y quién
+      cancela. Se lee en vivo del Google Sheet donde se registra cada quiz. Solo lectura.
+    </p>
+  </header>
+
+  <QuizBandasApp client:load />
+</div>
