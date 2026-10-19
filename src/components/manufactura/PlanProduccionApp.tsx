@@ -2,9 +2,11 @@ import { useState } from 'react';
 import type { DehydratedState } from '@tanstack/react-query';
 import QueryProvider from '@/components/QueryProvider';
 import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import { addDaysIso } from '@/lib/date';
 import LastUpdated from '@/components/shared/LastUpdated';
 import PlanProduccionCard from './PlanProduccionCard';
 import PlanProduccionTrendChart from './PlanProduccionTrendChart';
+import PlanProduccionAcumuladoTable from './PlanProduccionAcumuladoTable';
 import { dateToWeekValue, weekValueToDate } from './isoWeek';
 import type { PlanProduccionDailyRow, PlanProduccionGauge, PlanProduccionPeriodKind, PlanProduccionResult } from './types';
 
@@ -37,6 +39,30 @@ function PlanProduccionInner({ initialPeriodKind, initialDate }: { initialPeriod
     ['plan-produccion-diaria', periodKind, date],
     `/api/plan-produccion-diaria?${new URLSearchParams({ period: periodKind, date })}`
   );
+
+  // El acumulado siempre se arma por MES (o por año en la vista Año), nunca
+  // por semana: "Día"/"Semana" comparten semana ISO en `diariaQuery` (ver
+  // trendBounds en plan-produccion.ts, pensado para el gráfico de
+  // tendencia), pero eso hacía que el acumulado se cortara a mitad de mes y
+  // pareciera "retroceder" al cambiar de día seleccionado — confirmado con
+  // el usuario que es un comportamiento raro. Esta query es independiente
+  // del período elegido arriba para evitar justamente eso.
+  const acumuladoPeriodKind: PlanProduccionPeriodKind = periodKind === 'year' ? 'year' : 'month';
+  const acumuladoQuery = useApiQuery<PlanProduccionDailyRow[]>(
+    ['plan-produccion-diaria', acumuladoPeriodKind, date],
+    `/api/plan-produccion-diaria?${new URLSearchParams({ period: acumuladoPeriodKind, date })}`
+  );
+
+  // Hasta qué fecha se corta el acumulado. Para "Día"/"Semana" es la fecha
+  // (o el domingo de la semana) que el usuario eligió arriba, no la fecha
+  // real de hoy — si no, elegir el día 9 pero ver el acumulado hasta el 19
+  // (hoy) confunde: parece que "viaja al futuro" respecto de lo que se
+  // seleccionó. Para "Mes"/"Año" no hay un día puntual elegido, así que se
+  // usa hoy (acotado solo por si ese mes/año ya terminó o todavía no
+  // empezó, que ya lo resuelve el propio filtro `<= cutoff` de la tabla).
+  const today = new Date().toISOString().slice(0, 10);
+  const candidate = periodKind === 'day' ? date : periodKind === 'week' ? addDaysIso(date, 6) : today;
+  const cutoff = candidate < today ? candidate : today;
 
   const trendTitle =
     periodKind === 'year'
@@ -151,6 +177,24 @@ function PlanProduccionInner({ initialPeriodKind, initialDate }: { initialPeriod
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <PlanProduccionTrendChart title={`Living — ${chartTitle}`} rows={diariaQuery.data ?? EMPTY_DIARIA} pick={(r) => r.living} monthly={periodKind === 'year'} soloLaborables />
           <PlanProduccionTrendChart title={`Colchones — ${chartTitle}`} rows={diariaQuery.data ?? EMPTY_DIARIA} pick={(r) => r.colchones} monthly={periodKind === 'year'} soloLaborables />
+        </div>
+      )}
+
+      {acumuladoQuery.isError && (
+        <p className="rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">
+          No se pudo cargar el acumulado: {(acumuladoQuery.error as Error).message}
+        </p>
+      )}
+
+      {acumuladoQuery.isLoading ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="h-56 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
+          <div className="h-56 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <PlanProduccionAcumuladoTable title={`Living — acumulado ${acumuladoPeriodKind === 'year' ? 'mensual' : 'del mes'}`} rows={acumuladoQuery.data ?? EMPTY_DIARIA} pick={(r) => r.living} monthly={acumuladoPeriodKind === 'year'} unit="UE" cutoff={cutoff} />
+          <PlanProduccionAcumuladoTable title={`Colchones — acumulado ${acumuladoPeriodKind === 'year' ? 'mensual' : 'del mes'}`} rows={acumuladoQuery.data ?? EMPTY_DIARIA} pick={(r) => r.colchones} monthly={acumuladoPeriodKind === 'year'} unit="u" cutoff={cutoff} />
         </div>
       )}
     </div>
