@@ -1,0 +1,15 @@
+---
+import AjustesInventarioApp from './AjustesInventarioApp';
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Ajustes de inventario</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Lo que salió o entró por «Inventory adjustment», mes a mes, en $ y unidades. Cruza Inventario &gt; Valoración
+      (plata) con Inventario &gt; Historial de movimientos (cantidad física). Solo lectura.
+    </p>
+  </header>
+
+  <AjustesInventarioApp client:only="react" />
+</div>
