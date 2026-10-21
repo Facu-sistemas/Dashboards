@@ -39,8 +39,8 @@ export function loadFaceApi(): Promise<FaceApi> {
   faceApiPromise ??= (async () => {
     const faceapi = await import('@vladmandic/face-api');
     await Promise.all([
-      faceapi.nets.ssdMobilenetv1.loadFromUri(MODELS_URL),
-      faceapi.nets.faceLandmark68Net.loadFromUri(MODELS_URL),
+      faceapi.nets.tinyFaceDetector.loadFromUri(MODELS_URL),
+      faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODELS_URL),
       faceapi.nets.faceRecognitionNet.loadFromUri(MODELS_URL),
     ]);
     return faceapi;

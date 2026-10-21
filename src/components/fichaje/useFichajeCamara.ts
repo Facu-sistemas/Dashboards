@@ -99,8 +99,8 @@ export function useFichajeCamara(autoStart: boolean) {
     const video = videoRef.current;
     if (!faceapi || !video || video.readyState < 2) return null;
     return faceapi
-      .detectSingleFace(video, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
-      .withFaceLandmarks()
+      .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
+      .withFaceLandmarks(true)
       .withFaceDescriptor();
   }, []);
 
