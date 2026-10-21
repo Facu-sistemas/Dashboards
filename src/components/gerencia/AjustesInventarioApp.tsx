@@ -6,7 +6,7 @@ import LastUpdated from '@/components/shared/LastUpdated';
 import KpiCard from '@/components/shared/KpiCard';
 import { useChartTheme } from '@/components/shared/useChartTheme';
 import { formatCompactCurrency, formatNumber } from './format';
-import type { AjustesInventarioResult } from '@/lib/odoo/ajustes-inventario';
+import type { AjusteMes, AjustesInventarioResult } from '@/lib/odoo/ajustes-inventario';
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const money = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
@@ -16,7 +16,32 @@ function signClass(v: number): string {
   return v < 0 ? 'text-red-400' : v > 0 ? 'text-emerald-400' : 'text-slate-400';
 }
 
-function MesChart({ title, data, format }: { title: string; data: { mes: string; v: number }[]; format: 'currency' | 'number' }) {
+type Modo = 'mes' | 'acumulado';
+
+/** Mes por defecto: el actual si el año es el corriente, diciembre en años pasados, enero en años futuros. */
+function mesPorDefecto(year: number): number {
+  const now = new Date();
+  return year === now.getFullYear() ? now.getMonth() : year < now.getFullYear() ? 11 : 0;
+}
+
+function sumarMeses(meses: AjusteMes[]): Omit<AjusteMes, 'mes'> {
+  const z = { capas: 0, ingresoCantidad: 0, ingresoValor: 0, egresoCantidad: 0, egresoValor: 0, netoCantidad: 0, netoValor: 0, difCantidad: 0, movimientosConDiferencia: 0, movimientos: 0 };
+  for (const m of meses) {
+    z.capas += m.capas;
+    z.ingresoCantidad += m.ingresoCantidad;
+    z.ingresoValor += m.ingresoValor;
+    z.egresoCantidad += m.egresoCantidad;
+    z.egresoValor += m.egresoValor;
+    z.netoCantidad += m.netoCantidad;
+    z.netoValor += m.netoValor;
+    z.difCantidad += m.difCantidad;
+    z.movimientosConDiferencia += m.movimientosConDiferencia;
+    z.movimientos += m.movimientos;
+  }
+  return z;
+}
+
+function MesChart({ title, data, format, desde, hasta }: { title: string; data: { mes: string; v: number }[]; format: 'currency' | 'number'; desde: number; hasta: number }) {
   const t = useChartTheme();
   const fmt = (v: number) => (format === 'currency' ? formatCompactCurrency(v) : formatNumber(v));
   return (
@@ -36,7 +61,7 @@ function MesChart({ title, data, format }: { title: string; data: { mes: string;
           />
           <Bar dataKey="v" name="Neto" radius={[4, 4, 0, 0]} isAnimationActive={false}>
             {data.map((d, i) => (
-              <Cell key={i} fill={d.v < 0 ? t.danger : t.secondary} />
+              <Cell key={i} fill={d.v < 0 ? t.danger : t.secondary} fillOpacity={i >= desde && i <= hasta ? 1 : 0.3} />
             ))}
           </Bar>
         </BarChart>
@@ -85,8 +110,20 @@ function AjustesInner() {
   const thisYear = new Date().getFullYear();
   const [year, setYear] = useState(thisYear);
   const [abierto, setAbierto] = useState<string | null>(null);
+  const [modo, setModo] = useState<Modo>('mes');
+  const [mesSel, setMesSel] = useState(mesPorDefecto(thisYear));
+  const [desdeSel, setDesdeSel] = useState(0);
+  const [hastaSel, setHastaSel] = useState(mesPorDefecto(thisYear));
   const query = useApiQuery<AjustesInventarioResult>(['ajustes-inventario', year], `/api/ajustes-inventario?year=${year}`);
   const data = query.data;
+  const desde = modo === 'mes' ? mesSel : desdeSel;
+  const hasta = modo === 'mes' ? mesSel : hastaSel;
+  const periodo = desde === hasta ? `${MESES[desde]} ${year}` : `${MESES[desde]}–${MESES[hasta]} ${year}`;
+  const sel = data ? sumarMeses(data.mensual.slice(desde, hasta + 1)) : undefined;
+  const enRango = (i: number) => i >= desde && i <= hasta;
+  const categoriasSel = (data?.categorias ?? [])
+    .map((c) => ({ ...c, totalSel: c.netoValor.slice(desde, hasta + 1).reduce((a, v) => a + v, 0) }))
+    .sort((a, b) => Math.abs(b.totalSel) - Math.abs(a.totalSel));
 
   return (
     <div className="flex flex-col gap-6">
@@ -97,8 +134,11 @@ function AjustesInner() {
             id="aj-year"
             value={year}
             onChange={(e) => {
-              setYear(Number(e.target.value));
+              const y = Number(e.target.value);
+              setYear(y);
               setAbierto(null);
+              setMesSel(mesPorDefecto(y));
+              setHastaSel(mesPorDefecto(y));
             }}
             className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200"
           >
@@ -106,6 +146,60 @@ function AjustesInner() {
               <option key={y} value={y}>{y}</option>
             ))}
           </select>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex overflow-hidden rounded border border-slate-700 text-xs">
+            {(['mes', 'acumulado'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setModo(m)}
+                className={`px-3 py-1 ${modo === m ? 'bg-slate-700 text-slate-100' : 'bg-slate-950 text-slate-400 hover:text-slate-200'}`}
+              >
+                {m === 'mes' ? 'Mes' : 'Acumulado'}
+              </button>
+            ))}
+          </div>
+          {modo === 'mes' ? (
+            <select aria-label="Mes" value={mesSel} onChange={(e) => setMesSel(Number(e.target.value))} className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200">
+              {MESES.map((m, i) => (
+                  <option key={m} value={i}>{m}</option>
+                ))}
+            </select>
+          ) : (
+            <>
+              <span className="text-xs text-slate-400">de</span>
+              <select
+                aria-label="Desde"
+                value={desdeSel}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setDesdeSel(v);
+                  if (v > hastaSel) setHastaSel(v);
+                }}
+                className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200"
+              >
+                {MESES.map((m, i) => (
+                  <option key={m} value={i}>{m}</option>
+                ))}
+              </select>
+              <span className="text-xs text-slate-400">a</span>
+              <select
+                aria-label="Hasta"
+                value={hastaSel}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setHastaSel(v);
+                  if (v < desdeSel) setDesdeSel(v);
+                }}
+                className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200"
+              >
+                {MESES.map((m, i) => (
+                  <option key={m} value={i}>{m}</option>
+                ))}
+              </select>
+            </>
+          )}
         </div>
         <LastUpdated dataUpdatedAt={query.dataUpdatedAt} />
       </div>
@@ -121,15 +215,15 @@ function AjustesInner() {
       ) : (
         <>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div title="Valoración: suma del valor ($) de todas las capas de ajuste de inventario del año."><KpiCard label="$ neto ajustado" value={data.total.netoValor} format="currency" /></div>
-            <div title="Valoración: suma de cantidades de las capas de ajuste del año (mezcla kg, unidades y metros)."><KpiCard label="Unidades netas ajustadas" value={data.total.netoCantidad} /></div>
-            <div title="Valoración: capas de ajuste que ingresan stock."><KpiCard label="$ ingresos (+)" value={data.total.ingresoValor} format="currency" /></div>
-            <div title="Valoración: capas de ajuste que sacan stock."><KpiCard label="$ egresos (−)" value={data.total.egresoValor} format="currency" /></div>
+            <div title={`Valoración: suma del valor ($) de las capas de ajuste de inventario de ${periodo}.`}><KpiCard label={`$ neto ajustado · ${periodo}`} value={sel!.netoValor} format="currency" /></div>
+            <div title={`Valoración: suma de cantidades de las capas de ajuste de ${periodo} (mezcla kg, unidades y metros).`}><KpiCard label="Unidades netas ajustadas" value={sel!.netoCantidad} /></div>
+            <div title="Valoración: capas de ajuste que ingresan stock."><KpiCard label="$ ingresos (+)" value={sel!.ingresoValor} format="currency" /></div>
+            <div title="Valoración: capas de ajuste que sacan stock."><KpiCard label="$ egresos (−)" value={sel!.egresoValor} format="currency" /></div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <MesChart title="$ neto por mes" data={data.mensual.map((m, i) => ({ mes: MESES[i]!, v: m.netoValor }))} format="currency" />
-            <MesChart title="Unidades netas por mes" data={data.mensual.map((m, i) => ({ mes: MESES[i]!, v: m.netoCantidad }))} format="number" />
+            <MesChart title="$ neto por mes" data={data.mensual.map((m, i) => ({ mes: MESES[i]!, v: m.netoValor }))} format="currency" desde={desde} hasta={hasta} />
+            <MesChart title="Unidades netas por mes" data={data.mensual.map((m, i) => ({ mes: MESES[i]!, v: m.netoCantidad }))} format="number" desde={desde} hasta={hasta} />
           </div>
 
           <div className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-900">
@@ -151,7 +245,7 @@ function AjustesInner() {
                 {data.mensual.map((m, i) => (
                   <Fragment key={m.mes}>
                     <tr
-                      className={`cursor-pointer border-t border-slate-800 hover:bg-slate-800/40 ${m.capas === 0 ? 'text-slate-600' : ''}`}
+                      className={`cursor-pointer border-t border-slate-800 hover:bg-slate-800/40 ${m.capas === 0 ? 'text-slate-600' : enRango(i) ? '' : 'opacity-40'}`}
                       onClick={() => m.capas > 0 && setAbierto(abierto === m.mes ? null : m.mes)}
                     >
                       <td className="p-3 font-medium text-slate-200">{abierto === m.mes ? '▾' : '▸'} {MESES[i]}</td>
@@ -176,15 +270,15 @@ function AjustesInner() {
                   </Fragment>
                 ))}
                 <tr className="border-t-2 border-slate-700 font-semibold">
-                  <td className="p-3 text-slate-200">Total {data.year}</td>
-                  <td className="p-3 text-right tabular-nums text-emerald-400">{qtyFmt.format(data.total.ingresoCantidad)}</td>
-                  <td className="p-3 text-right tabular-nums text-emerald-400">{money.format(data.total.ingresoValor)}</td>
-                  <td className="p-3 text-right tabular-nums text-red-400">{qtyFmt.format(data.total.egresoCantidad)}</td>
-                  <td className="p-3 text-right tabular-nums text-red-400">{money.format(data.total.egresoValor)}</td>
-                  <td className={`p-3 text-right tabular-nums ${signClass(data.total.netoCantidad)}`}>{qtyFmt.format(data.total.netoCantidad)}</td>
-                  <td className={`p-3 text-right tabular-nums ${signClass(data.total.netoValor)}`}>{money.format(data.total.netoValor)}</td>
-                  <td className="p-3 text-right tabular-nums text-slate-300">{qtyFmt.format(data.total.difCantidad)}</td>
-                  <td className="p-3 text-right tabular-nums text-slate-300">{data.total.movimientosConDiferencia} / {data.total.movimientos}</td>
+                  <td className="p-3 text-slate-200">Total {periodo}</td>
+                  <td className="p-3 text-right tabular-nums text-emerald-400">{qtyFmt.format(sel!.ingresoCantidad)}</td>
+                  <td className="p-3 text-right tabular-nums text-emerald-400">{money.format(sel!.ingresoValor)}</td>
+                  <td className="p-3 text-right tabular-nums text-red-400">{qtyFmt.format(sel!.egresoCantidad)}</td>
+                  <td className="p-3 text-right tabular-nums text-red-400">{money.format(sel!.egresoValor)}</td>
+                  <td className={`p-3 text-right tabular-nums ${signClass(sel!.netoCantidad)}`}>{qtyFmt.format(sel!.netoCantidad)}</td>
+                  <td className={`p-3 text-right tabular-nums ${signClass(sel!.netoValor)}`}>{money.format(sel!.netoValor)}</td>
+                  <td className="p-3 text-right tabular-nums text-slate-300">{qtyFmt.format(sel!.difCantidad)}</td>
+                  <td className="p-3 text-right tabular-nums text-slate-300">{sel!.movimientosConDiferencia} / {sel!.movimientos}</td>
                 </tr>
               </tbody>
             </table>
@@ -206,17 +300,17 @@ function AjustesInner() {
                     {MESES.map((m) => (
                       <th key={m} className="p-2 text-right font-medium">{m}</th>
                     ))}
-                    <th className="p-2 text-right font-medium">Total</th>
+                    <th title="Suma de los meses del período elegido." className="p-2 text-right font-medium">Total {periodo}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {data.categorias.map((c) => (
+                  {categoriasSel.map((c) => (
                     <tr key={c.categoria} className="border-t border-slate-800">
                       <td className="p-2 text-slate-200">{c.categoria}</td>
                       {c.netoValor.map((v, i) => (
-                        <td key={i} className={`p-2 text-right tabular-nums ${v === 0 ? 'text-slate-600' : signClass(v)}`}>{v === 0 ? '·' : formatCompactCurrency(v)}</td>
+                        <td key={i} className={`p-2 text-right tabular-nums ${v === 0 ? 'text-slate-600' : signClass(v)} ${enRango(i) ? '' : 'opacity-40'}`}>{v === 0 ? '·' : formatCompactCurrency(v)}</td>
                       ))}
-                      <td className={`p-2 text-right font-medium tabular-nums ${signClass(c.totalValor)}`}>{formatCompactCurrency(c.totalValor)}</td>
+                      <td className={`p-2 text-right font-medium tabular-nums ${signClass(c.totalSel)}`}>{formatCompactCurrency(c.totalSel)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -225,10 +319,12 @@ function AjustesInner() {
           </div>
 
           {data.anomalos.length > 0 && (
-            <div className="rounded-lg border border-amber-900 bg-amber-950/30 p-4">
-              <h3 className="text-sm font-medium text-amber-300">Capas con valores imposibles (excluidas de los totales)</h3>
-              <p className="mt-1 text-xs text-slate-400">
-                Cantidades o importes absurdos en Odoo que rompen cualquier suma. Conviene corregirlas en Odoo.
+            <details className="rounded-lg border border-amber-900 bg-amber-950/30 p-4">
+              <summary className="cursor-pointer text-sm font-medium text-amber-300">
+                Capas con valores imposibles (excluidas de los totales) · {data.anomalos.length}
+              </summary>
+              <p className="mt-2 text-xs text-slate-400">
+                Cantidades o importes absurdos que quedaron en Odoo (error viejo del sistema) y que romperían cualquier suma.
               </p>
               <ul className="mt-2 flex flex-col gap-1 text-xs text-slate-300">
                 {data.anomalos.map((a, i) => (
@@ -237,7 +333,7 @@ function AjustesInner() {
                   </li>
                 ))}
               </ul>
-            </div>
+            </details>
           )}
         </>
       )}
