@@ -53,13 +53,13 @@ function ProductosMes({ data, mes }: { data: AjustesInventarioResult; mes: strin
       <table className="w-full text-xs">
         <thead>
           <tr className="text-left text-slate-500">
-            <th className="py-1 pr-3 font-medium">Producto</th>
-            <th className="py-1 pr-3 font-medium">Categoría</th>
-            <th className="py-1 pr-3 font-medium">UdM</th>
-            <th className="py-1 pr-3 text-right font-medium">Cant. neta</th>
-            <th className="py-1 pr-3 text-right font-medium">$ neto</th>
-            <th className="py-1 pr-3 text-right font-medium">Dif. vs historial</th>
-            <th className="py-1 text-right font-medium">Mov. con dif.</th>
+            <th title="Producto de la capa de valoración." className="py-1 pr-3 font-medium">Producto</th>
+            <th title="Categoría del producto en Odoo." className="py-1 pr-3 font-medium">Categoría</th>
+            <th title="Unidad de medida del producto en Odoo." className="py-1 pr-3 font-medium">UdM</th>
+            <th title="Valoración: ingresos + egresos del producto en el mes, en su unidad de medida." className="py-1 pr-3 text-right font-medium">Cant. neta</th>
+            <th title="Ingresos + egresos en pesos (Valoración). Es lo que el ajuste suma o resta al inventario valorizado." className="py-1 pr-3 text-right font-medium">$ neto</th>
+            <th title="Cruce con Inventario > Reportes > Historial de movimientos (stock.move.line): unidades en que el total de Valoración del movimiento no coincide con la cantidad del historial." className="py-1 pr-3 text-right font-medium">Dif. vs historial</th>
+            <th title="Movimientos de ajuste con diferencia / total de movimientos del mes. Se compara contra todas las capas del movimiento, no solo las del mes." className="py-1 text-right font-medium">Mov. con dif.</th>
           </tr>
         </thead>
         <tbody>
@@ -121,10 +121,10 @@ function AjustesInner() {
       ) : (
         <>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <KpiCard label="$ neto ajustado" value={data.total.netoValor} format="currency" />
-            <KpiCard label="Unidades netas ajustadas" value={data.total.netoCantidad} />
-            <KpiCard label="$ ingresos (+)" value={data.total.ingresoValor} format="currency" />
-            <KpiCard label="$ egresos (−)" value={data.total.egresoValor} format="currency" />
+            <div title="Valoración: suma del valor ($) de todas las capas de ajuste de inventario del año."><KpiCard label="$ neto ajustado" value={data.total.netoValor} format="currency" /></div>
+            <div title="Valoración: suma de cantidades de las capas de ajuste del año (mezcla kg, unidades y metros)."><KpiCard label="Unidades netas ajustadas" value={data.total.netoCantidad} /></div>
+            <div title="Valoración: capas de ajuste que ingresan stock."><KpiCard label="$ ingresos (+)" value={data.total.ingresoValor} format="currency" /></div>
+            <div title="Valoración: capas de ajuste que sacan stock."><KpiCard label="$ egresos (−)" value={data.total.egresoValor} format="currency" /></div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -136,15 +136,15 @@ function AjustesInner() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-slate-500">
-                  <th className="p-3 font-medium">Mes</th>
-                  <th className="p-3 text-right font-medium">Unid. (+)</th>
-                  <th className="p-3 text-right font-medium">$ (+)</th>
-                  <th className="p-3 text-right font-medium">Unid. (−)</th>
-                  <th className="p-3 text-right font-medium">$ (−)</th>
-                  <th className="p-3 text-right font-medium">Unid. netas</th>
-                  <th className="p-3 text-right font-medium">$ neto</th>
-                  <th className="p-3 text-right font-medium">Dif. vs historial</th>
-                  <th className="p-3 text-right font-medium">Mov. con dif.</th>
+                  <th title="Mes de la capa de valoración (fecha de creación), igual que el reporte Inventario > Reportes > Valoración." className="p-3 font-medium">Mes</th>
+                  <th title="Valoración (stock.valuation.layer): suma de cantidades positivas de los ajustes de inventario del mes." className="p-3 text-right font-medium">Unid. (+)</th>
+                  <th title="Valoración: suma del valor ($) de las capas de ajuste que ingresan stock." className="p-3 text-right font-medium">$ (+)</th>
+                  <th title="Valoración: suma de cantidades negativas de los ajustes de inventario del mes." className="p-3 text-right font-medium">Unid. (−)</th>
+                  <th title="Valoración: suma del valor ($) de las capas de ajuste que sacan stock." className="p-3 text-right font-medium">$ (−)</th>
+                  <th title="Ingresos + egresos en unidades (Valoración). Es el saldo del ajuste del mes." className="p-3 text-right font-medium">Unid. netas</th>
+                  <th title="Ingresos + egresos en pesos (Valoración). Es lo que el ajuste suma o resta al inventario valorizado." className="p-3 text-right font-medium">$ neto</th>
+                  <th title="Cruce con Inventario > Reportes > Historial de movimientos (stock.move.line): unidades en que el total de Valoración del movimiento no coincide con la cantidad del historial." className="p-3 text-right font-medium">Dif. vs historial</th>
+                  <th title="Movimientos de ajuste con diferencia / total de movimientos del mes. Se compara contra todas las capas del movimiento, no solo las del mes." className="p-3 text-right font-medium">Mov. con dif.</th>
                 </tr>
               </thead>
               <tbody>
@@ -197,12 +197,12 @@ function AjustesInner() {
           </p>
 
           <div>
-            <h3 className="mb-3 border-b border-slate-800 pb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">$ neto por categoría</h3>
+            <h3 title="Valoración: $ neto de las capas de ajuste agrupado por la categoría del producto en Odoo." className="mb-3 border-b border-slate-800 pb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">$ neto por categoría</h3>
             <div className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-900">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="text-left text-slate-500">
-                    <th className="p-2 font-medium">Categoría</th>
+                    <th title="Categoría del producto en Odoo." className="p-2 font-medium">Categoría</th>
                     {MESES.map((m) => (
                       <th key={m} className="p-2 text-right font-medium">{m}</th>
                     ))}
