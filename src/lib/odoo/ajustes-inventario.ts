@@ -113,6 +113,27 @@ export interface AjustesInventarioResult {
   productosOmitidos: Record<string, number>;
   categorias: AjusteCategoria[];
   anomalos: AjusteAnomalo[];
+  /** Opciones para los filtros: todo lo que tuvo ajustes en el año, sin importar el filtro aplicado. */
+  opciones: { categorias: string[]; productos: { id: number; nombre: string; categoria: string }[] };
+}
+
+export interface AjustesFiltro {
+  /** Nombre completo de la categoría de producto en Odoo. */
+  categoria?: string;
+  productId?: number;
+}
+
+interface Raw {
+  year: number;
+  months: string[];
+  buenas: SvlRow[];
+  anomalos: AjusteAnomalo[];
+  anomalMoves: Set<number>;
+  historialPorMov: Map<number, number>;
+  svlTotalPorMov: Map<number, number>;
+  movsNoComparables: Set<number>;
+  info: Map<number, { categoria: string; uom: string }>;
+  nombres: Map<number, string>;
 }
 
 type Acum = {
@@ -156,11 +177,13 @@ export function currentYear(): number {
   return Number(getArgentinaTodayIso().slice(0, 4));
 }
 
-export async function getAjustesInventario(year: number): Promise<AjustesInventarioResult> {
-  return withTtlCache(`ajustes-inventario:v2:${year}`, CACHE_TTL_MS, () => compute(year));
+/** Lo pesado (Odoo) se cachea por año; el filtro se aplica en memoria sobre esos datos. */
+export async function getAjustesInventario(year: number, filtro: AjustesFiltro = {}): Promise<AjustesInventarioResult> {
+  const raw = await withTtlCache(`ajustes-inventario:v3:${year}`, CACHE_TTL_MS, () => cargar(year));
+  return agregar(raw, filtro);
 }
 
-async function compute(year: number): Promise<AjustesInventarioResult> {
+async function cargar(year: number): Promise<Raw> {
   const months = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
 
   const [layers, invLocs] = await Promise.all([
@@ -224,6 +247,18 @@ async function compute(year: number): Promise<AjustesInventarioResult> {
     { context: { active_test: false } }
   );
   const info = new Map(productos.map((p) => [p.id, { categoria: p.categ_id ? p.categ_id[1] : 'Sin categoría', uom: p.uom_id ? p.uom_id[1] : '' }]));
+
+  const nombres = new Map(buenas.map((l) => [l.product_id[0], l.product_id[1]]));
+  return { year, months, buenas, anomalos, anomalMoves, historialPorMov, svlTotalPorMov, movsNoComparables, info, nombres };
+}
+
+function agregar(raw: Raw, filtro: AjustesFiltro): AjustesInventarioResult {
+  const { year, months, anomalos, anomalMoves, historialPorMov, svlTotalPorMov, movsNoComparables, info, nombres } = raw;
+  const buenas = raw.buenas.filter((l) => {
+    if (filtro.productId !== undefined && l.product_id[0] !== filtro.productId) return false;
+    if (filtro.categoria !== undefined && (info.get(l.product_id[0])?.categoria ?? 'Sin categoría') !== filtro.categoria) return false;
+    return true;
+  });
 
   // Agregación por mes, por producto y por categoría.
   const porMes = new Map<string, Acum>(months.map((m) => [m, nuevoAcum()]));
@@ -302,7 +337,6 @@ async function compute(year: number): Promise<AjustesInventarioResult> {
     { capas: 0, ingresoCantidad: 0, ingresoValor: 0, egresoCantidad: 0, egresoValor: 0, netoCantidad: 0, netoValor: 0, difCantidad: 0, movimientosConDiferencia: 0, movimientos: 0 }
   );
 
-  const nombres = new Map(buenas.map((l) => [l.product_id[0], l.product_id[1]]));
   const productosPorMes: Record<string, AjusteProducto[]> = {};
   const productosOmitidos: Record<string, number> = {};
   for (const mes of months) {
@@ -336,5 +370,15 @@ async function compute(year: number): Promise<AjustesInventarioResult> {
 
   anomalos.sort((a, b) => a.fecha.localeCompare(b.fecha));
 
-  return { year, months, mensual, total, productosPorMes, productosOmitidos, categorias, anomalos };
+  const opcionesProductos = new Map<number, { id: number; nombre: string; categoria: string }>();
+  for (const l of raw.buenas) {
+    const pid = l.product_id[0];
+    if (!opcionesProductos.has(pid)) opcionesProductos.set(pid, { id: pid, nombre: l.product_id[1], categoria: info.get(pid)?.categoria ?? 'Sin categoría' });
+  }
+  const opciones = {
+    categorias: [...new Set([...opcionesProductos.values()].map((p) => p.categoria))].sort((a, b) => a.localeCompare(b, 'es')),
+    productos: [...opcionesProductos.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
+  };
+
+  return { year, months, mensual, total, productosPorMes, productosOmitidos, categorias, anomalos, opciones };
 }

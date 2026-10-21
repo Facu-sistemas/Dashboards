@@ -109,8 +109,22 @@ function AjustesInner() {
   const [mesSel, setMesSel] = useState<number | null>(null);
   const [desdeSel, setDesdeSel] = useState<number | null>(null);
   const [hastaSel, setHastaSel] = useState<number | null>(null);
-  const query = useApiQuery<AjustesInventarioResult>(['ajustes-inventario', year], `/api/ajustes-inventario?year=${year}`);
+  // Filtros de producto: vacíos = se muestra todo.
+  const [categoria, setCategoria] = useState('');
+  const [productoTxt, setProductoTxt] = useState('');
+  const [productId, setProductId] = useState<number | null>(null);
+  const qs = new URLSearchParams({ year: String(year) });
+  if (categoria) qs.set('categoria', categoria);
+  if (productId !== null) qs.set('productId', String(productId));
+  const query = useApiQuery<AjustesInventarioResult>(['ajustes-inventario', year, categoria, productId], `/api/ajustes-inventario?${qs.toString()}`);
   const data = query.data;
+  const productosOpc = (data?.opciones.productos ?? []).filter((p) => !categoria || p.categoria === categoria);
+  const hayFiltroProducto = categoria !== '' || productoTxt !== '' || productId !== null;
+  const limpiarProducto = () => {
+    setCategoria('');
+    setProductoTxt('');
+    setProductId(null);
+  };
   const desde = modo === 'mes' ? (mesSel ?? 0) : (desdeSel ?? 0);
   const hasta = modo === 'mes' ? (mesSel ?? 11) : (hastaSel ?? 11);
   const hayFiltro = modo === 'mes' ? mesSel !== null : desdeSel !== null || hastaSel !== null;
@@ -212,6 +226,57 @@ function AjustesInner() {
               onClick={limpiar}
               aria-label="Quitar selección y ver todo el año"
               title="Quitar selección y ver todo el año"
+              className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-400 hover:text-slate-100"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            aria-label="Categoría de producto"
+            value={categoria}
+            onChange={(e) => {
+              const c = e.target.value;
+              setCategoria(c);
+              // Si el producto elegido no es de la nueva categoría, se descarta.
+              const actual = data?.opciones.productos.find((p) => p.id === productId);
+              if (c && actual && actual.categoria !== c) {
+                setProductId(null);
+                setProductoTxt('');
+              }
+            }}
+            className="max-w-56 rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200"
+          >
+            <option value="">Todas las categorías</option>
+            {(data?.opciones.categorias ?? []).map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+          <input
+            aria-label="Producto"
+            list="aj-productos"
+            value={productoTxt}
+            placeholder="Todos los productos (escribí para buscar)"
+            onChange={(e) => {
+              const v = e.target.value;
+              setProductoTxt(v);
+              const match = productosOpc.find((p) => p.nombre === v);
+              setProductId(match ? match.id : null);
+            }}
+            className="w-64 rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200 placeholder:text-slate-500"
+          />
+          <datalist id="aj-productos">
+            {productosOpc.map((p) => (
+              <option key={p.id} value={p.nombre} />
+            ))}
+          </datalist>
+          {hayFiltroProducto && (
+            <button
+              type="button"
+              onClick={limpiarProducto}
+              aria-label="Quitar filtros de categoría y producto"
+              title="Quitar filtros de categoría y producto"
               className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-400 hover:text-slate-100"
             >
               ✕
