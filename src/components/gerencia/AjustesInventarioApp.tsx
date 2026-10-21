@@ -18,12 +18,6 @@ function signClass(v: number): string {
 
 type Modo = 'mes' | 'acumulado';
 
-/** Mes por defecto: el actual si el año es el corriente, diciembre en años pasados, enero en años futuros. */
-function mesPorDefecto(year: number): number {
-  const now = new Date();
-  return year === now.getFullYear() ? now.getMonth() : year < now.getFullYear() ? 11 : 0;
-}
-
 function sumarMeses(meses: AjusteMes[]): Omit<AjusteMes, 'mes'> {
   const z = { capas: 0, ingresoCantidad: 0, ingresoValor: 0, egresoCantidad: 0, egresoValor: 0, netoCantidad: 0, netoValor: 0, difCantidad: 0, movimientosConDiferencia: 0, movimientos: 0 };
   for (const m of meses) {
@@ -111,14 +105,21 @@ function AjustesInner() {
   const [year, setYear] = useState(thisYear);
   const [abierto, setAbierto] = useState<string | null>(null);
   const [modo, setModo] = useState<Modo>('mes');
-  const [mesSel, setMesSel] = useState(mesPorDefecto(thisYear));
-  const [desdeSel, setDesdeSel] = useState(0);
-  const [hastaSel, setHastaSel] = useState(mesPorDefecto(thisYear));
+  // Sin selección = resumen de todo el año.
+  const [mesSel, setMesSel] = useState<number | null>(null);
+  const [desdeSel, setDesdeSel] = useState<number | null>(null);
+  const [hastaSel, setHastaSel] = useState<number | null>(null);
   const query = useApiQuery<AjustesInventarioResult>(['ajustes-inventario', year], `/api/ajustes-inventario?year=${year}`);
   const data = query.data;
-  const desde = modo === 'mes' ? mesSel : desdeSel;
-  const hasta = modo === 'mes' ? mesSel : hastaSel;
-  const periodo = desde === hasta ? `${MESES[desde]} ${year}` : `${MESES[desde]}–${MESES[hasta]} ${year}`;
+  const desde = modo === 'mes' ? (mesSel ?? 0) : (desdeSel ?? 0);
+  const hasta = modo === 'mes' ? (mesSel ?? 11) : (hastaSel ?? 11);
+  const hayFiltro = modo === 'mes' ? mesSel !== null : desdeSel !== null || hastaSel !== null;
+  const periodo = !hayFiltro ? `Año ${year}` : desde === hasta ? `${MESES[desde]} ${year}` : `${MESES[desde]}–${MESES[hasta]} ${year}`;
+  const limpiar = () => {
+    setMesSel(null);
+    setDesdeSel(null);
+    setHastaSel(null);
+  };
   const sel = data ? sumarMeses(data.mensual.slice(desde, hasta + 1)) : undefined;
   const enRango = (i: number) => i >= desde && i <= hasta;
   const categoriasSel = (data?.categorias ?? [])
@@ -137,8 +138,7 @@ function AjustesInner() {
               const y = Number(e.target.value);
               setYear(y);
               setAbierto(null);
-              setMesSel(mesPorDefecto(y));
-              setHastaSel(mesPorDefecto(y));
+
             }}
             className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200"
           >
@@ -153,7 +153,10 @@ function AjustesInner() {
               <button
                 key={m}
                 type="button"
-                onClick={() => setModo(m)}
+                onClick={() => {
+                  setModo(m);
+                  limpiar();
+                }}
                 className={`px-3 py-1 ${modo === m ? 'bg-slate-700 text-slate-100' : 'bg-slate-950 text-slate-400 hover:text-slate-200'}`}
               >
                 {m === 'mes' ? 'Mes' : 'Acumulado'}
@@ -161,7 +164,8 @@ function AjustesInner() {
             ))}
           </div>
           {modo === 'mes' ? (
-            <select aria-label="Mes" value={mesSel} onChange={(e) => setMesSel(Number(e.target.value))} className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200">
+            <select aria-label="Mes" value={mesSel ?? ''} onChange={(e) => setMesSel(e.target.value === '' ? null : Number(e.target.value))} className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200">
+              <option value="">Todo el año</option>
               {MESES.map((m, i) => (
                   <option key={m} value={i}>{m}</option>
                 ))}
@@ -171,14 +175,15 @@ function AjustesInner() {
               <span className="text-xs text-slate-400">de</span>
               <select
                 aria-label="Desde"
-                value={desdeSel}
+                value={desdeSel ?? ''}
                 onChange={(e) => {
-                  const v = Number(e.target.value);
+                  const v = e.target.value === '' ? null : Number(e.target.value);
                   setDesdeSel(v);
-                  if (v > hastaSel) setHastaSel(v);
+                  if (v !== null && hastaSel !== null && v > hastaSel) setHastaSel(v);
                 }}
                 className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200"
               >
+                <option value="">Inicio</option>
                 {MESES.map((m, i) => (
                   <option key={m} value={i}>{m}</option>
                 ))}
@@ -186,19 +191,31 @@ function AjustesInner() {
               <span className="text-xs text-slate-400">a</span>
               <select
                 aria-label="Hasta"
-                value={hastaSel}
+                value={hastaSel ?? ''}
                 onChange={(e) => {
-                  const v = Number(e.target.value);
+                  const v = e.target.value === '' ? null : Number(e.target.value);
                   setHastaSel(v);
-                  if (v < desdeSel) setDesdeSel(v);
+                  if (v !== null && desdeSel !== null && v < desdeSel) setDesdeSel(v);
                 }}
                 className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200"
               >
+                <option value="">Fin</option>
                 {MESES.map((m, i) => (
                   <option key={m} value={i}>{m}</option>
                 ))}
               </select>
             </>
+          )}
+          {hayFiltro && (
+            <button
+              type="button"
+              onClick={limpiar}
+              aria-label="Quitar selección y ver todo el año"
+              title="Quitar selección y ver todo el año"
+              className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-400 hover:text-slate-100"
+            >
+              ✕
+            </button>
           )}
         </div>
         <LastUpdated dataUpdatedAt={query.dataUpdatedAt} />
