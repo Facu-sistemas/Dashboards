@@ -7,7 +7,7 @@ import { handleApiRoute, jsonResponse, ApiValidationError } from '@/lib/api-help
 export const prerender = false;
 
 function requireComprasAccess(context: { locals: App.Locals }): Response | null {
-  if (!context.locals.usuario?.areasPermitidas.includes('finanzas')) {
+  if (!context.locals.usuario?.areasPermitidas.includes('compras')) {
     return jsonResponse({ ok: false, error: 'No autorizado' }, { status: 403 });
   }
   return null;

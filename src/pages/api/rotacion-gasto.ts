@@ -21,7 +21,7 @@ const querySchema = z.discriminatedUnion('vista', [
 // GET /api/rotacion-gasto?vista=rotacion&empresas=1,2
 // GET /api/rotacion-gasto?vista=gasto&criterio=ordenes|facturas&empresas=1,2
 export const GET: APIRoute = async ({ url, locals }) => {
-  if (!locals.usuario?.areasPermitidas.includes('finanzas')) {
+  if (!locals.usuario?.areasPermitidas.includes('compras')) {
     return jsonResponse({ ok: false, error: 'No autorizado' }, { status: 403 });
   }
   return handleApiRoute(() => {

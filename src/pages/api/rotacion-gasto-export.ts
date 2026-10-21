@@ -215,7 +215,7 @@ const querySchema = z.object({
 
 // GET /api/rotacion-gasto-export?tipo=gasto|stock|oc|sin-facturar|desembolsos|base-insumos&empresas=1,2 — Excel de detalle por producto, con ID y nombre en pantalla.
 export const GET: APIRoute = async ({ url, locals }) => {
-  if (!locals.usuario?.areasPermitidas.includes('finanzas')) {
+  if (!locals.usuario?.areasPermitidas.includes('compras')) {
     return jsonResponse({ ok: false, error: 'No autorizado' }, { status: 403 });
   }
   try {

@@ -1,0 +1,18 @@
+---
+import RentabilidadClientesApp from './RentabilidadClientesApp';
+import { getArgentinaTodayIso } from '@/lib/odoo/oee';
+
+const initialAnio = Number(getArgentinaTodayIso().slice(0, 4));
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Clientes</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Ventas reales facturadas por cliente (monto sin flete, neto de notas de crédito) y contribución contra el objetivo. Hacé click en un cliente para ver el
+      detalle por producto. Solo lectura.
+    </p>
+  </header>
+
+  <RentabilidadClientesApp client:load initialAnio={initialAnio} />
+</div>

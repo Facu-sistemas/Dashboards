@@ -64,7 +64,7 @@ const ICONS = {
 
 export const AREAS: AreaConfig[] = [
   {
-    slug: 'finanzas',
+    slug: 'compras',
     name: 'Compras',
     description: 'Facturación y consumo de materia prima',
     accent: 'brand',
@@ -128,7 +128,7 @@ export const AREAS: AreaConfig[] = [
     ],
   },
   {
-    slug: 'finanzas-creditos',
+    slug: 'finanzas',
     name: 'Finanzas',
     description: 'Crédito, cheques y pedidos pendientes por cliente',
     accent: 'emerald',
@@ -136,6 +136,8 @@ export const AREAS: AreaConfig[] = [
     tabs: [
       { slug: 'credito-cheques', name: 'Crédito y Cheques' },
       { slug: 'distribucion-cheques', name: 'Distribución de Cheques' },
+      { slug: 'rentabilidad-clientes', name: 'Rentabilidad clientes' },
+      { slug: 'rentabilidad-categorias', name: 'Rentabilidad categorías' },
     ],
   },
   {

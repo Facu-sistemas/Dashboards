@@ -45,6 +45,8 @@ import CreditoChequesTab from '@/components/mejora-continua/CreditoChequesTab.as
 import DistribucionChequesTab from '@/components/mejora-continua/DistribucionChequesTab.astro';
 import ComprasMpTab from '@/components/compras/mp/ComprasMpTab.astro';
 import AlertaReposicionTab from '@/components/compras/mp/AlertaReposicionTab.astro';
+import RentabilidadClientesTab from '@/components/rentabilidad/RentabilidadClientesTab.astro';
+import RentabilidadCategoriasTab from '@/components/rentabilidad/RentabilidadCategoriasTab.astro';
 import { getArea } from '@/lib/areas.config';
 
 export const prerender = false;
@@ -57,11 +59,11 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
 ---
 
 <AreaLayout areaSlug={area.slug} tabSlug={tabSlug!}>
-  {area.slug === 'finanzas' && tabSlug === 'rotacion-gasto' && <RotacionGastoTab />}
-  {area.slug === 'finanzas' && tabSlug === 'alerta-reposicion' && <AlertaReposicionTab />}
-  {area.slug === 'finanzas' && tabSlug === 'compras-mp' && <ComprasMpTab />}
-  {area.slug === 'finanzas' && tabSlug === 'facturacion' && <FacturacionTab />}
-  {area.slug === 'finanzas' && tabSlug === 'consumo-mp' && <RawMaterialConsumptionTab />}
+  {area.slug === 'compras' && tabSlug === 'rotacion-gasto' && <RotacionGastoTab />}
+  {area.slug === 'compras' && tabSlug === 'alerta-reposicion' && <AlertaReposicionTab />}
+  {area.slug === 'compras' && tabSlug === 'compras-mp' && <ComprasMpTab />}
+  {area.slug === 'compras' && tabSlug === 'facturacion' && <FacturacionTab />}
+  {area.slug === 'compras' && tabSlug === 'consumo-mp' && <RawMaterialConsumptionTab />}
   {area.slug === 'comercial' && tabSlug === 'tendencia-precios' && <TendenciaPreciosTab />}
   {area.slug === 'comercial' && tabSlug === 'salud-cartera' && <CarteraClientesTab />}
   {area.slug === 'manufactura' && tabSlug === 'mas-detalles' && <PlanProduccionDetalleTab />}
@@ -94,14 +96,16 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
   {area.slug === 'comercial' && tabSlug === 'clientes-activos' && <ClientesActivosTab />}
   {area.slug === 'rrhh' && tabSlug === 'resumen' && <ResumenRrhhTab />}
   {area.slug === 'rrhh' && tabSlug === 'vacaciones' && <VacacionesTab />}
-  {area.slug === 'finanzas-creditos' && tabSlug === 'credito-cheques' && <CreditoChequesTab />}
-  {area.slug === 'finanzas-creditos' && tabSlug === 'distribucion-cheques' && <DistribucionChequesTab />}
+  {area.slug === 'finanzas' && tabSlug === 'credito-cheques' && <CreditoChequesTab />}
+  {area.slug === 'finanzas' && tabSlug === 'distribucion-cheques' && <DistribucionChequesTab />}
   {area.slug === 'logistica' && tabSlug === 'despachos' && <DespachosTab />}
   {area.slug === 'logistica' && tabSlug === 'cumplimiento' && <CumplimientoTab />}
   {area.slug === 'logistica' && tabSlug === 'mapa-destinos' && <MapaDestinosTab />}
   {area.slug === 'logistica' && tabSlug === 'avance-carga' && <AvanceCargaTab />}
   {area.slug === 'logistica' && tabSlug === 'embalaje' && <EmbalajeTab />}
-  {!['finanzas', 'comercial', 'manufactura', 'almacen', 'produccion', 'gestion-calidad', 'test', 'gerencia-general', 'rrhh', 'finanzas-creditos', 'logistica', 'fichaje'].includes(
+  {area.slug === 'finanzas' && tabSlug === 'rentabilidad-clientes' && <RentabilidadClientesTab />}
+  {area.slug === 'finanzas' && tabSlug === 'rentabilidad-categorias' && <RentabilidadCategoriasTab />}
+  {!['compras', 'comercial', 'manufactura', 'almacen', 'produccion', 'gestion-calidad', 'test', 'gerencia-general', 'rrhh', 'finanzas', 'logistica', 'fichaje'].includes(
     area.slug
   ) && <PlaceholderTab areaName={area.name} />}
 </AreaLayout>
