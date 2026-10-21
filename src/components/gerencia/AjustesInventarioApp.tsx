@@ -102,7 +102,7 @@ function AjustesInner() {
             }}
             className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200"
           >
-            {[thisYear, thisYear - 1, thisYear - 2].map((y) => (
+            {[thisYear + 1, thisYear, thisYear - 1].map((y) => (
               <option key={y} value={y}>{y}</option>
             ))}
           </select>
