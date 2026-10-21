@@ -12,7 +12,6 @@ import {
   porDia,
   porHora,
   porProducto,
-  porUsuario,
   shortProduct,
 } from './quiz-bandas-calc';
 
@@ -84,7 +83,10 @@ function QuizBandasInner() {
   const dias = useMemo(() => porDia(rows), [rows]);
   const horas = useMemo(() => porHora(rows), [rows]);
   const productos = useMemo(() => porProducto(rows), [rows]);
-  const usuarios = useMemo(() => porUsuario(rows), [rows]);
+  const rapidas = useMemo(() => {
+    const conSeg = rows.filter((r) => r.segundos !== null);
+    return { conSeg: conSeg.length, rapidas: conSeg.filter((r) => r.segundos! <= 2).length };
+  }, [rows]);
   const histo = useMemo(() => histogramaSegundos(rows), [rows]);
   const confus = useMemo(() => confusiones(rows), [rows]);
 
@@ -178,7 +180,11 @@ function QuizBandasInner() {
             <Kpi label="Sin quiz" value={num.format(stats.sinQuiz)} hint="Pasaron directo (producto sin verificación)" />
             <Kpi label="Tiempo mediano" value={fmtSeg(stats.segMediana)} hint="Hasta decidir la opción" />
             <Kpi label="Tiempo promedio" value={fmtSeg(stats.segPromedio)} />
-            <Kpi label="Operarios" value={num.format(usuarios.length)} />
+            <Kpi
+              label="Decisión en ≤ 2 s"
+              value={rapidas.conSeg > 0 ? `${num1.format((rapidas.rapidas / rapidas.conSeg) * 100)}%` : '—'}
+              hint={`${num.format(rapidas.rapidas)} de ${num.format(rapidas.conSeg)} quizzes: posible toque sin leer`}
+            />
           </div>
 
           {rows.length === 0 ? (
@@ -279,37 +285,6 @@ function QuizBandasInner() {
                   </div>
                 </Section>
               )}
-
-              <Section title="Por operario" subtitle="Volumen de confirmaciones y calidad de las respuestas.">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="text-left text-xs uppercase tracking-wide text-slate-500">
-                      <tr>
-                        <th className="py-2 pr-4 font-medium">Usuario</th>
-                        <th className="py-2 pr-4 text-right font-medium">Confirmaciones</th>
-                        <th className="py-2 pr-4 text-right font-medium">Quizzes</th>
-                        <th className="py-2 pr-4 text-right font-medium">Errores</th>
-                        <th className="py-2 pr-4 text-right font-medium">Cancelados</th>
-                        <th className="py-2 pr-4 text-right font-medium">Sin quiz</th>
-                        <th className="py-2 text-right font-medium">Tiempo mediano</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800 text-slate-200">
-                      {usuarios.map((u) => (
-                        <tr key={u.usuario}>
-                          <td className="py-2 pr-4">{u.usuario}</td>
-                          <td className="py-2 pr-4 text-right">{u.total}</td>
-                          <td className="py-2 pr-4 text-right">{u.quizzes}</td>
-                          <td className={`py-2 pr-4 text-right ${u.errores > 0 ? 'text-status-yellow' : ''}`}>{u.errores}</td>
-                          <td className={`py-2 pr-4 text-right ${u.canceladas > 0 ? 'text-status-red' : ''}`}>{u.canceladas}</td>
-                          <td className="py-2 pr-4 text-right">{u.sinQuiz}</td>
-                          <td className="py-2 text-right">{fmtSeg(u.segMediana)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </Section>
 
               <Section title="Registro detallado" subtitle="Cada fila es una confirmación de MO; el link abre la lista de órdenes en Odoo.">
                 <div className="flex flex-wrap gap-2">
