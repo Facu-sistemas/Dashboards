@@ -3,6 +3,7 @@ import { withTtlCache } from '@/lib/cache';
 import { getArgentinaTodayIso } from './oee';
 import { getFacturacionTotalPesosMensual } from './facturacion-gerencia';
 import { MATERIA_PRIMA_CATEG_ID } from './raw-material-consumption';
+import { cargarCeldasDeGestion, MESES_OBJETIVO } from './cnc-objetivos';
 import type { OdooReadGroupResult } from './types';
 
 /**
@@ -117,6 +118,8 @@ export interface AjustesBase {
   materiaPrima: number[];
   /** $ facturados por mes (neto de notas de crédito reales). */
   facturacion: number[];
+  /** Objetivo de desvío (puntos porcentuales) por mes; null = el mes no tiene objetivo cargado. */
+  objetivo: (number | null)[];
 }
 
 export interface AjustesInventarioResult {
@@ -200,13 +203,45 @@ export function currentYear(): number {
 
 /** Lo pesado (Odoo) se cachea por año; el filtro se aplica en memoria sobre esos datos. */
 export async function getAjustesInventario(year: number, filtro: AjustesFiltro = {}): Promise<AjustesInventarioResult> {
-  const raw = await withTtlCache(`ajustes-inventario:v4:${year}`, CACHE_TTL_MS, () => cargar(year));
+  const raw = await withTtlCache(`ajustes-inventario:v5:${year}`, CACHE_TTL_MS, () => cargar(year));
   return agregar(raw, filtro);
+}
+
+/**
+ * Objetivo mensual del desvío sobre materia prima, cargado por Gerencia en la hoja "Objetivos Inventario"
+ * del dashboard "Reunión de equipo de gestión" (spreadsheet.dashboard 40). Un bloque por año: una fila
+ * con "Objetivos" en la columna A, el año en la B y ENERO…DICIEMBRE a la derecha, y debajo los valores
+ * en puntos porcentuales (2,5 = 2,5%). Si la hoja falla o falta el año, no hay objetivo (no rompe el tab).
+ */
+async function cargarObjetivos(year: number): Promise<(number | null)[]> {
+  const vacio = Array<number | null>(12).fill(null);
+  try {
+    const celdas = await cargarCeldasDeGestion((n) => /objetivo/i.test(n) && /inventario/i.test(n));
+    if (!celdas) return vacio;
+    const out = [...vacio];
+    for (const [clave, v] of celdas) {
+      const [col, row] = clave.split(',').map(Number) as [number, number];
+      if (col !== 1 || Number(String(v).trim()) !== year) continue;
+      if (String(celdas.get(`0,${row}`) ?? '').trim().toLowerCase() !== 'objetivos') continue;
+      for (const [k, w] of celdas) {
+        const [c, r] = k.split(',').map(Number) as [number, number];
+        const m = r === row ? MESES_OBJETIVO.indexOf(String(w).trim().toLowerCase()) : -1;
+        if (m < 0) continue;
+        const raw = celdas.get(`${c},${row + 1}`);
+        const val = Number(String(raw ?? '').replace(',', '.'));
+        if (raw !== undefined && String(raw).trim() !== '' && Number.isFinite(val)) out[m] = val;
+      }
+    }
+    return out;
+  } catch (err) {
+    console.error('[ajustes-objetivos]', err instanceof Error ? err.message : err);
+    return vacio;
+  }
 }
 
 async function cargarBase(year: number, months: string[]): Promise<AjustesBase> {
   type Grupo = OdooReadGroupResult & { value: number; __range?: Record<string, { from: string | false }> };
-  const [grupos, facturacion] = await Promise.all([
+  const [grupos, facturacion, objetivo] = await Promise.all([
     readGroup({
       model: 'stock.valuation.layer',
       domain: [
@@ -223,13 +258,14 @@ async function cargarBase(year: number, months: string[]): Promise<AjustesBase> 
       lazy: false,
     }) as Promise<Grupo[]>,
     getFacturacionTotalPesosMensual(year),
+    cargarObjetivos(year),
   ]);
   const porMes = new Map<string, number>();
   for (const g of grupos) {
     const desde = g.__range?.['create_date:month']?.from;
     if (desde) porMes.set(desde.slice(0, 7), Math.abs(g.value));
   }
-  return { materiaPrima: months.map((m) => porMes.get(m) ?? 0), facturacion };
+  return { materiaPrima: months.map((m) => porMes.get(m) ?? 0), facturacion, objetivo };
 }
 
 async function cargar(year: number): Promise<Raw> {

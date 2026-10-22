@@ -1,9 +1,10 @@
-import { Fragment, useState } from 'react';
-import { Bar, BarChart, Cell, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Fragment, useState, type ReactNode } from 'react';
+import { Bar, BarChart, Cell, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import QueryProvider from '@/components/QueryProvider';
 import { useApiQuery } from '@/components/dashboard/useApiQuery';
 import LastUpdated from '@/components/shared/LastUpdated';
 import KpiCard from '@/components/shared/KpiCard';
+import Tip from '@/components/shared/Tip';
 import { useChartTheme } from '@/components/shared/useChartTheme';
 import { formatCompactCurrency, formatNumber } from './format';
 import type { AjusteMes, AjustesInventarioResult } from '@/lib/odoo/ajustes-inventario';
@@ -35,12 +36,12 @@ function sumarMeses(meses: AjusteMes[]): Omit<AjusteMes, 'mes'> {
   return z;
 }
 
-function MesChart({ title, data, format, desde, hasta }: { title: string; data: { mes: string; v: number }[]; format: 'currency' | 'number'; desde: number; hasta: number }) {
+function MesChart({ title, tip, data, format, desde, hasta }: { title: string; tip: string; data: { mes: string; v: number }[]; format: 'currency' | 'number'; desde: number; hasta: number }) {
   const t = useChartTheme();
   const fmt = (v: number) => (format === 'currency' ? formatCompactCurrency(v) : formatNumber(v));
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-900 p-4">
-      <h3 className="text-sm font-medium text-slate-300">{title}</h3>
+      <h3 className="text-sm font-medium text-slate-300"><Tip text={tip} className="cursor-help border-b border-dotted border-slate-500">{title}</Tip></h3>
       <ResponsiveContainer width="100%" height={220}>
         <BarChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={t.grid} vertical={false} />
@@ -64,6 +65,55 @@ function MesChart({ title, data, format, desde, hasta }: { title: string; data: 
   );
 }
 
+const pctNum = (v: number, base: number) => (base > 0 ? (v / base) * 100 : null);
+const pctFmt = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 });
+const OBJETIVO_COLOR = '#f59e0b';
+
+/** Cumple si el desvío (en valor absoluto, sobrante o faltante) no pasa el objetivo. Sin objetivo o sin base → sin semáforo. */
+function cumple(p: number | null, objetivo: number | null | undefined): boolean | null {
+  return p === null || objetivo === null || objetivo === undefined ? null : Math.abs(p) <= objetivo;
+}
+function semaforoClass(ok: boolean | null, fallback: string): string {
+  return ok === null ? fallback : ok ? 'text-emerald-400' : 'text-red-400';
+}
+
+function DesvioChart({ data, desde, hasta }: { data: { mes: string; desvio: number | null; objetivo: number | null }[]; desde: number; hasta: number }) {
+  const t = useChartTheme();
+  const rows = data.map((d) => ({ ...d, abs: d.desvio === null ? null : Math.abs(d.desvio) }));
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-900 p-4">
+      <h3 className="text-sm font-medium text-slate-300">
+        <Tip text={"Toma: $ neto de los ajustes de inventario (Odoo stock.valuation.layer, is_inventory) de cada mes ÷ $ de materia prima consumida en producción ese mes. Sigue el filtro de categoría y producto.\nObjetivo: hoja «Objetivos Inventario» del dashboard Equipo de gestión de Odoo (un valor por mes).\nCalcula: la barra es el desvío en valor absoluto (sobrante o faltante); verde si no pasa el objetivo, rojo si lo pasa. Las opacas son el período elegido."} className="cursor-help border-b border-dotted border-slate-500">
+          Desvío % s/ materia prima vs objetivo
+        </Tip>
+      </h3>
+      <ResponsiveContainer width="100%" height={220}>
+        <ComposedChart data={rows} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke={t.grid} vertical={false} />
+          <XAxis dataKey="mes" stroke={t.axis} fontSize={11} />
+          <YAxis stroke={t.axis} fontSize={11} tickFormatter={(v) => `${pctFmt.format(Number(v))}%`} width={48} />
+          <Tooltip
+            contentStyle={{ background: t.tooltipBg, border: `1px solid ${t.tooltipBorder}`, borderRadius: 8 }}
+            labelStyle={{ color: t.tooltipText }}
+            itemStyle={{ color: t.tooltipText }}
+            formatter={(value: number, name: string, item) => [
+              name === 'abs' ? `${pctFmt.format(item.payload.desvio)}% (absoluto ${pctFmt.format(value)}%)` : `${pctFmt.format(value)}%`,
+              name === 'abs' ? 'Desvío' : 'Objetivo',
+            ]}
+          />
+          <Bar dataKey="abs" name="abs" radius={[4, 4, 0, 0]} isAnimationActive={false}>
+            {rows.map((d, i) => (
+              <Cell key={i} fill={cumple(d.desvio, d.objetivo) === false ? t.danger : t.secondary} fillOpacity={i >= desde && i <= hasta ? 1 : 0.3} />
+            ))}
+          </Bar>
+          <Line dataKey="objetivo" name="objetivo" type="stepAfter" stroke={OBJETIVO_COLOR} strokeWidth={2} strokeDasharray="5 4" dot={false} connectNulls isAnimationActive={false} />
+        </ComposedChart>
+      </ResponsiveContainer>
+      <p className="text-[10px] text-slate-500">Línea punteada: objetivo del mes.</p>
+    </div>
+  );
+}
+
 function ProductosMes({ data, mes }: { data: AjustesInventarioResult; mes: string }) {
   const rows = data.productosPorMes[mes] ?? [];
   const omitidos = data.productosOmitidos[mes] ?? 0;
@@ -72,13 +122,13 @@ function ProductosMes({ data, mes }: { data: AjustesInventarioResult; mes: strin
       <table className="w-full text-xs">
         <thead>
           <tr className="text-left text-slate-500">
-            <th title="Producto de la capa de valoración." className="py-1 pr-3 font-medium">Producto</th>
-            <th title="Categoría del producto en Odoo." className="py-1 pr-3 font-medium">Categoría</th>
-            <th title="Unidad de medida del producto en Odoo." className="py-1 pr-3 font-medium">UdM</th>
-            <th title="Valoración: ingresos + egresos del producto en el mes, en su unidad de medida." className="py-1 pr-3 text-right font-medium">Cant. neta</th>
-            <th title="Ingresos + egresos en pesos (Valoración). Es lo que el ajuste suma o resta al inventario valorizado." className="py-1 pr-3 text-right font-medium">$ neto</th>
-            <th title="Cruce con Inventario > Reportes > Historial de movimientos (stock.move.line): unidades en que el total de Valoración del movimiento no coincide con la cantidad del historial." className="py-1 pr-3 text-right font-medium">Dif. vs historial</th>
-            <th title="Movimientos de ajuste con diferencia / total de movimientos del mes. Se compara contra todas las capas del movimiento, no solo las del mes." className="py-1 text-right font-medium">Mov. con dif.</th>
+            <Th tip={"Odoo: producto de la capa de valoración (product.product)."} className="py-1 pr-3 font-medium">Producto</Th>
+            <Th tip={"Odoo: categoría del producto (product.category)."} className="py-1 pr-3 font-medium">Categoría</Th>
+            <Th tip={"Odoo: unidad de medida del producto (uom_id)."} className="py-1 pr-3 font-medium">UdM</Th>
+            <Th tip={"Toma: capas de valoración de ajuste del producto en el mes.\nCalcula: ingresos + egresos, en la UdM del producto."} className="py-1 pr-3 text-right font-medium">Cant. neta</Th>
+            <Th tip={"Calcula: $ (+) + $ (−). Es lo que el ajuste suma o resta al inventario valorizado."} className="py-1 pr-3 text-right font-medium">$ neto</Th>
+            <Th tip={"Toma: Odoo stock.move.line (Inventario > Reportes > Historial de movimientos).\nCalcula: unidades en que la suma de las capas de un movimiento no coincide con la cantidad del historial."} className="py-1 pr-3 text-right font-medium">Dif. vs historial</Th>
+            <Th tip={"Calcula: movimientos de ajuste cuya cantidad en Valoración no coincide con el Historial ÷ total de movimientos del mes.\nSe compara contra todas las capas del movimiento, no solo las del mes."} className="py-1 text-right font-medium">Mov. con dif.</Th>
           </tr>
         </thead>
         <tbody>
@@ -97,6 +147,16 @@ function ProductosMes({ data, mes }: { data: AjustesInventarioResult; mes: strin
       </table>
       {omitidos > 0 && <p className="mt-2 text-[10px] text-slate-500">Se muestran los {rows.length} productos de mayor $ neto; {omitidos} más quedan fuera.</p>}
     </div>
+  );
+}
+
+function Th({ tip, className = '', children }: { tip: string; className?: string; children: ReactNode }) {
+  return (
+    <th className={className}>
+      <Tip text={tip} className="cursor-help border-b border-dotted border-slate-500">
+        {children}
+      </Tip>
+    </th>
   );
 }
 
@@ -129,11 +189,12 @@ function CategoriasMulti({ opciones, sel, onChange }: { opciones: string[]; sel:
 
 const pct = (v: number, base: number) => (base > 0 ? `${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2, signDisplay: 'exceptZero' }).format((v / base) * 100)}%` : '—');
 
-function PctCard({ label, text, valor }: { label: string; text: string; valor: number }) {
+function PctCard({ label, text, valor, ok = null, sub }: { label: string; text: string; valor: number; ok?: boolean | null; sub?: string }) {
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900 p-4">
+    <div className="h-full rounded-lg border border-slate-800 bg-slate-900 p-4">
       <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
-      <p className={`mt-1 text-xl font-semibold ${signClass(valor)}`}>{text}</p>
+      <p className={`mt-1 text-xl font-semibold ${semaforoClass(ok, signClass(valor))}`}>{text}</p>
+      {sub && <p className="mt-1 text-xs text-slate-500">{sub}</p>}
     </div>
   );
 }
@@ -176,6 +237,8 @@ function AjustesInner() {
   const enRango = (i: number) => i >= desde && i <= hasta;
   const baseMp = data ? data.base.materiaPrima.slice(desde, hasta + 1).reduce((a, v) => a + v, 0) : 0;
   const baseFact = data ? data.base.facturacion.slice(desde, hasta + 1).reduce((a, v) => a + v, 0) : 0;
+  const objetivosSel = data ? data.base.objetivo.slice(desde, hasta + 1).filter((o): o is number => o !== null) : [];
+  const objetivoSel = objetivosSel.length ? objetivosSel.reduce((a, v) => a + v, 0) / objetivosSel.length : null;
   const categoriasSel = (data?.categorias ?? [])
     .map((c) => ({ ...c, totalSel: c.netoValor.slice(desde, hasta + 1).reduce((a, v) => a + v, 0) }))
     .sort((a, b) => Math.abs(b.totalSel) - Math.abs(a.totalSel));
@@ -328,41 +391,55 @@ function AjustesInner() {
       ) : (
         <>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div title={`$ neto ajustado de ${periodo} dividido por el $ de materia prima consumida en producción en el mismo período (${money.format(baseMp)}). Valoración: capas de consumo de órdenes de fabricación, productos de Materia Prima.`}>
-              <PctCard label={`Desvío s/ materia prima producida · ${periodo}`} text={pct(sel!.netoValor, baseMp)} valor={sel!.netoValor} />
-            </div>
-            <div title={`$ neto ajustado de ${periodo} dividido por la facturación total del mismo período (${money.format(baseFact)}), la misma de Gerencia > Facturación.`}>
+            <Tip
+              text={`Calcula: $ neto ajustado de ${periodo} ÷ $ de materia prima consumida en producción en el mismo período (${money.format(baseMp)}).
+Base: Odoo stock.valuation.layer de movimientos de consumo de órdenes de fabricación (raw_material_production_id), productos de Materia Prima.
+Objetivo: hoja «Objetivos Inventario» del dashboard Equipo de gestión de Odoo (promedio de los meses del período). Verde si el desvío, en valor absoluto, no lo pasa.
+La base no cambia con el filtro de categoría o producto.`}
+              className="block h-full cursor-help"
+            >
+              <PctCard label={`Desvío s/ materia prima producida · ${periodo}`} text={pct(sel!.netoValor, baseMp)} valor={sel!.netoValor} ok={cumple(pctNum(sel!.netoValor, baseMp), objetivoSel)} sub={objetivoSel === null ? undefined : `Objetivo: ${pctFmt.format(objetivoSel)}%`} />
+            </Tip>
+            <Tip
+              text={`Calcula: $ neto ajustado de ${periodo} ÷ facturación total del mismo período (${money.format(baseFact)}).
+Base: la misma de Gerencia > Facturación (Odoo account.move.line de facturas y NC posteadas, sin IVA; las NC reales restan).
+No cambia con el filtro de categoría o producto.`}
+              className="block h-full cursor-help"
+            >
               <PctCard label={`Desvío s/ facturación · ${periodo}`} text={pct(sel!.netoValor, baseFact)} valor={sel!.netoValor} />
-            </div>
+            </Tip>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div title={`Valoración: suma del valor ($) de las capas de ajuste de inventario de ${periodo}.`}><KpiCard label={`$ neto ajustado · ${periodo}`} value={sel!.netoValor} format="currency" /></div>
-            <div title={`Valoración: suma de cantidades de las capas de ajuste de ${periodo} (mezcla kg, unidades y metros).`}><KpiCard label="Unidades netas ajustadas" value={sel!.netoCantidad} /></div>
-            <div title="Valoración: capas de ajuste que ingresan stock."><KpiCard label="$ ingresos (+)" value={sel!.ingresoValor} format="currency" /></div>
-            <div title="Valoración: capas de ajuste que sacan stock."><KpiCard label="$ egresos (−)" value={sel!.egresoValor} format="currency" /></div>
+            <Tip text={`Toma: Odoo: stock.valuation.layer (Inventario > Reportes > Valoración) de movimientos con is_inventory = true (ajustes de inventario) de ${periodo}, por create_date.\nCalcula: suma del valor ($) de todas las capas del período (ingresos + egresos).`} className="block cursor-help"><KpiCard label={`$ neto ajustado · ${periodo}`} value={sel!.netoValor} format="currency" /></Tip>
+            <Tip text={`Toma: las mismas capas de ajuste de Valoración.\nCalcula: suma de cantidades del período. Mezcla kg, unidades y metros: mirá la UdM en el detalle por producto.`} className="block cursor-help"><KpiCard label="Unidades netas ajustadas" value={sel!.netoCantidad} /></Tip>
+            <Tip text={`Toma: capas de ajuste de Valoración que ingresan stock.\nCalcula: suma del valor ($) del período.`} className="block cursor-help"><KpiCard label="$ ingresos (+)" value={sel!.ingresoValor} format="currency" /></Tip>
+            <Tip text={`Toma: capas de ajuste de Valoración que sacan stock.\nCalcula: suma del valor ($) del período.`} className="block cursor-help"><KpiCard label="$ egresos (−)" value={sel!.egresoValor} format="currency" /></Tip>
           </div>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <MesChart title="$ neto por mes" data={data.mensual.map((m, i) => ({ mes: MESES[i]!, v: m.netoValor }))} format="currency" desde={desde} hasta={hasta} />
-            <MesChart title="Unidades netas por mes" data={data.mensual.map((m, i) => ({ mes: MESES[i]!, v: m.netoCantidad }))} format="number" desde={desde} hasta={hasta} />
+            <MesChart title="$ neto por mes" tip={"Toma: Odoo stock.valuation.layer de ajustes de inventario (is_inventory = true), por mes de create_date.\nCalcula: suma del valor ($) de las capas del mes (ingresos + egresos). Las barras opacas son el período elegido."} data={data.mensual.map((m, i) => ({ mes: MESES[i]!, v: m.netoValor }))} format="currency" desde={desde} hasta={hasta} />
+            <MesChart title="Unidades netas por mes" tip={"Toma: las mismas capas de ajuste de Valoración.\nCalcula: suma de cantidades del mes (ingresos + egresos). Mezcla kg, unidades y metros."} data={data.mensual.map((m, i) => ({ mes: MESES[i]!, v: m.netoCantidad }))} format="number" desde={desde} hasta={hasta} />
           </div>
+
+          <DesvioChart data={data.mensual.map((m, i) => ({ mes: MESES[i]!, desvio: pctNum(m.netoValor, data.base.materiaPrima[i]!), objetivo: data.base.objetivo[i] ?? null }))} desde={desde} hasta={hasta} />
 
           <div className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-900">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-slate-500">
-                  <th title="Mes de la capa de valoración (fecha de creación), igual que el reporte Inventario > Reportes > Valoración." className="p-3 font-medium">Mes</th>
-                  <th title="Valoración (stock.valuation.layer): suma de cantidades positivas de los ajustes de inventario del mes." className="p-3 text-right font-medium">Unid. (+)</th>
-                  <th title="Valoración: suma del valor ($) de las capas de ajuste que ingresan stock." className="p-3 text-right font-medium">$ (+)</th>
-                  <th title="Valoración: suma de cantidades negativas de los ajustes de inventario del mes." className="p-3 text-right font-medium">Unid. (−)</th>
-                  <th title="Valoración: suma del valor ($) de las capas de ajuste que sacan stock." className="p-3 text-right font-medium">$ (−)</th>
-                  <th title="Ingresos + egresos en unidades (Valoración). Es el saldo del ajuste del mes." className="p-3 text-right font-medium">Unid. netas</th>
-                  <th title="Ingresos + egresos en pesos (Valoración). Es lo que el ajuste suma o resta al inventario valorizado." className="p-3 text-right font-medium">$ neto</th>
-                  <th title="$ neto del mes / $ de materia prima consumida en producción ese mes." className="p-3 text-right font-medium">% s/ MP</th>
-                  <th title="$ neto del mes / facturación total del mes." className="p-3 text-right font-medium">% s/ fact.</th>
-                  <th title="Cruce con Inventario > Reportes > Historial de movimientos (stock.move.line): unidades en que el total de Valoración del movimiento no coincide con la cantidad del historial." className="p-3 text-right font-medium">Dif. vs historial</th>
-                  <th title="Movimientos de ajuste con diferencia / total de movimientos del mes. Se compara contra todas las capas del movimiento, no solo las del mes." className="p-3 text-right font-medium">Mov. con dif.</th>
+                  <Th tip={"Mes de la capa de valoración (create_date), igual que el reporte Inventario > Reportes > Valoración."} className="p-3 font-medium">Mes</Th>
+                  <Th tip={"Toma: Odoo: stock.valuation.layer (Inventario > Reportes > Valoración) de movimientos con is_inventory = true (ajustes de inventario), por mes de create_date.\nCalcula: suma de las cantidades positivas (ingresos de stock)."} className="p-3 text-right font-medium">Unid. (+)</Th>
+                  <Th tip={"Toma: Odoo: stock.valuation.layer (Inventario > Reportes > Valoración) de movimientos con is_inventory = true (ajustes de inventario), por mes de create_date.\nCalcula: suma del valor ($) de las capas que ingresan stock."} className="p-3 text-right font-medium">$ (+)</Th>
+                  <Th tip={"Toma: Odoo: stock.valuation.layer (Inventario > Reportes > Valoración) de movimientos con is_inventory = true (ajustes de inventario), por mes de create_date.\nCalcula: suma de las cantidades negativas (egresos de stock)."} className="p-3 text-right font-medium">Unid. (−)</Th>
+                  <Th tip={"Toma: Odoo: stock.valuation.layer (Inventario > Reportes > Valoración) de movimientos con is_inventory = true (ajustes de inventario), por mes de create_date.\nCalcula: suma del valor ($) de las capas que sacan stock."} className="p-3 text-right font-medium">$ (−)</Th>
+                  <Th tip={"Calcula: Unid. (+) + Unid. (−). Es el saldo del ajuste del mes. Mezcla kg, unidades y metros."} className="p-3 text-right font-medium">Unid. netas</Th>
+                  <Th tip={"Calcula: $ (+) + $ (−). Es lo que el ajuste suma o resta al inventario valorizado."} className="p-3 text-right font-medium">$ neto</Th>
+                  <Th tip={"Calcula: $ neto del mes ÷ $ de materia prima consumida en producción ese mes.\nBase: Odoo stock.valuation.layer de movimientos de consumo de órdenes de fabricación (raw_material_production_id), productos de Materia Prima, en valor absoluto."} className="p-3 text-right font-medium">% s/ MP</Th>
+                  <Th tip={"Objetivo de desvío del mes: hoja «Objetivos Inventario» del dashboard Equipo de gestión de Odoo.\nSe compara contra el valor absoluto del % s/ MP: verde si no lo pasa, rojo si lo pasa."} className="p-3 text-right font-medium">Objetivo</Th>
+                  <Th tip={"Calcula: $ neto del mes ÷ facturación total del mes.\nBase: la misma de Gerencia > Facturación (account.move.line de facturas y NC posteadas, sin IVA; las NC reales restan)."} className="p-3 text-right font-medium">% s/ fact.</Th>
+                  <Th tip={"Toma: Odoo stock.move.line (Inventario > Reportes > Historial de movimientos).\nCalcula: unidades en que la suma de las capas de un movimiento no coincide con la cantidad del historial."} className="p-3 text-right font-medium">Dif. vs historial</Th>
+                  <Th tip={"Calcula: movimientos de ajuste cuya cantidad en Valoración no coincide con el Historial ÷ total de movimientos del mes.\nSe compara contra todas las capas del movimiento, no solo las del mes."} className="p-3 text-right font-medium">Mov. con dif.</Th>
                 </tr>
               </thead>
               <tbody>
@@ -379,7 +456,8 @@ function AjustesInner() {
                       <td className="p-3 text-right tabular-nums text-red-400">{money.format(m.egresoValor)}</td>
                       <td className={`p-3 text-right tabular-nums font-medium ${signClass(m.netoCantidad)}`}>{qtyFmt.format(m.netoCantidad)}</td>
                       <td className={`p-3 text-right tabular-nums font-medium ${signClass(m.netoValor)}`}>{money.format(m.netoValor)}</td>
-                      <td className={`p-3 text-right tabular-nums ${signClass(m.netoValor)}`}>{pct(m.netoValor, data.base.materiaPrima[i]!)}</td>
+                      <td className={`p-3 text-right tabular-nums ${semaforoClass(cumple(pctNum(m.netoValor, data.base.materiaPrima[i]!), data.base.objetivo[i]), signClass(m.netoValor))}`}>{pct(m.netoValor, data.base.materiaPrima[i]!)}</td>
+                      <td className="p-3 text-right tabular-nums text-amber-400">{data.base.objetivo[i] === null ? '—' : `${pctFmt.format(data.base.objetivo[i]!)}%`}</td>
                       <td className={`p-3 text-right tabular-nums ${signClass(m.netoValor)}`}>{pct(m.netoValor, data.base.facturacion[i]!)}</td>
                       <td className="p-3 text-right tabular-nums text-slate-300">{qtyFmt.format(m.difCantidad)}</td>
                       <td className={`p-3 text-right tabular-nums ${m.movimientosConDiferencia ? 'text-amber-400' : 'text-slate-500'}`}>
@@ -388,7 +466,7 @@ function AjustesInner() {
                     </tr>
                     {abierto === m.mes && (
                       <tr>
-                        <td colSpan={11} className="p-0">
+                        <td colSpan={12} className="p-0">
                           <ProductosMes data={data} mes={m.mes} />
                         </td>
                       </tr>
@@ -403,7 +481,8 @@ function AjustesInner() {
                   <td className="p-3 text-right tabular-nums text-red-400">{money.format(sel!.egresoValor)}</td>
                   <td className={`p-3 text-right tabular-nums ${signClass(sel!.netoCantidad)}`}>{qtyFmt.format(sel!.netoCantidad)}</td>
                   <td className={`p-3 text-right tabular-nums ${signClass(sel!.netoValor)}`}>{money.format(sel!.netoValor)}</td>
-                  <td className={`p-3 text-right tabular-nums ${signClass(sel!.netoValor)}`}>{pct(sel!.netoValor, baseMp)}</td>
+                  <td className={`p-3 text-right tabular-nums ${semaforoClass(cumple(pctNum(sel!.netoValor, baseMp), objetivoSel), signClass(sel!.netoValor))}`}>{pct(sel!.netoValor, baseMp)}</td>
+                  <td className="p-3 text-right tabular-nums text-amber-400">{objetivoSel === null ? '—' : `${pctFmt.format(objetivoSel)}%`}</td>
                   <td className={`p-3 text-right tabular-nums ${signClass(sel!.netoValor)}`}>{pct(sel!.netoValor, baseFact)}</td>
                   <td className="p-3 text-right tabular-nums text-slate-300">{qtyFmt.format(sel!.difCantidad)}</td>
                   <td className="p-3 text-right tabular-nums text-slate-300">{sel!.movimientosConDiferencia} / {sel!.movimientos}</td>
@@ -419,16 +498,16 @@ function AjustesInner() {
           </p>
 
           <div>
-            <h3 title="Valoración: $ neto de las capas de ajuste agrupado por la categoría del producto en Odoo." className="mb-3 border-b border-slate-800 pb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">$ neto por categoría</h3>
+            <h3 className="mb-3 border-b border-slate-800 pb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500"><Tip text={"Toma: Odoo stock.valuation.layer de ajustes de inventario, agrupado por la categoría del producto (product.category).\nCalcula: suma del valor ($) por categoría y mes. El total es la suma de los meses del período elegido."} className="cursor-help border-b border-dotted border-slate-500">$ neto por categoría</Tip></h3>
             <div className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-900">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="text-left text-slate-500">
-                    <th title="Categoría del producto en Odoo." className="p-2 font-medium">Categoría</th>
+                    <Th tip={"Odoo: categoría del producto (product.category)."} className="p-2 font-medium">Categoría</Th>
                     {MESES.map((m) => (
                       <th key={m} className="p-2 text-right font-medium">{m}</th>
                     ))}
-                    <th title="Suma de los meses del período elegido." className="p-2 text-right font-medium">Total {periodo}</th>
+                    <Th tip={"Calcula: suma de los meses del período elegido."} className="p-2 text-right font-medium">Total {periodo}</Th>
                   </tr>
                 </thead>
                 <tbody>

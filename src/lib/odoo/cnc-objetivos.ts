@@ -40,7 +40,11 @@ function direccion(a: string): string | null {
 }
 
 /** Reproduce snapshot + revisiones y devuelve las celdas de la hoja `HOJA`. */
-export function celdasDeHoja(snapshotB64: string | false, revisiones: { revision_id: string; commands: string }[]): Celdas | null {
+export function celdasDeHoja(
+  snapshotB64: string | false,
+  revisiones: { revision_id: string; commands: string }[],
+  esHoja: (nombre: string) => boolean = (n) => n.trim().toLowerCase() === HOJA
+): Celdas | null {
   const hojas = new Map<string, { name: string; celdas: Celdas }>();
   if (snapshotB64) {
     const snap = JSON.parse(Buffer.from(snapshotB64, 'base64').toString('utf8')) as {
@@ -71,7 +75,7 @@ export function celdasDeHoja(snapshotB64: string | false, revisiones: { revision
       }
     }
   }
-  return [...hojas.values()].find((h) => h.name.trim().toLowerCase() === HOJA)?.celdas ?? null;
+  return [...hojas.values()].find((h) => esHoja(h.name))?.celdas ?? null;
 }
 
 /** Objetivo por mes del año (1–12), en puntos porcentuales. Falta el mes → sin objetivo. */
@@ -87,25 +91,30 @@ export function objetivosDeCeldas(celdas: Celdas): Record<number, number> {
   return out;
 }
 
+/** Lee el dashboard "Reunión de equipo de gestión" y devuelve las celdas de la hoja que cumpla `esHoja`. */
+export async function cargarCeldasDeGestion(esHoja: (nombre: string) => boolean): Promise<Celdas | null> {
+  const [dash, revs] = await Promise.all([
+    searchReadAll<{ id: number; spreadsheet_snapshot: string | false }>({
+      model: 'spreadsheet.dashboard',
+      domain: [['id', '=', DASHBOARD_ID]],
+      fields: ['spreadsheet_snapshot'],
+    }),
+    searchReadAll<RevisionRow>({
+      model: 'spreadsheet.revision',
+      domain: [
+        ['res_model', '=', 'spreadsheet.dashboard'],
+        ['res_id', '=', DASHBOARD_ID],
+      ],
+      fields: ['revision_id', 'commands'],
+      order: 'id',
+    }),
+  ]);
+  return celdasDeHoja(dash[0]?.spreadsheet_snapshot ?? false, revs, esHoja);
+}
+
 export async function getCncObjetivos(): Promise<Record<number, number>> {
   try {
-    const [dash, revs] = await Promise.all([
-      searchReadAll<{ id: number; spreadsheet_snapshot: string | false }>({
-        model: 'spreadsheet.dashboard',
-        domain: [['id', '=', DASHBOARD_ID]],
-        fields: ['spreadsheet_snapshot'],
-      }),
-      searchReadAll<RevisionRow>({
-        model: 'spreadsheet.revision',
-        domain: [
-          ['res_model', '=', 'spreadsheet.dashboard'],
-          ['res_id', '=', DASHBOARD_ID],
-        ],
-        fields: ['revision_id', 'commands'],
-        order: 'id',
-      }),
-    ]);
-    const celdas = celdasDeHoja(dash[0]?.spreadsheet_snapshot ?? false, revs);
+    const celdas = await cargarCeldasDeGestion((n) => n.trim().toLowerCase() === HOJA);
     return celdas ? objetivosDeCeldas(celdas) : {};
   } catch (err) {
     // Sin objetivo el indicador igual funciona: solo falta la línea de meta.
@@ -113,3 +122,5 @@ export async function getCncObjetivos(): Promise<Record<number, number>> {
     return {};
   }
 }
+
+export { MESES as MESES_OBJETIVO };
