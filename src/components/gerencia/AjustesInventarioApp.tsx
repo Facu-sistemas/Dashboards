@@ -100,6 +100,44 @@ function ProductosMes({ data, mes }: { data: AjustesInventarioResult; mes: strin
   );
 }
 
+function CategoriasMulti({ opciones, sel, onChange }: { opciones: string[]; sel: string[]; onChange: (next: string[]) => void }) {
+  const label = sel.length === 0 ? 'Todas las categorías' : sel.length === 1 ? sel[0]! : `${sel.length} categorías`;
+  const toggle = (c: string) => onChange(sel.includes(c) ? sel.filter((x) => x !== c) : [...sel, c]);
+  return (
+    <details className="relative shrink-0">
+      <summary
+        aria-label="Categorías de producto"
+        title={sel.length > 0 ? sel.join(', ') : 'Podés marcar varias categorías'}
+        className="w-52 cursor-pointer list-none truncate rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200"
+      >
+        {label} ▾
+      </summary>
+      <div className="absolute z-20 mt-1 max-h-72 w-72 overflow-y-auto rounded border border-slate-700 bg-slate-950 p-1 shadow-lg">
+        <button type="button" onClick={() => onChange([])} className="w-full rounded px-2 py-1 text-left text-xs text-slate-400 hover:bg-slate-800 hover:text-slate-100">
+          Todas las categorías (quitar selección)
+        </button>
+        {opciones.map((c) => (
+          <label key={c} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm text-slate-200 hover:bg-slate-800">
+            <input type="checkbox" checked={sel.includes(c)} onChange={() => toggle(c)} />
+            {c}
+          </label>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+const pct = (v: number, base: number) => (base > 0 ? `${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2, signDisplay: 'exceptZero' }).format((v / base) * 100)}%` : '—');
+
+function PctCard({ label, text, valor }: { label: string; text: string; valor: number }) {
+  return (
+    <div className="rounded-lg border border-slate-800 bg-slate-900 p-4">
+      <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
+      <p className={`mt-1 text-xl font-semibold ${signClass(valor)}`}>{text}</p>
+    </div>
+  );
+}
+
 function AjustesInner() {
   const thisYear = new Date().getFullYear();
   const [year, setYear] = useState(thisYear);
@@ -110,18 +148,18 @@ function AjustesInner() {
   const [desdeSel, setDesdeSel] = useState<number | null>(null);
   const [hastaSel, setHastaSel] = useState<number | null>(null);
   // Filtros de producto: vacíos = se muestra todo.
-  const [categoria, setCategoria] = useState('');
+  const [categorias, setCategorias] = useState<string[]>([]);
   const [productoTxt, setProductoTxt] = useState('');
   const [productId, setProductId] = useState<number | null>(null);
   const qs = new URLSearchParams({ year: String(year) });
-  if (categoria) qs.set('categoria', categoria);
+  for (const c of categorias) qs.append('categoria', c);
   if (productId !== null) qs.set('productId', String(productId));
-  const query = useApiQuery<AjustesInventarioResult>(['ajustes-inventario', year, categoria, productId], `/api/ajustes-inventario?${qs.toString()}`);
+  const query = useApiQuery<AjustesInventarioResult>(['ajustes-inventario', year, categorias, productId], `/api/ajustes-inventario?${qs.toString()}`);
   const data = query.data;
-  const productosOpc = (data?.opciones.productos ?? []).filter((p) => !categoria || p.categoria === categoria);
-  const hayFiltroProducto = categoria !== '' || productoTxt !== '' || productId !== null;
+  const productosOpc = (data?.opciones.productos ?? []).filter((p) => categorias.length === 0 || categorias.includes(p.categoria));
+  const hayFiltroProducto = categorias.length > 0 || productoTxt !== '' || productId !== null;
   const limpiarProducto = () => {
-    setCategoria('');
+    setCategorias([]);
     setProductoTxt('');
     setProductId(null);
   };
@@ -136,13 +174,15 @@ function AjustesInner() {
   };
   const sel = data ? sumarMeses(data.mensual.slice(desde, hasta + 1)) : undefined;
   const enRango = (i: number) => i >= desde && i <= hasta;
+  const baseMp = data ? data.base.materiaPrima.slice(desde, hasta + 1).reduce((a, v) => a + v, 0) : 0;
+  const baseFact = data ? data.base.facturacion.slice(desde, hasta + 1).reduce((a, v) => a + v, 0) : 0;
   const categoriasSel = (data?.categorias ?? [])
     .map((c) => ({ ...c, totalSel: c.netoValor.slice(desde, hasta + 1).reduce((a, v) => a + v, 0) }))
     .sort((a, b) => Math.abs(b.totalSel) - Math.abs(a.totalSel));
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
+      <div className="flex flex-wrap items-center gap-6 rounded-lg border border-slate-800 bg-slate-900 p-4">
         <div className="flex items-center gap-2">
           <label className="text-xs text-slate-400" htmlFor="aj-year">Año</label>
           <select
@@ -220,39 +260,31 @@ function AjustesInner() {
               </select>
             </>
           )}
-          {hayFiltro && (
-            <button
+                      <button
+              disabled={!hayFiltro}
               type="button"
               onClick={limpiar}
               aria-label="Quitar selección y ver todo el año"
               title="Quitar selección y ver todo el año"
-              className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-400 hover:text-slate-100"
+              className={`rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-400 hover:text-slate-100 ${hayFiltro ? '' : 'invisible'}`}
             >
               ✕
             </button>
-          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <select
-            aria-label="Categoría de producto"
-            value={categoria}
-            onChange={(e) => {
-              const c = e.target.value;
-              setCategoria(c);
-              // Si el producto elegido no es de la nueva categoría, se descarta.
+          <CategoriasMulti
+            opciones={data?.opciones.categorias ?? []}
+            sel={categorias}
+            onChange={(next) => {
+              setCategorias(next);
+              // Si el producto elegido no es de las categorías elegidas, se descarta.
               const actual = data?.opciones.productos.find((p) => p.id === productId);
-              if (c && actual && actual.categoria !== c) {
+              if (next.length > 0 && actual && !next.includes(actual.categoria)) {
                 setProductId(null);
                 setProductoTxt('');
               }
             }}
-            className="max-w-56 rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200"
-          >
-            <option value="">Todas las categorías</option>
-            {(data?.opciones.categorias ?? []).map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
+          />
           <input
             aria-label="Producto"
             list="aj-productos"
@@ -271,19 +303,18 @@ function AjustesInner() {
               <option key={p.id} value={p.nombre} />
             ))}
           </datalist>
-          {hayFiltroProducto && (
-            <button
+                      <button
+              disabled={!hayFiltroProducto}
               type="button"
               onClick={limpiarProducto}
               aria-label="Quitar filtros de categoría y producto"
               title="Quitar filtros de categoría y producto"
-              className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-400 hover:text-slate-100"
+              className={`rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-400 hover:text-slate-100 ${hayFiltroProducto ? '' : 'invisible'}`}
             >
               ✕
             </button>
-          )}
         </div>
-        <LastUpdated dataUpdatedAt={query.dataUpdatedAt} />
+        <div className="ml-auto"><LastUpdated dataUpdatedAt={query.dataUpdatedAt} /></div>
       </div>
 
       {query.isError && (
@@ -296,6 +327,15 @@ function AjustesInner() {
         <div className="h-64 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
       ) : (
         <>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div title={`$ neto ajustado de ${periodo} dividido por el $ de materia prima consumida en producción en el mismo período (${money.format(baseMp)}). Valoración: capas de consumo de órdenes de fabricación, productos de Materia Prima.`}>
+              <PctCard label={`Desvío s/ materia prima producida · ${periodo}`} text={pct(sel!.netoValor, baseMp)} valor={sel!.netoValor} />
+            </div>
+            <div title={`$ neto ajustado de ${periodo} dividido por la facturación total del mismo período (${money.format(baseFact)}), la misma de Gerencia > Facturación.`}>
+              <PctCard label={`Desvío s/ facturación · ${periodo}`} text={pct(sel!.netoValor, baseFact)} valor={sel!.netoValor} />
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div title={`Valoración: suma del valor ($) de las capas de ajuste de inventario de ${periodo}.`}><KpiCard label={`$ neto ajustado · ${periodo}`} value={sel!.netoValor} format="currency" /></div>
             <div title={`Valoración: suma de cantidades de las capas de ajuste de ${periodo} (mezcla kg, unidades y metros).`}><KpiCard label="Unidades netas ajustadas" value={sel!.netoCantidad} /></div>
@@ -319,6 +359,8 @@ function AjustesInner() {
                   <th title="Valoración: suma del valor ($) de las capas de ajuste que sacan stock." className="p-3 text-right font-medium">$ (−)</th>
                   <th title="Ingresos + egresos en unidades (Valoración). Es el saldo del ajuste del mes." className="p-3 text-right font-medium">Unid. netas</th>
                   <th title="Ingresos + egresos en pesos (Valoración). Es lo que el ajuste suma o resta al inventario valorizado." className="p-3 text-right font-medium">$ neto</th>
+                  <th title="$ neto del mes / $ de materia prima consumida en producción ese mes." className="p-3 text-right font-medium">% s/ MP</th>
+                  <th title="$ neto del mes / facturación total del mes." className="p-3 text-right font-medium">% s/ fact.</th>
                   <th title="Cruce con Inventario > Reportes > Historial de movimientos (stock.move.line): unidades en que el total de Valoración del movimiento no coincide con la cantidad del historial." className="p-3 text-right font-medium">Dif. vs historial</th>
                   <th title="Movimientos de ajuste con diferencia / total de movimientos del mes. Se compara contra todas las capas del movimiento, no solo las del mes." className="p-3 text-right font-medium">Mov. con dif.</th>
                 </tr>
@@ -337,6 +379,8 @@ function AjustesInner() {
                       <td className="p-3 text-right tabular-nums text-red-400">{money.format(m.egresoValor)}</td>
                       <td className={`p-3 text-right tabular-nums font-medium ${signClass(m.netoCantidad)}`}>{qtyFmt.format(m.netoCantidad)}</td>
                       <td className={`p-3 text-right tabular-nums font-medium ${signClass(m.netoValor)}`}>{money.format(m.netoValor)}</td>
+                      <td className={`p-3 text-right tabular-nums ${signClass(m.netoValor)}`}>{pct(m.netoValor, data.base.materiaPrima[i]!)}</td>
+                      <td className={`p-3 text-right tabular-nums ${signClass(m.netoValor)}`}>{pct(m.netoValor, data.base.facturacion[i]!)}</td>
                       <td className="p-3 text-right tabular-nums text-slate-300">{qtyFmt.format(m.difCantidad)}</td>
                       <td className={`p-3 text-right tabular-nums ${m.movimientosConDiferencia ? 'text-amber-400' : 'text-slate-500'}`}>
                         {m.movimientosConDiferencia} / {m.movimientos}
@@ -344,7 +388,7 @@ function AjustesInner() {
                     </tr>
                     {abierto === m.mes && (
                       <tr>
-                        <td colSpan={9} className="p-0">
+                        <td colSpan={11} className="p-0">
                           <ProductosMes data={data} mes={m.mes} />
                         </td>
                       </tr>
@@ -359,6 +403,8 @@ function AjustesInner() {
                   <td className="p-3 text-right tabular-nums text-red-400">{money.format(sel!.egresoValor)}</td>
                   <td className={`p-3 text-right tabular-nums ${signClass(sel!.netoCantidad)}`}>{qtyFmt.format(sel!.netoCantidad)}</td>
                   <td className={`p-3 text-right tabular-nums ${signClass(sel!.netoValor)}`}>{money.format(sel!.netoValor)}</td>
+                  <td className={`p-3 text-right tabular-nums ${signClass(sel!.netoValor)}`}>{pct(sel!.netoValor, baseMp)}</td>
+                  <td className={`p-3 text-right tabular-nums ${signClass(sel!.netoValor)}`}>{pct(sel!.netoValor, baseFact)}</td>
                   <td className="p-3 text-right tabular-nums text-slate-300">{qtyFmt.format(sel!.difCantidad)}</td>
                   <td className="p-3 text-right tabular-nums text-slate-300">{sel!.movimientosConDiferencia} / {sel!.movimientos}</td>
                 </tr>

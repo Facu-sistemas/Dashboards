@@ -161,6 +161,21 @@ async function monthlyCantidadYUEFacturado(
   return { cant, ue };
 }
 
+/** Facturación total ($, sin IVA, neta de notas de crédito reales) por mes de un año — mismo criterio que `real.totalPesos` de Gerencia. */
+export async function getFacturacionTotalPesosMensual(year: number): Promise<number[]> {
+  const start = `${year}-01-01`;
+  const companies = await getClientesActivosCompanies();
+  const ignoredMoveIds = new Set(
+    await getIgnoredCreditNoteMoveIds(
+      companies.map((c) => c.id),
+      start
+    )
+  );
+  const byMonth = await monthlyByCategory([], start, `${year + 1}-01-01`, ignoredMoveIds, (l) => l.price_subtotal);
+  const months = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
+  return toMonthlyArray(byMonth, months);
+}
+
 export async function getFacturacionGerencia(): Promise<FacturacionGerenciaResult> {
   const today = getArgentinaTodayIso();
   const year = Number(today.slice(0, 4));

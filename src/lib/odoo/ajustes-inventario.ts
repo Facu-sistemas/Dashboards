@@ -1,6 +1,9 @@
-import { searchRead, searchReadAll } from './client';
+import { readGroup, searchRead, searchReadAll } from './client';
 import { withTtlCache } from '@/lib/cache';
 import { getArgentinaTodayIso } from './oee';
+import { getFacturacionTotalPesosMensual } from './facturacion-gerencia';
+import { MATERIA_PRIMA_CATEG_ID } from './raw-material-consumption';
+import type { OdooReadGroupResult } from './types';
 
 /**
  * Ajustes de inventario por mes, plata + unidades. Solo lectura.
@@ -28,6 +31,14 @@ import { getArgentinaTodayIso } from './oee';
  * el Historial (estado final) contra TODAS las capas del movimiento.
  *
  * El mes de una capa es su `create_date` (igual que el reporte Valoración).
+ *
+ * Bases para medir el desvío en % (pedido de Gastón, 2026-10-22):
+ *  1) materia prima valorizada consumida en producción = valor ($) de las
+ *     capas de Valoración de movimientos de consumo de una orden de
+ *     fabricación (`raw_material_production_id`) de productos de Materia
+ *     Prima, por mes;
+ *  2) facturación total del mes (la misma de Gerencia > Facturación).
+ * Ambas son del período completo, no dependen del filtro de categoría/producto.
  */
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
@@ -101,6 +112,13 @@ export interface AjusteAnomalo {
   valor: number;
 }
 
+export interface AjustesBase {
+  /** $ de materia prima consumida en producción por mes (positivo). */
+  materiaPrima: number[];
+  /** $ facturados por mes (neto de notas de crédito reales). */
+  facturacion: number[];
+}
+
 export interface AjustesInventarioResult {
   year: number;
   /** 12 entradas YYYY-MM. */
@@ -114,12 +132,14 @@ export interface AjustesInventarioResult {
   categorias: AjusteCategoria[];
   anomalos: AjusteAnomalo[];
   /** Opciones para los filtros: todo lo que tuvo ajustes en el año, sin importar el filtro aplicado. */
+  /** Denominadores del desvío en %, 12 meses. */
+  base: AjustesBase;
   opciones: { categorias: string[]; productos: { id: number; nombre: string; categoria: string }[] };
 }
 
 export interface AjustesFiltro {
-  /** Nombre completo de la categoría de producto en Odoo. */
-  categoria?: string;
+  /** Nombres completos de categorías de producto en Odoo; vacío = todas. */
+  categorias?: string[];
   productId?: number;
 }
 
@@ -134,6 +154,7 @@ interface Raw {
   movsNoComparables: Set<number>;
   info: Map<number, { categoria: string; uom: string }>;
   nombres: Map<number, string>;
+  base: AjustesBase;
 }
 
 type Acum = {
@@ -179,14 +200,42 @@ export function currentYear(): number {
 
 /** Lo pesado (Odoo) se cachea por año; el filtro se aplica en memoria sobre esos datos. */
 export async function getAjustesInventario(year: number, filtro: AjustesFiltro = {}): Promise<AjustesInventarioResult> {
-  const raw = await withTtlCache(`ajustes-inventario:v3:${year}`, CACHE_TTL_MS, () => cargar(year));
+  const raw = await withTtlCache(`ajustes-inventario:v4:${year}`, CACHE_TTL_MS, () => cargar(year));
   return agregar(raw, filtro);
+}
+
+async function cargarBase(year: number, months: string[]): Promise<AjustesBase> {
+  type Grupo = OdooReadGroupResult & { value: number; __range?: Record<string, { from: string | false }> };
+  const [grupos, facturacion] = await Promise.all([
+    readGroup({
+      model: 'stock.valuation.layer',
+      domain: [
+        ['stock_move_id.raw_material_production_id', '!=', false],
+        ['product_id.categ_id', 'child_of', MATERIA_PRIMA_CATEG_ID],
+        ['create_date', '>=', `${year}-01-01 00:00:00`],
+        ['create_date', '<', `${year + 1}-01-01 00:00:00`],
+        // Mismas capas corruptas que se excluyen arriba: romperían la suma.
+        ['value', '<', MAX_VALUE],
+        ['value', '>', -MAX_VALUE],
+      ],
+      fields: ['value'],
+      groupBy: ['create_date:month'],
+      lazy: false,
+    }) as Promise<Grupo[]>,
+    getFacturacionTotalPesosMensual(year),
+  ]);
+  const porMes = new Map<string, number>();
+  for (const g of grupos) {
+    const desde = g.__range?.['create_date:month']?.from;
+    if (desde) porMes.set(desde.slice(0, 7), Math.abs(g.value));
+  }
+  return { materiaPrima: months.map((m) => porMes.get(m) ?? 0), facturacion };
 }
 
 async function cargar(year: number): Promise<Raw> {
   const months = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
 
-  const [layers, invLocs] = await Promise.all([
+  const [layers, invLocs, base] = await Promise.all([
     searchReadAll<SvlRow>({
       model: 'stock.valuation.layer',
       domain: [
@@ -199,6 +248,7 @@ async function cargar(year: number): Promise<Raw> {
       limit: 5000,
     }),
     searchRead<{ id: number }>({ model: 'stock.location', domain: [['usage', '=', 'inventory']], fields: ['id'] }),
+    cargarBase(year, months),
   ]);
   const invIds = new Set(invLocs.map((l) => l.id));
 
@@ -249,14 +299,14 @@ async function cargar(year: number): Promise<Raw> {
   const info = new Map(productos.map((p) => [p.id, { categoria: p.categ_id ? p.categ_id[1] : 'Sin categoría', uom: p.uom_id ? p.uom_id[1] : '' }]));
 
   const nombres = new Map(buenas.map((l) => [l.product_id[0], l.product_id[1]]));
-  return { year, months, buenas, anomalos, anomalMoves, historialPorMov, svlTotalPorMov, movsNoComparables, info, nombres };
+  return { year, months, buenas, anomalos, anomalMoves, historialPorMov, svlTotalPorMov, movsNoComparables, info, nombres, base };
 }
 
 function agregar(raw: Raw, filtro: AjustesFiltro): AjustesInventarioResult {
-  const { year, months, anomalos, anomalMoves, historialPorMov, svlTotalPorMov, movsNoComparables, info, nombres } = raw;
+  const { year, months, anomalos, anomalMoves, historialPorMov, svlTotalPorMov, movsNoComparables, info, nombres, base } = raw;
   const buenas = raw.buenas.filter((l) => {
     if (filtro.productId !== undefined && l.product_id[0] !== filtro.productId) return false;
-    if (filtro.categoria !== undefined && (info.get(l.product_id[0])?.categoria ?? 'Sin categoría') !== filtro.categoria) return false;
+    if (filtro.categorias?.length && !filtro.categorias.includes(info.get(l.product_id[0])?.categoria ?? 'Sin categoría')) return false;
     return true;
   });
 
@@ -380,5 +430,5 @@ function agregar(raw: Raw, filtro: AjustesFiltro): AjustesInventarioResult {
     productos: [...opcionesProductos.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
   };
 
-  return { year, months, mensual, total, productosPorMes, productosOmitidos, categorias, anomalos, opciones };
+  return { year, months, mensual, total, productosPorMes, productosOmitidos, categorias, anomalos, base, opciones };
 }
