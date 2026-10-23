@@ -1,0 +1,14 @@
+---
+import PermisosOdooApp from './PermisosOdooApp';
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Permisos Odoo</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Grupos de acceso de cada cuenta de Odoo, para auditar quién puede qué. Solo lectura: los cambios se hacen en Odoo.
+    </p>
+  </header>
+
+  <PermisosOdooApp client:only="react" />
+</div>
