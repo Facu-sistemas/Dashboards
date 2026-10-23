@@ -41,6 +41,7 @@ import MapaDestinosTab from '@/components/logistica/MapaDestinosTab.astro';
 import AvanceCargaTab from '@/components/logistica/AvanceCargaTab.astro';
 import EmbalajeTab from '@/components/logistica/EmbalajeTab.astro';
 import CostoDevolucionesTab from '@/components/calidad/CostoDevolucionesTab.astro';
+import EntregasTab from '@/components/logistica/EntregasTab.astro';
 import QuizBandasTab from '@/components/calidad/QuizBandasTab.astro';
 import CreditoChequesTab from '@/components/mejora-continua/CreditoChequesTab.astro';
 import DistribucionChequesTab from '@/components/mejora-continua/DistribucionChequesTab.astro';
@@ -107,6 +108,7 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
   {area.slug === 'logistica' && tabSlug === 'embalaje' && <EmbalajeTab />}
   {area.slug === 'finanzas' && tabSlug === 'rentabilidad-clientes' && <RentabilidadClientesTab />}
   {area.slug === 'finanzas' && tabSlug === 'rentabilidad-categorias' && <RentabilidadCategoriasTab />}
+  {area.slug === 'logistica' && tabSlug === 'entregas' && <EntregasTab />}
   {!['compras', 'comercial', 'manufactura', 'almacen', 'produccion', 'gestion-calidad', 'test', 'gerencia-general', 'rrhh', 'finanzas', 'logistica', 'fichaje'].includes(
     area.slug
   ) && <PlaceholderTab areaName={area.name} />}

@@ -192,6 +192,7 @@ export const AREAS: AreaConfig[] = [
       { slug: 'despachos', name: 'Pendientes de despacho' },
       { slug: 'cumplimiento', name: 'Cumplimiento de entrega' },
       { slug: 'mapa-destinos', name: 'Mapa de destinos' },
+      { slug: 'entregas', name: 'Entregas' },
     ],
   },
   {

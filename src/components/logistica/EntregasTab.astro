@@ -1,0 +1,178 @@
+---
+import { getLogisticaMovimientos } from '@/lib/odoo/logistica-movimientos';
+import type { LogisticaMovimientosResult, Macro, GrupoMensual } from '@/lib/odoo/logistica-movimientos';
+
+let data: LogisticaMovimientosResult | null = null;
+let ssrError: string | null = null;
+try {
+  data = await getLogisticaMovimientos();
+} catch (err) {
+  ssrError = err instanceof Error ? err.message : 'Error desconocido consultando Odoo';
+}
+
+const fmt0 = (n: number) => Math.round(n).toLocaleString('es-AR');
+const fmt2 = (n: number) => n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const mesNombre = (key: string) => MESES[Number(key.slice(5)) - 1]!;
+
+const MACROS: { key: Macro; titulo: string }[] = [
+  { key: 'colchones', titulo: 'Colchones' },
+  { key: 'sillones', titulo: 'Sillones' },
+];
+
+const anioActual = data ? Number(data.hoy.slice(0, 4)) : 0;
+
+function tablasDe(macro: Macro): { id: string; titulo: string; ayuda: string; grupo: GrupoMensual }[] {
+  if (!data) return [];
+  return [
+    { id: 'ent', titulo: 'Cantidad entregada', ayuda: 'Facturado − notas de crédito, por fecha de factura', grupo: data.entregas[macro] },
+    { id: 'fab', titulo: 'Cantidades fabricadas', ayuda: 'Órdenes de fabricación hechas, por fecha fin', grupo: data.fabricadas[macro] },
+    { id: 'ven', titulo: 'Cantidades vendidas', ayuda: 'Pedidos confirmados, por fecha de la orden', grupo: data.vendidas[macro] },
+  ];
+}
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Entregas</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Stock disponible y movimiento mensual de lo entregado, fabricado y vendido. Cada tabla usa su propia fecha:
+      entregas = facturado menos notas de crédito, fabricadas = fecha fin de la orden, vendidas = fecha del pedido.
+      Solo lectura.
+    </p>
+  </header>
+
+  {
+    ssrError && (
+      <p class="mb-6 rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">
+        No se pudo consultar Odoo ({ssrError}).
+      </p>
+    )
+  }
+
+  {
+    data && (
+      <>
+        <section class="mb-8 grid gap-6 lg:grid-cols-2">
+          {MACROS.map(({ key, titulo }) => {
+            const s = data!.stock[key];
+            const colMedida = key === 'colchones' ? 'm³' : 'Cant. equiv.';
+            return (
+              <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+                <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-200">{titulo} disponibles</h3>
+                <div class="max-h-96 overflow-y-auto">
+                  <table class="w-full text-left text-sm">
+                    <thead class="sticky top-0 bg-slate-900 text-xs text-slate-400">
+                      <tr class="border-b border-slate-800">
+                        <th class="py-2 pr-4 font-medium">Producto</th>
+                        <th class="py-2 pr-4 text-right font-medium">Stock disponible</th>
+                        <th class="py-2 text-right font-medium">{colMedida}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {s.filas.map((f) => (
+                        <tr class="border-b border-slate-800/60 text-slate-200">
+                          <td class="py-1.5 pr-4">{f.producto}</td>
+                          <td class="py-1.5 pr-4 text-right tabular-nums">{fmt0(f.disponible)}</td>
+                          <td class="py-1.5 text-right tabular-nums">{fmt2(f.medida)}</td>
+                        </tr>
+                      ))}
+                      {s.filas.length === 0 && (
+                        <tr>
+                          <td colspan="3" class="py-4 text-center text-slate-500">
+                            Sin stock disponible.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <div class="mt-2 flex justify-between border-t border-slate-700 pt-2 text-sm font-semibold text-status-green">
+                  <span>Total</span>
+                  <span class="tabular-nums">
+                    {fmt0(s.totalDisponible)} · {fmt2(s.totalMedida)}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </section>
+
+        {MACROS.map(({ key, titulo }) => (
+          <section class="mb-8">
+            <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-300">{titulo}</h3>
+            <div class="grid gap-6 xl:grid-cols-3">
+              {tablasDe(key).map((t) => (
+                <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+                  <h4 class="text-sm font-semibold uppercase tracking-wide text-slate-200">{t.titulo}</h4>
+                  <p class="mb-3 text-xs text-slate-500">{t.ayuda}</p>
+                  <table class="w-full text-left text-sm">
+                    <thead class="text-xs text-slate-400">
+                      <tr class="border-b border-slate-800">
+                        <th class="py-2 pr-2 font-medium">Período</th>
+                        <th class="py-2 pr-2 text-right font-medium">Cant.</th>
+                        <th class="py-2 pr-2 text-right font-medium">Equiv.</th>
+                        <th class="py-2 text-right font-medium">m³</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {t.grupo.anios.map((a) => (
+                        <>
+                          <tr
+                            class="cursor-pointer border-b border-slate-800 font-semibold text-slate-100 hover:bg-slate-800/50"
+                            data-toggle-anio={a.anio}
+                          >
+                            <td class="py-1.5 pr-2">
+                              <span class="mr-1 inline-block w-3 text-slate-400" data-icono>
+                                {a.anio === anioActual ? '−' : '+'}
+                              </span>
+                              {a.anio}
+                            </td>
+                            <td class="py-1.5 pr-2 text-right tabular-nums">{fmt0(a.cant)}</td>
+                            <td class="py-1.5 pr-2 text-right tabular-nums">{fmt2(a.equiv)}</td>
+                            <td class="py-1.5 text-right tabular-nums">{fmt2(a.m3)}</td>
+                          </tr>
+                          {a.meses.map((m) => (
+                            <tr
+                              class={`border-b border-slate-800/60 text-slate-300 ${a.anio === anioActual ? '' : 'hidden'}`}
+                              data-mes-de={a.anio}
+                            >
+                              <td class="py-1 pr-2 pl-6">{mesNombre(m.mes)}</td>
+                              <td class="py-1 pr-2 text-right tabular-nums">{fmt0(m.cant)}</td>
+                              <td class="py-1 pr-2 text-right tabular-nums">{fmt2(m.equiv)}</td>
+                              <td class="py-1 text-right tabular-nums">{fmt2(m.m3)}</td>
+                            </tr>
+                          ))}
+                        </>
+                      ))}
+                      <tr class="font-semibold text-status-green">
+                        <td class="pt-2 pr-2">Total</td>
+                        <td class="pt-2 pr-2 text-right tabular-nums">{fmt0(t.grupo.total.cant)}</td>
+                        <td class="pt-2 pr-2 text-right tabular-nums">{fmt2(t.grupo.total.equiv)}</td>
+                        <td class="pt-2 text-right tabular-nums">{fmt2(t.grupo.total.m3)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
+          </section>
+        ))}
+      </>
+    )
+  }
+</div>
+
+<script>
+  // Expandir/contraer los meses de cada año.
+  document.querySelectorAll<HTMLElement>('[data-toggle-anio]').forEach((row) => {
+    row.addEventListener('click', () => {
+      const anio = row.dataset.toggleAnio;
+      const meses = row.parentElement!.querySelectorAll<HTMLElement>(`[data-mes-de="${anio}"]`);
+      const abrir = meses.length > 0 && meses[0]!.classList.contains('hidden');
+      meses.forEach((m) => m.classList.toggle('hidden', !abrir));
+      const icono = row.querySelector('[data-icono]');
+      if (icono) icono.textContent = abrir ? '−' : '+';
+    });
+  });
+</script>
