@@ -1,0 +1,20 @@
+---
+import QuincenaApp from './QuincenaApp';
+import { getArgentinaTodayIso } from '@/lib/odoo/oee';
+
+const hoy = getArgentinaTodayIso();
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Horas</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Por empleado: horas de jornada del período que elijas (desde un día hasta otro), feriados, tiempo personal (licencias aprobadas en Odoo)
+      y movimiento del banco de horas, para revisar que los números cierren antes de liquidar. Marca lo que no
+      coincide (banco de horas que no cuadra, licencias aprobadas que se pisan, licencias sin aprobar).
+      Tocá una fila para ver las licencias que la componen. Solo lectura.
+    </p>
+  </header>
+
+  <QuincenaApp client:load hoy={hoy} />
+</div>

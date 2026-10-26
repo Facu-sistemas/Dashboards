@@ -86,6 +86,7 @@ export const AREAS: AreaConfig[] = [
     tabs: [
       { slug: 'resumen', name: 'Resumen' },
       { slug: 'vacaciones', name: 'Vacaciones' },
+      { slug: 'horas', name: 'Horas' },
     ],
   },
   {
