@@ -27,7 +27,7 @@ export interface UbicacionStockResult {
 }
 
 export type HistorialRango = 'hoy' | '7d' | '30d' | '12m';
-export type MovimientoTipo = 'entrada' | 'salida' | 'interno';
+export type MovimientoTipo = 'entrada' | 'salida' | 'interno' | 'consumo';
 
 export interface HistorialMovimiento {
   id: number;
@@ -38,6 +38,19 @@ export interface HistorialMovimiento {
   destino: string;
   tipo: MovimientoTipo;
   fecha: string;
+  /** Orden que originó el movimiento (WH/MO/…, WH/RO/…). Solo viene en los consumos. */
+  referencia?: string;
+}
+
+export interface HistorialConsumos {
+  /** Líneas consumidas de PRE-PRODUCCION en el período. */
+  total: number;
+  fabricacion: number;
+  reparacion: number;
+  otros: number;
+  topProductos: HistorialTop[];
+  /** Los más recientes (con tope), para mezclar en la línea de tiempo. */
+  recientes: HistorialMovimiento[];
 }
 
 export interface HistorialTop {
@@ -55,6 +68,7 @@ export interface HistorialResult {
   topProductos: HistorialTop[];
   topUbicaciones: HistorialTop[];
   recientes: HistorialMovimiento[];
+  consumos: HistorialConsumos;
   truncado: boolean;
 }
 

@@ -18,7 +18,10 @@ const TIPOS: { id: MovimientoTipo; label: string; verbo: string; glyph: string }
   { id: 'entrada', label: 'Entradas', verbo: 'Entró', glyph: '↓' },
   { id: 'salida', label: 'Salidas', verbo: 'Salió', glyph: '↑' },
   { id: 'interno', label: 'Internos', verbo: 'Movido', glyph: '⇄' },
+  { id: 'consumo', label: 'Consumos', verbo: 'Consumió', glyph: '⚙' },
 ];
+/** El resumen de arriba cuenta solo movimientos del depósito; los consumos van aparte. */
+const TIPOS_DEPOSITO = TIPOS.filter((t) => t.id !== 'consumo');
 
 const PAGINA = 100;
 const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
@@ -67,8 +70,10 @@ function useCountUp(target: number, ms = 800): number {
   return Math.round(value);
 }
 
-function tipoColor(tipo: MovimientoTipo, theme: { primary: string; secondary: string; danger: string }): string {
-  return tipo === 'entrada' ? theme.secondary : tipo === 'salida' ? theme.danger : theme.primary;
+type TipoTheme = { primary: string; secondary: string; danger: string; warn: string };
+
+function tipoColor(tipo: MovimientoTipo, theme: TipoTheme): string {
+  return tipo === 'entrada' ? theme.secondary : tipo === 'salida' ? theme.danger : tipo === 'consumo' ? theme.warn : theme.primary;
 }
 
 function Card({ title, subtitle, children, delay = 0, className = '' }: { title: string; subtitle?: string; children: React.ReactNode; delay?: number; className?: string }) {
@@ -90,7 +95,7 @@ function Hero({ data }: { data: HistorialResult }) {
   const rango = RANGOS.find((r) => r.id === data.rango)!;
   const delta = data.totalAnterior > 0 ? ((totales.total - data.totalAnterior) / data.totalAnterior) * 100 : null;
   const sube = delta !== null && delta >= 0;
-  const partes = TIPOS.map((t) => ({ ...t, n: t.id === 'entrada' ? totales.entradas : t.id === 'salida' ? totales.salidas : totales.internos }));
+  const partes = TIPOS_DEPOSITO.map((t) => ({ ...t, n: t.id === 'entrada' ? totales.entradas : t.id === 'salida' ? totales.salidas : totales.internos }));
   const entradas = useCountUp(totales.entradas);
   const salidas = useCountUp(totales.salidas);
   const internos = useCountUp(totales.internos);
@@ -149,7 +154,7 @@ function Hero({ data }: { data: HistorialResult }) {
                   </span>
                   {p.label}
                 </div>
-                <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-100">{intFmt.format(counts[p.id])}</p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-100">{intFmt.format(counts[p.id as keyof typeof counts])}</p>
                 <p className="text-xs text-slate-500">{totales.total ? Math.round((p.n / totales.total) * 100) : 0}% del total</p>
               </div>
             ))}
@@ -265,7 +270,7 @@ function Heatmap({ data }: { data: HistorialResult }) {
 
 // ---------------------------------------------------------------- Ranking
 
-function Ranking({ titulo, subtitulo, items, color, delay, onPick, picked }: {
+function Ranking({ titulo, subtitulo, items, color, delay, onPick, picked, header }: {
   titulo: string;
   subtitulo?: string;
   items: { nombre: string; movimientos: number }[];
@@ -273,10 +278,12 @@ function Ranking({ titulo, subtitulo, items, color, delay, onPick, picked }: {
   delay: number;
   onPick?: (nombre: string) => void;
   picked?: string | null;
+  header?: React.ReactNode;
 }) {
   const max = Math.max(1, ...items.map((i) => i.movimientos));
   return (
     <Card title={titulo} subtitle={subtitulo} delay={delay}>
+      {header}
       {items.length === 0 ? (
         <p className="text-sm text-slate-500">Sin datos en el período.</p>
       ) : (
@@ -315,9 +322,47 @@ function Ranking({ titulo, subtitulo, items, color, delay, onPick, picked }: {
   );
 }
 
+// ---------------------------------------------------------------- Consumos
+
+function Consumos({ data, color }: { data: HistorialResult; color: string }) {
+  const { consumos } = data;
+  const total = useCountUp(consumos.total);
+  const partes = [
+    { label: 'Fabricación', n: consumos.fabricacion },
+    { label: 'Reparaciones', n: consumos.reparacion },
+    { label: 'Otros', n: consumos.otros },
+  ];
+  return (
+    <Ranking
+      titulo="Consumos de PRE-PRODUCCION"
+      subtitulo="Lo que se retira de PRE-PRODUCCION para fabricar y reparar"
+      items={consumos.topProductos}
+      color={color}
+      delay={280}
+      header={
+        <div className="mb-4 flex flex-col gap-3">
+          <div className="flex items-end gap-3">
+            <span className="text-4xl font-semibold tabular-nums leading-none text-slate-100">{intFmt.format(total)}</span>
+            <span className="mb-0.5 text-xs text-slate-500">líneas consumidas en el período</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {partes.map((p) => (
+              <div key={p.label} className="rounded-lg border border-slate-800 bg-slate-950/40 p-2">
+                <p className="text-[11px] text-slate-500">{p.label}</p>
+                <p className="text-lg font-semibold tabular-nums text-slate-100">{intFmt.format(p.n)}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Más consumidos</p>
+        </div>
+      }
+    />
+  );
+}
+
 // ---------------------------------------------------------------- Timeline
 
-function Timeline({ data, theme }: { data: HistorialResult; theme: { primary: string; secondary: string; danger: string } }) {
+function Timeline({ data, theme }: { data: HistorialResult; theme: TipoTheme }) {
   const [tipo, setTipo] = useState<MovimientoTipo | null>(null);
   const [rack, setRack] = useState<string | null>(null);
   const [q, setQ] = useState('');
@@ -337,11 +382,19 @@ function Timeline({ data, theme }: { data: HistorialResult; theme: { primary: st
     };
   }, [abierto]);
 
+  // Los consumos son muchos más que los movimientos del depósito: solo se mezclan
+  // al elegir el filtro "Consumos" o al buscar, para no taparlos en la vista normal.
+  const base = useMemo(() => {
+    if (tipo === 'consumo') return data.consumos.recientes;
+    if (q.trim() && !tipo && !rack) return [...data.recientes, ...data.consumos.recientes].sort((a, b) => b.fecha.localeCompare(a.fecha));
+    return data.recientes;
+  }, [data.recientes, data.consumos.recientes, tipo, q, rack]);
+
   const filtrados = useMemo(
     () =>
-      data.recientes.filter((m) => {
+      base.filter((m) => {
         if (tipo && m.tipo !== tipo) return false;
-        if (q && !`${m.producto} ${m.origen} ${m.destino}`.toLowerCase().includes(q.trim().toLowerCase())) return false;
+        if (q && !`${m.producto} ${m.origen} ${m.destino} ${m.referencia ?? ''}`.toLowerCase().includes(q.trim().toLowerCase())) return false;
         if (rack) {
           const celda = m.tipo === 'salida' ? m.origen : m.destino;
           const r = /^([A-F])\.\d+\.[A-F]$/.test(celda) ? `Rack ${celda[0]}` : 'Otros';
@@ -349,7 +402,7 @@ function Timeline({ data, theme }: { data: HistorialResult; theme: { primary: st
         }
         return true;
       }),
-    [data.recientes, tipo, rack, q]
+    [base, tipo, rack, q]
   );
 
   const grupos = useMemo(() => {
@@ -416,6 +469,7 @@ function Timeline({ data, theme }: { data: HistorialResult; theme: { primary: st
                         {t.verbo}
                       </span>{' '}
                       {qtyFmt.format(m.cantidad)} {m.unidad} · {m.origen} <span className="text-slate-600">→</span> {m.destino}
+                      {m.referencia && <span className="text-slate-500"> · {m.referencia}</span>}
                     </p>
                   </li>
                 );
@@ -436,12 +490,14 @@ function Timeline({ data, theme }: { data: HistorialResult; theme: { primary: st
     </>
   );
 
-  const cargados = data.recientes.length;
-  const hayMasQueCargados = data.totales.total > cargados;
-  const conteo = `${intFmt.format(filtrados.length)} de ${intFmt.format(data.totales.total)} movimientos${hayMasQueCargados ? ` (se cargan los ${intFmt.format(cargados)} más recientes)` : ''}`;
+  const esConsumo = tipo === 'consumo';
+  const total = esConsumo ? data.consumos.total : data.totales.total;
+  const cargados = base.length;
+  const hayMasQueCargados = !q.trim() && total > cargados;
+  const conteo = `${intFmt.format(filtrados.length)} de ${intFmt.format(total)} ${esConsumo ? 'consumos' : 'movimientos'}${hayMasQueCargados ? ` (se cargan los ${intFmt.format(cargados)} más recientes)` : ''}`;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex h-full flex-col gap-4">
       {abierto &&
         createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-3 backdrop-blur-sm sm:p-6" onClick={() => setAbierto(false)}>
@@ -478,7 +534,7 @@ function Timeline({ data, theme }: { data: HistorialResult; theme: { primary: st
         picked={rack}
       />
 
-      <Card title="Línea de tiempo" subtitle={conteo} delay={320}>
+      <Card title="Línea de tiempo" subtitle={conteo} delay={320} className="flex min-h-0 flex-1 flex-col">
         <div className="mb-3 flex flex-col gap-3">
           {filtros}
           <button
@@ -489,7 +545,10 @@ function Timeline({ data, theme }: { data: HistorialResult; theme: { primary: st
             ⤢ Ver línea de tiempo completa
           </button>
         </div>
-        <div className="max-h-[520px] overflow-y-auto pr-1">{lista}</div>
+        {/* En pantallas anchas la lista se estira hasta la altura de la columna de al lado; el absolute evita que su contenido agrande la fila. */}
+        <div className="relative min-h-[420px] flex-1">
+          <div className="absolute inset-0 overflow-y-auto pr-1">{lista}</div>
+        </div>
       </Card>
     </div>
   );
@@ -557,6 +616,7 @@ function HistorialInner() {
                 <Ranking titulo="Productos más movidos" items={query.data.topProductos} color="rgb(var(--status-green))" delay={200} />
                 <Ranking titulo="Ubicaciones más activas" subtitulo="Celdas con más movimientos" items={query.data.topUbicaciones} color="rgb(var(--status-yellow))" delay={260} />
               </div>
+              <Consumos data={query.data} color={theme.warn} />
             </div>
             <div className="min-w-0">
               <Timeline data={query.data} theme={theme} />

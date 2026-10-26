@@ -1,4 +1,4 @@
-import { searchRead, searchReadAll, searchCount } from './client';
+import { searchRead, searchReadAll, searchCount, readGroup } from './client';
 import { withTtlCache, cacheKey } from '@/lib/cache';
 
 /**
@@ -240,7 +240,7 @@ export async function getUltimosMovimientos(): Promise<MovimientoRow[]> {
 export type HistorialRango = 'hoy' | '7d' | '30d' | '12m';
 export const HISTORIAL_RANGOS: HistorialRango[] = ['hoy', '7d', '30d', '12m'];
 
-export type MovimientoTipo = 'entrada' | 'salida' | 'interno';
+export type MovimientoTipo = 'entrada' | 'salida' | 'interno' | 'consumo';
 
 export interface HistorialMovimiento {
   id: number;
@@ -251,6 +251,19 @@ export interface HistorialMovimiento {
   destino: string;
   tipo: MovimientoTipo;
   fecha: string;
+  /** Orden que originó el movimiento (WH/MO/…, WH/RO/…). Solo viene en los consumos. */
+  referencia?: string;
+}
+
+export interface HistorialConsumos {
+  /** Líneas consumidas de PRE-PRODUCCION en el período. */
+  total: number;
+  fabricacion: number;
+  reparacion: number;
+  otros: number;
+  topProductos: HistorialTop[];
+  /** Los más recientes (con tope), para mezclar en la línea de tiempo. */
+  recientes: HistorialMovimiento[];
 }
 
 export interface HistorialBucket {
@@ -279,6 +292,7 @@ export interface HistorialResult {
   topProductos: HistorialTop[];
   topUbicaciones: HistorialTop[];
   recientes: HistorialMovimiento[];
+  consumos: HistorialConsumos;
   /** true si se alcanzó el tope de filas leídas (los números serían un piso, no el total exacto). */
   truncado: boolean;
 }
@@ -286,6 +300,7 @@ export interface HistorialResult {
 const HISTORIAL_TTL_MS = 2 * 60 * 1000;
 const HISTORIAL_MAX_ROWS = 30000;
 const HISTORIAL_RECIENTES = 2000;
+const CONSUMOS_RECIENTES = 2000; // por grupo (fabricación / resto)
 const BA_OFFSET_MS = -3 * 60 * 60 * 1000; // Argentina no tiene horario de verano: UTC-3 fijo.
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -350,6 +365,7 @@ export async function getHistorialMovimientos(rango: HistorialRango): Promise<Hi
       location_dest_id: [number, string] | false;
       date: string;
     };
+    type ConsumoRow = Row & { reference: string | false };
     const now = Date.now();
     const { inicio, inicioAnterior } = rangoInicio(rango, now);
 
@@ -360,7 +376,28 @@ export async function getHistorialMovimientos(rango: HistorialRango): Promise<Hi
       ['location_dest_id.complete_name', 'like', 'WH/Existencias/%'],
     ];
 
-    const [allRows, totalAnterior] = await Promise.all([
+    // Consumos: lo que sale de PRE-PRODUCCION hacia Producción (órdenes de fabricación y
+    // reparaciones). Son ~16 veces más que los movimientos del depósito, así que se
+    // agregan aparte y no entran en los totales, la serie ni el heatmap.
+    const consumoDomain = [
+      ['state', '=', 'done'],
+      ['location_id.complete_name', 'like', 'WH/PRE-PRODUCCION%'],
+      ['location_dest_id.usage', '=', 'production'],
+      ['date', '>=', odooDate(inicio)],
+    ];
+    // Reparaciones y otros son pocos y se buscan mucho: se leen aparte para que las
+    // órdenes de fabricación (miles por día) no los empujen fuera del tope.
+    const leerConsumos = (domain: unknown[]) =>
+      searchRead<ConsumoRow>({
+        model: 'stock.move.line',
+        domain: domain as never,
+        fields: ['product_id', 'quantity', 'product_uom_id', 'location_id', 'location_dest_id', 'date', 'reference'],
+        order: 'date desc',
+        limit: CONSUMOS_RECIENTES,
+      });
+    const consumoRef = (prefijo: string) => searchCount('stock.move.line', [...consumoDomain, ['reference', 'like', prefijo]] as never);
+
+    const [allRows, totalAnterior, consumoNoMO, consumoMORows, consumoTotal, consumoMO, consumoRO, consumoTop] = await Promise.all([
       searchReadAll<Row>({
         model: 'stock.move.line',
         domain: [...baseDomain, ['date', '>=', odooDate(inicio)]] as never,
@@ -369,6 +406,19 @@ export async function getHistorialMovimientos(rango: HistorialRango): Promise<Hi
         limit: 5000,
       }),
       searchCount('stock.move.line', [...baseDomain, ['date', '>=', odooDate(inicioAnterior)], ['date', '<', odooDate(inicio)]] as never),
+      leerConsumos([...consumoDomain, ['reference', 'not like', 'WH/MO/%']]),
+      leerConsumos([...consumoDomain, ['reference', 'like', 'WH/MO/%']]),
+      searchCount('stock.move.line', consumoDomain as never),
+      consumoRef('WH/MO/%'),
+      consumoRef('WH/RO/%'),
+      readGroup({
+        model: 'stock.move.line',
+        domain: consumoDomain as never,
+        fields: ['product_id'],
+        groupBy: ['product_id'],
+        orderby: '__count desc',
+        limit: 8,
+      }),
     ]);
     const rows = allRows.slice(0, HISTORIAL_MAX_ROWS);
 
@@ -463,6 +513,30 @@ export async function getHistorialMovimientos(rango: HistorialRango): Promise<Hi
     totales.productos = productos.size;
     totales.ubicaciones = ubicaciones.size;
 
+    const consumos: HistorialConsumos = {
+      total: consumoTotal,
+      fabricacion: consumoMO,
+      reparacion: consumoRO,
+      otros: Math.max(0, consumoTotal - consumoMO - consumoRO),
+      topProductos: consumoTop
+        .filter((g) => Array.isArray(g.product_id))
+        .map((g) => ({ nombre: (g.product_id as [number, string])[1], movimientos: g.__count })),
+      recientes: [...consumoNoMO, ...consumoMORows]
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .filter((r): r is ConsumoRow & { product_id: [number, string] } => Boolean(r.product_id))
+        .map((r) => ({
+          id: r.id,
+          producto: r.product_id[1],
+          cantidad: r.quantity,
+          unidad: r.product_uom_id ? formatUom(r.product_uom_id[1]) : '',
+          origen: r.location_id ? shortenLocation(r.location_id[1]) : '—',
+          destino: 'Producción',
+          tipo: 'consumo' as const,
+          fecha: new Date(`${r.date.replace(' ', 'T')}Z`).toISOString(),
+          referencia: r.reference || undefined,
+        })),
+    };
+
     return {
       rango,
       totales,
@@ -473,6 +547,7 @@ export async function getHistorialMovimientos(rango: HistorialRango): Promise<Hi
       topProductos: topN(productos, 6),
       topUbicaciones: topN(ubicaciones, 8),
       recientes,
+      consumos,
       truncado: allRows.length >= HISTORIAL_MAX_ROWS,
     };
   });
