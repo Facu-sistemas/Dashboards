@@ -65,6 +65,10 @@ export interface QuincenaEmpleadoRow {
   porTipo: QuincenaTipoHoras[];
   horasATrabajar: number;
   fichadasHs: number;
+  /** Días hábiles con al menos una fichada. */
+  diasTrabajados: number;
+  /** Días sin fichada, sin feriado y sin licencia aprobada × 8,80 (RRHH lo revisa antes de liquidar). */
+  injustificadasHs: number;
   bancoSaldo: number;
   bancoAcreditado: number;
   bancoUsado: number;
@@ -129,7 +133,7 @@ type LeaveRow = {
 
 type HoursRow = { employee_id: M2o; number_of_hours_display: number; date_from?: string | false };
 
-type AttendanceRow = { employee_id: M2o; worked_hours: number };
+type AttendanceRow = { employee_id: M2o; worked_hours: number; check_in: string };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -238,7 +242,7 @@ export async function getRrhhQuincena(desde: string, hasta: string): Promise<Rrh
         ['check_in', '>=', `${desde} 03:00:00`],
         ['check_in', '<', `${addDaysIso(hasta, 1)} 03:00:00`],
       ],
-      fields: ['employee_id', 'worked_hours'],
+      fields: ['employee_id', 'worked_hours', 'check_in'],
     }),
   ]);
 
@@ -276,7 +280,16 @@ export async function getRrhhQuincena(desde: string, hasta: string): Promise<Rrh
   for (const l of bancoLicencias) if (l.employee_id) sumar(tomadoTotal, l.employee_id[0], l.number_of_hours_display);
 
   const fichadasHs = new Map<number, number>();
-  for (const a of attendance) if (a.employee_id) sumar(fichadasHs, a.employee_id[0], a.worked_hours);
+  const diasFichados = new Map<number, Set<string>>();
+  for (const a of attendance) {
+    if (!a.employee_id) continue;
+    sumar(fichadasHs, a.employee_id[0], a.worked_hours);
+    const dia = fechaArgentina(a.check_in);
+    if (esFinDeSemana(dia)) continue;
+    const dias = diasFichados.get(a.employee_id[0]) ?? new Set<string>();
+    dias.add(dia);
+    diasFichados.set(a.employee_id[0], dias);
+  }
 
   const licenciasPorEmpleado = new Map<number, LeaveRow[]>();
   for (const l of leaves) {
@@ -385,6 +398,9 @@ export async function getRrhhQuincena(desde: string, hasta: string): Promise<Rrh
       alertas.push({ tipo: 'banco-negativo', nivel: 'aviso', detalle: `Saldo de banco de horas negativo (${round2(saldo)} hs).` });
     }
 
+    const diasTrabajados = diasFichados.get(e.id)?.size ?? 0;
+    const diasSinJustificar = Math.max(0, Math.round(Math.max(0, horasEsperadas - feriadosHs - tiempoPersonalHs) / HORAS_DIA) - diasTrabajados);
+
     return {
       id: e.id,
       nombre: e.name,
@@ -402,6 +418,8 @@ export async function getRrhhQuincena(desde: string, hasta: string): Promise<Rrh
       porTipo,
       horasATrabajar: round2(Math.max(0, horasEsperadas - feriadosHs - tiempoPersonalHs)),
       fichadasHs: round2(fichadasHs.get(e.id) ?? 0),
+      diasTrabajados,
+      injustificadasHs: round2(diasSinJustificar * HORAS_DIA),
       bancoSaldo: round2(saldo),
       bancoAcreditado: round2(bancoAcreditado.get(e.id) ?? 0),
       bancoUsado: round2(bancoUsado),

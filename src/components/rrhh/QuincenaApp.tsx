@@ -160,7 +160,6 @@ function QuincenaInner({ hoy }: Props) {
   async function exportarExcel() {
     if (!data) return;
     const XLSX = await import('xlsx');
-    const tipos = data.porTipo.map((t) => t.tipo);
     // Ninguna columna sale negativa: el banco en contra va en su propia columna, en positivo.
     const noNeg = (v: number) => Math.max(0, v);
     const hhmm = (v: number) => {
@@ -168,31 +167,60 @@ function QuincenaInner({ hoy }: Props) {
       return `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')}`;
     };
     // Siempre todos los empleados activos (aunque no hayan fichado ni tengan licencias), sin importar los filtros de pantalla.
-    const filas = allRows.map((r) => ({
-      Legajo: r.legajo ?? '',
-      CUIL: r.cuil ?? '',
-      Empleado: r.nombre,
-      Convenio: r.convenio ?? '',
-      'Centro de costo': r.centroCosto ?? '',
-      Supervisor: r.supervisor ?? '',
-      'Días hábiles': r.diasHabiles,
-      'Horas de jornada': noNeg(r.horasEsperadas),
-      'Feriados (hs)': noNeg(r.feriadosHs),
-      ...Object.fromEntries(tipos.map((t) => [`${t} (hs)`, noNeg(r.porTipo.find((x) => x.tipo === t)?.horas ?? 0)])),
-      'Tiempo personal total (hs)': noNeg(r.tiempoPersonalHs),
-      'Horas a trabajar': noNeg(r.horasATrabajar),
-      'Fichadas (hs)': noNeg(r.fichadasHs),
-      'Fichadas (hh:mm)': hhmm(r.fichadasHs),
-      'Banco: acreditado (hs)': noNeg(r.bancoAcreditado),
-      'Banco: acreditado (hh:mm)': hhmm(r.bancoAcreditado),
-      'Banco: usado (hs)': noNeg(r.bancoUsado),
-      'Banco: usado (hh:mm)': hhmm(r.bancoUsado),
-      'Banco: saldo a favor (hs)': noNeg(r.bancoSaldo),
-      'Banco: saldo en contra (hs)': noNeg(-r.bancoSaldo),
-      'Licencias sin aprobar (hs)': noNeg(r.pendientesHs),
-      Diferencias: r.alertas.map((a) => a.detalle).join(' | '),
-    }));
-    const ws = XLSX.utils.json_to_sheet(filas);
+    // Formato de la planilla BASE RELOJ FICHADOR: encabezados en la fila 4, datos desde la fila 5, columnas A–AI fijas.
+    // Cada licencia sale en su columna; un día de banco usado se informa como 8,80 aunque Odoo descuente 8,30 del saldo.
+    const COLUMNAS_LICENCIA: [string, string[]][] = [
+      ['Accidente', ['Accidente']],
+      ['Tramite', ['Tramite']],
+      ['Enfermedad', ['Baja por enfermedad']],
+    ];
+    const COLUMNAS_LICENCIA_2: [string, string[]][] = [
+      ['Vacaciones', ['Vacaciones']],
+      ['Matrimonio', ['Matrimonio']],
+      ['Exam. Prenupcial', ['Examen prenupcial', 'Exam. Prenupcial']],
+      ['Nacimiento', ['Nacimiento']],
+      ['Fallecimiento', ['Fallecimiento']],
+      ['Mudanza', ['Mudanza']],
+      ['Estudio', ['Estudio']],
+      ['Donación Sangre', ['Donación de sangre']],
+      ['Bombero', ['Bombero']],
+      ['Permiso Gremial', ['Permiso gremial']],
+      ['Lactancia', ['Lactancia']],
+      ['Casamiento Hijo', ['Casamiento de hijo', 'Casamiento hijo']],
+      ['Día CCT', ['Dia convenio']],
+    ];
+    const horasTipo = (r: QuincenaEmpleadoRow, nombres: string[]) =>
+      noNeg(r.porTipo.filter((x) => nombres.includes(x.tipo)).reduce((s, x) => s + x.horas, 0));
+    const d2 = (v: number) => Math.round(noNeg(v) * 100) / 100;
+    // Legajo sin agrupamiento ni ceros: "01/0602" → 602.
+    const legajoSinCeros = (l: string | null) => {
+      const n = Number((l ?? '').split('/').pop());
+      return Number.isFinite(n) && n > 0 ? n : '';
+    };
+    const encabezados = [
+      'Departamento', 'ID de usuario', 'Nombre', 'Laborales [Días]', 'Trabajados [Días]', 'Llegadas tarde [Horas]',
+      'Salidas temprano [Horas]', 'Ausente [Horas]', 'Tiempo extra [Horas]', 'Tiempo trabajado [Horas]', 'Presentismo',
+      'Break Time', ...COLUMNAS_LICENCIA.map(([c]) => c), 'AVISO', ...COLUMNAS_LICENCIA_2.map(([c]) => c),
+      'Situación Laboral', 'Banco de horas', 'Lic x Maternidad', 'Injustificadas', '', 'control',
+      // Extras de control, a la derecha de la columna AI para no correr las que toma la planilla.
+      'CUIL', 'Convenio', 'Centro de costo', 'Supervisor', 'Tiempo trabajado (hh:mm)', 'Banco: saldo a favor (hs)',
+      'Banco: saldo en contra (hs)', 'Licencias sin aprobar (hs)', 'Diferencias',
+    ];
+    const filas = allRows.map((r) => {
+      const fichadas = d2(r.fichadasHs);
+      const licenciasHs = r.tiempoPersonalHs;
+      return [
+        r.departamento ?? '', legajoSinCeros(r.legajo), r.nombre, r.diasHabiles - Math.round(r.feriadosHs / 8.8), r.diasTrabajados,
+        0, 0, 0, 0, fichadas, r.diasTrabajados * 10, 0,
+        ...COLUMNAS_LICENCIA.map(([, n]) => d2(horasTipo(r, n))), 0,
+        ...COLUMNAS_LICENCIA_2.map(([, n]) => d2(horasTipo(r, n))),
+        0, d2(r.bancoUsado), d2(horasTipo(r, ['Licencia por maternidad'])), d2(r.injustificadasHs), '',
+        d2(fichadas + licenciasHs),
+        r.cuil ?? '', r.convenio ?? '', r.centroCosto ?? '', r.supervisor ?? '', hhmm(r.fichadasHs), noNeg(r.bancoSaldo),
+        noNeg(-r.bancoSaldo), noNeg(r.pendientesHs), r.alertas.map((a) => a.detalle).join(' | '),
+      ];
+    });
+    const ws = XLSX.utils.aoa_to_sheet([[], [], [], encabezados, ...filas]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Horas');
     XLSX.writeFile(wb, `rrhh-horas-${data.desde}_${data.hasta}.xlsx`);
