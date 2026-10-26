@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import type { LineaPlan } from '@/lib/lineas-sillon/plan';
+import { LOGO_GRIS_PNG_BASE64 } from '@/lib/logos';
 import { porcentaje } from './lineas-sillon-shared';
 
 /**
@@ -18,6 +19,11 @@ const ALTO_TITULO = 28;
 const ALTO_FILA_CAB = 14;
 const ALTO_BLANCO = 10;
 const GROSOR = 0.4;
+/** Franja superior con el logo y la fecha, arriba de los tres bloques. */
+const ALTO_ENCABEZADO = 26;
+const LOGO_ANCHO = 72;
+const LOGO_ALTO = LOGO_ANCHO / (389 / 116); // proporción real del PNG embebido
+const TOP = MARGEN + ALTO_ENCABEZADO;
 
 const ue = (x: number) => x.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -50,7 +56,7 @@ function bloque(
   const esUltimo = estacion === 2;
   const anchoCuerpo = esUltimo ? anchoBloque - ANCHO_UE : anchoBloque;
   const anchoProd = anchoCuerpo - ANCHO_NUM - ANCHO_HORA;
-  let y = MARGEN;
+  let y = TOP;
 
   // Título "LINEA N"
   doc.setFont('helvetica', 'normal').setFontSize(16);
@@ -107,6 +113,17 @@ function bloque(
   }
 }
 
+const fechaCompleta = (iso: string) =>
+  new Date(`${iso}T00:00:00Z`).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+
+/** Logo chico a la izquierda y fecha completa de la producción al centro. */
+function encabezado(doc: jsPDF, hoy: string, ancho: number) {
+  doc.addImage(`data:image/png;base64,${LOGO_GRIS_PNG_BASE64}`, 'PNG', MARGEN, MARGEN - 6, LOGO_ANCHO, LOGO_ALTO);
+  doc.setFont('helvetica', 'bold').setFontSize(11).setTextColor(0);
+  doc.text(fechaCompleta(hoy).toUpperCase(), ancho / 2, MARGEN + 6, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+}
+
 /** Devuelve false si no hay nada para imprimir (ninguna línea con unidades hoy). */
 export function generarPdfSillon(lineas: LineaPlan[], hoy: string, pie: string, archivo: string): boolean {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
@@ -115,7 +132,7 @@ export function generarPdfSillon(lineas: LineaPlan[], hoy: string, pie: string, 
   const alto = doc.internal.pageSize.getHeight();
   const base = (ancho - 2 * MARGEN - 2 * GAP - ANCHO_UE) / 3;
   const anchos = [base, base, base + ANCHO_UE];
-  const yDatos = MARGEN + ALTO_TITULO + 2 * ALTO_FILA_CAB + ALTO_FILA_CAB + ALTO_BLANCO;
+  const yDatos = TOP + ALTO_TITULO + 2 * ALTO_FILA_CAB + ALTO_FILA_CAB + ALTO_BLANCO;
   const altoFila = (alto - MARGEN - 14 - yDatos) / FILAS_POR_HOJA;
 
   let primera = true;
@@ -124,6 +141,7 @@ export function generarPdfSillon(lineas: LineaPlan[], hoy: string, pie: string, 
     for (let desde = 0; desde < n; desde += FILAS_POR_HOJA) {
       if (!primera) doc.addPage();
       primera = false;
+      encabezado(doc, hoy, ancho);
       let x = MARGEN;
       anchos.forEach((a, i) => {
         bloque(doc, x, a, lp, i, hoy, desde, altoFila);
