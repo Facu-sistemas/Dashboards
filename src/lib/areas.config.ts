@@ -204,6 +204,7 @@ export const AREAS: AreaConfig[] = [
     tabs: [
       { slug: 'reconocer', name: 'Reconocer' },
       { slug: 'registrar', name: 'Registrar' },
+      { slug: 'aviso', name: 'Aviso de privacidad' },
     ],
   },
   {

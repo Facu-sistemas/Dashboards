@@ -12,6 +12,7 @@ const esDev = Astro.locals.usuario?.rol === 'dev';
       La cámara se abre sola y reconoce al empleado. Al reconocerlo, el botón Fichar registra la entrada o la salida en
       Odoo (asistencias). Usá "Pantalla completa" para dejar el celular fijo como quiosco.
     </p>
+    <p class="mt-2 text-xs"><a href="/fichaje/aviso" class="text-brand-400 hover:underline">Ver aviso de privacidad</a></p>
   </header>
 
   <FichajeReconocerApp client:only="react" esDev={esDev} />

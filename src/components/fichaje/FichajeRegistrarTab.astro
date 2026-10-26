@@ -11,6 +11,7 @@ const esDev = Astro.locals.usuario?.rol === 'dev';
       Registro de la cara de un empleado de Odoo con 5 muestras. Se guardan vectores numéricos, no fotos. La lista de
       registrados y la baja de caras se manejan desde la administración.
     </p>
+    <p class="mt-2 text-xs"><a href="/fichaje/aviso" class="text-brand-400 hover:underline">Ver aviso de privacidad</a></p>
   </header>
 
   <FichajeRegistrarApp client:only="react" esDev={esDev} />

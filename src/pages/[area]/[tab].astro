@@ -32,6 +32,7 @@ import LineasSillonTab from '@/components/test/LineasSillonTab.astro';
 import CalidadCncTab from '@/components/calidad/CalidadCncTab.astro';
 import FichajeReconocerTab from '@/components/fichaje/FichajeReconocerTab.astro';
 import FichajeRegistrarTab from '@/components/fichaje/FichajeRegistrarTab.astro';
+import FichajeAvisoTab from '@/components/fichaje/FichajeAvisoTab.astro';
 import VentasTab from '@/components/gerencia/VentasTab.astro';
 import ProduccionGerenciaTab from '@/components/gerencia/ProduccionTab.astro';
 import ProduccionDetalleTab from '@/components/gerencia/ProduccionDetalleTab.astro';
@@ -95,6 +96,7 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
   {area.slug === 'test' && tabSlug === 'lineas-sillon' && <LineasSillonTab />}
   {area.slug === 'fichaje' && tabSlug === 'reconocer' && <FichajeReconocerTab />}
   {area.slug === 'fichaje' && tabSlug === 'registrar' && <FichajeRegistrarTab />}
+  {area.slug === 'fichaje' && tabSlug === 'aviso' && <FichajeAvisoTab />}
   {area.slug === 'gerencia-general' && tabSlug === 'ventas' && <VentasTab />}
   {area.slug === 'gerencia-general' && tabSlug === 'produccion' && <ProduccionGerenciaTab />}
   {area.slug === 'gerencia-general' && tabSlug === 'detalle-produccion' && <ProduccionDetalleTab />}

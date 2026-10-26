@@ -1,0 +1,101 @@
+---
+// Aviso de privacidad del fichaje facial: texto fijo, visible para cualquier cuenta con acceso al área Fichaje.
+// Describe lo que el sistema hace de verdad; si cambia el funcionamiento (qué se guarda, quién accede), actualizarlo acá.
+---
+
+<div class="max-w-3xl">
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Aviso de privacidad del fichaje facial</h2>
+    <p class="mt-2 text-sm font-medium text-slate-200">
+      Este sistema no guarda fotos ni videos de nadie: guarda solo números que sirven para comparar caras, y los usa
+      únicamente para registrar la entrada y la salida.
+    </p>
+  </header>
+
+  <div class="flex flex-col gap-6 text-sm text-slate-300">
+    <section class="flex flex-col gap-2">
+      <h3 class="font-semibold text-slate-100">Qué se guarda y qué no</h3>
+      <div class="overflow-hidden rounded-lg border border-slate-800">
+        <table class="w-full text-left">
+          <thead class="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-400">
+            <tr>
+              <th class="px-4 py-2">Dato</th>
+              <th class="px-4 py-2">¿Se guarda?</th>
+              <th class="px-4 py-2">Dónde</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-800">
+            <tr><td class="px-4 py-2">Foto o video de la cara</td><td class="px-4 py-2">No</td><td class="px-4 py-2">En ningún lado</td></tr>
+            <tr><td class="px-4 py-2">Audio o ubicación del celular</td><td class="px-4 py-2">No</td><td class="px-4 py-2">En ningún lado</td></tr>
+            <tr><td class="px-4 py-2">Plantilla numérica (5 por persona)</td><td class="px-4 py-2">Sí</td><td class="px-4 py-2">Base de datos del sistema de fichaje</td></tr>
+            <tr><td class="px-4 py-2">Nombre y número de empleado de Odoo</td><td class="px-4 py-2">Sí</td><td class="px-4 py-2">Base de datos del sistema de fichaje y Odoo</td></tr>
+            <tr><td class="px-4 py-2">Fecha y hora de cada entrada y salida</td><td class="px-4 py-2">Sí</td><td class="px-4 py-2">Asistencias de Odoo, como en el quiosco habitual</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="flex flex-col gap-2">
+      <h3 class="font-semibold text-slate-100">Cómo funciona</h3>
+      <ul class="list-disc space-y-1 pl-5">
+        <li>Al registrarse, la cámara toma 5 capturas momentáneas. En ese mismo celular cada captura se convierte en una lista de 128 números (la "plantilla") y la imagen se descarta en el acto: no se guarda ni se envía a ningún servidor.</li>
+        <li>La plantilla no es una imagen y no se puede mostrar como tal. Aun así permite identificar a una persona, por eso se trata como un dato personal biométrico y se protege como tal.</li>
+        <li>Para reconocer, el celular de fichaje carga las plantillas del personal registrado en su memoria mientras se usa; no quedan guardadas de forma permanente en el aparato.</li>
+        <li>Solo si la persona aprieta el botón Fichar se registra la entrada o la salida en Odoo.</li>
+      </ul>
+    </section>
+
+    <section class="flex flex-col gap-2">
+      <h3 class="font-semibold text-slate-100">Para qué se usan y para qué no</h3>
+      <p>Las plantillas se usan únicamente para identificar a cada persona al fichar. No se usan para:</p>
+      <ul class="list-disc space-y-1 pl-5">
+        <li>Vigilar a las personas, seguir sus movimientos ni medir su desempeño o productividad.</li>
+        <li>Analizar emociones, edad, género, origen, salud ni ninguna otra característica personal. El sistema no incluye esas funciones.</li>
+        <li>Identificar a las personas en otros lugares o sistemas, ni cruzarse con otras bases de datos.</li>
+        <li>Fines comerciales, ni venderse o cederse a terceros ajenos al servicio.</li>
+      </ul>
+    </section>
+
+    <section class="flex flex-col gap-2">
+      <h3 class="font-semibold text-slate-100">Quién accede y dónde se guardan</h3>
+      <ul class="list-disc space-y-1 pl-5">
+        <li>Las plantillas están en una base de datos del sistema alojada en un proveedor de nube, con acceso restringido: solo el servidor del sistema puede leerlas o escribirlas, y la comunicación va cifrada (HTTPS).</li>
+        <li>El celular de fichaje usa una cuenta que solo habilita el módulo de Fichaje y no puede eliminar registros.</li>
+        <li>Solo los administradores de Sistemas ven la lista de personas registradas (nombre, cantidad de muestras y fecha) y pueden eliminar registros. La pantalla de administración no muestra las plantillas.</li>
+      </ul>
+    </section>
+
+    <section class="flex flex-col gap-2">
+      <h3 class="font-semibold text-slate-100">Cuánto tiempo se conservan</h3>
+      <p>
+        La plantilla de una persona se elimina cuando termina su relación laboral con Frontera Living, cuando deja de usar el
+        fichaje facial o cuando ella lo pide. Los registros de entrada y salida en Odoo no dependen de las plantillas y se conservan
+        según las normas laborales y la política de RRHH.
+      </p>
+    </section>
+
+    <section class="flex flex-col gap-2">
+      <h3 class="font-semibold text-slate-100">Tus derechos</h3>
+      <p>
+        Según la Ley 25.326 de Protección de los Datos Personales, cada persona puede pedir acceder a sus datos, corregirlos,
+        eliminarlos o retirar su consentimiento en cualquier momento. Para hacerlo, escribí al área de Sistemas o a RRHH de
+        Frontera Living. La Agencia de Acceso a la Información Pública es el órgano de control de esa ley y atiende las
+        denuncias y reclamos por incumplimientos.
+      </p>
+    </section>
+
+    <section class="flex flex-col gap-2">
+      <h3 class="font-semibold text-slate-100">Uso correcto</h3>
+      <p>
+        Cada persona ficha solo con su propia cara y revisa que el nombre en pantalla sea el suyo antes de apretar Fichar. El
+        reconocimiento facial no es infalible: puede no reconocer a alguien o, en casos poco frecuentes, confundirlo con una
+        persona parecida. Si pasa, RRHH corrige el registro de asistencia a pedido de la persona.
+      </p>
+    </section>
+
+    <p class="text-xs text-slate-500">
+      Este aviso complementa el consentimiento sobre datos biométricos que cada persona ya otorgó a Frontera Living. Versión 1 ·
+      octubre de 2026.
+    </p>
+  </div>
+</div>
