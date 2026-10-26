@@ -93,8 +93,9 @@ export default function LineasSillonLineas({ data, onSaved }: { data: LineasSill
     <div className="space-y-3">
       <p className="text-xs text-slate-400">
         Habilitá o apagá cada línea (la 8 no siempre trabaja) y asigná las personas de cada puesto. El <strong>adelanto</strong> es el trabajo
-        que quedó hecho del día anterior en la estación de arriba: con 0, tapicería espera a que carpintería termine cada unidad; con 3, las tres
-        primeras ya están listas para tapicería desde las 06:00.
+        que ya viene hecho de la estación de arriba: con un número alto (200, el valor inicial) las tres estaciones arrancan a las 06:00 en
+        paralelo, igual que la planilla; con 0, tapicería espera a que carpintería termine cada unidad; con 3, las tres primeras ya están
+        listas para tapicería desde las 06:00.
       </p>
       <div className="grid gap-4 lg:grid-cols-2">
         {data.config.lineas.map((l) => (

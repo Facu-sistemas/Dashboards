@@ -75,7 +75,7 @@ export function armarPlan(ordenes: OrdenSillon[], config: ConfigSillon, hoy: str
     const dato = productos.find((p) => p.nombre === m.producto);
     if (!dato?.minutos || !porLinea.has(m.linea)) continue;
     for (let i = 0; i < m.cantidad; i++) {
-      porLinea.get(m.linea)!.push({ producto: dato.nombre, origen: m.nota || 'Manual', minutos: dato.minutos, manual: true });
+      porLinea.get(m.linea)!.push({ producto: dato.nombre, origen: m.nota || 'Manual', minutos: dato.minutos, personas: dato.personas ?? 5, manual: true });
       carga.set(m.linea, carga.get(m.linea)! + dato.minutos);
     }
   }
@@ -123,7 +123,7 @@ export function armarPlan(ordenes: OrdenSillon[], config: ConfigSillon, hoy: str
     }
     const lista = porLinea.get(linea)!;
     for (let i = 0; i < n; i++) {
-      lista.push({ producto: dato.nombre, origen: o.nombre, minutos: dato.minutos, manual: false });
+      lista.push({ producto: dato.nombre, origen: o.nombre, minutos: dato.minutos, personas: dato.personas ?? 5, manual: false });
     }
     carga.set(linea, carga.get(linea)! + dato.minutos * n);
   }

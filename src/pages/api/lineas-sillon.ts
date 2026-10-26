@@ -1,19 +1,22 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { getOrdenesSillon } from '@/lib/odoo/lineas-sillon';
+import { getEmpleadosActivos } from '@/lib/odoo/employees';
 import {
   PUESTOS_PERSONA,
   SLOTS,
   agregarManual,
   borrarManual,
   borrarPersona,
+  fijarPlan,
   getConfigSillon,
+  getPlanFijado,
   guardarPersona,
   setAlias,
   setLinea,
   setTiempo,
 } from '@/lib/supabase/lineas-sillon';
-import { armarPlan, catalogoDe } from '@/lib/lineas-sillon/plan';
+import { armarPlan, catalogoDe, type PlanSillon } from '@/lib/lineas-sillon/plan';
 import { NUM_LINEAS } from '@/lib/lineas-sillon/engine';
 import { handleApiRoute, jsonResponse, ApiValidationError } from '@/lib/api-helpers';
 
@@ -27,6 +30,11 @@ function requireTestAccess(context: { locals: App.Locals }): Response | null {
 }
 
 const hoyArgentina = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date());
+const horaArgentina = () =>
+  Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', hour12: false }).format(new Date()));
+
+/** Si todavía no hay foto del día y es temprano (antes de las 9), la primera vez que se abre la pantalla queda fijada: es el plan de las 6. */
+const HORA_LIMITE_FOTO_AUTO = 9;
 
 // GET /api/lineas-sillon?repartir=1 — plan de hoy + configuración editable.
 // `repartir=1` reparte las órdenes sin línea entre las líneas habilitadas.
@@ -35,8 +43,20 @@ export const GET: APIRoute = async (context) => {
   if (denied) return denied;
   const repartir = new URL(context.request.url).searchParams.get('repartir') === '1';
   return handleApiRoute(async () => {
-    const [ordenes, config] = await Promise.all([getOrdenesSillon(), getConfigSillon()]);
-    return { plan: armarPlan(ordenes, config, hoyArgentina(), repartir), config };
+    const hoy = hoyArgentina();
+    const [ordenes, config, empleados, fijadoPrevio] = await Promise.all([
+      getOrdenesSillon(),
+      getConfigSillon(),
+      getEmpleadosActivos(),
+      getPlanFijado<PlanSillon>(hoy),
+    ]);
+    const plan = armarPlan(ordenes, config, hoy, repartir);
+    let fijado = fijadoPrevio;
+    if (!fijado && config.disponible && horaArgentina() < HORA_LIMITE_FOTO_AUTO) {
+      await fijarPlan(hoy, plan, 'automático');
+      fijado = await getPlanFijado<PlanSillon>(hoy);
+    }
+    return { plan, config, empleados, fijado };
   });
 };
 
@@ -57,6 +77,7 @@ const bodySchema = z.discriminatedUnion('tipo', [
   z.object({
     tipo: z.literal('persona'),
     id: z.string().uuid().optional(),
+    empleadoId: z.number().int().positive().nullable(),
     nombre: z.string().trim().min(1).max(80),
     puesto: z.enum(PUESTOS_PERSONA as [string, ...string[]]),
     activa: z.boolean(),
@@ -73,6 +94,7 @@ const bodySchema = z.discriminatedUnion('tipo', [
     nota: z.string().trim().max(120),
   }),
   z.object({ tipo: z.literal('manual-borrar'), id: z.string().uuid() }),
+  z.object({ tipo: z.literal('fijar-plan'), repartir: z.boolean() }),
 ]);
 
 // POST /api/lineas-sillon — una escritura de configuración por llamada (ver bodySchema).
@@ -125,6 +147,12 @@ export const POST: APIRoute = async (context) => {
       case 'manual-borrar':
         await borrarManual(d.id);
         break;
+      case 'fijar-plan': {
+        const hoy = hoyArgentina();
+        const config = await getConfigSillon();
+        await fijarPlan(hoy, armarPlan(await getOrdenesSillon(), config, hoy, d.repartir), usuario);
+        break;
+      }
     }
     return { saved: true };
   });

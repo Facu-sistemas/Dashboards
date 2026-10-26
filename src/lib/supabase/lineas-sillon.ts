@@ -1,5 +1,5 @@
 import { getSupabaseAdminClient } from './admin';
-import { ADELANTO_VACIO, NUM_LINEAS, type Adelanto } from '@/lib/lineas-sillon/engine';
+import { ADELANTO_PARALELO, NUM_LINEAS, type Adelanto } from '@/lib/lineas-sillon/engine';
 
 /**
  * Configuración editable del Planificador de Líneas de sillones. Tablas creadas a
@@ -43,6 +43,15 @@ import { ADELANTO_VACIO, NUM_LINEAS, type Adelanto } from '@/lib/lineas-sillon/e
  *     actualizado_por text,
  *     updated_at timestamptz not null default now()
  *   );
+ *   alter table lineas_sillon_personas add column empleado_id integer;  -- hr.employee de Odoo
+ *   create table lineas_sillon_planes (          -- foto del plan del día (la que se imprime a las 6)
+ *     fecha date primary key,
+ *     plan jsonb not null,
+ *     creado_por text,
+ *     creado_en timestamptz not null default now()
+ *   );
+ *   alter table lineas_sillon_planes enable row level security;
+ *   grant select, insert, update, delete on lineas_sillon_planes to service_role;
  *   alter table lineas_sillon_lineas enable row level security;     -- default-deny, acceso solo vía /api
  *   alter table lineas_sillon_personas enable row level security;
  *   alter table lineas_sillon_alias enable row level security;
@@ -69,6 +78,8 @@ export const SLOT_PUESTO: Record<Slot, PuestoPersona> = {
 
 export interface PersonaSillon {
   id: string;
+  /** hr.employee de Odoo con el que se vinculó; null en las personas cargadas a mano antes del vínculo. */
+  empleadoId: number | null;
   nombre: string;
   puesto: PuestoPersona;
   activa: boolean;
@@ -103,14 +114,14 @@ const lineaDefault = (linea: number): LineaConfig => ({
   linea,
   activa: linea !== NUM_LINEAS,
   asignados: {},
-  adelanto: { ...ADELANTO_VACIO },
+  adelanto: { ...ADELANTO_PARALELO },
 });
 
 export async function getConfigSillon(): Promise<ConfigSillon> {
   const admin = getSupabaseAdminClient();
   const [lineasRes, personasRes, aliasRes, tiemposRes, manualesRes] = await Promise.all([
     admin.from('lineas_sillon_lineas').select('linea, activa, asignados, adelanto'),
-    admin.from('lineas_sillon_personas').select('id, nombre, puesto, activa, productos').order('nombre'),
+    admin.from('lineas_sillon_personas').select('*').order('nombre'),
     admin.from('lineas_sillon_alias').select('odoo_base, producto'),
     admin.from('lineas_sillon_tiempos').select('producto, minutos'),
     admin.from('lineas_sillon_manuales').select('id, linea, producto, cantidad, nota').order('updated_at'),
@@ -126,13 +137,14 @@ export async function getConfigSillon(): Promise<ConfigSillon> {
     if (!l) continue;
     l.activa = r.activa as boolean;
     l.asignados = (r.asignados ?? {}) as LineaConfig['asignados'];
-    l.adelanto = { ...ADELANTO_VACIO, ...((r.adelanto ?? {}) as Partial<Adelanto>) };
+    l.adelanto = { ...ADELANTO_PARALELO, ...((r.adelanto ?? {}) as Partial<Adelanto>) };
   }
   return {
     disponible: true,
     lineas,
     personas: (personasRes.data ?? []).map((r) => ({
       id: r.id as string,
+      empleadoId: r.empleado_id == null ? null : Number(r.empleado_id),
       nombre: r.nombre as string,
       puesto: r.puesto as PuestoPersona,
       activa: r.activa as boolean,
@@ -164,10 +176,10 @@ export async function setLinea(
 }
 
 export async function guardarPersona(
-  p: { id?: string; nombre: string; puesto: PuestoPersona; activa: boolean; productos: string[] },
+  p: { id?: string; empleadoId: number | null; nombre: string; puesto: PuestoPersona; activa: boolean; productos: string[] },
   usuario: string,
 ): Promise<void> {
-  const fila = { nombre: p.nombre, puesto: p.puesto, activa: p.activa, productos: p.productos, actualizado_por: usuario, updated_at: ahora() };
+  const fila = { empleado_id: p.empleadoId, nombre: p.nombre, puesto: p.puesto, activa: p.activa, productos: p.productos, actualizado_por: usuario, updated_at: ahora() };
   const q = getSupabaseAdminClient().from('lineas_sillon_personas');
   const { error } = p.id ? await q.update(fila).eq('id', p.id) : await q.insert(fila);
   if (error) throw new Error(error.message);
@@ -207,5 +219,34 @@ export async function agregarManual(m: Omit<ManualSillon, 'id'>, usuario: string
 
 export async function borrarManual(id: string): Promise<void> {
   const { error } = await getSupabaseAdminClient().from('lineas_sillon_manuales').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+export interface PlanFijado<T> {
+  fecha: string;
+  creadoEn: string;
+  creadoPor: string;
+  plan: T;
+}
+
+/** Foto del plan de `fecha`, o null si no hay (o si la tabla todavía no existe). */
+export async function getPlanFijado<T>(fecha: string): Promise<PlanFijado<T> | null> {
+  const { data, error } = await getSupabaseAdminClient()
+    .from('lineas_sillon_planes')
+    .select('fecha, plan, creado_por, creado_en')
+    .eq('fecha', fecha)
+    .maybeSingle();
+  if (error) {
+    console.error('[lineas-sillon] plan fijado', error.message);
+    return null;
+  }
+  if (!data) return null;
+  return { fecha: data.fecha as string, creadoEn: data.creado_en as string, creadoPor: (data.creado_por ?? '') as string, plan: data.plan as T };
+}
+
+export async function fijarPlan(fecha: string, plan: unknown, usuario: string): Promise<void> {
+  const { error } = await getSupabaseAdminClient()
+    .from('lineas_sillon_planes')
+    .upsert({ fecha, plan, creado_por: usuario, creado_en: ahora() });
   if (error) throw new Error(error.message);
 }

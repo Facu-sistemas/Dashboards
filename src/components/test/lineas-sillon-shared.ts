@@ -1,10 +1,24 @@
 import type { PlanSillon } from '@/lib/lineas-sillon/plan';
 import type { ConfigSillon, PuestoPersona, Slot } from '@/lib/supabase/lineas-sillon';
 
+export interface EmpleadoOdoo {
+  id: number;
+  nombre: string;
+  departamento: string | null;
+}
+
 export interface LineasSillonResponse {
+  /** Plan en vivo, recalculado con lo que hay ahora en Odoo. */
   plan: PlanSillon;
   config: ConfigSillon;
+  /** Empleados activos de Odoo, para vincular a cada persona. */
+  empleados: EmpleadoOdoo[];
+  /** Foto del plan de hoy (la de las 6:00), o null si todavía no se fijó. */
+  fijado: { fecha: string; creadoEn: string; creadoPor: string; plan: PlanSillon } | null;
 }
+
+const horaFmt = new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit' });
+export const horaCorta = (iso: string) => horaFmt.format(new Date(iso));
 
 /** Mismos puestos del croquis; se repiten acá para no meter el cliente de Supabase en el bundle del navegador. */
 export const SLOTS_UI: { slot: Slot; label: string; puesto: PuestoPersona }[] = [

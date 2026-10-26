@@ -7,14 +7,15 @@ import type { LineaPlan } from '@/lib/lineas-sillon/plan';
 import LineasSillonLineas from './LineasSillonLineas';
 import LineasSillonPersonas from './LineasSillonPersonas';
 import LineasSillonEquivalencias from './LineasSillonEquivalencias';
-import { SLOTS_UI, fechaLarga, porcentaje, tonoEficiencia, type LineasSillonResponse } from './lineas-sillon-shared';
+import { generarPdfSillon } from './lineas-sillon-pdf';
+import { SLOTS_UI, fechaLarga, guardarSillon, horaCorta, porcentaje, tonoEficiencia, type LineasSillonResponse } from './lineas-sillon-shared';
 
 type Vista = 'reporte' | 'lineas' | 'personas' | 'equivalencias';
 
 /** Cuántas unidades de hoy se listan por línea antes de plegar el resto. */
 const FILAS_VISIBLES = 60;
 
-function LineaCard({ lp, nombres }: { lp: LineaPlan; nombres: Map<string, string> }) {
+function LineaCard({ lp, nombres, onPdf }: { lp: LineaPlan; nombres: Map<string, string>; onPdf: () => void }) {
   const [carp, tap, ens] = lp.estaciones;
   const hoy = carp!.tramos.filter((t) => t.dia === 0);
   const filas = hoy.slice(0, FILAS_VISIBLES);
@@ -25,8 +26,15 @@ function LineaCard({ lp, nombres }: { lp: LineaPlan; nombres: Map<string, string
       <header className="border-b border-slate-800 px-3 py-2">
         <div className="flex items-baseline justify-between">
           <h3 className="text-sm font-semibold text-slate-100">Línea {lp.linea}</h3>
-          <span className="text-xs text-slate-500">
-            {hoy.length} hoy{carp!.pendientes > 0 ? ` · ${carp!.pendientes} para después` : ''}
+          <span className="flex items-center gap-3 text-xs text-slate-500">
+            <span>
+              {hoy.length} hoy{carp!.pendientes > 0 ? ` · ${carp!.pendientes} para después` : ''}
+            </span>
+            {hoy.length > 0 && (
+              <button type="button" onClick={onPdf} className="text-brand-400 hover:underline print:hidden">
+                PDF
+              </button>
+            )}
           </span>
         </div>
         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-400">
@@ -83,28 +91,96 @@ function LineaCard({ lp, nombres }: { lp: LineaPlan; nombres: Map<string, string
   );
 }
 
-function Reporte({ data, repartir, setRepartir }: { data: LineasSillonResponse; repartir: boolean; setRepartir: (v: boolean) => void }) {
-  const { plan, config } = data;
+function Reporte({
+  data,
+  repartir,
+  setRepartir,
+  onSaved,
+}: {
+  data: LineasSillonResponse;
+  repartir: boolean;
+  setRepartir: (v: boolean) => void;
+  onSaved: () => void;
+}) {
+  const { config, fijado } = data;
+  const [vista, setVista] = useState<'fijado' | 'vivo'>(fijado ? 'fijado' : 'vivo');
+  const [error, setError] = useState('');
+  const [fijando, setFijando] = useState(false);
+  const mostrandoFijado = vista === 'fijado' && fijado !== null;
+  const plan = mostrandoFijado ? fijado.plan : data.plan;
   const nombres = new Map(config.personas.map((p) => [p.id, p.nombre]));
   const activas = plan.lineas.filter((l) => l.config.activa);
   const apagadas = plan.lineas.filter((l) => !l.config.activa).map((l) => l.linea);
   const sinResolverUnidades = plan.sinResolver.reduce((a, r) => a + r.unidades, 0);
 
+  const pie = mostrandoFijado
+    ? `Plan fijado a las ${horaCorta(fijado.creadoEn)} (${fijado.creadoPor})`
+    : `Plan en vivo generado a las ${horaCorta(new Date().toISOString())}`;
+  const pdf = (lineas: LineaPlan[], archivo: string) => {
+    setError(generarPdfSillon(lineas, plan.hoy, pie, archivo) ? '' : 'No hay unidades para imprimir.');
+  };
+
+  const fijar = async () => {
+    if (fijado && !window.confirm('Ya hay un plan fijado hoy. ¿Reemplazarlo por el plan actual?')) return;
+    setFijando(true);
+    setError('');
+    try {
+      await guardarSillon({ tipo: 'fijar-plan', repartir });
+      onSaved();
+      setVista('fijado');
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setFijando(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 print:hidden">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="inline-flex rounded-lg border border-slate-800 bg-slate-900/60 p-1">
+          <button
+            type="button"
+            disabled={!fijado}
+            onClick={() => setVista('fijado')}
+            className={`rounded px-3 py-1 text-xs disabled:opacity-40 ${mostrandoFijado ? 'bg-brand-500/15 text-brand-400' : 'text-slate-400'}`}
+          >
+            {fijado ? `Plan de las ${horaCorta(fijado.creadoEn)}` : 'Plan fijado (todavía no hay)'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setVista('vivo')}
+            className={`rounded px-3 py-1 text-xs ${!mostrandoFijado ? 'bg-brand-500/15 text-brand-400' : 'text-slate-400'}`}
+          >
+            En vivo
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={() => void fijar()}
+          disabled={fijando}
+          className="rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-slate-500 disabled:opacity-50"
+        >
+          {fijando ? 'Fijando…' : 'Fijar el plan actual como el del día'}
+        </button>
+        <button
+          type="button"
+          onClick={() => pdf(activas, `lineas-sillon-${plan.hoy}.pdf`)}
+          className="rounded bg-brand-500/20 px-3 py-1.5 text-xs text-brand-400 hover:bg-brand-500/30"
+        >
+          Descargar PDF (todas las líneas)
+        </button>
         <label className="inline-flex items-center gap-2 text-xs text-slate-300">
           <input type="checkbox" checked={repartir} onChange={(e) => setRepartir(e.target.checked)} />
           Repartir las órdenes sin línea entre las líneas habilitadas
         </label>
-        <button
-          type="button"
-          onClick={() => window.print()}
-          className="rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-slate-500"
-        >
-          Imprimir reporte
-        </button>
+        {error && <span className="text-xs text-rose-400">{error}</span>}
       </div>
+      {!mostrandoFijado && fijado && (
+        <p className="text-xs text-amber-300">
+          Estás viendo el plan en vivo: lo que ya se fabricó desde las {horaCorta(fijado.creadoEn)} no aparece y los horarios se recalculan.
+        </p>
+      )}
 
       <div className="flex flex-wrap gap-2 text-xs">
         {sinResolverUnidades > 0 && (
@@ -131,7 +207,7 @@ function Reporte({ data, repartir, setRepartir }: { data: LineasSillonResponse; 
 
       <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
         {activas.map((lp) => (
-          <LineaCard key={lp.linea} lp={lp} nombres={nombres} />
+          <LineaCard key={lp.linea} lp={lp} nombres={nombres} onPdf={() => pdf([lp], `linea-${lp.linea}-${plan.hoy}.pdf`)} />
         ))}
       </div>
       {activas.length === 0 && <p className="py-8 text-center text-sm text-slate-500">No hay líneas habilitadas.</p>}
@@ -191,7 +267,7 @@ function Inner() {
         <p className="rounded-lg border border-rose-500/30 bg-rose-500/5 p-4 text-sm text-rose-300">{(query.error as Error).message}</p>
       )}
 
-      {data && vista === 'reporte' && <Reporte data={data} repartir={repartir} setRepartir={setRepartir} />}
+      {data && vista === 'reporte' && <Reporte data={data} repartir={repartir} setRepartir={setRepartir} onSaved={refrescar} />}
       {data && vista === 'lineas' && <LineasSillonLineas data={data} onSaved={refrescar} />}
       {data && vista === 'personas' && <LineasSillonPersonas data={data} onSaved={refrescar} />}
       {data && vista === 'equivalencias' && <LineasSillonEquivalencias data={data} onSaved={refrescar} />}

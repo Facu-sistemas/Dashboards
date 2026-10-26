@@ -24,6 +24,13 @@ export const ESTACIONES: ReadonlyArray<{ id: EstacionId; nombre: string; puesto:
 
 export type Adelanto = Record<EstacionId, number>;
 export const ADELANTO_VACIO: Adelanto = { carpinteria: 0, tapiceria: 0, ensamble: 0 };
+/** Sin espera entre estaciones: las tres arrancan a las 06:00 con la misma lista, como la planilla. Es el punto de partida de cada línea. */
+export const ADELANTO_PARALELO: Adelanto = { carpinteria: 0, tapiceria: 200, ensamble: 200 };
+
+/** Minutos de trabajo de una persona-jornada que usa la planilla para las Unidades Equivalentes (U.E.). */
+export const MIN_POR_UE = 244;
+/** Hora de cierre de la jornada contra la que la planilla mide la eficiencia (06:00 + 488 min + desayuno). */
+export const CIERRE_SEG = 14 * 3600 + 8 * 60;
 
 export interface ProductoDato {
   nombre: string;
@@ -96,6 +103,8 @@ export interface UnidadPlan {
   /** Referencia legible: orden de Odoo, o la nota de una carga manual. */
   origen: string;
   minutos: number;
+  /** Personas que trabajan la estación (hoja DATOS): pesa en las U.E. */
+  personas: number;
   manual: boolean;
 }
 
@@ -110,6 +119,10 @@ export interface Tramo {
   dia: number;
   iniReloj: string;
   finReloj: string;
+  /** Segundos desde medianoche en que termina, para medir la eficiencia como la planilla. */
+  finRelojSeg: number;
+  /** Unidades equivalentes acumuladas hasta esta unidad inclusive (columna U.E. de la planilla). */
+  ueAcum: number;
 }
 
 export interface EstacionPlan {
@@ -117,14 +130,14 @@ export interface EstacionPlan {
   nombre: string;
   puesto: string;
   tramos: Tramo[];
-  /** Minutos de trabajo del día 0 respecto de la jornada (1 = 100%). Igual que la fila de eficiencia de la planilla. */
+  /** Hora de fin de la última unidad de hoy sobre las 14:08 de cierre (1 = 100%). Igual que la fila de eficiencia de la planilla. */
   eficiencia: number;
   /** Primera unidad que arranca mañana o después. */
   pendientes: number;
 }
 
 /** Minuto de trabajo continuo → hora de reloj del día en que cae, sumando el desayuno si ya pasó. */
-export function relojDe(workMin: number, esInicio: boolean): { dia: number; hhmm: string } {
+export function relojDe(workMin: number, esInicio: boolean): { dia: number; seg: number; hms: string } {
   const dia = Math.floor(workMin / JORNADA.capacidadMin);
   let dentro = workMin - dia * JORNADA.capacidadMin;
   if (dia > 0 && dentro === 0 && !esInicio) {
@@ -134,10 +147,12 @@ export function relojDe(workMin: number, esInicio: boolean): { dia: number; hhmm
   const pausaEnTrabajo = JORNADA.pausaDesdeMin - JORNADA.inicioMin;
   const pasoPausa = esInicio ? dentro >= pausaEnTrabajo : dentro > pausaEnTrabajo;
   if (pasoPausa) dentro += JORNADA.pausaDuracionMin;
-  const total = JORNADA.inicioMin + dentro;
-  const h = Math.floor(total / 60);
-  const m = Math.floor(total % 60);
-  return { dia, hhmm: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}` };
+  const seg = Math.round((JORNADA.inicioMin + dentro) * 60);
+  const h = Math.floor(seg / 3600);
+  const m = Math.floor((seg % 3600) / 60);
+  const ss = seg % 60;
+  // Mismo formato que la planilla: 6:14:16 (sin cero adelante en la hora).
+  return { dia, seg, hms: `${h}:${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}` };
 }
 
 export function planearLinea(unidades: UnidadPlan[], adelanto: Adelanto = ADELANTO_VACIO): EstacionPlan[] {
@@ -145,12 +160,15 @@ export function planearLinea(unidades: UnidadPlan[], adelanto: Adelanto = ADELAN
   return ESTACIONES.map((est, j) => {
     const tramos: Tramo[] = [];
     let libre = 0;
+    let ueAcum = 0;
     unidades.forEach((u, i) => {
       const disponible = j === 0 || i < adelanto[est.id] ? 0 : finPrev[i]!;
       const iniMin = Math.max(libre, disponible);
       const finMin = iniMin + u.minutos;
       libre = finMin;
       const ini = relojDe(iniMin, true);
+      const fin = relojDe(finMin, false);
+      ueAcum += (u.minutos * u.personas) / MIN_POR_UE;
       tramos.push({
         idx: i + 1,
         producto: u.producto,
@@ -159,8 +177,10 @@ export function planearLinea(unidades: UnidadPlan[], adelanto: Adelanto = ADELAN
         iniMin,
         finMin,
         dia: ini.dia,
-        iniReloj: ini.hhmm,
-        finReloj: relojDe(finMin, false).hhmm,
+        iniReloj: ini.hms,
+        finReloj: fin.hms,
+        finRelojSeg: fin.seg,
+        ueAcum,
       });
     });
     tramos.forEach((t, i) => (finPrev[i] = t.finMin));
@@ -171,7 +191,7 @@ export function planearLinea(unidades: UnidadPlan[], adelanto: Adelanto = ADELAN
       nombre: est.nombre,
       puesto: est.puesto,
       tramos,
-      eficiencia: ultimoHoy ? ultimoHoy.finMin / JORNADA.capacidadMin : 0,
+      eficiencia: ultimoHoy ? ultimoHoy.finRelojSeg / CIERRE_SEG : 0,
       pendientes: tramos.length - hoy.length,
     };
   });
