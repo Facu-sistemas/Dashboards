@@ -27,6 +27,12 @@ export interface QuizRow {
   ordenes: string[];
   cantidad: number;
   tipoQuiz: string;
+  /** 'Producción' | 'Staging' (pruebas). Filas viejas sin la columna: '—'. */
+  entorno: string;
+  /** Cantidad que debía ingresar el operario (quiz de cantidad); null si no hubo. */
+  cantidadCorrecta: number | null;
+  cantidadElegida: string[];
+  fallosCantidad: number;
   url: string;
 }
 
@@ -107,6 +113,10 @@ export function parseQuizRows(csv: string): QuizRow[] {
     cantidades: idx('Cantidad(es)'),
     tipo: idx('Tipo de quiz'),
     url: idx('URL'),
+    entorno: idx('Entorno'),
+    cantCorrecta: idx('Cantidad correcta'),
+    cantElegida: idx('Cantidad elegida (en orden)'),
+    fallosCant: idx('Fallos cantidad'),
   };
   if (col.fecha < 0 || col.resultado < 0) throw new Error('La planilla no tiene el formato esperado (faltan columnas Fecha / Resultado).');
 
@@ -137,6 +147,13 @@ export function parseQuizRows(csv: string): QuizRow[] {
       ordenes: splitPipe(get(col.ordenes)),
       cantidad: splitPipe(get(col.cantidades)).reduce((a, x) => a + parseNumEs(x), 0),
       tipoQuiz: get(col.tipo) || '—',
+      entorno: get(col.entorno) || '—',
+      cantidadCorrecta: get(col.cantCorrecta) === '' ? null : parseNumEs(get(col.cantCorrecta)),
+      cantidadElegida: get(col.cantElegida)
+        .split(/[>|]/)
+        .map((x) => x.trim())
+        .filter(Boolean),
+      fallosCantidad: Math.round(parseNumEs(get(col.fallosCant))),
       url: get(col.url),
     });
   }

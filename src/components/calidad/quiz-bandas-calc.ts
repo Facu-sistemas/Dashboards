@@ -12,6 +12,9 @@ export interface QuizStats {
   /** Confirmadas que tuvieron al menos un error antes de acertar. */
   conError: number;
   erroresTotales: number;
+  /** Quizzes de cantidad (columna 'Cantidad correcta' cargada) y sus fallos. */
+  quizzesCantidad: number;
+  fallosCantidad: number;
   /** % de quizzes confirmados al primer intento, 0-100. null si no hubo quizzes. */
   pctAcierto: number | null;
   unidades: number;
@@ -88,6 +91,8 @@ export function computeStats(rows: QuizRow[]): QuizStats {
     aciertoPrimerIntento,
     conError: confirmadas.length - aciertoPrimerIntento,
     erroresTotales: rows.reduce((a, r) => a + r.intentosFallidos, 0),
+    quizzesCantidad: rows.filter((r) => r.cantidadCorrecta !== null).length,
+    fallosCantidad: rows.reduce((a, r) => a + r.fallosCantidad, 0),
     pctAcierto: conQuiz > 0 ? (aciertoPrimerIntento / conQuiz) * 100 : null,
     unidades: rows.reduce((a, r) => a + r.cantidad, 0),
     segMediana: median(segs),

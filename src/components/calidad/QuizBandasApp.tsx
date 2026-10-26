@@ -75,7 +75,7 @@ function QuizBandasInner() {
 
   const all = query.data?.rows;
   const rows = useMemo<QuizRow[]>(
-    () => (all ?? []).filter((r) => (!desde || r.fecha >= desde) && (!hasta || r.fecha <= hasta)),
+    () => (all ?? []).filter((r) => r.entorno !== 'Staging' && (!desde || r.fecha >= desde) && (!hasta || r.fecha <= hasta)),
     [all, desde, hasta]
   );
 
@@ -83,10 +83,6 @@ function QuizBandasInner() {
   const dias = useMemo(() => porDia(rows), [rows]);
   const horas = useMemo(() => porHora(rows), [rows]);
   const productos = useMemo(() => porProducto(rows), [rows]);
-  const rapidas = useMemo(() => {
-    const conSeg = rows.filter((r) => r.segundos !== null);
-    return { conSeg: conSeg.length, rapidas: conSeg.filter((r) => r.segundos! <= 2).length };
-  }, [rows]);
   const histo = useMemo(() => histogramaSegundos(rows), [rows]);
   const confus = useMemo(() => confusiones(rows), [rows]);
 
@@ -181,9 +177,10 @@ function QuizBandasInner() {
             <Kpi label="Tiempo mediano" value={fmtSeg(stats.segMediana)} hint="Hasta decidir la opción" />
             <Kpi label="Tiempo promedio" value={fmtSeg(stats.segPromedio)} />
             <Kpi
-              label="Decisión en ≤ 2 s"
-              value={rapidas.conSeg > 0 ? `${num1.format((rapidas.rapidas / rapidas.conSeg) * 100)}%` : '—'}
-              hint={`${num.format(rapidas.rapidas)} de ${num.format(rapidas.conSeg)} quizzes: posible toque sin leer`}
+              label="Fallos de cantidad"
+              value={num.format(stats.fallosCantidad)}
+              hint={`${num.format(stats.quizzesCantidad)} quizzes de cantidad`}
+              tone={stats.fallosCantidad > 0 ? 'warn' : stats.quizzesCantidad > 0 ? 'good' : undefined}
             />
           </div>
 
