@@ -87,6 +87,8 @@ export const AREAS: AreaConfig[] = [
       { slug: 'resumen', name: 'Resumen' },
       { slug: 'vacaciones', name: 'Vacaciones' },
       { slug: 'horas', name: 'Horas' },
+      { slug: 'planilla', name: 'Planilla' },
+      { slug: 'cruce-reloj', name: 'Cruce reloj' },
     ],
   },
   {

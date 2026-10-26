@@ -1,0 +1,20 @@
+---
+import CruceRelojApp from './CruceRelojApp';
+import { getArgentinaTodayIso } from '@/lib/odoo/oee';
+
+const hoy = getArgentinaTodayIso();
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Cruce reloj vs Odoo</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Compara, empleado por empleado, las incidencias de la pestaña BASE RELOJ FICHADOR de la planilla de
+      liquidación (Google Sheets) con las licencias aprobadas en Odoo del mismo período, con la misma lógica de
+      la planilla: 1 día = 8,80 hs, las incidencias por día en múltiplos de 8,80 y la columna de control
+      que debe cerrar. Sirve para el paralelo (meta de coincidencia: 97%). Solo lectura.
+    </p>
+  </header>
+
+  <CruceRelojApp client:load hoy={hoy} />
+</div>

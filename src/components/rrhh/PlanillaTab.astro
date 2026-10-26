@@ -1,0 +1,19 @@
+---
+import PlanillaApp from './PlanillaApp';
+import { getArgentinaTodayIso } from '@/lib/odoo/oee';
+
+const hoy = getArgentinaTodayIso();
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Planilla de cálculo</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      La planilla de cálculo quincenal de la liquidación, armada desde Odoo: horas normales, incidencias, vacaciones,
+      presentismo y viáticos con las reglas del instructivo, más horas extras, anticipos y guardería de la planilla
+      de Google. Incluye la solapa EXPORTA (legajo · código · valor) para INFOCOR. Solo lectura.
+    </p>
+  </header>
+
+  <PlanillaApp client:load hoy={hoy} />
+</div>

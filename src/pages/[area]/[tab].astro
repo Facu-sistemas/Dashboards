@@ -26,6 +26,8 @@ import ConversorTab from '@/components/test/ConversorTab.astro';
 import VacacionesTab from '@/components/rrhh/VacacionesTab.astro';
 import ResumenRrhhTab from '@/components/rrhh/ResumenTab.astro';
 import QuincenaTab from '@/components/rrhh/QuincenaTab.astro';
+import CruceRelojTab from '@/components/rrhh/CruceRelojTab.astro';
+import PlanillaTab from '@/components/rrhh/PlanillaTab.astro';
 import CumpleanosTab from '@/components/test/CumpleanosTab.astro';
 import FlujoTab from '@/components/test/FlujoTab.astro';
 import PermisosOdooTab from '@/components/test/PermisosOdooTab.astro';
@@ -107,6 +109,8 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
   {area.slug === 'rrhh' && tabSlug === 'resumen' && <ResumenRrhhTab />}
   {area.slug === 'rrhh' && tabSlug === 'vacaciones' && <VacacionesTab />}
   {area.slug === 'rrhh' && tabSlug === 'horas' && <QuincenaTab />}
+  {area.slug === 'rrhh' && tabSlug === 'cruce-reloj' && <CruceRelojTab />}
+  {area.slug === 'rrhh' && tabSlug === 'planilla' && <PlanillaTab />}
   {area.slug === 'finanzas' && tabSlug === 'credito-cheques' && <CreditoChequesTab />}
   {area.slug === 'finanzas' && tabSlug === 'distribucion-cheques' && <DistribucionChequesTab />}
   {area.slug === 'logistica' && tabSlug === 'despachos' && <DespachosTab />}
