@@ -1,0 +1,47 @@
+import type { PlanSillon } from '@/lib/lineas-sillon/plan';
+import type { ConfigSillon, PuestoPersona, Slot } from '@/lib/supabase/lineas-sillon';
+
+export interface LineasSillonResponse {
+  plan: PlanSillon;
+  config: ConfigSillon;
+}
+
+/** Mismos puestos del croquis; se repiten acá para no meter el cliente de Supabase en el bundle del navegador. */
+export const SLOTS_UI: { slot: Slot; label: string; puesto: PuestoPersona }[] = [
+  { slot: 'C1', label: 'Costurera 1', puesto: 'costurera' },
+  { slot: 'C2', label: 'Costurera 2', puesto: 'costurera' },
+  { slot: 'C', label: 'Carpintero', puesto: 'carpintero' },
+  { slot: 'T', label: 'Tendido', puesto: 'tendido' },
+  { slot: 'E', label: 'Estampado', puesto: 'estampado' },
+];
+
+export const PUESTO_LABEL: Record<PuestoPersona, string> = {
+  costurera: 'Costureras',
+  carpintero: 'Carpinteros',
+  tendido: 'Tendido',
+  estampado: 'Estampado',
+};
+
+export async function guardarSillon(body: unknown): Promise<void> {
+  const res = await fetch('/api/lineas-sillon', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+  if (!res.ok || !json?.ok) throw new Error(json?.error ?? 'No se pudo guardar');
+}
+
+export const porcentaje = (x: number) => `${Math.round(x * 100)}%`;
+
+/** Verde dentro de la jornada, ámbar hasta un 10% de excedente, rojo por encima. */
+export const tonoEficiencia = (x: number) =>
+  x === 0 ? 'text-slate-500' : x <= 1 ? 'text-emerald-400' : x <= 1.1 ? 'text-amber-400' : 'text-rose-400';
+
+export const fechaLarga = (iso: string) =>
+  new Date(`${iso}T00:00:00Z`).toLocaleDateString('es-AR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    timeZone: 'UTC',
+  });

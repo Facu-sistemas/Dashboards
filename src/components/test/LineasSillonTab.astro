@@ -1,0 +1,16 @@
+---
+import LineasSillonApp from './LineasSillonApp';
+---
+
+<div>
+  <header class="mb-6 print:hidden">
+    <h2 class="text-lg font-semibold text-slate-100">Líneas de Sillones</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Reemplaza la planilla "LEAN TIEMPOS": toma las órdenes de fabricación abiertas de Odoo, las reparte por línea (campo Línea
+      de la orden) y calcula en cada estación — carpintería, tapicería y ensamble — a qué hora termina cada unidad, con los
+      tiempos de la hoja DATOS, el desayuno de 09:00 y la eficiencia de la jornada de 06:00 a 14:08. Es solo lectura sobre Odoo.
+    </p>
+  </header>
+
+  <LineasSillonApp client:only="react" />
+</div>

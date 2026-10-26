@@ -218,6 +218,7 @@ export const AREAS: AreaConfig[] = [
       { slug: 'cumpleanos', name: 'Cumpleaños' },
       { slug: 'flujo', name: 'Flujo' },
       { slug: 'permisos-odoo', name: 'Permisos Odoo' },
+      { slug: 'lineas-sillon', name: 'Líneas de Sillones' },
     ],
   },
 ];
