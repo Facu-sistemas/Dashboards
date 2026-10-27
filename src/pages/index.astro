@@ -25,7 +25,7 @@ const areas = AREAS.filter((a) => areasPermitidas.includes(a.slug));
         <p class="text-sm text-slate-500">Tu usuario todavía no tiene áreas habilitadas.</p>
       ) : (
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {areas.map((area) => <AreaCard area={area} />)}
+          {areas.map((area, i) => <AreaCard area={area} index={i} />)}
         </div>
       )
     }

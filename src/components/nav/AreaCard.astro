@@ -3,20 +3,106 @@ import { ACCENT_CLASSES, type AreaConfig } from '@/lib/areas.config';
 
 interface Props {
   area: AreaConfig;
+  /** Posición en la grilla, para escalonar la animación de entrada. */
+  index?: number;
 }
 
-const { area } = Astro.props;
+const { area, index = 0 } = Astro.props;
 const accent = ACCENT_CLASSES[area.accent];
 const href = `/${area.slug}/${area.tabs[0]!.slug}`;
 ---
 
+<!-- El color de acento viaja por currentColor: el borde, la barra y la flecha lo toman de ahí. -->
 <a
   href={href}
-  class={`group flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-sm ring-1 ring-transparent transition-colors hover:border-slate-700 hover:bg-slate-800/60 ${accent.ring}`}
+  class={`area-card group relative flex flex-col gap-3 overflow-hidden rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-sm ${accent.text}`}
+  style={`--i:${index}`}
 >
-  <span class={`flex h-10 w-10 items-center justify-center rounded-lg ${accent.bg} ${accent.text}`}>
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5" set:html={area.icon} />
+  <span class="area-card__bar" aria-hidden="true"></span>
+
+  <span class={`area-card__icon relative flex h-11 w-11 items-center justify-center rounded-xl ${accent.bg}`}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6" set:html={area.icon} />
   </span>
-  <span class="text-base font-semibold text-slate-100">{area.name}</span>
-  <span class="text-sm text-slate-500">{area.description}</span>
+  <span class="relative text-base font-semibold text-slate-100">{area.name}</span>
+  <span class="relative text-sm text-slate-500 transition-colors duration-300 group-hover:text-slate-400">{area.description}</span>
+
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="area-card__arrow" aria-hidden="true">
+    <path d="M5 12h14M13 6l6 6-6 6"></path>
+  </svg>
 </a>
+
+<style>
+  .area-card {
+    opacity: 0;
+    animation: area-card-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    animation-delay: calc(var(--i) * 60ms);
+    transition:
+      transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 0.3s;
+  }
+  .area-card:hover {
+    transform: translateY(-4px);
+    border-color: color-mix(in srgb, currentColor 45%, transparent);
+  }
+
+  /* Barra superior que se despliega de izquierda a derecha. */
+  .area-card__bar {
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    background: linear-gradient(90deg, currentColor, transparent);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .area-card:hover .area-card__bar {
+    transform: scaleX(1);
+  }
+
+  .area-card__icon {
+    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .area-card:hover .area-card__icon {
+    transform: scale(1.12) rotate(-6deg);
+  }
+
+  .area-card__arrow {
+    position: absolute;
+    right: 1.25rem;
+    bottom: 1.25rem;
+    width: 1.1rem;
+    height: 1.1rem;
+    opacity: 0;
+    transform: translateX(-8px);
+    transition:
+      opacity 0.3s,
+      transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .area-card:hover .area-card__arrow,
+  .area-card:focus-visible .area-card__arrow {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  @keyframes area-card-in {
+    from {
+      opacity: 0;
+      transform: translateY(14px) scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .area-card {
+      animation: none;
+      opacity: 1;
+    }
+    .area-card:hover,
+    .area-card:hover .area-card__icon {
+      transform: none;
+    }
+  }
+</style>
