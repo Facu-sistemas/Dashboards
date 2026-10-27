@@ -156,13 +156,13 @@ export function generarPdfSeguimientoMo(data: SeguimientoMoResult): jsPDF {
       autoTable(doc, {
         startY: y + 8,
         margin: { left: MARGEN, right: MARGEN },
-        head: [['MO', 'Producto', 'Sector', 'Creada', 'Días']],
-        body: ordenes.map((o) => [o.reference, o.productName, o.sector, fechaAr(o.createdDate), String(o.ageDays)]),
+        head: [['MO', 'Producto', 'Sector', 'Creada', 'Planificada', 'Días']],
+        body: ordenes.map((o) => [o.reference, o.productName, o.sector, fechaAr(o.createdDate), o.plannedDate ? fechaAr(o.plannedDate) : '—', String(o.ageDays)]),
         styles: { ...baseStyles, fontSize: 8, cellPadding: 3 },
         headStyles: head,
-        columnStyles: { 1: { cellWidth: 230 }, 4: { halign: 'right' } },
+        columnStyles: { 1: { cellWidth: 230 }, 5: { halign: 'right' } },
         didParseCell: (h: CellHookData) => {
-          if (h.section === 'body' && h.column.index === 4) h.cell.styles.fillColor = FILL[color];
+          if (h.section === 'body' && h.column.index === 5) h.cell.styles.fillColor = FILL[color];
         },
       });
     }

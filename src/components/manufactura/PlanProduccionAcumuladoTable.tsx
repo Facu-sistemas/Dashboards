@@ -33,7 +33,9 @@ function rowLabel(dateIso: string, monthly: boolean): string {
 export default function PlanProduccionAcumuladoTable({ title, rows, pick, monthly = false, unit, cutoff }: Props) {
   const today = new Date().toISOString().slice(0, 10);
   const hastaHoy = cutoff === today;
-  const habiles = (monthly ? rows : rows.filter((r) => pick(r).objetivo > 0)).filter((r) => r.date <= cutoff);
+  // Días hábiles + cualquier día con movimiento: lo cerrado en un fin de semana/feriado
+  // también cuenta en el "Cerrado" de arriba, así que no puede quedar fuera del acumulado.
+  const habiles = (monthly ? rows : rows.filter((r) => { const g = pick(r); return g.objetivo > 0 || g.planificado > 0 || g.cerrado > 0; })).filter((r) => r.date <= cutoff);
 
   let acumPlanificado = 0;
   let acumCerrado = 0;

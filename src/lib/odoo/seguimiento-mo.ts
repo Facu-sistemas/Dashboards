@@ -19,6 +19,8 @@ export interface SeguimientoOrden {
   sector: string;
   /** Fecha de creación de la MO, "YYYY-MM-DD" en hora de Argentina. */
   createdDate: string;
+  /** Fecha planificada de inicio de la MO ("YYYY-MM-DD", hora de Argentina), null si no tiene. */
+  plannedDate: string | null;
   /** Días corridos desde la creación hasta hoy (Argentina). */
   ageDays: number;
   semaforo: SeguimientoSemaforo;
@@ -69,6 +71,7 @@ type MoRow = {
   name: string;
   product_id: [number, string];
   create_date: string;
+  date_start: string | false;
   product_qty: number;
   x_studio_estado_produccion: string | false;
   x_studio_categoria_producto_r: [number, string] | false;
@@ -105,7 +108,7 @@ async function fetchGrupo(categIds: number[], companyId: number, today: string, 
       ['state', 'in', OPEN_STATES],
       ['product_id.categ_id', 'in', categIds],
     ],
-    fields: ['name', 'product_id', 'create_date', 'product_qty', 'x_studio_estado_produccion', 'x_studio_categoria_producto_r'],
+    fields: ['name', 'product_id', 'create_date', 'date_start', 'product_qty', 'x_studio_estado_produccion', 'x_studio_categoria_producto_r'],
     order: 'create_date asc',
   });
 
@@ -118,6 +121,7 @@ async function fetchGrupo(categIds: number[], companyId: number, today: string, 
       productName: r.product_id[1],
       sector: sectorDe(r.x_studio_categoria_producto_r),
       createdDate,
+      plannedDate: r.date_start ? argentinaDate(r.date_start) : null,
       ageDays,
       semaforo: semaforoDe(ageDays, umbrales),
       iniciado: r.x_studio_estado_produccion === 'Iniciado',

@@ -239,6 +239,7 @@ function GrupoSeguimiento({ title, grupo }: { title: string; grupo: SeguimientoG
                   <th className="px-3 py-1.5 font-medium">Producto</th>
                   <th className="px-3 py-1.5 font-medium">Sector</th>
                   <th className="px-3 py-1.5 font-medium">Creada</th>
+                  <th className="px-3 py-1.5 font-medium">Planificada</th>
                   <th className="px-3 py-1.5 font-medium">Estado</th>
                   <th className="py-1.5 pl-3 text-right font-medium">Días</th>
                 </tr>
@@ -250,6 +251,7 @@ function GrupoSeguimiento({ title, grupo }: { title: string; grupo: SeguimientoG
                     <td className="max-w-[26rem] truncate px-3 py-1.5 text-slate-200" title={o.productName}>{o.productName}</td>
                     <td className="px-3 py-1.5 text-slate-400">{o.sector}</td>
                     <td className="whitespace-nowrap px-3 py-1.5 text-slate-400">{fechaAr(o.createdDate)}</td>
+                    <td className="whitespace-nowrap px-3 py-1.5 text-slate-400">{o.plannedDate ? fechaAr(o.plannedDate) : '—'}</td>
                     <td className="px-3 py-1.5 text-slate-400">{o.iniciado ? 'Iniciada' : 'No iniciada'}</td>
                     <td className="py-1.5 pl-3 text-right">
                       <span className={`inline-block min-w-[3rem] rounded-full px-2 py-0.5 text-xs font-semibold ${COLORS[o.semaforo].bg} ${COLORS[o.semaforo].text}`}>
