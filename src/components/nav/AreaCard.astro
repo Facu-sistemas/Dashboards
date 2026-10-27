@@ -12,19 +12,17 @@ const accent = ACCENT_CLASSES[area.accent];
 const href = `/${area.slug}/${area.tabs[0]!.slug}`;
 ---
 
-<!-- El color de acento viaja por currentColor: el borde, la barra y la flecha lo toman de ahí. -->
+<!-- El color de acento viaja por currentColor: el filo de luz del borde lo toma de ahí. -->
 <a
   href={href}
-  class={`area-card group relative flex flex-col gap-3 overflow-hidden rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-sm ${accent.text}`}
+  class={`area-card group relative flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-sm ${accent.text}`}
   style={`--i:${index}`}
 >
-  <span class="area-card__bar" aria-hidden="true"></span>
-
-  <span class={`area-card__icon relative flex h-11 w-11 items-center justify-center rounded-xl ${accent.bg}`}>
+  <span class={`area-card__icon flex h-11 w-11 items-center justify-center rounded-xl ${accent.bg}`}>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6" set:html={area.icon} />
   </span>
-  <span class="relative text-base font-semibold text-slate-100">{area.name}</span>
-  <span class="relative text-sm text-slate-500 transition-colors duration-300 group-hover:text-slate-400">{area.description}</span>
+  <span class="area-card__text text-base font-semibold text-slate-100">{area.name}</span>
+  <span class="area-card__text text-sm text-slate-500">{area.description}</span>
 
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="area-card__arrow" aria-hidden="true">
     <path d="M5 12h14M13 6l6 6-6 6"></path>
@@ -33,37 +31,54 @@ const href = `/${area.slug}/${area.tabs[0]!.slug}`;
 
 <style>
   .area-card {
-    opacity: 0;
-    animation: area-card-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    --mx: 50%;
+    --my: 50%;
+    transform-style: preserve-3d;
+    transform: perspective(900px);
+    animation: area-card-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
     animation-delay: calc(var(--i) * 60ms);
-    transition:
-      transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
-      border-color 0.3s;
-  }
-  .area-card:hover {
-    transform: translateY(-4px);
-    border-color: color-mix(in srgb, currentColor 45%, transparent);
   }
 
-  /* Barra superior que se despliega de izquierda a derecha. */
-  .area-card__bar {
+  /* Filo de luz: sólo el borde de 1px se ilumina, siguiendo al cursor. */
+  .area-card::before {
+    content: '';
     position: absolute;
-    inset: 0 0 auto 0;
-    height: 2px;
-    background: linear-gradient(90deg, currentColor, transparent);
-    transform: scaleX(0);
-    transform-origin: left;
-    transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+    inset: -1px;
+    padding: 1px;
+    border-radius: inherit;
+    background: radial-gradient(220px circle at var(--mx) var(--my), currentColor, transparent 65%);
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) content-box exclude,
+      linear-gradient(#000 0 0);
+    opacity: 0;
+    transition: opacity 0.4s;
+    pointer-events: none;
   }
-  .area-card:hover .area-card__bar {
-    transform: scaleX(1);
+  .area-card:hover::before,
+  .area-card:focus-visible::before {
+    opacity: 1;
   }
 
+  /* Profundidad: el contenido flota apenas por encima de la card. */
   .area-card__icon {
-    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transform: translateZ(0);
+    transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
   }
   .area-card:hover .area-card__icon {
-    transform: scale(1.12) rotate(-6deg);
+    transform: translateZ(28px);
+  }
+  .area-card__text {
+    transform: translateZ(0);
+    transition:
+      transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+      color 0.3s;
+  }
+  .area-card:hover .area-card__text {
+    transform: translateZ(14px);
   }
 
   .area-card__arrow {
@@ -87,22 +102,29 @@ const href = `/${area.slug}/${area.tabs[0]!.slug}`;
   @keyframes area-card-in {
     from {
       opacity: 0;
-      transform: translateY(14px) scale(0.97);
-    }
-    to {
-      opacity: 1;
-      transform: none;
+      transform: perspective(900px) translateY(14px) scale(0.97);
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
     .area-card {
       animation: none;
-      opacity: 1;
-    }
-    .area-card:hover,
-    .area-card:hover .area-card__icon {
       transform: none;
+    }
+    .area-card__icon,
+    .area-card__text {
+      transform: none !important;
     }
   }
 </style>
+
+<script>
+  // El filo de luz del borde sigue al cursor.
+  document.querySelectorAll<HTMLElement>('.area-card').forEach((card) => {
+    card.addEventListener('pointermove', (e) => {
+      const r = card.getBoundingClientRect();
+      card.style.setProperty('--mx', `${e.clientX - r.left}px`);
+      card.style.setProperty('--my', `${e.clientY - r.top}px`);
+    });
+  });
+</script>

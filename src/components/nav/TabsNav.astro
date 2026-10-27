@@ -9,13 +9,21 @@ interface Props {
 const { area, activeTabSlug } = Astro.props;
 ---
 
+<!-- Si venís de otra pestaña del mismo área, la barra no se vuelve a animar (ver .tab-link-enter en global.css). -->
+<script is:inline define:vars={{ areaSlug: area.slug }}>
+  try {
+    if (new URL(document.referrer).pathname.startsWith(`/${areaSlug}/`)) document.documentElement.dataset.tabNav = 'interno';
+  } catch {}
+</script>
+
 <nav class="flex flex-wrap gap-1 border-b border-slate-800" aria-label={`Secciones de ${area.name}`}>
   {
-    area.tabs.map((tab) => (
+    area.tabs.map((tab, i) => (
       <a
         href={`/${area.slug}/${tab.slug}`}
         aria-current={tab.slug === activeTabSlug ? 'page' : undefined}
-        class={`rounded-t-lg border border-b-0 px-4 py-2 text-sm font-medium transition-colors ${
+        style={`--i:${i}`}
+        class={`tab-link-enter rounded-t-lg border border-b-0 px-4 py-2 text-sm font-medium transition-colors ${
           tab.slug === activeTabSlug
             ? 'border-slate-800 bg-slate-900 text-slate-100'
             : 'border-transparent text-slate-500 hover:text-slate-300'

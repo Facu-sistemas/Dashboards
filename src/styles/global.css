@@ -103,14 +103,34 @@
 @keyframes tab-in {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(-14px);
   }
 }
 .tab-enter {
-  animation: tab-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: tab-in 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+/* Pestañas de la barra: bajan una tras otra, de arriba hacia abajo. */
+.tab-link-enter {
+  animation: tab-in 600ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(var(--i) * 70ms);
+}
+/* Navegando entre pestañas del mismo área: la barra queda quieta y el contenido sólo hace un fade corto. */
+@keyframes tab-fade {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+html[data-tab-nav='interno'] .tab-link-enter {
+  animation: none;
+}
+html[data-tab-nav='interno'] .tab-enter {
+  animation: tab-fade 250ms ease-out both;
 }
 @media (prefers-reduced-motion: reduce) {
-  .tab-enter {
+  html[data-tab-nav='interno'] .tab-enter,
+  .tab-enter,
+  .tab-link-enter {
     animation: none;
   }
 }
