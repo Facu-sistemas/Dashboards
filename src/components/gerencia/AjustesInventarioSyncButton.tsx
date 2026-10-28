@@ -34,23 +34,26 @@ export default function AjustesInventarioSyncButton() {
         type="button"
         onClick={sincronizar}
         disabled={sincronizando}
-        className="flex items-center gap-1.5 rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 transition-colors hover:border-brand-500 hover:text-brand-400 disabled:cursor-not-allowed disabled:opacity-50"
+        className="flex min-w-[10.5rem] items-center justify-center gap-1.5 whitespace-nowrap rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 transition-colors hover:border-brand-500 hover:text-brand-400 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className={`h-3.5 w-3.5 ${sincronizando ? 'animate-spin' : ''}`}
-        >
-          <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-          <path d="M3 3v5h5" />
-          <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
-          <path d="M16 16h5v5" />
-        </svg>
+        {/* El glyph llega hasta el borde del viewBox (24x24): al girar con animate-spin, las puntas se salen de su caja de 14x14 si nada las recorta — por eso va en un span con overflow-hidden del mismo tamaño. */}
+        <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center overflow-hidden">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={`h-3.5 w-3.5 ${sincronizando ? 'animate-spin' : ''}`}
+          >
+            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+            <path d="M3 3v5h5" />
+            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+            <path d="M16 16h5v5" />
+          </svg>
+        </span>
         {sincronizando ? 'Sincronizando…' : 'Forzar sincronización'}
       </button>
     </div>
