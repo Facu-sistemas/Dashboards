@@ -195,7 +195,13 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
           </div>
         ) : (
           reconocido && (
-            <div className={`absolute inset-x-0 bottom-0 bg-sky-700/90 px-4 text-center ${pantallaCompleta ? 'py-6' : 'py-3'}`}>
+            // En pantalla completa el cartel flota a ~22% del borde inferior: pegado abajo choca con la barra de
+            // navegación del celular y el botón queda incómodo de tocar con el celular en un soporte.
+            <div
+              className={`absolute bg-sky-700/90 px-4 text-center ${
+                pantallaCompleta ? 'inset-x-4 bottom-[22%] rounded-2xl py-6 shadow-lg' : 'inset-x-3 bottom-3 rounded-xl py-3'
+              }`}
+            >
               <p className={`font-semibold text-white ${pantallaCompleta ? 'text-2xl' : 'text-lg'}`}>Hola, {reconocido.nombre}</p>
               {esDev && <p className="text-xs text-sky-100">distancia {reconocido.distancia.toFixed(2)}</p>}
               <button
@@ -206,7 +212,7 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
                   void ficharAhora();
                 }}
                 className={`mt-2 rounded bg-white font-semibold text-sky-800 disabled:opacity-60 ${
-                  pantallaCompleta ? 'px-10 py-3 text-lg' : 'px-5 py-2 text-sm'
+                  pantallaCompleta ? 'px-12 py-4 text-xl' : 'px-5 py-2 text-sm'
                 }`}
               >
                 {fichando ? 'Fichando...' : 'Fichar'}
