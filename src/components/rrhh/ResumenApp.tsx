@@ -48,7 +48,10 @@ function ResumenInner() {
   const [orden, setOrden] = useState<Orden>('banco-desc');
 
   const data = query.data;
-  const allRows = data?.rows ?? [];
+  // "Ignorar" no aparece en el Resumen (sigue apareciendo en Vacaciones). "Reporte perfecto" aparece, pero sus horas no
+  // entran en los KPIs ni en el orden por horas: de esas personas solo importa si están fichadas.
+  const allRows = useMemo(() => (data?.rows ?? []).filter((r) => r.estadoResumen !== 'ignorar'), [data]);
+  const conHoras = useMemo(() => allRows.filter((r) => r.estadoResumen !== 'reporte_perfecto'), [allRows]);
 
   const colors = useMemo(() => buildConvenioColors(allRows), [allRows]);
   const convenios = useMemo(() => resumirPorConvenio(allRows), [allRows]);
@@ -56,7 +59,7 @@ function ResumenInner() {
     () => [...new Set(allRows.map((r) => r.departamento).filter((d): d is string => Boolean(d)))].sort((a, b) => a.localeCompare(b, 'es')),
     [allRows]
   );
-  const maxAbsBanco = useMemo(() => Math.max(0, ...allRows.map((r) => Math.abs(r.bancoHorasSaldo))), [allRows]);
+  const maxAbsBanco = useMemo(() => Math.max(0, ...conHoras.map((r) => Math.abs(r.bancoHorasSaldo))), [conHoras]);
 
   const kpis = useMemo(() => {
     let aFavor = 0;
@@ -66,7 +69,9 @@ function ResumenInner() {
     let deLicencia = 0;
     let sumaCumplimiento = 0;
     let conCumplimiento = 0;
-    for (const r of allRows) {
+    // La licencia se cuenta sobre todos los que aparecen; el resto de los KPIs, solo sobre quienes sí controlan horas.
+    deLicencia = allRows.filter((r) => r.enLicenciaActualmente).length;
+    for (const r of conHoras) {
       if (r.bancoHorasSaldo > 0) {
         aFavor += r.bancoHorasSaldo;
         conSaldoPositivo += 1;
@@ -74,7 +79,6 @@ function ResumenInner() {
         enContra += -r.bancoHorasSaldo;
         conSaldoNegativo += 1;
       }
-      if (r.enLicenciaActualmente) deLicencia += 1;
       const c = cumplimiento(r);
       if (c !== null) {
         sumaCumplimiento += Math.min(c, 1);
@@ -89,7 +93,7 @@ function ResumenInner() {
       deLicencia,
       cumplimientoPromedio: conCumplimiento > 0 ? sumaCumplimiento / conCumplimiento : null,
     };
-  }, [allRows]);
+  }, [allRows, conHoras]);
 
   const rows = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
@@ -99,11 +103,16 @@ function ResumenInner() {
       if (q && !r.nombre.toLowerCase().includes(q)) return false;
       return true;
     });
+    // Para "reporte perfecto" las horas no cuentan: valen 0 y quedan al final al ordenar por cumplimiento.
+    const perfecto = (r: (typeof filtered)[number]) => r.estadoResumen === 'reporte_perfecto';
+    const banco = (r: (typeof filtered)[number]) => (perfecto(r) ? 0 : r.bancoHorasSaldo);
+    const horas30 = (r: (typeof filtered)[number]) => (perfecto(r) ? 0 : r.horasCargadas30d);
+    const cump = (r: (typeof filtered)[number]) => (perfecto(r) ? Infinity : cumplimiento(r) ?? Infinity);
     const sorters: Record<Orden, (a: (typeof filtered)[number], b: (typeof filtered)[number]) => number> = {
-      'banco-desc': (a, b) => b.bancoHorasSaldo - a.bancoHorasSaldo,
-      'banco-asc': (a, b) => a.bancoHorasSaldo - b.bancoHorasSaldo,
-      'horas-desc': (a, b) => b.horasCargadas30d - a.horasCargadas30d,
-      'cumplimiento-asc': (a, b) => (cumplimiento(a) ?? Infinity) - (cumplimiento(b) ?? Infinity),
+      'banco-desc': (a, b) => banco(b) - banco(a),
+      'banco-asc': (a, b) => banco(a) - banco(b),
+      'horas-desc': (a, b) => horas30(b) - horas30(a),
+      'cumplimiento-asc': (a, b) => cump(a) - cump(b),
       nombre: (a, b) => a.nombre.localeCompare(b.nombre, 'es'),
       'estado-fichaje': (a, b) => rangoFichaje(a) - rangoFichaje(b) || a.nombre.localeCompare(b.nombre, 'es'),
     };
@@ -125,7 +134,7 @@ function ResumenInner() {
         <div className="h-28 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
       ) : (
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-          <Kpi label="Empleados activos" value={formatDias(data?.totalEmpleados ?? 0)} hint={`${kpis.deLicencia} de licencia hoy`} />
+          <Kpi label="Empleados activos" value={formatDias(allRows.length)} hint={`${kpis.deLicencia} de licencia hoy`} />
           <Kpi
             label="Horas a favor"
             value={formatHoras(Math.round(kpis.aFavor))}
@@ -200,7 +209,7 @@ function ResumenInner() {
       </div>
 
       <div className="-mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
-        <span>{data ? `${rows.length} de ${data.totalEmpleados} empleados` : ''} · El anillo mide horas cargadas en los últimos 30 días contra las que corresponden a su jornada.</span>
+        <span>{data ? `${rows.length} de ${allRows.length} empleados` : ''} · El anillo mide horas cargadas en los últimos 30 días contra las que corresponden a su jornada.</span>
         <span className="flex items-center gap-1.5">
           <span className="relative inline-flex h-2.5 w-2.5">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
@@ -215,6 +224,10 @@ function ResumenInner() {
         <span className="flex items-center gap-1.5">
           <span className="inline-flex h-2.5 w-2.5 rounded-full border-2 border-dashed border-slate-500" />
           Sin datos biométricos
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-flex rounded-full bg-emerald-500/10 px-1.5 text-[10px] font-medium text-emerald-300">Reporte perfecto</span>
+          Solo se controla el fichaje, no las horas
         </span>
       </div>
 

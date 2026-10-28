@@ -14,6 +14,17 @@ const RING_R = 22;
 const RING_C = 2 * Math.PI * RING_R;
 
 function CumplimientoRing({ row }: { row: EmpleadoVacacionesRow }) {
+  // Reporte perfecto: sus horas no se controlan (a fin de mes siempre cierran bien), así que no hay anillo de cumplimiento.
+  if (row.estadoResumen === 'reporte_perfecto') {
+    return (
+      <div
+        className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-2 border-emerald-500/60 text-xl text-emerald-400"
+        title="Reporte perfecto: las horas no se controlan"
+      >
+        ✓
+      </div>
+    );
+  }
   const ratio = cumplimiento(row);
   if (ratio === null) {
     return (
@@ -92,6 +103,7 @@ function EstadoFichaje({ row }: { row: EmpleadoVacacionesRow }) {
 }
 
 export default function EmpleadoCard({ row, today, color, maxAbsBanco }: Props) {
+  const perfecto = row.estadoResumen === 'reporte_perfecto';
   const saldo = row.bancoHorasSaldo;
   const saldoColor = saldo > 0 ? 'text-emerald-400' : saldo < 0 ? 'text-rose-400' : 'text-slate-300';
   const vacColor = row.anomalia === 'negativo' ? 'text-rose-400' : row.anomalia === 'alto' ? 'text-amber-400' : 'text-slate-200';
@@ -124,27 +136,34 @@ export default function EmpleadoCard({ row, today, color, maxAbsBanco }: Props) 
         {row.enLicenciaActualmente && (
           <span className="rounded-full bg-brand-500/10 px-2 py-0.5 text-[11px] font-medium text-brand-400">de licencia</span>
         )}
+        {perfecto && <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-300">Reporte perfecto</span>}
       </div>
 
-      <div>
-        <div className="mb-1.5 flex items-baseline justify-between">
-          <span className="text-[11px] uppercase tracking-wide text-slate-500">Banco de horas</span>
-          <span className={`text-lg font-semibold leading-none ${saldoColor}`}>
-            {saldo > 0 ? '+' : ''}
-            {formatHoras(saldo)}
-          </span>
+      {perfecto ? (
+        <p className="rounded-lg bg-slate-950/40 px-3 py-2 text-xs text-slate-400">
+          Las horas no se controlan: solo importa si está fichado.
+        </p>
+      ) : (
+        <div>
+          <div className="mb-1.5 flex items-baseline justify-between">
+            <span className="text-[11px] uppercase tracking-wide text-slate-500">Banco de horas</span>
+            <span className={`text-lg font-semibold leading-none ${saldoColor}`}>
+              {saldo > 0 ? '+' : ''}
+              {formatHoras(saldo)}
+            </span>
+          </div>
+          <BancoBar saldo={saldo} maxAbs={maxAbsBanco} />
         </div>
-        <BancoBar saldo={saldo} maxAbs={maxAbsBanco} />
-      </div>
+      )}
 
       <dl className="grid grid-cols-3 gap-2 border-t border-slate-800 pt-3 text-center">
         <div>
           <dt className="text-[10px] uppercase tracking-wide text-slate-500">Hs 30 días</dt>
-          <dd className="mt-0.5 text-sm font-medium text-slate-200">{formatDias(row.horasCargadas30d)}</dd>
+          <dd className="mt-0.5 text-sm font-medium text-slate-200">{perfecto ? '—' : formatDias(row.horasCargadas30d)}</dd>
         </div>
         <div>
           <dt className="text-[10px] uppercase tracking-wide text-slate-500">Hs totales</dt>
-          <dd className="mt-0.5 text-sm font-medium text-slate-200">{formatDias(row.horasCargadasTotal)}</dd>
+          <dd className="mt-0.5 text-sm font-medium text-slate-200">{perfecto ? '—' : formatDias(row.horasCargadasTotal)}</dd>
         </div>
         <div>
           <dt className="text-[10px] uppercase tracking-wide text-slate-500">Vac. saldo</dt>

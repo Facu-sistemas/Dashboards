@@ -28,6 +28,8 @@ import ResumenRrhhTab from '@/components/rrhh/ResumenTab.astro';
 import QuincenaTab from '@/components/rrhh/QuincenaTab.astro';
 import CruceRelojTab from '@/components/rrhh/CruceRelojTab.astro';
 import PlanillaTab from '@/components/rrhh/PlanillaTab.astro';
+import AdministracionRrhhTab from '@/components/rrhh/AdministracionTab.astro';
+import { tabVisible } from '@/lib/tab-acceso';
 import CumpleanosTab from '@/components/test/CumpleanosTab.astro';
 import FlujoTab from '@/components/test/FlujoTab.astro';
 import PermisosOdooTab from '@/components/test/PermisosOdooTab.astro';
@@ -61,7 +63,8 @@ export const prerender = false;
 
 const { area: areaSlug, tab: tabSlug } = Astro.params;
 const area = getArea(areaSlug!);
-if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario!.areasPermitidas.includes(area.slug)) {
+const tabConfig = area?.tabs.find((t) => t.slug === tabSlug);
+if (!area || !tabConfig || !tabVisible(tabConfig, Astro.locals.usuario) || !Astro.locals.usuario!.areasPermitidas.includes(area.slug)) {
   return Astro.rewrite('/404');
 }
 ---
@@ -111,6 +114,7 @@ if (!area || !area.tabs.some((t) => t.slug === tabSlug) || !Astro.locals.usuario
   {area.slug === 'rrhh' && tabSlug === 'horas' && <QuincenaTab />}
   {area.slug === 'rrhh' && tabSlug === 'cruce-reloj' && <CruceRelojTab />}
   {area.slug === 'rrhh' && tabSlug === 'planilla' && <PlanillaTab />}
+  {area.slug === 'rrhh' && tabSlug === 'administracion' && <AdministracionRrhhTab />}
   {area.slug === 'finanzas' && tabSlug === 'credito-cheques' && <CreditoChequesTab />}
   {area.slug === 'finanzas' && tabSlug === 'distribucion-cheques' && <DistribucionChequesTab />}
   {area.slug === 'logistica' && tabSlug === 'despachos' && <DespachosTab />}

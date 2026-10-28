@@ -1,5 +1,6 @@
 ---
 import type { AreaConfig } from '@/lib/areas.config';
+import { tabVisible } from '@/lib/tab-acceso';
 
 interface Props {
   area: AreaConfig;
@@ -7,6 +8,8 @@ interface Props {
 }
 
 const { area, activeTabSlug } = Astro.props;
+// Las pestañas restringidas (ej. RRHH > Administración) solo aparecen para quien tiene permiso.
+const tabs = area.tabs.filter((t) => tabVisible(t, Astro.locals.usuario));
 ---
 
 <!-- Si venís de otra pestaña del mismo área, la barra no se vuelve a animar (ver .tab-link-enter en global.css). -->
@@ -18,7 +21,7 @@ const { area, activeTabSlug } = Astro.props;
 
 <nav class="flex flex-wrap gap-1 border-b border-slate-800" aria-label={`Secciones de ${area.name}`}>
   {
-    area.tabs.map((tab, i) => (
+    tabs.map((tab, i) => (
       <a
         href={`/${area.slug}/${tab.slug}`}
         aria-current={tab.slug === activeTabSlug ? 'page' : undefined}

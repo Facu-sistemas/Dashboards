@@ -11,6 +11,8 @@
 export interface TabConfig {
   slug: string;
   name: string;
+  /** Pestaña restringida: solo la ven y abren quienes cumplan la regla (ver tab-acceso.ts). Sin esto, la ve todo el que tenga el área. */
+  acceso?: 'admin-rrhh';
 }
 
 export type AccentColor = 'brand' | 'purple' | 'amber' | 'emerald' | 'orange' | 'teal' | 'cyan' | 'rose' | 'indigo';
@@ -89,6 +91,7 @@ export const AREAS: AreaConfig[] = [
       { slug: 'horas', name: 'Horas' },
       { slug: 'planilla', name: 'Planilla' },
       { slug: 'cruce-reloj', name: 'Cruce reloj' },
+      { slug: 'administracion', name: 'Administración', acceso: 'admin-rrhh' },
     ],
   },
   {

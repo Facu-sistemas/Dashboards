@@ -2,6 +2,8 @@ import { readGroup, searchRead, searchReadAll } from './client';
 import { addDaysIso } from '@/lib/date';
 import { getArgentinaTodayIso } from './oee';
 import { listCarasResumen } from '@/lib/supabase/fichaje-caras';
+import { getEstadosResumen } from '@/lib/supabase/rrhh-resumen-estado';
+import type { EstadoResumen } from '@/lib/rrhh-resumen-estado';
 import type { OdooReadGroupResult } from './types';
 
 /**
@@ -58,6 +60,8 @@ export interface EmpleadoVacacionesRow {
   fichado: boolean;
   /** Tiene al menos un descriptor facial cargado en Supabase (fichaje_caras). */
   tieneBiometricos: boolean;
+  /** Estado en el Resumen de RRHH (se administra en RRHH > Administración). Sin fila en Supabase = 'normal'. */
+  estadoResumen: EstadoResumen;
 
   vacacionesAsignadas: number;
   vacacionesTomadas: number;
@@ -170,7 +174,7 @@ export async function getRrhhVacaciones(): Promise<RrhhVacacionesResult> {
   const today = getArgentinaTodayIso();
   const desdeHoras = addDaysIso(today, -HORAS_CARGADAS_DIAS);
 
-  const [employees, allocations, leaves, contracts, hoursByEmployee30d, hoursByEmployeeTotal, hoursPerWeekByCalendar, caras] =
+  const [employees, allocations, leaves, contracts, hoursByEmployee30d, hoursByEmployeeTotal, hoursPerWeekByCalendar, caras, estadosResumen] =
     await Promise.all([
       searchReadAll<EmployeeRow>({
         model: 'hr.employee',
@@ -227,6 +231,7 @@ export async function getRrhhVacaciones(): Promise<RrhhVacacionesResult> {
       }) as Promise<HoursGroupRow[]>,
       getHorasPorSemana(),
       listCarasResumen(),
+      getEstadosResumen(),
     ]);
 
   const biometricosIds = new Set(caras.map((c) => c.empleadoId));
@@ -259,6 +264,7 @@ export async function getRrhhVacaciones(): Promise<RrhhVacacionesResult> {
       enLicenciaActualmente: Boolean(e.current_leave_state),
       fichado: e.attendance_state === 'checked_in',
       tieneBiometricos: biometricosIds.has(e.id),
+      estadoResumen: estadosResumen.get(e.id) ?? 'normal',
 
       vacacionesAsignadas: asignado,
       vacacionesTomadas: tomado,
