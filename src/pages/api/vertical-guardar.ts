@@ -29,7 +29,7 @@ const bodySchema = z.object({
 });
 
 function requireProduccionAccess(context: { locals: App.Locals }): Response | null {
-  if (!context.locals.usuario?.areasPermitidas.includes('produccion')) {
+  if (!context.locals.usuario?.areasPermitidas.includes('test')) {
     return jsonResponse({ ok: false, error: 'No autorizado' }, { status: 403 });
   }
   return null;

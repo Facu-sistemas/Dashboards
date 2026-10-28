@@ -16,7 +16,7 @@ import CarpinteriaTab from '@/components/produccion/CarpinteriaTab.astro';
 import BandasTab from '@/components/produccion/BandasTab.astro';
 import MulticorteTab from '@/components/produccion/MulticorteTab.astro';
 import TelamaxTab from '@/components/produccion/TelamaxTab.astro';
-import VerticalTab from '@/components/produccion/VerticalTab.astro';
+import VerticalTab from '@/components/test/VerticalTab.astro';
 import PlanificadoLineaTab from '@/components/produccion/PlanificadoLineaTab.astro';
 import EtiquetasTab from '@/components/almacen/EtiquetasTab.astro';
 import TicketsSoporteTab from '@/components/calidad/TicketsSoporteTab.astro';
@@ -33,7 +33,7 @@ import { tabVisible } from '@/lib/tab-acceso';
 import CumpleanosTab from '@/components/test/CumpleanosTab.astro';
 import FlujoTab from '@/components/test/FlujoTab.astro';
 import PermisosOdooTab from '@/components/test/PermisosOdooTab.astro';
-import LineasSillonTab from '@/components/test/LineasSillonTab.astro';
+import LineasSillonTab from '@/components/produccion/LineasSillonTab.astro';
 import CalidadCncTab from '@/components/calidad/CalidadCncTab.astro';
 import FichajeReconocerTab from '@/components/fichaje/FichajeReconocerTab.astro';
 import FichajeRegistrarTab from '@/components/fichaje/FichajeRegistrarTab.astro';
@@ -85,9 +85,10 @@ if (!area || !tabConfig || !tabVisible(tabConfig, Astro.locals.usuario) || !Astr
   {area.slug === 'produccion' && tabSlug === 'calculadora-carpinteria' && <CarpinteriaTab />}
   {area.slug === 'produccion' && tabSlug === 'calculadora-bandas' && <BandasTab />}
   {area.slug === 'produccion' && tabSlug === 'optimizador-multicorte' && <MulticorteTab />}
-  {area.slug === 'produccion' && tabSlug === 'optimizador-vertical' && <VerticalTab />}
+  {area.slug === 'test' && tabSlug === 'optimizador-vertical' && <VerticalTab />}
   {area.slug === 'produccion' && tabSlug === 'planificado-linea' && <PlanificadoLineaTab />}
   {area.slug === 'produccion' && tabSlug === 'telamax' && <TelamaxTab />}
+  {area.slug === 'produccion' && tabSlug === 'lineas-sillon' && <LineasSillonTab />}
   {area.slug === 'almacen' && tabSlug === 'etiquetas-proveedor' && <EtiquetasTab />}
   {area.slug === 'gestion-calidad' && tabSlug === 'tickets-soporte' && <TicketsSoporteTab />}
   {area.slug === 'gestion-calidad' && tabSlug === 'reparaciones-colchones' && <ReparacionesColchonesTab />}
@@ -99,7 +100,6 @@ if (!area || !tabConfig || !tabVisible(tabConfig, Astro.locals.usuario) || !Astr
   {area.slug === 'test' && tabSlug === 'cumpleanos' && <CumpleanosTab />}
   {area.slug === 'test' && tabSlug === 'flujo' && <FlujoTab />}
   {area.slug === 'test' && tabSlug === 'permisos-odoo' && <PermisosOdooTab />}
-  {area.slug === 'test' && tabSlug === 'lineas-sillon' && <LineasSillonTab />}
   {area.slug === 'fichaje' && tabSlug === 'reconocer' && <FichajeReconocerTab />}
   {area.slug === 'fichaje' && tabSlug === 'registrar' && <FichajeRegistrarTab />}
   {area.slug === 'fichaje' && tabSlug === 'aviso' && <FichajeAvisoTab />}

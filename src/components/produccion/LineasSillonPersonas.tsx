@@ -1,27 +1,64 @@
 import { useState } from 'react';
 import type { PersonaSillon, PuestoPersona } from '@/lib/supabase/lineas-sillon';
 import { normalizar } from '@/lib/lineas-sillon/engine';
+import type { NivelesPersona, Nivel, ProcesoHoja } from '@/lib/lineas-sillon/polivalencia';
 import { PUESTO_LABEL, guardarSillon, type EmpleadoOdoo, type LineasSillonResponse } from './lineas-sillon-shared';
 
 const inputCls = 'rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100 focus:border-brand-500 focus:outline-none';
 const PUESTOS = Object.keys(PUESTO_LABEL) as PuestoPersona[];
+const PROCESO_DE_PUESTO: Record<PuestoPersona, ProcesoHoja> = { costurera: 'COS', carpintero: 'CAR', tendido: 'TAP', estampado: 'ENS' };
+const PROCESOS_UI: { id: ProcesoHoja; label: string }[] = [
+  { id: 'COS', label: 'Costura' },
+  { id: 'CAR', label: 'Carpintería' },
+  { id: 'TAP', label: 'Tapicería' },
+  { id: 'ENS', label: 'Ensamble' },
+];
+const NIVEL_LABEL: Record<Nivel, string> = { 1: '1 · no lo hace solo', 2: '2 · lo hace solo', 3: '3 · enseña / le gusta' };
 
-function Preferencias({ seleccion, productos, onChange }: { seleccion: string[]; productos: string[]; onChange: (v: string[]) => void }) {
+function NivelesEditor({ niveles, productos, puesto, onChange }: { niveles: NivelesPersona; productos: string[]; puesto: PuestoPersona; onChange: (v: NivelesPersona) => void }) {
+  const [proceso, setProceso] = useState<ProcesoHoja>(PROCESO_DE_PUESTO[puesto]);
   const [filtro, setFiltro] = useState('');
-  const set = new Set(seleccion);
+  const actual = niveles[proceso] ?? {};
   const visibles = productos.filter((p) => p.toLowerCase().includes(filtro.toLowerCase()));
+  const poner = (producto: string, nivel: Nivel | null) => {
+    const copia = { ...actual };
+    if (nivel === null) delete copia[producto];
+    else copia[producto] = nivel;
+    onChange({ ...niveles, [proceso]: copia });
+  };
   return (
     <div className="mt-2">
-      <input className={`${inputCls} w-full`} placeholder="Buscar producto…" value={filtro} onChange={(e) => setFiltro(e.target.value)} />
-      <div className="mt-1.5 max-h-48 overflow-y-auto rounded border border-slate-800 p-1.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex rounded border border-slate-800 p-0.5">
+          {PROCESOS_UI.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => setProceso(p.id)}
+              className={`rounded px-2 py-0.5 text-[11px] ${proceso === p.id ? 'bg-brand-500/15 text-brand-400' : 'text-slate-400'}`}
+            >
+              {p.label} ({Object.keys(niveles[p.id] ?? {}).length})
+            </button>
+          ))}
+        </div>
+        <input className={`${inputCls} flex-1`} placeholder="Buscar producto…" value={filtro} onChange={(e) => setFiltro(e.target.value)} />
+      </div>
+      <div className="mt-1.5 max-h-56 overflow-y-auto rounded border border-slate-800 p-1.5">
         {visibles.map((p) => (
-          <label key={p} className="flex items-center gap-2 px-1 py-0.5 text-xs text-slate-300">
-            <input
-              type="checkbox"
-              checked={set.has(p)}
-              onChange={() => onChange(set.has(p) ? seleccion.filter((x) => x !== p) : [...seleccion, p])}
-            />
+          <label key={p} className="flex items-center justify-between gap-2 px-1 py-0.5 text-xs text-slate-300">
             {p}
+            <select
+              className="rounded border border-slate-700 bg-slate-950 px-1 py-0.5 text-[11px]"
+              value={actual[p] ?? ''}
+              onChange={(e) => poner(p, e.target.value ? (Number(e.target.value) as Nivel) : null)}
+            >
+              <option value="">—</option>
+              {([1, 2, 3] as Nivel[]).map((n) => (
+                <option key={n} value={n}>
+                  {NIVEL_LABEL[n]}
+                </option>
+              ))}
+            </select>
           </label>
         ))}
       </div>
@@ -99,14 +136,14 @@ function PersonaEditor({
   const nombre = empleado?.nombre ?? persona.nombre ?? '';
   const [puesto, setPuesto] = useState<PuestoPersona>(persona.puesto ?? 'costurera');
   const [activa, setActiva] = useState(persona.activa ?? true);
-  const [productos, setProductos] = useState<string[]>(persona.productos ?? []);
+  const [niveles, setNiveles] = useState<NivelesPersona>(persona.niveles ?? {});
   const [error, setError] = useState('');
   const ocupados = new Set(data.config.personas.filter((p) => p.id !== persona.id && p.empleadoId).map((p) => p.empleadoId!));
 
   const guardar = async () => {
     setError('');
     try {
-      await guardarSillon({ tipo: 'persona', id: persona.id, empleadoId: empleado?.id ?? null, nombre, puesto, activa, productos });
+      await guardarSillon({ tipo: 'persona', id: persona.id, empleadoId: empleado?.id ?? null, nombre, puesto, activa, productos: persona.productos ?? [], niveles });
       onSaved();
       onCerrar();
     } catch (e) {
@@ -148,8 +185,8 @@ function PersonaEditor({
           Activa
         </label>
       </div>
-      <p className="mt-3 text-[11px] text-slate-500">Productos que le gusta hacer ({productos.length})</p>
-      <Preferencias seleccion={productos} productos={data.plan.productos.map((p) => p.nombre)} onChange={setProductos} />
+      <p className="mt-3 text-[11px] text-slate-500">Polivalencia: nivel en cada producto, por proceso</p>
+      <NivelesEditor niveles={niveles} productos={data.plan.productos.map((p) => p.nombre)} puesto={puesto} onChange={setNiveles} />
       <div className="mt-3 flex items-center gap-2">
         <button type="button" onClick={() => void guardar()} disabled={!nombre.trim() || (!persona.id && !empleado)} className="rounded bg-brand-500/20 px-3 py-1.5 text-xs text-brand-400 hover:bg-brand-500/30 disabled:opacity-50">
           Guardar
@@ -181,21 +218,49 @@ export default function LineasSillonPersonas({ data, onSaved }: { data: LineasSi
       setErrorBorrar((e as Error).message);
     }
   };
+  const [importando, setImportando] = useState(false);
+  const [resultado, setResultado] = useState('');
+  const importar = async () => {
+    if (!window.confirm('Se copian a la web los niveles de la hoja de polivalencia de Diseño: se crean las personas que faltan y se completan las que no tienen niveles. Lo que ya editaste acá no se pisa. ¿Seguir?')) return;
+    setImportando(true);
+    setErrorBorrar('');
+    setResultado('');
+    try {
+      const r = (await guardarSillon({ tipo: 'importar-hoja' })) as { creadas: number; completadas: number; yaCargadas: number; sinEmpleado: string[] };
+      setResultado(
+        `Importado: ${r.creadas} personas nuevas, ${r.completadas} completadas, ${r.yaCargadas} ya tenían niveles.` +
+          (r.sinEmpleado.length ? ` Sin vincular a Odoo (no se encontró el empleado): ${r.sinEmpleado.join(', ')}.` : ''),
+      );
+      onSaved();
+    } catch (e) {
+      setErrorBorrar((e as Error).message);
+    } finally {
+      setImportando(false);
+    }
+  };
   const lineaDe = (id: string) => data.config.lineas.filter((l) => Object.values(l.asignados).includes(id)).map((l) => l.linea);
 
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4">
         <p className="text-xs text-slate-400">
-          Cargá al personal de cada puesto y, para las costureras, los productos que prefieren hacer. Abajo de cada una ves qué hay hoy en las
-          líneas habilitadas que le gusta.
+          Personal de cada puesto con su polivalencia (1 no lo hace solo · 2 lo hace solo · 3 enseña / le gusta ★). Abajo de cada persona ves qué hay hoy en las líneas habilitadas que sabe hacer. Los niveles se editan acá.
         </p>
+        <button
+          type="button"
+          onClick={() => void importar()}
+          disabled={importando}
+          className="shrink-0 rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-slate-500 disabled:opacity-50"
+        >
+          {importando ? 'Importando…' : 'Importar de la hoja de Diseño'}
+        </button>
         <button type="button" onClick={() => setEditando({})} className="shrink-0 rounded bg-brand-500/20 px-3 py-1.5 text-xs text-brand-400 hover:bg-brand-500/30">
           + Agregar persona
         </button>
       </div>
 
       {!data.config.disponible && <p className="text-xs text-rose-300">Faltan las tablas en Supabase: no se puede guardar todavía.</p>}
+      {resultado && <p className="text-xs text-emerald-300">{resultado}</p>}
       {errorBorrar && <p className="text-xs text-rose-400">{errorBorrar}</p>}
       {editando && <PersonaEditor key={editando.id ?? 'nueva'} persona={editando} data={data} onSaved={onSaved} onCerrar={() => setEditando(null)} />}
 
@@ -209,6 +274,7 @@ export default function LineasSillonPersonas({ data, onSaved }: { data: LineasSi
               {personas.map((p) => {
                 const hoy = data.plan.coincidencias[p.id] ?? [];
                 const lineas = lineaDe(p.id);
+                const resumen = data.plan.resumenNiveles[p.id];
                 return (
                   <div key={p.id} className={`rounded-lg border border-slate-800 bg-slate-900/60 p-3 ${p.activa ? '' : 'opacity-50'}`}>
                     <div className="flex items-center justify-between">
@@ -223,13 +289,21 @@ export default function LineasSillonPersonas({ data, onSaved }: { data: LineasSi
                       </span>
                     </div>
                     <p className="mt-0.5 text-[11px] text-slate-500">
-                      {lineas.length ? `Línea ${lineas.join(', ')}` : 'Sin línea asignada'} · {p.productos.length} preferencias
+                      {lineas.length ? `Línea ${lineas.join(', ')}` : 'Sin línea asignada'} ·{' '}
+                      {resumen
+                        ? `${resumen.productosSolo} productos solo · ${resumen.productosEnsena} enseña`
+                        : `${p.productos.length} preferencias · sin niveles cargados`}
                     </p>
-                    {p.productos.length > 0 && (
+                    {(resumen || p.productos.length > 0) && (
                       <p className="mt-2 text-xs text-slate-300">
                         {hoy.length === 0
-                          ? 'Hoy no hay nada de lo que le gusta.'
-                          : hoy.map((h) => `${h.unidades}× ${h.producto} (L${h.linea})`).join(' · ')}
+                          ? 'Hoy no hay nada de lo que sabe hacer.'
+                          : hoy.map((h, i) => (
+                              <span key={`${h.producto}-${h.linea}`}>
+                                {i > 0 && ' · '}
+                                {h.unidades}× {h.producto} (L{h.linea}){h.nivel === 3 && <span className="text-amber-300"> ★</span>}
+                              </span>
+                            ))}
                       </p>
                     )}
                   </div>

@@ -6,24 +6,36 @@ import {
   PUESTOS_PERSONA,
   SLOTS,
   agregarManual,
+  ajustarIgnoradas,
   borrarManual,
   borrarPersona,
+  crearPersonas,
   fijarPlan,
   getConfigSillon,
   getPlanFijado,
+  limpiarIgnoradas,
   guardarPersona,
   setAlias,
   setLinea,
   setTiempo,
 } from '@/lib/supabase/lineas-sillon';
 import { armarPlan, catalogoDe, type PlanSillon } from '@/lib/lineas-sillon/plan';
+import {
+  PROCESOS,
+  buscarUnico,
+  getMatrizPolivalencia,
+  mismoNombre,
+  nivelesParaDatos,
+  procesoPrincipal,
+  type ProcesoHoja,
+} from '@/lib/lineas-sillon/polivalencia';
 import { NUM_LINEAS } from '@/lib/lineas-sillon/engine';
 import { handleApiRoute, jsonResponse, ApiValidationError } from '@/lib/api-helpers';
 
 export const prerender = false;
 
 function requireTestAccess(context: { locals: App.Locals }): Response | null {
-  if (!context.locals.usuario?.areasPermitidas.includes('test')) {
+  if (!context.locals.usuario?.areasPermitidas.includes('produccion')) {
     return jsonResponse({ ok: false, error: 'No autorizado' }, { status: 403 });
   }
   return null;
@@ -82,7 +94,9 @@ const bodySchema = z.discriminatedUnion('tipo', [
     puesto: z.enum(PUESTOS_PERSONA as [string, ...string[]]),
     activa: z.boolean(),
     productos: z.array(z.string().max(200)).max(300),
+    niveles: z.record(z.enum(PROCESOS as [ProcesoHoja, ...ProcesoHoja[]]), z.record(z.string().max(200), z.union([z.literal(1), z.literal(2), z.literal(3)]))).optional(),
   }),
+  z.object({ tipo: z.literal('importar-hoja') }),
   z.object({ tipo: z.literal('persona-borrar'), id: z.string().uuid() }),
   z.object({ tipo: z.literal('alias'), base: z.string().trim().min(1).max(200), producto: z.string().max(200).nullable() }),
   z.object({ tipo: z.literal('tiempo'), producto: z.string().max(200), minutos: z.number().positive().max(2000).nullable() }),
@@ -95,7 +109,43 @@ const bodySchema = z.discriminatedUnion('tipo', [
   }),
   z.object({ tipo: z.literal('manual-borrar'), id: z.string().uuid() }),
   z.object({ tipo: z.literal('fijar-plan'), repartir: z.boolean() }),
+  // delta +1 = ignorar una unidad de la orden; -1 = volver a incluirla.
+  z.object({ tipo: z.literal('ignorar-limpiar'), repartir: z.boolean() }),
+  z.object({ tipo: z.literal('ignorar'), orden: z.string().trim().min(1).max(80), delta: z.union([z.literal(1), z.literal(-1)]), repartir: z.boolean() }),
 ]);
+
+const PUESTO_DE_PROCESO = { COS: 'costurera', CAR: 'carpintero', TAP: 'tendido', ENS: 'estampado' } as const;
+
+/** Copia a Supabase la matriz de polivalencia de Diseño: crea a quien falta y completa los niveles de quien está vacío. Lo ya editado en la web no se pisa. */
+async function importarDeLaHoja(usuario: string) {
+  const matriz = await getMatrizPolivalencia();
+  if (!matriz) throw new ApiValidationError('No se pudo leer la hoja de Diseño (¿sigue compartida por link?)');
+  const [config, empleados] = await Promise.all([getConfigSillon(), getEmpleadosActivos()]);
+  const productos = catalogoDe(config).map((p) => p.nombre);
+  const nuevas: Parameters<typeof crearPersonas>[0] = [];
+  const sinEmpleado: string[] = [];
+  let completadas = 0;
+  let yaCargadas = 0;
+
+  for (const hoja of matriz.personas) {
+    const niveles = nivelesParaDatos(matriz, hoja, productos);
+    const proceso = procesoPrincipal(niveles);
+    if (!proceso) continue;
+    const existente = config.personas.find((p) => mismoNombre(hoja.nombre, p.nombre));
+    if (existente) {
+      if (Object.keys(existente.niveles).length === 0) {
+        await guardarPersona({ ...existente, niveles }, usuario);
+        completadas += 1;
+      } else yaCargadas += 1;
+      continue;
+    }
+    const empleado = buscarUnico(empleados, hoja.nombre, (e) => e.nombre);
+    if (!empleado) sinEmpleado.push(hoja.nombre.trim());
+    nuevas.push({ empleadoId: empleado?.id ?? null, nombre: empleado?.nombre ?? hoja.nombre.trim().replace(/\s+/g, ' '), puesto: PUESTO_DE_PROCESO[proceso], niveles });
+  }
+  await crearPersonas(nuevas, usuario);
+  return { creadas: nuevas.length, completadas, yaCargadas, sinEmpleado };
+}
 
 // POST /api/lineas-sillon — una escritura de configuración por llamada (ver bodySchema).
 export const POST: APIRoute = async (context) => {
@@ -129,6 +179,8 @@ export const POST: APIRoute = async (context) => {
         d.productos.forEach(productoValido);
         await guardarPersona({ ...d, puesto: d.puesto as (typeof PUESTOS_PERSONA)[number] }, usuario);
         break;
+      case 'importar-hoja':
+        return await importarDeLaHoja(usuario);
       case 'persona-borrar':
         await borrarPersona(d.id);
         break;
@@ -147,6 +199,17 @@ export const POST: APIRoute = async (context) => {
       case 'manual-borrar':
         await borrarManual(d.id);
         break;
+      case 'ignorar':
+      case 'ignorar-limpiar': {
+        if (d.tipo === 'ignorar') await ajustarIgnoradas(d.orden, d.delta, usuario);
+        else await limpiarIgnoradas();
+        // Si ya hay plan fijado hoy, se rearma sin lo ignorado para que la hoja impresa también se corra.
+        const hoy = hoyArgentina();
+        if (await getPlanFijado<PlanSillon>(hoy)) {
+          await fijarPlan(hoy, armarPlan(await getOrdenesSillon(), await getConfigSillon(), hoy, d.repartir), usuario);
+        }
+        break;
+      }
       case 'fijar-plan': {
         const hoy = hoyArgentina();
         const config = await getConfigSillon();

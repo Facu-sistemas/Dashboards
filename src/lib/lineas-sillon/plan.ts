@@ -10,6 +10,7 @@ import {
   type UnidadPlan,
 } from './engine';
 import { DATOS_SEED } from './datos';
+import type { Nivel, ProcesoHoja } from './polivalencia';
 import type { ConfigSillon, LineaConfig, PersonaSillon } from '@/lib/supabase/lineas-sillon';
 import type { OrdenSillon } from '@/lib/odoo/lineas-sillon';
 
@@ -42,10 +43,24 @@ export interface PlanSillon {
   sinLinea: { ordenes: number; unidades: number };
   enLineaApagada: { ordenes: number; unidades: number };
   sinFecha: number;
+  /** Unidades que se sacaron del plan porque la línea ya las cerró (Odoo sigue abierta). */
+  ignoradas: { orden: string; producto: string; unidades: number }[];
   productos: ProductoDato[];
-  /** Por persona activa: unidades de hoy en las líneas habilitadas que coinciden con sus productos preferidos. */
-  coincidencias: Record<string, { producto: string; linea: number; unidades: number }[]>;
+  /**
+   * Por persona activa: unidades de hoy en las líneas habilitadas que sabe hacer: lo que hace solo (nivel 2) o enseña
+   * (nivel 3) según su matriz; si todavía no tiene niveles, sus preferencias viejas cargadas a mano (nivel null).
+   */
+  coincidencias: Record<string, { producto: string; linea: number; unidades: number; nivel: Nivel | null }[]>;
+  /** Persona → cuántos productos hace solo y cuántos enseña en el proceso de su puesto (solo las que tienen niveles cargados). */
+  resumenNiveles: Record<string, { productosSolo: number; productosEnsena: number }>;
 }
+
+const PROCESO_DE_PUESTO: Record<PersonaSillon['puesto'], ProcesoHoja> = {
+  costurera: 'COS',
+  carpintero: 'CAR',
+  tendido: 'TAP',
+  estampado: 'ENS',
+};
 
 export function catalogoDe(config: ConfigSillon): ProductoDato[] {
   return DATOS_SEED.map(([nombre, minutos, personas]) => ({
@@ -61,7 +76,9 @@ const unidadesDe = (o: OrdenSillon) => Math.min(MAX_UNIDADES_POR_ORDEN, Math.max
 const porFecha = (a: OrdenSillon, b: OrdenSillon) =>
   (a.fecha || '9999').localeCompare(b.fecha || '9999') || a.id - b.id;
 
-export function armarPlan(ordenes: OrdenSillon[], config: ConfigSillon, hoy: string, repartirSinLinea: boolean): PlanSillon {
+export function armarPlan(ordenes: OrdenSillon[], config: ConfigSillon, hoy: string,
+  repartirSinLinea: boolean,
+): PlanSillon {
   const productos = catalogoDe(config);
   const cat = armarCatalogo(productos, config.alias);
   const activas = new Set(config.lineas.filter((l) => l.activa).map((l) => l.linea));
@@ -84,11 +101,16 @@ export function armarPlan(ordenes: OrdenSillon[], config: ConfigSillon, hoy: str
   const sinLinea = { ordenes: 0, unidades: 0 };
   const enLineaApagada = { ordenes: 0, unidades: 0 };
   let sinFecha = 0;
+  const ignoradas: PlanSillon['ignoradas'] = [];
   const hoyPorProducto = new Map<string, { linea: number; unidades: number }>();
 
   for (const o of [...ordenes].sort(porFecha)) {
     if (!o.fecha) sinFecha += 1;
-    const n = unidadesDe(o);
+    const total = unidadesDe(o);
+    const descartadas = Math.min(total, config.ignoradas[o.nombre] ?? 0);
+    if (descartadas > 0) ignoradas.push({ orden: o.nombre, producto: baseDeOdoo(o.producto), unidades: descartadas });
+    const n = total - descartadas;
+    if (n === 0) continue;
     const dato = resolverProducto(o.producto, cat);
     if (!dato || !dato.minutos) {
       const base = baseDeOdoo(o.producto);
@@ -141,11 +163,22 @@ export function armarPlan(ordenes: OrdenSillon[], config: ConfigSillon, hoy: str
   });
 
   const coincidencias: PlanSillon['coincidencias'] = {};
-  for (const p of config.personas.filter((x: PersonaSillon) => x.activa && x.productos.length > 0)) {
-    const mias = new Set(p.productos);
-    coincidencias[p.id] = [...hoyPorProducto.entries()]
-      .map(([k, v]) => ({ producto: k.split('|')[1]!, ...v }))
-      .filter((x) => mias.has(x.producto));
+  const resumenNiveles: PlanSillon['resumenNiveles'] = {};
+  const hoyLista = [...hoyPorProducto.entries()].map(([k, v]) => ({ producto: k.split('|')[1]!, ...v }));
+  for (const p of config.personas.filter((x: PersonaSillon) => x.activa)) {
+    const proceso = PROCESO_DE_PUESTO[p.puesto];
+    const niveles = p.niveles[proceso] ?? {};
+    if (Object.keys(niveles).length > 0) {
+      const valores = Object.values(niveles);
+      resumenNiveles[p.id] = { productosSolo: valores.filter((n) => n >= 2).length, productosEnsena: valores.filter((n) => n === 3).length };
+      coincidencias[p.id] = hoyLista
+        .map((x) => ({ ...x, nivel: niveles[x.producto] ?? null }))
+        .filter((x) => x.nivel !== null && x.nivel >= 2)
+        .sort((a, b) => (b.nivel ?? 0) - (a.nivel ?? 0));
+    } else if (p.productos.length > 0) {
+      const mias = new Set(p.productos);
+      coincidencias[p.id] = hoyLista.filter((x) => mias.has(x.producto)).map((x) => ({ ...x, nivel: null }));
+    }
   }
 
   return {
@@ -155,7 +188,9 @@ export function armarPlan(ordenes: OrdenSillon[], config: ConfigSillon, hoy: str
     sinLinea,
     enLineaApagada,
     sinFecha,
+    ignoradas,
     productos,
     coincidencias,
+    resumenNiveles,
   };
 }

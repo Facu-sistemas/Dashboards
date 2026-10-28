@@ -36,14 +36,15 @@ export const PUESTO_LABEL: Record<PuestoPersona, string> = {
   estampado: 'Estampado',
 };
 
-export async function guardarSillon(body: unknown): Promise<void> {
+export async function guardarSillon(body: unknown): Promise<unknown> {
   const res = await fetch('/api/lineas-sillon', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+  const json = (await res.json().catch(() => null)) as { ok?: boolean; error?: string; data?: unknown } | null;
   if (!res.ok || !json?.ok) throw new Error(json?.error ?? 'No se pudo guardar');
+  return json.data;
 }
 
 export const porcentaje = (x: number) => `${Math.round(x * 100)}%`;

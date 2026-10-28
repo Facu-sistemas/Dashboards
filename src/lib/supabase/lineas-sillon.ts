@@ -1,4 +1,5 @@
 import { getSupabaseAdminClient } from './admin';
+import type { NivelesPersona } from '@/lib/lineas-sillon/polivalencia';
 import { ADELANTO_PARALELO, NUM_LINEAS, type Adelanto } from '@/lib/lineas-sillon/engine';
 
 /**
@@ -57,6 +58,15 @@ import { ADELANTO_PARALELO, NUM_LINEAS, type Adelanto } from '@/lib/lineas-sillo
  *   alter table lineas_sillon_alias enable row level security;
  *   alter table lineas_sillon_tiempos enable row level security;
  *   alter table lineas_sillon_manuales enable row level security;
+ *   alter table lineas_sillon_personas add column niveles jsonb not null default '{}';  -- { COS|CAR|TAP|ENS: { producto: 1|2|3 } }
+ *   create table lineas_sillon_ignoradas (       -- unidades que la línea ya cerró pero Odoo sigue abierta
+ *     orden text primary key,                    -- nombre de la MO de Odoo (ej. WH/MO/01234)
+ *     unidades integer not null check (unidades > 0),
+ *     actualizado_por text,
+ *     updated_at timestamptz not null default now()
+ *   );
+ *   alter table lineas_sillon_ignoradas enable row level security;
+ *   grant select, insert, update, delete on lineas_sillon_ignoradas to service_role;
  *
  * Una línea sin fila = activa (salvo la 8, que arranca apagada). Si las tablas no
  * existen, las lecturas devuelven `disponible: false` y el plan usa los defaults.
@@ -84,6 +94,8 @@ export interface PersonaSillon {
   puesto: PuestoPersona;
   activa: boolean;
   productos: string[];
+  /** Polivalencia: por proceso (COS/CAR/TAP/ENS), nivel en cada producto — 1 no lo hace solo, 2 solo, 3 enseña o le gusta. */
+  niveles: NivelesPersona;
 }
 
 export interface LineaConfig {
@@ -108,6 +120,8 @@ export interface ConfigSillon {
   alias: Record<string, string>;
   tiempos: Record<string, number>;
   manuales: ManualSillon[];
+  /** Unidades a descartar por orden de Odoo (MO → cantidad): ya cerradas en la línea. */
+  ignoradas: Record<string, number>;
 }
 
 const lineaDefault = (linea: number): LineaConfig => ({
@@ -119,18 +133,19 @@ const lineaDefault = (linea: number): LineaConfig => ({
 
 export async function getConfigSillon(): Promise<ConfigSillon> {
   const admin = getSupabaseAdminClient();
-  const [lineasRes, personasRes, aliasRes, tiemposRes, manualesRes] = await Promise.all([
+  const [lineasRes, personasRes, aliasRes, tiemposRes, manualesRes, ignoradasRes] = await Promise.all([
     admin.from('lineas_sillon_lineas').select('linea, activa, asignados, adelanto'),
     admin.from('lineas_sillon_personas').select('*').order('nombre'),
     admin.from('lineas_sillon_alias').select('odoo_base, producto'),
     admin.from('lineas_sillon_tiempos').select('producto, minutos'),
     admin.from('lineas_sillon_manuales').select('id, linea, producto, cantidad, nota').order('updated_at'),
+    admin.from('lineas_sillon_ignoradas').select('orden, unidades'),
   ]);
-  const error = lineasRes.error ?? personasRes.error ?? aliasRes.error ?? tiemposRes.error ?? manualesRes.error;
+  const error = lineasRes.error ?? personasRes.error ?? aliasRes.error ?? tiemposRes.error ?? manualesRes.error ?? ignoradasRes.error;
   const lineas = Array.from({ length: NUM_LINEAS }, (_, i) => lineaDefault(i + 1));
   if (error) {
     console.error('[lineas-sillon]', error.message);
-    return { disponible: false, lineas, personas: [], alias: {}, tiempos: {}, manuales: [] };
+    return { disponible: false, lineas, personas: [], alias: {}, tiempos: {}, manuales: [], ignoradas: {} };
   }
   for (const r of lineasRes.data ?? []) {
     const l = lineas[Number(r.linea) - 1];
@@ -149,9 +164,11 @@ export async function getConfigSillon(): Promise<ConfigSillon> {
       puesto: r.puesto as PuestoPersona,
       activa: r.activa as boolean,
       productos: (r.productos ?? []) as string[],
+      niveles: (r.niveles ?? {}) as NivelesPersona,
     })),
     alias: Object.fromEntries((aliasRes.data ?? []).map((r) => [r.odoo_base as string, r.producto as string])),
     tiempos: Object.fromEntries((tiemposRes.data ?? []).map((r) => [r.producto as string, Number(r.minutos)])),
+    ignoradas: Object.fromEntries((ignoradasRes.data ?? []).map((r) => [r.orden as string, Number(r.unidades)])),
     manuales: (manualesRes.data ?? []).map((r) => ({
       id: r.id as string,
       linea: Number(r.linea),
@@ -176,12 +193,40 @@ export async function setLinea(
 }
 
 export async function guardarPersona(
-  p: { id?: string; empleadoId: number | null; nombre: string; puesto: PuestoPersona; activa: boolean; productos: string[] },
+  p: { id?: string; empleadoId: number | null; nombre: string; puesto: PuestoPersona; activa: boolean; productos: string[]; niveles?: NivelesPersona },
   usuario: string,
 ): Promise<void> {
-  const fila = { empleado_id: p.empleadoId, nombre: p.nombre, puesto: p.puesto, activa: p.activa, productos: p.productos, actualizado_por: usuario, updated_at: ahora() };
+  const fila = {
+    empleado_id: p.empleadoId,
+    nombre: p.nombre,
+    puesto: p.puesto,
+    activa: p.activa,
+    productos: p.productos,
+    ...(p.niveles ? { niveles: p.niveles } : {}),
+    actualizado_por: usuario,
+    updated_at: ahora(),
+  };
   const q = getSupabaseAdminClient().from('lineas_sillon_personas');
   const { error } = p.id ? await q.update(fila).eq('id', p.id) : await q.insert(fila);
+  if (error) throw new Error(error.message);
+}
+
+export async function crearPersonas(
+  lista: { empleadoId: number | null; nombre: string; puesto: PuestoPersona; niveles: NivelesPersona }[],
+  usuario: string,
+): Promise<void> {
+  if (lista.length === 0) return;
+  const filas = lista.map((p) => ({
+    empleado_id: p.empleadoId,
+    nombre: p.nombre,
+    puesto: p.puesto,
+    activa: true,
+    productos: [],
+    niveles: p.niveles,
+    actualizado_por: usuario,
+    updated_at: ahora(),
+  }));
+  const { error } = await getSupabaseAdminClient().from('lineas_sillon_personas').insert(filas);
   if (error) throw new Error(error.message);
 }
 
@@ -219,6 +264,24 @@ export async function agregarManual(m: Omit<ManualSillon, 'id'>, usuario: string
 
 export async function borrarManual(id: string): Promise<void> {
   const { error } = await getSupabaseAdminClient().from('lineas_sillon_manuales').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+/** Suma (o resta, con delta negativo) unidades ignoradas de una orden; al llegar a 0 se borra la fila. */
+export async function ajustarIgnoradas(orden: string, delta: number, usuario: string): Promise<void> {
+  const admin = getSupabaseAdminClient();
+  const { data, error: errLeer } = await admin.from('lineas_sillon_ignoradas').select('unidades').eq('orden', orden).maybeSingle();
+  if (errLeer) throw new Error(errLeer.message);
+  const total = Math.max(0, Number(data?.unidades ?? 0) + delta);
+  const { error } =
+    total === 0
+      ? await admin.from('lineas_sillon_ignoradas').delete().eq('orden', orden)
+      : await admin.from('lineas_sillon_ignoradas').upsert({ orden, unidades: total, actualizado_por: usuario, updated_at: ahora() });
+  if (error) throw new Error(error.message);
+}
+
+export async function limpiarIgnoradas(): Promise<void> {
+  const { error } = await getSupabaseAdminClient().from('lineas_sillon_ignoradas').delete().neq('orden', '');
   if (error) throw new Error(error.message);
 }
 

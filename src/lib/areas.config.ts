@@ -169,9 +169,9 @@ export const AREAS: AreaConfig[] = [
       { slug: 'calculadora-carpinteria', name: 'Calculadora Carpintería' },
       { slug: 'calculadora-bandas', name: 'Calculadora de Bandas' },
       { slug: 'optimizador-multicorte', name: 'Optimizador Multicorte' },
-      { slug: 'optimizador-vertical', name: 'Optimizador Vertical (Living)' },
       { slug: 'planificado-linea', name: 'Planificado Línea' },
       { slug: 'telamax', name: 'Telamax' },
+      { slug: 'lineas-sillon', name: 'Líneas de Sillones' },
     ],
   },
   {
@@ -225,7 +225,7 @@ export const AREAS: AreaConfig[] = [
       { slug: 'cumpleanos', name: 'Cumpleaños' },
       { slug: 'flujo', name: 'Flujo' },
       { slug: 'permisos-odoo', name: 'Permisos Odoo' },
-      { slug: 'lineas-sillon', name: 'Líneas de Sillones' },
+      { slug: 'optimizador-vertical', name: 'Optimizador Vertical (Living)' },
     ],
   },
 ];

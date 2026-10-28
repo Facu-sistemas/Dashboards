@@ -15,7 +15,17 @@ type Vista = 'reporte' | 'lineas' | 'personas' | 'equivalencias';
 /** Cuántas unidades de hoy se listan por línea antes de plegar el resto. */
 const FILAS_VISIBLES = 60;
 
-function LineaCard({ lp, nombres, onPdf }: { lp: LineaPlan; nombres: Map<string, string>; onPdf: () => void }) {
+function LineaCard({
+  lp,
+  nombres,
+  onPdf,
+  onIgnorar,
+}: {
+  lp: LineaPlan;
+  nombres: Map<string, string>;
+  onPdf: () => void;
+  onIgnorar: (orden: string) => void;
+}) {
   const [carp, tap, ens] = lp.estaciones;
   const hoy = carp!.tramos.filter((t) => t.dia === 0);
   const filas = hoy.slice(0, FILAS_VISIBLES);
@@ -61,8 +71,21 @@ function LineaCard({ lp, nombres, onPdf }: { lp: LineaPlan; nombres: Map<string,
           </thead>
           <tbody>
             {filas.map((t, i) => (
-              <tr key={t.idx} className="border-t border-slate-800/60" title={t.origen}>
-                <td className="px-3 py-1 tabular-nums text-slate-500">{t.idx}</td>
+              <tr key={t.idx} className="group border-t border-slate-800/60" title={t.origen}>
+                <td className="whitespace-nowrap px-3 py-1 tabular-nums text-slate-500">
+                  {t.idx}
+                  {!t.manual && (
+                    <button
+                      type="button"
+                      onClick={() => onIgnorar(t.origen)}
+                      title="Ya está terminada: sacarla del plan"
+                      aria-label={`Sacar ${t.producto} del plan`}
+                      className="ml-1 text-slate-600 opacity-0 transition-opacity hover:text-rose-400 focus:opacity-100 group-hover:opacity-100 print:hidden"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </td>
                 <td className="py-1 text-slate-200">
                   {t.producto}
                   {t.manual && <span className="ml-1.5 rounded bg-sky-500/15 px-1 text-[10px] text-sky-300">manual</span>}
@@ -118,6 +141,27 @@ function Reporte({
     : `Plan en vivo generado a las ${horaCorta(new Date().toISOString())}`;
   const pdf = (lineas: LineaPlan[], archivo: string) => {
     setError(generarPdfSillon(lineas, plan.hoy, pie, archivo) ? '' : 'No hay unidades para imprimir.');
+  };
+
+  const ignorar = async (orden: string, delta: 1 | -1) => {
+    setError('');
+    try {
+      await guardarSillon({ tipo: 'ignorar', orden, delta, repartir });
+      onSaved();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  const restablecer = async () => {
+    if (!window.confirm('¿Volver a incluir todas las unidades que sacaste del plan?')) return;
+    setError('');
+    try {
+      await guardarSillon({ tipo: 'ignorar-limpiar', repartir });
+      onSaved();
+    } catch (e) {
+      setError((e as Error).message);
+    }
   };
 
   const fijar = async () => {
@@ -205,9 +249,35 @@ function Reporte({
         )}
       </div>
 
+      {config.ignoradas && Object.keys(config.ignoradas).length > 0 && (
+        <details className="rounded border border-slate-800 px-3 py-2 text-xs text-slate-400 print:hidden">
+          <summary className="cursor-pointer">
+            {Object.values(config.ignoradas).reduce((a, n) => a + n, 0)} unidades sacadas del plan (cerradas en la línea, abiertas en Odoo)
+          </summary>
+          <ul className="mt-2 space-y-1">
+            {Object.entries(config.ignoradas).map(([orden, n]) => (
+              <li key={orden} className="flex items-center gap-3">
+                <span className="tabular-nums text-slate-300">{orden}</span>
+                <span>× {n}</span>
+                <button type="button" onClick={() => void ignorar(orden, -1)} className="text-brand-400 hover:underline">
+                  Volver a incluir una
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            onClick={() => void restablecer()}
+            className="mt-3 rounded border border-slate-700 px-3 py-1 text-slate-300 hover:border-slate-500"
+          >
+            Volver todo a la normalidad
+          </button>
+        </details>
+      )}
+
       <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
         {activas.map((lp) => (
-          <LineaCard key={lp.linea} lp={lp} nombres={nombres} onPdf={() => pdf([lp], `linea-${lp.linea}-${plan.hoy}.pdf`)} />
+          <LineaCard key={lp.linea} lp={lp} nombres={nombres} onPdf={() => pdf([lp], `linea-${lp.linea}-${plan.hoy}.pdf`)} onIgnorar={(o) => void ignorar(o, 1)} />
         ))}
       </div>
       {activas.length === 0 && <p className="py-8 text-center text-sm text-slate-500">No hay líneas habilitadas.</p>}
