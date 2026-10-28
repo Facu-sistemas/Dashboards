@@ -3,6 +3,7 @@ import { Bar, BarChart, Cell, CartesianGrid, ComposedChart, Line, ReferenceLine,
 import QueryProvider from '@/components/QueryProvider';
 import { useApiQuery } from '@/components/dashboard/useApiQuery';
 import LastUpdated from '@/components/shared/LastUpdated';
+import AjustesInventarioSyncButton from './AjustesInventarioSyncButton';
 import KpiCard from '@/components/shared/KpiCard';
 import Tip from '@/components/shared/Tip';
 import { useChartTheme } from '@/components/shared/useChartTheme';
@@ -377,7 +378,10 @@ function AjustesInner() {
               ✕
             </button>
         </div>
-        <div className="ml-auto"><LastUpdated dataUpdatedAt={query.dataUpdatedAt} /></div>
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <AjustesInventarioSyncButton />
+          <LastUpdated dataUpdatedAt={query.dataUpdatedAt} />
+        </div>
       </div>
 
       {query.isError && (
