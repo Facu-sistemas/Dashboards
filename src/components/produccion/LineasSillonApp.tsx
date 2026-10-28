@@ -140,7 +140,7 @@ function Reporte({
     ? `Plan fijado a las ${horaCorta(fijado.creadoEn)} (${fijado.creadoPor})`
     : `Plan en vivo generado a las ${horaCorta(new Date().toISOString())}`;
   const pdf = (lineas: LineaPlan[], archivo: string) => {
-    setError(generarPdfSillon(lineas, plan.hoy, pie, archivo) ? '' : 'No hay unidades para imprimir.');
+    setError(generarPdfSillon(lineas, plan.hoy, pie, archivo, nombres) ? '' : 'No hay unidades para imprimir.');
   };
 
   const ignorar = async (orden: string, delta: 1 | -1) => {

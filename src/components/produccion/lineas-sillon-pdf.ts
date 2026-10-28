@@ -50,6 +50,7 @@ function bloque(
   hoy: string,
   desde: number,
   altoFila: number,
+  gente: string,
 ) {
   const est = lp.estaciones[estacion]!;
   const tramos = est.tramos.filter((t) => t.dia === 0);
@@ -88,7 +89,11 @@ function bloque(
   if (esUltimo) celda(doc, x + anchoCuerpo, y, ANCHO_UE, ALTO_FILA_CAB);
   y += ALTO_FILA_CAB;
 
-  // Fila en blanco (la planilla deja una de aire antes de los datos)
+  // Fila de aire de la planilla: acá van las personas asignadas al puesto
+  if (gente) {
+    doc.setFont('helvetica', 'normal').setFontSize(6.5);
+    texto(doc, gente, x, y, anchoCuerpo, ALTO_BLANCO, 'center', 1);
+  }
   y += ALTO_BLANCO;
 
   doc.setFont('helvetica', 'normal').setFontSize(7);
@@ -124,8 +129,20 @@ function encabezado(doc: jsPDF, hoy: string, ancho: number) {
   doc.setFont('helvetica', 'normal');
 }
 
-/** Devuelve false si no hay nada para imprimir (ninguna línea con unidades hoy). */
-export function generarPdfSillon(lineas: LineaPlan[], hoy: string, pie: string, archivo: string): boolean {
+/** Personas de la línea por bloque: carpintero en Carpintería, costureras y tendido en Tapicería, estampado en Ensamble. */
+function genteDe(lp: LineaPlan, nombres: Map<string, string>): [string, string, string] {
+  const a = lp.config.asignados;
+  const n = (slot: 'C1' | 'C2' | 'C' | 'T' | 'E') => (a[slot] ? nombres.get(a[slot]!) : undefined);
+  const costura = [n('C1'), n('C2')].filter(Boolean).join(' / ');
+  return [
+    n('C') ? `Carpintero: ${n('C')}` : '',
+    [costura && `Costura: ${costura}`, n('T') && `Tendido: ${n('T')}`].filter(Boolean).join('  ·  '),
+    n('E') ? `Estampado: ${n('E')}` : '',
+  ];
+}
+
+/** Devuelve false si no hay nada para imprimir (ninguna línea con unidades hoy). `nombres`: id de persona → nombre. */
+export function generarPdfSillon(lineas: LineaPlan[], hoy: string, pie: string, archivo: string, nombres: Map<string, string> = new Map()): boolean {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
   doc.setLineWidth(GROSOR);
   const ancho = doc.internal.pageSize.getWidth();
@@ -143,8 +160,9 @@ export function generarPdfSillon(lineas: LineaPlan[], hoy: string, pie: string, 
       primera = false;
       encabezado(doc, hoy, ancho);
       let x = MARGEN;
+      const gente = genteDe(lp, nombres);
       anchos.forEach((a, i) => {
-        bloque(doc, x, a, lp, i, hoy, desde, altoFila);
+        bloque(doc, x, a, lp, i, hoy, desde, altoFila, gente[i]!);
         x += a + GAP;
       });
       doc.setFont('helvetica', 'normal').setFontSize(6).setTextColor(120);
