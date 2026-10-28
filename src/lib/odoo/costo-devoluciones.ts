@@ -72,7 +72,12 @@ export interface CostoDevolucionesData {
   empresas: EmpresaOption[];
   registros: DevolucionRegistro[];
   produccion: ProduccionRegistro[];
+  /** Precio de venta de SERVICIO DE REPARACION en Odoo: valor hora de partida para costear la mano de obra. */
+  valorHoraOdoo: number;
 }
+
+/** product.product "SERVICIO DE REPARACION": su precio de venta (lst_price) es el valor hora. Lo usa también Calidad CNC. */
+export const PRODUCTO_HORA_ID = 24085;
 
 const MESES_VENTANA = 12;
 
@@ -223,13 +228,14 @@ export async function getCostoDevolucionesData(): Promise<CostoDevolucionesData>
   const mesesAsc = lastMonthKeys(MESES_VENTANA);
   const desde = monthBounds(mesesAsc[0]!).start;
 
-  const [empresas, livingRepairs, colchonRepairs, notasCredito, livingProd, colchonProd] = await Promise.all([
+  const [empresas, livingRepairs, colchonRepairs, notasCredito, livingProd, colchonProd, productoHora] = await Promise.all([
     searchRead<{ id: number; name: string }>({ model: 'res.company', fields: ['name'], order: 'id asc' }),
     fetchRepairs(LIVING_CATEG_IDS, desde),
     fetchRepairs(COLCHONES_CATEG_IDS, desde),
     fetchNotasDevolucionColchon(desde),
     fetchProduction(LIVING_CATEG_IDS, desde),
     fetchProduction(COLCHONES_CATEG_IDS, desde),
+    searchRead<{ id: number; lst_price: number }>({ model: 'product.product', domain: [['id', '=', PRODUCTO_HORA_ID]], fields: ['lst_price'], limit: 1 }),
   ]);
 
   // Tickets de las reparaciones (motivo y venta vinculada).
@@ -405,5 +411,6 @@ export async function getCostoDevolucionesData(): Promise<CostoDevolucionesData>
     empresas: empresas.map((e) => ({ id: e.id, name: e.name })),
     registros,
     produccion: [...produccion.values()],
+    valorHoraOdoo: productoHora[0]?.lst_price ?? 0,
   };
 }

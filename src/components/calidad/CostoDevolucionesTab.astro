@@ -79,7 +79,7 @@ const card = 'rounded-lg border border-slate-800 bg-slate-900 p-4';
   {
     data && (
       <>
-        <section class={`mb-6 grid gap-4 sm:grid-cols-3 ${card}`}>
+        <section class={`mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 ${card}`}>
           <label class="block text-sm text-slate-400">
             Mes
             <select id="cd-mes" class={inputClass}></select>
@@ -98,6 +98,13 @@ const card = 'rounded-lg border border-slate-800 bg-slate-900 p-4';
               <option value="0">Todas</option>
               {data.empresas.map((e) => <option value={e.id}>{e.name}</option>)}
             </select>
+          </label>
+          <label class="block text-sm text-slate-400">
+            Valor hora ($)
+            <input id="cd-hora" type="number" min="0" step="any" inputmode="decimal" class={inputClass} />
+            <span class="mt-1 block text-xs text-slate-500">
+              Sale de Odoo (SERVICIO DE REPARACION); podés pisarlo. Para dejarlo fijo, "Guardar tarifas del mes" abajo.
+            </span>
           </label>
         </section>
 
@@ -145,11 +152,6 @@ const card = 'rounded-lg border border-slate-800 bg-slate-900 p-4';
             Tarifas de <span id="cd-tarifas-mes"></span> <span id="cd-tarifas-estado" class="ml-2 text-xs font-normal text-slate-500"></span>
           </summary>
           <div class="mt-4 grid gap-4 sm:grid-cols-2">
-            <label class="block text-sm text-slate-400">
-              Valor de la hora de reparación ($)
-              <input id="cd-hora" type="number" min="0" step="any" inputmode="decimal" class={inputClass} />
-              <span class="mt-1 block text-xs text-slate-500">Lo que vale una hora de esa persona: lo que costó pagarla y lo que se dejó de producir. Ej.: 3 horas de un Luxor = $60.000 → $20.000.</span>
-            </label>
             <label class="block text-sm text-slate-400">
               Viajes de flete por devolución
               <input id="cd-viajes" type="number" min="0" step="1" inputmode="numeric" class={inputClass} />
@@ -309,7 +311,7 @@ const card = 'rounded-lg border border-slate-800 bg-slate-900 p-4';
 
     function cargarTarifasDelMes() {
       const mes = mesSel.value;
-      const r = tarifasDeMes(guardadas.porMes, mes);
+      const r = tarifasDeMes(guardadas.porMes, mes, data.valorHoraOdoo);
       tarifas = r.tarifas;
       dirty = false;
       const propio = guardadas.porMes[mes];
@@ -318,6 +320,7 @@ const card = 'rounded-lg border border-slate-800 bg-slate-900 p-4';
         : r.heredadoDe
           ? `Sin guardar para este mes: se partió de las de ${mesLabel(r.heredadoDe)}`
           : 'Sin tarifas guardadas todavía';
+      if (r.horaDeOdoo) origen += ' · valor hora tomado de Odoo';
       horaIn.value = tarifas.costoHora ? String(tarifas.costoHora) : '';
       viajesIn.value = String(tarifas.viajes);
       guardarMsg.textContent = '';
@@ -393,7 +396,7 @@ const card = 'rounded-lg border border-slate-800 bg-slate-900 p-4';
     function renderSerie() {
       const f = filtros();
       const serie = serieMensual(data, { sector: f.sector, empresa: f.empresa }, (mes) =>
-        mes === f.mes ? tarifas : tarifasDeMes(guardadas.porMes, mes).tarifas
+        mes === f.mes ? tarifas : tarifasDeMes(guardadas.porMes, mes, data.valorHoraOdoo).tarifas
       );
       const max = Math.max(...serie.map((p) => p.neto), 1);
       const box = $('cd-serie');

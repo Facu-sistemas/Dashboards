@@ -202,16 +202,27 @@ export function calcular(data: CostoDevolucionesData, f: Filtros, t: TarifasMes)
   };
 }
 
-/** Tarifas que rigen un mes: las guardadas de ese mes o, si no hay, las del último mes anterior guardado. */
-export function tarifasDeMes(guardadas: TarifasGuardadas['porMes'], mes: string): { tarifas: TarifasMes; propio: boolean; heredadoDe: string | null } {
+/**
+ * Tarifas que rigen un mes: las guardadas de ese mes o, si no hay, las del último mes anterior guardado.
+ * Si no hay valor hora guardado (0), parte del de Odoo (`valorHoraOdoo`); `horaDeOdoo` avisa que fue así.
+ */
+export function tarifasDeMes(
+  guardadas: TarifasGuardadas['porMes'],
+  mes: string,
+  valorHoraOdoo = 0
+): { tarifas: TarifasMes; propio: boolean; heredadoDe: string | null; horaDeOdoo: boolean } {
   const propio = guardadas[mes];
   const anterior = Object.keys(guardadas)
     .filter((m) => m < mes)
     .sort()
     .pop();
   const fuente = propio ?? (anterior ? guardadas[anterior] : undefined);
+  const horaGuardada = fuente?.costoHora ?? 0;
   return {
-    tarifas: fuente ? { costoHora: fuente.costoHora, viajes: fuente.viajes, fletes: { ...fuente.fletes } } : { costoHora: 0, viajes: 2, fletes: {} },
+    tarifas: fuente
+      ? { costoHora: horaGuardada || valorHoraOdoo, viajes: fuente.viajes, fletes: { ...fuente.fletes } }
+      : { costoHora: valorHoraOdoo, viajes: 2, fletes: {} },
+    horaDeOdoo: horaGuardada <= 0 && valorHoraOdoo > 0,
     propio: Boolean(propio),
     heredadoDe: propio ? null : (anterior ?? null),
   };

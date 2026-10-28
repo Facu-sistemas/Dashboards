@@ -1,6 +1,6 @@
 import { searchReadAll, searchCount } from './client';
 import { getCncObjetivos } from './cnc-objetivos';
-import { getRegiones, parseRecargoPct } from './costo-devoluciones';
+import { getRegiones, parseRecargoPct, PRODUCTO_HORA_ID } from './costo-devoluciones';
 import { monthBounds } from '../date';
 import type { OdooDomain } from './types';
 
@@ -47,9 +47,6 @@ export interface CncData {
   /** Objetivo de CNC % facturación por mes del año (1–12), en puntos porcentuales (0,6 = 0,6%). */
   objetivos: Record<number, number>;
 }
-
-/** product.product "SERVICIO DE REPARACION": su precio de venta es el valor hora. */
-const PRODUCTO_HORA_ID = 24085;
 
 interface NotaRow extends Record<string, unknown> {
   id: number;
