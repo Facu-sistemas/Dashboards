@@ -9,10 +9,47 @@ interface Props {
 const { area, tab } = Astro.props;
 ---
 
-<nav class="mb-4 flex items-center gap-2 text-sm text-slate-500" aria-label="Breadcrumb">
+<nav class="group mb-4 flex items-center gap-2 text-sm text-slate-500" aria-label="Breadcrumb">
   <a href="/" class="hover:text-slate-300">Home</a>
   <span aria-hidden="true">/</span>
   <a href={`/${area.slug}`} class="hover:text-slate-300">{area.name}</a>
   <span aria-hidden="true">/</span>
   <span class="text-slate-300" aria-current="page">{tab.name}</span>
+  <button
+    type="button"
+    data-copiar-ruta={`Home/${area.name}/${tab.name}`}
+    title="Copiar ruta"
+    aria-label="Copiar ruta"
+    class="ml-1 rounded p-1 text-slate-600 opacity-0 transition hover:bg-slate-800 hover:text-slate-300 focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+  >
+    <svg data-icono-copiar viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="9" y="9" width="11" height="11" rx="2"></rect>
+      <path d="M5 15V6a2 2 0 0 1 2-2h9"></path>
+    </svg>
+    <svg data-icono-ok viewBox="0 0 24 24" class="hidden h-3.5 w-3.5 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M5 12l5 5L20 7"></path>
+    </svg>
+  </button>
 </nav>
+
+<script>
+  document.querySelectorAll<HTMLButtonElement>('[data-copiar-ruta]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(btn.dataset.copiarRuta ?? '');
+      } catch {
+        return;
+      }
+      const copiar = btn.querySelector('[data-icono-copiar]');
+      const ok = btn.querySelector('[data-icono-ok]');
+      copiar?.classList.add('hidden');
+      ok?.classList.remove('hidden');
+      btn.title = 'Copiado';
+      setTimeout(() => {
+        copiar?.classList.remove('hidden');
+        ok?.classList.add('hidden');
+        btn.title = 'Copiar ruta';
+      }, 1200);
+    });
+  });
+</script>
