@@ -50,7 +50,7 @@ function LineaCard({
         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-400">
           {asignados.map((a) => (
             <span key={a.slot}>
-              <span className="text-slate-500">{a.slot}</span> {a.nombre ?? <span className="text-slate-600">—</span>}
+              <span className="text-slate-500">{a.label}</span> {a.nombre ?? <span className="text-slate-600">—</span>}
             </span>
           ))}
         </div>

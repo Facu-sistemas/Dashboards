@@ -115,7 +115,7 @@ export interface Tramo {
   manual: boolean;
   iniMin: number;
   finMin: number;
-  /** 0 = hoy, 1 = mañana… según dónde arranca la unidad. */
+  /** 0 = hoy, 1 = mañana… según dónde termina la unidad: la que cruza el cierre de la jornada cuenta para después. */
   dia: number;
   iniReloj: string;
   finReloj: string;
@@ -176,7 +176,7 @@ export function planearLinea(unidades: UnidadPlan[], adelanto: Adelanto = ADELAN
         manual: u.manual,
         iniMin,
         finMin,
-        dia: ini.dia,
+        dia: fin.dia,
         iniReloj: ini.hms,
         finReloj: fin.hms,
         finRelojSeg: fin.seg,

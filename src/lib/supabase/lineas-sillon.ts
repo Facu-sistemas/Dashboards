@@ -9,7 +9,7 @@ import { ADELANTO_PARALELO, NUM_LINEAS, type Adelanto } from '@/lib/lineas-sillo
  *   create table lineas_sillon_lineas (
  *     linea integer primary key check (linea between 1 and 8),
  *     activa boolean not null default true,
- *     asignados jsonb not null default '{}',   -- { C1, C2, C, T, E } → id de persona
+ *     asignados jsonb not null default '{}',   -- { C1, C2, C3, C, T, E } → id de persona
  *     adelanto jsonb not null default '{}',    -- { tapiceria, ensamble } → unidades ya adelantadas
  *     actualizado_por text,
  *     updated_at timestamptz not null default now()
@@ -75,12 +75,13 @@ import { ADELANTO_PARALELO, NUM_LINEAS, type Adelanto } from '@/lib/lineas-sillo
 export type PuestoPersona = 'costurera' | 'carpintero' | 'tendido' | 'estampado';
 export const PUESTOS_PERSONA: PuestoPersona[] = ['costurera', 'carpintero', 'tendido', 'estampado'];
 
-/** Cada puesto del croquis: C1/C2 costureras, C carpintero, T tendido, E estampado. */
-export const SLOTS = ['C1', 'C2', 'C', 'T', 'E'] as const;
+/** Cada puesto del croquis: C1/C2/C3 costureras, C carpintero, T tendido, E estampado. */
+export const SLOTS = ['C1', 'C2', 'C3', 'C', 'T', 'E'] as const;
 export type Slot = (typeof SLOTS)[number];
 export const SLOT_PUESTO: Record<Slot, PuestoPersona> = {
   C1: 'costurera',
   C2: 'costurera',
+  C3: 'costurera',
   C: 'carpintero',
   T: 'tendido',
   E: 'estampado',

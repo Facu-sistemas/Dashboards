@@ -22,6 +22,7 @@ interface MoRow extends Record<string, unknown> {
   product_id: [number, string] | false;
   product_qty: number;
   x_studio_linea: string | false;
+  x_studio_prioridad: number | false;
   planning_date: string | false;
 }
 
@@ -34,6 +35,8 @@ export interface OrdenSillon {
   cantidad: number;
   /** Línea 1..8, o null si la orden no tiene una línea válida ('nt', vacío…). */
   linea: number | null;
+  /** Orden de la planificación de Odoo (x_studio_prioridad): menor primero; 0 o vacío = sin prioridad, va al final del día. */
+  prioridad: number;
   /** YYYY-MM-DD, o '' si no está agendada. */
   fecha: string;
 }
@@ -42,7 +45,7 @@ export async function getOrdenesSillon(): Promise<OrdenSillon[]> {
   const rows = await searchReadAll<MoRow>({
     model: 'mrp.production',
     domain: LINEAS_DOMAIN,
-    fields: ['name', 'origin', 'product_id', 'product_qty', 'x_studio_linea', 'planning_date'],
+    fields: ['name', 'origin', 'product_id', 'product_qty', 'x_studio_linea', 'x_studio_prioridad', 'planning_date'],
     order: 'planning_date asc, id asc',
   });
   return rows
@@ -56,6 +59,7 @@ export async function getOrdenesSillon(): Promise<OrdenSillon[]> {
         producto: r.product_id ? r.product_id[1] : '',
         cantidad: r.product_qty,
         linea: Number.isInteger(n) && n >= 1 && n <= 8 ? n : null,
+        prioridad: Number(r.x_studio_prioridad) || 0,
         fecha: !r.planning_date || r.planning_date === SIN_AGENDAR_DATE ? '' : r.planning_date.slice(0, 10),
       };
     });

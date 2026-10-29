@@ -42,7 +42,7 @@ function LineaEditor({ inicial, data, onSaved }: { inicial: LineaConfig; data: L
       <div className="grid gap-2 sm:grid-cols-2">
         {SLOTS_UI.map((s) => (
           <label key={s.slot} className="flex flex-col gap-1 text-[11px] text-slate-500">
-            {s.slot} · {s.label}
+            {s.label}
             <select className={inputCls} value={asignados[s.slot] ?? ''} onChange={(e) => asignar(s.slot, e.target.value)}>
               <option value="">— sin asignar —</option>
               {data.config.personas

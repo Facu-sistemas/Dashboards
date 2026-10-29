@@ -72,9 +72,11 @@ export function catalogoDe(config: ConfigSillon): ProductoDato[] {
 
 const unidadesDe = (o: OrdenSillon) => Math.min(MAX_UNIDADES_POR_ORDEN, Math.max(1, Math.round(o.cantidad)));
 
-/** Orden de planificación: lo más viejo primero (el atrasado se arrastra), lo que no tiene fecha al final. */
+/** Orden de planificación: lo más viejo primero (el atrasado se arrastra), lo que no tiene fecha al final; dentro del día, por prioridad de Odoo. */
 const porFecha = (a: OrdenSillon, b: OrdenSillon) =>
-  (a.fecha || '9999').localeCompare(b.fecha || '9999') || a.id - b.id;
+  (a.fecha || '9999').localeCompare(b.fecha || '9999') ||
+  (a.prioridad || Infinity) - (b.prioridad || Infinity) ||
+  a.id - b.id;
 
 export function armarPlan(ordenes: OrdenSillon[], config: ConfigSillon, hoy: string,
   repartirSinLinea: boolean,

@@ -132,12 +132,12 @@ function encabezado(doc: jsPDF, hoy: string, ancho: number) {
 /** Personas de la línea por bloque: carpintero en Carpintería, costureras y tendido en Tapicería, estampado en Ensamble. */
 function genteDe(lp: LineaPlan, nombres: Map<string, string>): [string, string, string] {
   const a = lp.config.asignados;
-  const n = (slot: 'C1' | 'C2' | 'C' | 'T' | 'E') => (a[slot] ? nombres.get(a[slot]!) : undefined);
-  const costura = [n('C1'), n('C2')].filter(Boolean).join(' / ');
+  const n = (slot: 'C1' | 'C2' | 'C3' | 'C' | 'T' | 'E') => (a[slot] ? nombres.get(a[slot]!) : undefined);
+  const costura = [n('C1'), n('C2'), n('C3')].filter(Boolean).join(' / ');
   return [
-    n('C') ? `Carpintero: ${n('C')}` : '',
-    [costura && `Costura: ${costura}`, n('T') && `Tendido: ${n('T')}`].filter(Boolean).join('  ·  '),
-    n('E') ? `Estampado: ${n('E')}` : '',
+    n('C') ? `Carpintería: ${n('C')}` : '',
+    [costura && `Costura: ${costura}`, n('T') && `Tapicería: ${n('T')}`].filter(Boolean).join('  ·  '),
+    n('E') ? `Ensamble: ${n('E')}` : '',
   ];
 }
 

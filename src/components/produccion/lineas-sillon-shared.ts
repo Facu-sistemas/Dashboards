@@ -24,9 +24,10 @@ export const horaCorta = (iso: string) => horaFmt.format(new Date(iso));
 export const SLOTS_UI: { slot: Slot; label: string; puesto: PuestoPersona }[] = [
   { slot: 'C1', label: 'Costurera 1', puesto: 'costurera' },
   { slot: 'C2', label: 'Costurera 2', puesto: 'costurera' },
-  { slot: 'C', label: 'Carpintero', puesto: 'carpintero' },
-  { slot: 'T', label: 'Tendido', puesto: 'tendido' },
-  { slot: 'E', label: 'Estampado', puesto: 'estampado' },
+  { slot: 'C3', label: 'Costurera 3', puesto: 'costurera' },
+  { slot: 'C', label: 'Carpintería', puesto: 'carpintero' },
+  { slot: 'T', label: 'Tapicería', puesto: 'tendido' },
+  { slot: 'E', label: 'Ensamble', puesto: 'estampado' },
 ];
 
 export const PUESTO_LABEL: Record<PuestoPersona, string> = {
