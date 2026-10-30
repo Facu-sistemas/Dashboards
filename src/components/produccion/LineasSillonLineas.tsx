@@ -4,9 +4,21 @@ import { SLOTS_UI, guardarSillon, type LineasSillonResponse } from './lineas-sil
 
 const inputCls = 'rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100 focus:border-brand-500 focus:outline-none';
 
-function LineaEditor({ inicial, data, onSaved }: { inicial: LineaConfig; data: LineasSillonResponse; onSaved: () => void }) {
+type Asignados = LineaConfig['asignados'];
+
+interface EditorProps {
+  inicial: LineaConfig;
+  data: LineasSillonResponse;
+  /** Asignaciones en edición de esta línea (el borrador vive en el padre para que las demás líneas lo vean). */
+  asignados: Asignados;
+  onAsignar: (slot: Slot, id: string | null) => void;
+  /** Personas que ya están en otra línea habilitada: una persona no puede trabajar en dos lugares a la vez. */
+  ocupadasEnOtras: Set<string>;
+  onSaved: () => void;
+}
+
+function LineaEditor({ inicial, data, asignados, onAsignar, ocupadasEnOtras, onSaved }: EditorProps) {
   const [activa, setActiva] = useState(inicial.activa);
-  const [asignados, setAsignados] = useState<LineaConfig['asignados']>(inicial.asignados);
   const [adelanto, setAdelanto] = useState(inicial.adelanto);
   const [estado, setEstado] = useState<'idle' | 'guardando' | 'ok' | string>('idle');
 
@@ -27,8 +39,6 @@ function LineaEditor({ inicial, data, onSaved }: { inicial: LineaConfig; data: L
     }
   };
 
-  const asignar = (slot: Slot, id: string) => setAsignados((a) => ({ ...a, [slot]: id || null }));
-
   return (
     <section className={`rounded-lg border p-3 ${activa ? 'border-slate-800 bg-slate-900/60' : 'border-slate-800/60 bg-slate-900/30'}`}>
       <div className="mb-3 flex items-center justify-between">
@@ -43,10 +53,12 @@ function LineaEditor({ inicial, data, onSaved }: { inicial: LineaConfig; data: L
         {SLOTS_UI.map((s) => (
           <label key={s.slot} className="flex flex-col gap-1 text-[11px] text-slate-500">
             {s.label}
-            <select className={inputCls} value={asignados[s.slot] ?? ''} onChange={(e) => asignar(s.slot, e.target.value)}>
+            <select className={inputCls} value={asignados[s.slot] ?? ''} onChange={(e) => onAsignar(s.slot, e.target.value || null)}>
               <option value="">— sin asignar —</option>
               {data.config.personas
                 .filter((p) => p.activa && p.puesto === s.puesto)
+                // Se oculta a quien ya está en otro puesto de esta línea o en otra línea; la persona elegida en este puesto sigue visible.
+                .filter((p) => p.id === asignados[s.slot] || (!ocupadasEnOtras.has(p.id) && !SLOTS_UI.some((o) => o.slot !== s.slot && asignados[o.slot] === p.id)))
                 .map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.nombre}
@@ -89,17 +101,41 @@ function LineaEditor({ inicial, data, onSaved }: { inicial: LineaConfig; data: L
 }
 
 export default function LineasSillonLineas({ data, onSaved }: { data: LineasSillonResponse; onSaved: () => void }) {
+  const [borradores, setBorradores] = useState<Record<number, Asignados>>({});
+  const asignadosDe = (l: LineaConfig): Asignados => borradores[l.linea] ?? l.asignados;
+  const asignar = (l: LineaConfig, slot: Slot, id: string | null) =>
+    setBorradores((b) => ({ ...b, [l.linea]: { ...asignadosDe(l), [slot]: id } }));
+
+  // Solo cuentan las líneas habilitadas (según lo guardado): apagar una línea libera a su gente.
+  const ocupadasPorOtras = (linea: number) => {
+    const ids = new Set<string>();
+    for (const o of data.config.lineas) {
+      if (o.linea === linea || !o.activa) continue;
+      for (const id of Object.values(asignadosDe(o))) if (id) ids.add(id);
+    }
+    return ids;
+  };
+
   return (
     <div className="space-y-3">
       <p className="text-xs text-slate-400">
-        Habilitá o apagá cada línea (la 8 no siempre trabaja) y asigná las personas de cada puesto. El <strong>adelanto</strong> es el trabajo
-        que ya viene hecho de la estación de arriba: con un número alto (200, el valor inicial) las tres estaciones arrancan a las 06:00 en
-        paralelo, igual que la planilla; con 0, tapicería espera a que carpintería termine cada unidad; con 3, las tres primeras ya están
-        listas para tapicería desde las 06:00.
+        Habilitá o apagá cada línea (la 8 no siempre trabaja) y asigná las personas de cada puesto. Una persona elegida en una línea ya no se
+        ofrece en las demás, porque no puede trabajar en dos lugares a la vez; para pasarla a otra línea, sacala de la primera. El{' '}
+        <strong>adelanto</strong> es el trabajo que ya viene hecho de la estación de arriba: con un número alto (200, el valor inicial) las tres
+        estaciones arrancan a las 06:00 en paralelo, igual que la planilla; con 0, tapicería espera a que carpintería termine cada unidad; con
+        3, las tres primeras ya están listas para tapicería desde las 06:00.
       </p>
       <div className="grid gap-4 lg:grid-cols-2">
         {data.config.lineas.map((l) => (
-          <LineaEditor key={`${l.linea}-${JSON.stringify(l)}`} inicial={l} data={data} onSaved={onSaved} />
+          <LineaEditor
+            key={`${l.linea}-${JSON.stringify(l)}`}
+            inicial={l}
+            data={data}
+            asignados={asignadosDe(l)}
+            onAsignar={(slot, id) => asignar(l, slot, id)}
+            ocupadasEnOtras={ocupadasPorOtras(l.linea)}
+            onSaved={onSaved}
+          />
         ))}
       </div>
     </div>
