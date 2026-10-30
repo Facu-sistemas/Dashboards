@@ -53,6 +53,27 @@ export default function FichajeCarasAdmin({ caras: inicial }: Props) {
 
       {error && <p className="rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">{error}</p>}
 
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          disabled={caras.length === 0}
+          onClick={() => {
+            if (
+              window.confirm(
+                'El backup contiene los datos biométricos (plantillas faciales) de todas las personas registradas. Guardalo con acceso restringido y no lo compartas por mail ni por chat. ¿Descargarlo?'
+              )
+            ) {
+              // GET con la sesión del navegador: el servidor responde con el archivo y el navegador lo descarga.
+              window.location.href = '/api/admin/fichaje-caras';
+            }
+          }}
+          className="rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Descargar backup (JSON)
+        </button>
+        <span className="text-xs text-slate-500">Todas las plantillas, agrupadas por persona. Contiene datos biométricos: guardalo con cuidado.</span>
+      </div>
+
       <div className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
         {caras.length === 0 ? (
           <p className="px-4 py-6 text-center text-sm text-slate-500">Todavía no hay caras registradas.</p>
