@@ -236,6 +236,15 @@ export async function borrarPersona(id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+/** Borra a todas las personas y vacía las asignaciones de las líneas (apuntarían a personas que ya no existen). */
+export async function borrarTodasPersonas(): Promise<void> {
+  const admin = getSupabaseAdminClient();
+  const { error } = await admin.from('lineas_sillon_personas').delete().not('id', 'is', null);
+  if (error) throw new Error(error.message);
+  const { error: errorLineas } = await admin.from('lineas_sillon_lineas').update({ asignados: {} }).gte('linea', 1);
+  if (errorLineas) throw new Error(errorLineas.message);
+}
+
 /** `producto = null` borra el alias. */
 export async function setAlias(odooBase: string, producto: string | null, usuario: string): Promise<void> {
   const q = getSupabaseAdminClient().from('lineas_sillon_alias');

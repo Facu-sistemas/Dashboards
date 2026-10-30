@@ -9,6 +9,7 @@ import {
   ajustarIgnoradas,
   borrarManual,
   borrarPersona,
+  borrarTodasPersonas,
   crearPersonas,
   fijarPlan,
   getConfigSillon,
@@ -97,6 +98,7 @@ const bodySchema = z.discriminatedUnion('tipo', [
     niveles: z.record(z.enum(PROCESOS as [ProcesoHoja, ...ProcesoHoja[]]), z.record(z.string().max(200), z.union([z.literal(1), z.literal(2), z.literal(3)]))).optional(),
   }),
   z.object({ tipo: z.literal('importar-hoja') }),
+  z.object({ tipo: z.literal('personas-borrar-todas') }),
   z.object({ tipo: z.literal('persona-borrar'), id: z.string().uuid() }),
   z.object({ tipo: z.literal('alias'), base: z.string().trim().min(1).max(200), producto: z.string().max(200).nullable() }),
   z.object({ tipo: z.literal('tiempo'), producto: z.string().max(200), minutos: z.number().positive().max(2000).nullable() }),
@@ -185,6 +187,9 @@ export const POST: APIRoute = async (context) => {
         break;
       case 'importar-hoja':
         return await importarDeLaHoja(usuario);
+      case 'personas-borrar-todas':
+        await borrarTodasPersonas();
+        break;
       case 'persona-borrar':
         await borrarPersona(d.id);
         break;

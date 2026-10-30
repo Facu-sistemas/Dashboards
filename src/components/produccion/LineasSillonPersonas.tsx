@@ -217,6 +217,20 @@ export default function LineasSillonPersonas({ data, onSaved }: { data: LineasSi
       setErrorBorrar((e as Error).message);
     }
   };
+  const borrarTodas = async () => {
+    const n = data.config.personas.length;
+    if (n === 0) return;
+    if (!window.confirm(`Se borran las ${n} personas con sus niveles y se vacían las personas asignadas a las líneas. Después podés volver a cargarlas con "Importar de la hoja de Diseño". Esto no se puede deshacer. ¿Borrar todo?`)) return;
+    setErrorBorrar('');
+    setResultado('');
+    try {
+      await guardarSillon({ tipo: 'personas-borrar-todas' });
+      setResultado(`Se borraron ${n} personas. Ahora podés importar de la hoja.`);
+      onSaved();
+    } catch (e) {
+      setErrorBorrar((e as Error).message);
+    }
+  };
   const [importando, setImportando] = useState(false);
   const [resultado, setResultado] = useState('');
   const importar = async () => {
@@ -253,6 +267,14 @@ export default function LineasSillonPersonas({ data, onSaved }: { data: LineasSi
         >
           {importando ? 'Importando…' : 'Importar de la hoja de Diseño'}
         </button>
+        <button
+          type="button"
+          onClick={() => void borrarTodas()}
+          disabled={data.config.personas.length === 0}
+          className="shrink-0 rounded border border-rose-500/40 px-3 py-1.5 text-xs text-rose-300 hover:border-rose-400 disabled:opacity-40"
+        >
+          Borrar todas
+        </button>
         <button type="button" onClick={() => setEditando({})} className="shrink-0 rounded bg-brand-500/20 px-3 py-1.5 text-xs text-brand-400 hover:bg-brand-500/30">
           + Agregar persona
         </button>
@@ -264,7 +286,8 @@ export default function LineasSillonPersonas({ data, onSaved }: { data: LineasSi
       {editando && <PersonaEditor key={editando.id ?? 'nueva'} persona={editando} data={data} onSaved={onSaved} onCerrar={() => setEditando(null)} />}
 
       {PUESTOS.map((puesto) => {
-        const personas = data.config.personas.filter((p) => p.puesto === puesto);
+        // Una persona polivalente aparece en cada puesto que sabe hacer, no solo en el principal.
+        const personas = data.config.personas.filter((p) => puestosQuePuede(p).includes(puesto));
         if (personas.length === 0) return null;
         return (
           <section key={puesto}>
@@ -289,7 +312,7 @@ export default function LineasSillonPersonas({ data, onSaved }: { data: LineasSi
                     </div>
                     <p className="mt-0.5 text-[11px] text-slate-500">
                       {lineas.length ? `Línea ${lineas.join(', ')}` : 'Sin línea asignada'} ·{' '}
-                      {puestosQuePuede(p).length > 1 && `También en ${puestosQuePuede(p).filter((x) => x !== p.puesto).map((x) => PUESTO_LABEL[x]).join(', ')} · `}
+                      {puestosQuePuede(p).length > 1 && `Puesto principal ${PUESTO_LABEL[p.puesto]}, también ${puestosQuePuede(p).filter((x) => x !== p.puesto).map((x) => PUESTO_LABEL[x]).join(', ')} · `}
                       {resumen
                         ? `${resumen.productosSolo} productos solo · ${resumen.productosEnsena} enseña`
                         : `${p.productos.length} preferencias · sin niveles cargados`}
