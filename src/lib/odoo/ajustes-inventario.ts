@@ -146,6 +146,19 @@ export interface AjustesFiltro {
   productId?: number;
 }
 
+export interface AjusteMovimiento {
+  layerId: number;
+  /** create_date de la capa (igual criterio que agrupa por mes). */
+  fecha: string;
+  movimientoId: number | null;
+  /** Nombre del stock.move de origen, o "(sin movimiento)" si la capa no tiene uno asociado. */
+  movimiento: string;
+  cantidad: number;
+  valor: number;
+  /** true si el movimiento de esta capa es de los que no coinciden con el Historial (ver AjusteProducto.movimientosConDiferencia). */
+  difHistorial: boolean;
+}
+
 interface Raw {
   year: number;
   months: string[];
@@ -205,6 +218,33 @@ export function currentYear(): number {
 export async function getAjustesInventario(year: number, filtro: AjustesFiltro = {}): Promise<AjustesInventarioResult> {
   const raw = await withTtlCache(`ajustes-inventario:v5:${year}`, CACHE_TTL_MS, () => cargar(year));
   return agregar(raw, filtro);
+}
+
+/**
+ * Drill-down: las capas de Valoración de un producto en un mes, una por
+ * movimiento, que son las que suman el "Cant. neta"/"$ neto" de ese
+ * producto en `productosPorMes`. Reusa el mismo cache que getAjustesInventario
+ * (misma key, mismo TTL) — no pega de nuevo a Odoo si ya se cargó el año.
+ */
+export async function getAjusteMovimientos(year: number, mes: string, productId: number): Promise<AjusteMovimiento[]> {
+  const raw = await withTtlCache(`ajustes-inventario:v5:${year}`, CACHE_TTL_MS, () => cargar(year));
+  return raw.buenas
+    .filter((l) => l.product_id[0] === productId && l.create_date.slice(0, 7) === mes)
+    .map((l) => {
+      const moveId = l.stock_move_id ? l.stock_move_id[0] : null;
+      const comparable = moveId !== null && !raw.movsNoComparables.has(moveId);
+      const difHistorial = comparable && Math.abs((raw.svlTotalPorMov.get(moveId!) ?? 0) - (raw.historialPorMov.get(moveId!) ?? 0)) > TOL;
+      return {
+        layerId: l.id,
+        fecha: l.create_date,
+        movimientoId: moveId,
+        movimiento: l.stock_move_id ? l.stock_move_id[1] : '(sin movimiento)',
+        cantidad: l.quantity,
+        valor: l.value,
+        difHistorial,
+      };
+    })
+    .sort((a, b) => a.fecha.localeCompare(b.fecha));
 }
 
 /**

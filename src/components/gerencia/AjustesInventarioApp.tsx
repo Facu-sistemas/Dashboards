@@ -4,6 +4,7 @@ import QueryProvider from '@/components/QueryProvider';
 import { useApiQuery } from '@/components/dashboard/useApiQuery';
 import LastUpdated from '@/components/shared/LastUpdated';
 import AjustesInventarioSyncButton from './AjustesInventarioSyncButton';
+import AjusteMovimientosModal from './AjusteMovimientosModal';
 import KpiCard from '@/components/shared/KpiCard';
 import Tip from '@/components/shared/Tip';
 import { useChartTheme } from '@/components/shared/useChartTheme';
@@ -115,7 +116,7 @@ function DesvioChart({ data, desde, hasta }: { data: { mes: string; desvio: numb
   );
 }
 
-function ProductosMes({ data, mes }: { data: AjustesInventarioResult; mes: string }) {
+function ProductosMes({ data, mes, onAbrirMovimientos }: { data: AjustesInventarioResult; mes: string; onAbrirMovimientos: (p: { productId: number; producto: string; uom: string }) => void }) {
   const rows = data.productosPorMes[mes] ?? [];
   const omitidos = data.productosOmitidos[mes] ?? 0;
   return (
@@ -123,7 +124,7 @@ function ProductosMes({ data, mes }: { data: AjustesInventarioResult; mes: strin
       <table className="w-full text-xs">
         <thead>
           <tr className="text-left text-slate-500">
-            <Th tip={"Odoo: producto de la capa de valoración (product.product)."} className="py-1 pr-3 font-medium">Producto</Th>
+            <Th tip={"Odoo: producto de la capa de valoración (product.product). Click para ver los movimientos que suman estos números."} className="py-1 pr-3 font-medium">Producto</Th>
             <Th tip={"Odoo: categoría del producto (product.category)."} className="py-1 pr-3 font-medium">Categoría</Th>
             <Th tip={"Odoo: unidad de medida del producto (uom_id)."} className="py-1 pr-3 font-medium">UdM</Th>
             <Th tip={"Toma: capas de valoración de ajuste del producto en el mes.\nCalcula: ingresos + egresos, en la UdM del producto."} className="py-1 pr-3 text-right font-medium">Cant. neta</Th>
@@ -135,7 +136,16 @@ function ProductosMes({ data, mes }: { data: AjustesInventarioResult; mes: strin
         <tbody>
           {rows.map((p) => (
             <tr key={p.productId} className="border-t border-slate-800">
-              <td className="py-1 pr-3 text-slate-200">{p.producto}</td>
+              <td className="py-1 pr-3">
+                <button
+                  type="button"
+                  onClick={() => onAbrirMovimientos({ productId: p.productId, producto: p.producto, uom: p.uom })}
+                  title="Ver los movimientos que suman estos números"
+                  className="text-left text-slate-200 underline decoration-dotted decoration-slate-600 underline-offset-2 hover:text-brand-400 hover:decoration-brand-400"
+                >
+                  {p.producto}
+                </button>
+              </td>
               <td className="py-1 pr-3 text-slate-400">{p.categoria}</td>
               <td className="py-1 pr-3 text-slate-400">{p.uom}</td>
               <td className={`py-1 pr-3 text-right tabular-nums ${signClass(p.netoCantidad)}`}>{qtyFmt.format(p.netoCantidad)}</td>
@@ -204,6 +214,7 @@ function AjustesInner() {
   const thisYear = new Date().getFullYear();
   const [year, setYear] = useState(thisYear);
   const [abierto, setAbierto] = useState<string | null>(null);
+  const [movimientos, setMovimientos] = useState<{ productId: number; producto: string; uom: string; mes: string } | null>(null);
   const [modo, setModo] = useState<Modo>('mes');
   // Sin selección = resumen de todo el año.
   const [mesSel, setMesSel] = useState<number | null>(null);
@@ -471,7 +482,7 @@ No cambia con el filtro de categoría o producto.`}
                     {abierto === m.mes && (
                       <tr>
                         <td colSpan={12} className="p-0">
-                          <ProductosMes data={data} mes={m.mes} />
+                          <ProductosMes data={data} mes={m.mes} onAbrirMovimientos={(p) => setMovimientos({ ...p, mes: m.mes })} />
                         </td>
                       </tr>
                     )}
@@ -547,6 +558,17 @@ No cambia con el filtro de categoría o producto.`}
             </details>
           )}
         </>
+      )}
+
+      {movimientos && (
+        <AjusteMovimientosModal
+          productId={movimientos.productId}
+          producto={movimientos.producto}
+          uom={movimientos.uom}
+          year={year}
+          mes={movimientos.mes}
+          onClose={() => setMovimientos(null)}
+        />
       )}
     </div>
   );

@@ -30,4 +30,21 @@ if (!tab) throw new Error(`Unknown tab "${tabSlug}" for area "${areaSlug}"`);
       <slot />
     </main>
   </div>
+
+  <!--
+    La animación de .tab-enter (ver global.css) usa animation-fill-mode:
+    both, que deja el transform "vigente" para siempre después de terminar
+    (así es como funciona forwards: no es un bug de CSS, es la semántica
+    de fill-mode). Mientras el transform sigue vigente, <main> pasa a ser
+    el containing block de cualquier descendiente position:fixed (overlays,
+    modales) en vez de la ventana — confirmado en vivo (2026-10-30) rompiendo
+    un modal de drill-down. Sacar la clase al terminar no cambia nada visual
+    (la animación ya se vio una vez) y evita el problema para cualquier
+    modal, de cualquier tab, presente o futuro.
+  -->
+  <script is:inline>
+    document.querySelectorAll('main.tab-enter').forEach((el) => {
+      el.addEventListener('animationend', () => el.classList.remove('tab-enter'), { once: true });
+    });
+  </script>
 </BaseLayout>
