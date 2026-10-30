@@ -133,8 +133,12 @@ async function importarDeLaHoja(usuario: string) {
     if (!proceso) continue;
     const existente = config.personas.find((p) => mismoNombre(hoja.nombre, p.nombre));
     if (existente) {
-      if (Object.keys(existente.niveles).length === 0) {
-        await guardarPersona({ ...existente, niveles }, usuario);
+      // Se agregan los procesos que la persona todavía no tiene cargados; los que ya tienen niveles (editados acá) no se pisan.
+      const faltan = PROCESOS.filter((pr) => niveles[pr] && Object.keys(existente.niveles[pr] ?? {}).length === 0);
+      if (faltan.length > 0) {
+        const completo = { ...existente.niveles };
+        for (const pr of faltan) completo[pr] = niveles[pr];
+        await guardarPersona({ ...existente, niveles: completo }, usuario);
         completadas += 1;
       } else yaCargadas += 1;
       continue;

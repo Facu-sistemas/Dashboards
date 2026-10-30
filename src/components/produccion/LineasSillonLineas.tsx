@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { LineaConfig, Slot } from '@/lib/supabase/lineas-sillon';
-import { SLOTS_UI, guardarSillon, type LineasSillonResponse } from './lineas-sillon-shared';
+import { SLOTS_UI, guardarSillon, puestosQuePuede, type LineasSillonResponse } from './lineas-sillon-shared';
 
 const inputCls = 'rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100 focus:border-brand-500 focus:outline-none';
 
@@ -56,7 +56,7 @@ function LineaEditor({ inicial, data, asignados, onAsignar, ocupadasEnOtras, onS
             <select className={inputCls} value={asignados[s.slot] ?? ''} onChange={(e) => onAsignar(s.slot, e.target.value || null)}>
               <option value="">— sin asignar —</option>
               {data.config.personas
-                .filter((p) => p.activa && p.puesto === s.puesto)
+                .filter((p) => p.activa && puestosQuePuede(p).includes(s.puesto))
                 // Se oculta a quien ya está en otro puesto de esta línea o en otra línea; la persona elegida en este puesto sigue visible.
                 .filter((p) => p.id === asignados[s.slot] || (!ocupadasEnOtras.has(p.id) && !SLOTS_UI.some((o) => o.slot !== s.slot && asignados[o.slot] === p.id)))
                 .map((p) => (

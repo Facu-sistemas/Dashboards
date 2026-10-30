@@ -1,5 +1,6 @@
 import type { PlanSillon } from '@/lib/lineas-sillon/plan';
-import type { ConfigSillon, PuestoPersona, Slot } from '@/lib/supabase/lineas-sillon';
+import type { ConfigSillon, PersonaSillon, PuestoPersona, Slot } from '@/lib/supabase/lineas-sillon';
+import type { ProcesoHoja } from '@/lib/lineas-sillon/polivalencia';
 
 export interface EmpleadoOdoo {
   id: number;
@@ -29,6 +30,18 @@ export const SLOTS_UI: { slot: Slot; label: string; puesto: PuestoPersona }[] = 
   { slot: 'T', label: 'Tapicería', puesto: 'tendido' },
   { slot: 'E', label: 'Ensamble', puesto: 'estampado' },
 ];
+
+export const PROCESO_DE_PUESTO: Record<PuestoPersona, ProcesoHoja> = { costurera: 'COS', carpintero: 'CAR', tendido: 'TAP', estampado: 'ENS' };
+
+/**
+ * Puestos en los que puede trabajar una persona: el suyo más cada proceso donde la matriz de polivalencia
+ * le da al menos un producto en nivel 2 (lo hace solo) o 3. Un nivel 1 (no lo hace solo) no alcanza.
+ */
+export function puestosQuePuede(p: PersonaSillon): PuestoPersona[] {
+  return (Object.keys(PROCESO_DE_PUESTO) as PuestoPersona[]).filter(
+    (pu) => pu === p.puesto || Object.values(p.niveles[PROCESO_DE_PUESTO[pu]] ?? {}).some((n) => n >= 2),
+  );
+}
 
 export const PUESTO_LABEL: Record<PuestoPersona, string> = {
   costurera: 'Costureras',

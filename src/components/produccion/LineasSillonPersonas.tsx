@@ -2,11 +2,10 @@ import { useState } from 'react';
 import type { PersonaSillon, PuestoPersona } from '@/lib/supabase/lineas-sillon';
 import { normalizar } from '@/lib/lineas-sillon/engine';
 import type { NivelesPersona, Nivel, ProcesoHoja } from '@/lib/lineas-sillon/polivalencia';
-import { PUESTO_LABEL, guardarSillon, type EmpleadoOdoo, type LineasSillonResponse } from './lineas-sillon-shared';
+import { PROCESO_DE_PUESTO, PUESTO_LABEL, guardarSillon, puestosQuePuede, type EmpleadoOdoo, type LineasSillonResponse } from './lineas-sillon-shared';
 
 const inputCls = 'rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100 focus:border-brand-500 focus:outline-none';
 const PUESTOS = Object.keys(PUESTO_LABEL) as PuestoPersona[];
-const PROCESO_DE_PUESTO: Record<PuestoPersona, ProcesoHoja> = { costurera: 'COS', carpintero: 'CAR', tendido: 'TAP', estampado: 'ENS' };
 const PROCESOS_UI: { id: ProcesoHoja; label: string }[] = [
   { id: 'COS', label: 'Costura' },
   { id: 'CAR', label: 'Carpintería' },
@@ -290,6 +289,7 @@ export default function LineasSillonPersonas({ data, onSaved }: { data: LineasSi
                     </div>
                     <p className="mt-0.5 text-[11px] text-slate-500">
                       {lineas.length ? `Línea ${lineas.join(', ')}` : 'Sin línea asignada'} ·{' '}
+                      {puestosQuePuede(p).length > 1 && `También en ${puestosQuePuede(p).filter((x) => x !== p.puesto).map((x) => PUESTO_LABEL[x]).join(', ')} · `}
                       {resumen
                         ? `${resumen.productosSolo} productos solo · ${resumen.productosEnsena} enseña`
                         : `${p.productos.length} preferencias · sin niveles cargados`}
