@@ -11,6 +11,7 @@ import {
 } from './fichaje-shared';
 import { useFichajeCamara } from './useFichajeCamara';
 import { usePantallaCompleta } from './usePantallaCompleta';
+import { activarAudio, audioActivo, estaSilenciado, silenciar, sonar } from './fichaje-sonido';
 
 /** Cuadros consecutivos con el mismo empleado antes de confirmar el reconocimiento. */
 const CONFIRMACIONES = 3;
@@ -28,11 +29,51 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
   const [reconocido, setReconocido] = useState<{ empleadoId: number; nombre: string; distancia: number } | null>(null);
   const [fichando, setFichando] = useState(false);
   const [fichaje, setFichaje] = useState<ResultadoFichaje | null>(null);
+  const [silencio, setSilencio] = useState(estaSilenciado);
+  const [audioListo, setAudioListo] = useState(false);
   const { pantallaCompleta, contenedorRef, entrar: entrarPantallaCompleta, salir: salirPantallaCompleta, alTocar } = usePantallaCompleta(PREF_PANTALLA_COMPLETA);
 
   const personas = useMemo(() => agruparPersonas(caras), [caras]);
   const personasRef = useRef(personas);
   personasRef.current = personas;
+
+  // Desbloqueo del audio: el navegador exige un toque antes de dejar sonar. Se intenta al cargar (por si ya lo permite) y en
+  // cada toque; mientras siga bloqueado se muestra el cartel "Tocá la pantalla para activar el sonido".
+  useEffect(() => {
+    const revisar = () => setAudioListo(audioActivo());
+    const intentar = () => void activarAudio().then(revisar);
+    intentar();
+    document.addEventListener('pointerdown', intentar, true);
+    document.addEventListener('visibilitychange', revisar);
+    const t = setInterval(revisar, 2000);
+    return () => {
+      document.removeEventListener('pointerdown', intentar, true);
+      document.removeEventListener('visibilitychange', revisar);
+      clearInterval(t);
+    };
+  }, []);
+
+  // Bip al reconocer a alguien (una vez por persona reconocida) y tonos de entrada/salida al fichar.
+  const reconocidoId = reconocido?.empleadoId ?? null;
+  useEffect(() => {
+    if (reconocidoId !== null) sonar('reconocido');
+  }, [reconocidoId]);
+  useEffect(() => {
+    if (fichaje) sonar(fichaje.accion);
+  }, [fichaje]);
+
+  function alternarSilencio() {
+    const nuevo = !silencio;
+    setSilencio(nuevo);
+    silenciar(nuevo);
+    if (!nuevo) {
+      // Al activar el sonido (es un toque) se aprovecha para desbloquear el audio y se prueba con un bip.
+      void activarAudio().then((ok) => {
+        setAudioListo(ok);
+        sonar('reconocido');
+      });
+    }
+  }
 
   // Bucle de reconocimiento: corre mientras la cámara está abierta.
   useEffect(() => {
@@ -116,6 +157,7 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
       setEstado('Fichaje registrado.');
     } catch (err) {
       setError((err as Error).message);
+      sonar('error');
     } finally {
       setFichando(false);
     }
@@ -124,6 +166,9 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
   const mensajes = (
     <>
       <p className="text-center text-sm text-slate-400">{estado}</p>
+      {!silencio && !audioListo && (
+        <p className="rounded bg-amber-500/20 px-3 py-1.5 text-center text-sm text-amber-200">Tocá la pantalla para activar el sonido</p>
+      )}
       {error && <p className="rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">{error}</p>}
     </>
   );
@@ -137,6 +182,13 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
           className="rounded bg-brand-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-600"
         >
           Pantalla completa
+        </button>
+        <button
+          type="button"
+          onClick={alternarSilencio}
+          className="rounded border border-slate-700 px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-800"
+        >
+          {silencio ? '🔇 Sonido apagado' : '🔊 Sonido activado'}
         </button>
         <button
           type="button"
@@ -161,9 +213,20 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
 
         {pantallaCompleta && (
           <>
-            <div className="absolute inset-x-0 top-0 flex flex-col gap-2 bg-gradient-to-b from-black/70 to-transparent p-3 pr-16">
+            <div className="absolute inset-x-0 top-0 flex flex-col gap-2 bg-gradient-to-b from-black/70 to-transparent p-3 pr-28">
               {mensajes}
             </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                alternarSilencio();
+              }}
+              aria-label={silencio ? 'Activar sonido' : 'Silenciar'}
+              className="absolute right-16 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-lg hover:bg-black/70"
+            >
+              {silencio ? '🔇' : '🔊'}
+            </button>
             <button
               type="button"
               onClick={(e) => {
