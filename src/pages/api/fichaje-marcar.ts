@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { marcarAsistencia } from '@/lib/odoo/asistencia-write';
+import { registrarMarca } from '@/lib/supabase/fichaje-marcas';
 import { handleApiRoute, jsonResponse, ApiValidationError } from '@/lib/api-helpers';
 import { OdooError } from '@/lib/odoo/types';
 
@@ -24,7 +25,15 @@ export const POST: APIRoute = async (context) => {
     const parsed = bodySchema.safeParse(body);
     if (!parsed.success) throw new ApiValidationError(parsed.error.issues.map((i) => i.message).join('; '));
     try {
-      return await marcarAsistencia(parsed.data.empleadoId);
+      const resultado = await marcarAsistencia(parsed.data.empleadoId);
+      // El registro por kiosco es secundario: si falla (p. ej. la tabla aún no existe) el fichaje ya quedó en Odoo y no se tira abajo.
+      await registrarMarca({
+        empleadoId: parsed.data.empleadoId,
+        empleadoNombre: resultado.empleado,
+        accion: resultado.accion,
+        kiosco: context.locals.usuario?.username ?? 'desconocido',
+      }).catch((err) => console.error('[fichaje-marcar] no se pudo registrar la marca por kiosco', err));
+      return resultado;
     } catch (err) {
       // Acá se muestra el motivo real de Odoo (ruta solo para usuarios con acceso a Test): el mensaje genérico de
       // handleApiRoute no deja diagnosticar por qué Odoo rechazó el fichaje.

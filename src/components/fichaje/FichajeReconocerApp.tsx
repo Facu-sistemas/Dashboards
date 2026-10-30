@@ -188,7 +188,7 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
           onClick={alternarSilencio}
           className="rounded border border-slate-700 px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-800"
         >
-          {silencio ? '🔇 Sonido apagado' : '🔊 Sonido activado'}
+          {silencio ? 'Sonido apagado' : 'Sonido activado'}
         </button>
         <button
           type="button"

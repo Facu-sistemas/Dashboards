@@ -6,6 +6,8 @@ import type { UsuarioConPermisos } from '@/components/admin/AdminUsuariosApp';
 import FichajeCarasAdmin from '@/components/admin/FichajeCarasAdmin';
 import FichajeParecidosAdmin from '@/components/admin/FichajeParecidosAdmin';
 import { listCaras, listCarasResumen } from '@/lib/supabase/fichaje-caras';
+import FichajeKioscosAdmin from '@/components/admin/FichajeKioscosAdmin';
+import { listMarcasRecientes, listUltimasPorEmpleado, type MarcaFichaje, type UltimasDePersona } from '@/lib/supabase/fichaje-marcas';
 import { agruparPersonas, calcularParesParecidos } from '@/lib/fichaje-matching';
 
 export const prerender = false;
@@ -37,6 +39,24 @@ const personasFichaje = await listCaras()
   .then(agruparPersonas)
   .catch(() => []);
 const paresParecidos = calcularParesParecidos(personasFichaje);
+
+// Fichadas por kiosco: si la tabla todavía no existe, la sección avisa en lugar de romper la página.
+let marcasFichaje: MarcaFichaje[] = [];
+let ultimasFichaje: UltimasDePersona[] = [];
+let marcasError: string | null = null;
+try {
+  [marcasFichaje, ultimasFichaje] = await Promise.all([listMarcasRecientes(), listUltimasPorEmpleado()]);
+} catch (err) {
+  marcasError = err instanceof Error ? err.message : String(err);
+}
+const SECCIONES = [
+  { id: 'usuarios', nombre: 'Usuarios' },
+  { id: 'caras', nombre: 'Caras registradas' },
+  { id: 'parecidos', nombre: 'Pares parecidos' },
+  { id: 'kioscos', nombre: 'Fichadas por kiosco' },
+];
+const nombresKioscos: Record<string, string> = {};
+for (const p of perfiles ?? []) if (p.nombre_completo) nombresKioscos[p.username] = p.nombre_completo;
 ---
 
 <BaseLayout title="Administración de usuarios — Frontera Living">
@@ -44,18 +64,67 @@ const paresParecidos = calcularParesParecidos(personasFichaje);
     <a href="/" class="mb-4 inline-flex items-center gap-1 text-sm text-slate-400 hover:text-brand-400">← Volver al inicio</a>
 
     <header class="mb-8">
-      <h1 class="text-2xl font-semibold text-slate-100">Administración de usuarios</h1>
-      <p class="mt-1 text-sm text-slate-400">Cuentas de área y permisos por módulo.</p>
+      <h1 class="text-2xl font-semibold text-slate-100">Administración</h1>
+      <p class="mt-1 text-sm text-slate-400">Cuentas, permisos y datos del fichaje facial.</p>
     </header>
 
-    <AdminUsuariosApp client:load usuarios={usuarios} />
+    <nav class="mb-6 flex flex-wrap gap-1 border-b border-slate-800" role="tablist" aria-label="Secciones de administración">
+      {
+        SECCIONES.map((sec) => (
+          <button
+            type="button"
+            role="tab"
+            data-tab={sec.id}
+            class="admin-tab -mb-px border-b-2 border-transparent px-3 py-2 text-sm text-slate-400 hover:text-slate-200"
+          >
+            {sec.nombre}
+          </button>
+        ))
+      }
+    </nav>
 
-    <div class="mt-10">
+    <div data-panel="usuarios" role="tabpanel">
+      <AdminUsuariosApp client:load usuarios={usuarios} />
+    </div>
+
+    <div data-panel="caras" role="tabpanel" hidden>
       <FichajeCarasAdmin client:load caras={carasFichaje} />
     </div>
 
-    <div class="mt-10">
+    <div data-panel="parecidos" role="tabpanel" hidden>
       <FichajeParecidosAdmin client:load pares={paresParecidos} totalPersonas={personasFichaje.length} />
+    </div>
+
+    <div data-panel="kioscos" role="tabpanel" hidden>
+      <FichajeKioscosAdmin client:load marcas={marcasFichaje} ultimas={ultimasFichaje} nombresKioscos={nombresKioscos} error={marcasError} />
     </div>
   </main>
 </BaseLayout>
+
+<script>
+  // Pestañas del panel: se recuerda la última en el hash de la URL (así un refresh o un link directo vuelve a la misma sección).
+  const tabs = document.querySelectorAll<HTMLButtonElement>('.admin-tab');
+  const paneles = document.querySelectorAll<HTMLElement>('[data-panel]');
+  const ids = Array.from(tabs).map((t) => t.dataset.tab);
+
+  function mostrar(id: string) {
+    tabs.forEach((t) => {
+      const activa = t.dataset.tab === id;
+      t.setAttribute('aria-selected', String(activa));
+      t.classList.toggle('border-brand-500', activa);
+      t.classList.toggle('text-slate-100', activa);
+      t.classList.toggle('border-transparent', !activa);
+      t.classList.toggle('text-slate-400', !activa);
+    });
+    paneles.forEach((p) => {
+      p.hidden = p.dataset.panel !== id;
+    });
+  }
+
+  tabs.forEach((t) => t.addEventListener('click', () => {
+    history.replaceState(null, '', `#${t.dataset.tab}`);
+    mostrar(t.dataset.tab!);
+  }));
+  const inicial = location.hash.slice(1);
+  mostrar(ids.includes(inicial) ? inicial : ids[0]!);
+</script>
