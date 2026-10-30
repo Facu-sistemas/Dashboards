@@ -213,20 +213,9 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
 
         {pantallaCompleta && (
           <>
-            <div className="absolute inset-x-0 top-0 flex flex-col gap-2 bg-gradient-to-b from-black/70 to-transparent p-3 pr-28">
+            <div className="absolute inset-x-0 top-0 flex flex-col gap-2 bg-gradient-to-b from-black/70 to-transparent p-3 pr-16">
               {mensajes}
             </div>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                alternarSilencio();
-              }}
-              aria-label={silencio ? 'Activar sonido' : 'Silenciar'}
-              className="absolute right-16 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-lg hover:bg-black/70"
-            >
-              {silencio ? '🔇' : '🔊'}
-            </button>
             <button
               type="button"
               onClick={(e) => {
