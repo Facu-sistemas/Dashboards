@@ -6,8 +6,9 @@ import { invalidateByPrefix } from '@/lib/cache';
 export const prerender = false;
 
 // GET /api/ajustes-inventario?year=2026[&categoria=A&categoria=B][&productId=...][&refresh=1]
-// refresh=1 descarta el cache propio (10 min, por año — ver ajustes-inventario.ts, CACHE_TTL_MS)
-// y el cache de lecturas de Odoo, así el pedido siguiente baja todo de nuevo.
+// refresh=1 descarta el cache propio (10 min, por año — ver ajustes-inventario.ts, CACHE_TTL_MS),
+// el cache de lecturas de Odoo y el cache del calendario laboral (días hábiles/feriados), así el
+// pedido siguiente baja todo de nuevo.
 export const GET: APIRoute = async ({ url }) => {
   return handleApiRoute(() => {
     const raw = url.searchParams.get('year');
@@ -20,6 +21,7 @@ export const GET: APIRoute = async ({ url }) => {
     if (url.searchParams.get('refresh') === '1') {
       invalidateByPrefix('ajustes-inventario:');
       invalidateByPrefix('search_read::');
+      invalidateByPrefix('ref:calendar:');
     }
     return getAjustesInventario(year, { categorias, productId });
   });
