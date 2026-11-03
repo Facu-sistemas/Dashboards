@@ -54,6 +54,24 @@ function Senal({ latido, limiteMs }: { latido: KioscoLatido; limiteMs: number })
 export default function FichajeKioscosAdmin({ marcas, ultimas, latidos, nombresKioscos, error }: Props) {
   const [filtro, setFiltro] = useState<string>('todos');
   const [busqueda, setBusqueda] = useState('');
+  const [recargas, setRecargas] = useState<Record<string, 'pidiendo' | 'pedida' | string>>({});
+
+  async function recargar(username: string) {
+    setRecargas((r) => ({ ...r, [username]: 'pidiendo' }));
+    try {
+      const res = await fetch('/api/admin/fichaje-kioscos-recargar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kiosco: username }),
+      });
+      const json = (await res.json()) as { ok: boolean; error?: string };
+      if (!res.ok || !json.ok) throw new Error(json.error ?? 'No se pudo pedir la recarga');
+      setRecargas((r) => ({ ...r, [username]: 'pedida' }));
+      setTimeout(() => setRecargas((r) => ({ ...r, [username]: '' })), 70_000);
+    } catch (err) {
+      setRecargas((r) => ({ ...r, [username]: (err as Error).message }));
+    }
+  }
 
   const hoy = FORMATO_DIA.format(new Date());
   const porKiosco = new Map<string, { total: number; hoy: number; ultima: string }>();
@@ -108,9 +126,10 @@ export default function FichajeKioscosAdmin({ marcas, ultimas, latidos, nombresK
               const min = k.ultima ? (Date.now() - new Date(k.ultima).getTime()) / 60000 : Infinity;
               const estado = min < 60 ? { color: 'bg-emerald-400', label: 'Activo' } : min < 60 * 12 ? { color: 'bg-amber-400', label: 'Sin actividad' } : { color: 'bg-red-400', label: 'Inactivo' };
               const sel = filtro === username;
+              const rec = recargas[username];
               return (
+                <div key={username} className="relative">
                 <button
-                  key={username}
                   type="button"
                   onClick={() => setFiltro(sel ? 'todos' : username)}
                   className={`flex items-center gap-4 rounded-xl border p-4 text-left transition-all ${
@@ -131,6 +150,19 @@ export default function FichajeKioscosAdmin({ marcas, ultimas, latidos, nombresK
                     {latidoDe.get(username) && <Senal latido={latidoDe.get(username)!} limiteMs={SIN_SENAL_MS} />}
                   </div>
                 </button>
+                {latidoDe.get(username) && (
+                  <button
+                    type="button"
+                    disabled={rec === 'pidiendo' || rec === 'pedida'}
+                    onClick={() => void recargar(username)}
+                    title="El celular recarga la página en menos de 1 minuto"
+                    className="absolute right-3 top-3 rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] text-slate-300 hover:bg-slate-800 disabled:opacity-60"
+                  >
+                    {rec === 'pidiendo' ? 'Pidiendo…' : rec === 'pedida' ? 'Recargando…' : '↻ Recargar'}
+                  </button>
+                )}
+                {rec && rec !== 'pidiendo' && rec !== 'pedida' && <p className="mt-1 text-xs text-red-400">{rec}</p>}
+                </div>
               );
             })}
           </div>

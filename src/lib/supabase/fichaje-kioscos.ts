@@ -14,6 +14,8 @@ import { getSupabaseAdminClient } from './admin';
  *   );
  *   -- Si la tabla ya existe (batería de los celulares):
  *   alter table public.fichaje_kioscos add column if not exists bateria int, add column if not exists cargando boolean;
+ *   -- Orden de recarga remota desde el admin:
+ *   alter table public.fichaje_kioscos add column if not exists recargar boolean not null default false;
  *   alter table public.fichaje_kioscos enable row level security;
  *   grant select, insert, update on public.fichaje_kioscos to service_role;
  */
@@ -59,4 +61,20 @@ export async function listKioscos(): Promise<KioscoLatido[]> {
   const { data, error } = await admin.from('fichaje_kioscos').select('kiosco, ultimo_latido, camara_activa, problema').order('kiosco');
   if (error) throw new Error(error.message);
   return (data ?? []).map((r) => ({ kiosco: r.kiosco, ultimoLatido: r.ultimo_latido, camaraActiva: r.camara_activa, problema: r.problema, bateria: null, cargando: null }));
+}
+
+/** Admin: pide que el celular se recargue en su próxima señal de vida (máx. 1 minuto). */
+export async function pedirRecarga(kiosco: string): Promise<void> {
+  const admin = getSupabaseAdminClient();
+  const { data, error } = await admin.from('fichaje_kioscos').update({ recargar: true }).eq('kiosco', kiosco).select('kiosco');
+  if (error) throw new Error(error.message);
+  if (!data?.length) throw new Error('Ese kiosco todavía no mandó ninguna señal de vida');
+}
+
+/** Celular: ¿hay una recarga pendiente? Si la hay, la consume (se avisa una sola vez). Si la columna no existe, no hay orden. */
+export async function tomarOrdenRecarga(kiosco: string): Promise<boolean> {
+  const admin = getSupabaseAdminClient();
+  const { data, error } = await admin.from('fichaje_kioscos').update({ recargar: false }).eq('kiosco', kiosco).eq('recargar', true).select('kiosco');
+  if (error) return false;
+  return (data?.length ?? 0) > 0;
 }

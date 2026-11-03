@@ -71,8 +71,10 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
       try {
         // Battery API: solo Chrome/Android (Safari en iPhone no la tiene). Si no hay, se manda sin batería.
         const bat = await (navigator as Navigator & { getBattery?: () => Promise<{ level: number; charging: boolean }> }).getBattery?.().catch(() => null);
-        await enviarLatido({ ...latidoRef.current, bateria: bat ? Math.round(bat.level * 100) : null, cargando: bat ? bat.charging : null });
+        const { recargar: ordenRecarga } = await enviarLatido({ ...latidoRef.current, bateria: bat ? Math.round(bat.level * 100) : null, cargando: bat ? bat.charging : null });
         if (!cancelado) setSinConexion(false);
+        // Recarga pedida desde el admin. La pantalla completa de la app se restaura sola; la real del navegador necesita un toque.
+        if (ordenRecarga) location.reload();
       } catch (err) {
         if (!cancelado && err instanceof RespuestaNoJsonError) recuperar();
         // Sin internet (fetch rechazado): no se recarga, porque recargar sin red deja la pantalla de "sin conexión" del navegador.

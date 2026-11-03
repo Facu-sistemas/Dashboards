@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { registrarLatido } from '@/lib/supabase/fichaje-kioscos';
+import { registrarLatido, tomarOrdenRecarga } from '@/lib/supabase/fichaje-kioscos';
 import { handleApiRoute, jsonResponse, ApiValidationError } from '@/lib/api-helpers';
 
 export const prerender = false;
@@ -29,6 +29,6 @@ export const POST: APIRoute = async (context) => {
     const parsed = bodySchema.safeParse(body);
     if (!parsed.success) throw new ApiValidationError(parsed.error.issues.map((i) => i.message).join('; '));
     await registrarLatido({ kiosco: usuario.username, camaraActiva: parsed.data.camara, problema: parsed.data.problema, bateria: parsed.data.bateria ?? null, cargando: parsed.data.cargando ?? null });
-    return { ok: true };
+    return { recargar: await tomarOrdenRecarga(usuario.username) };
   });
 };
