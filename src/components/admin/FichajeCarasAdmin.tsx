@@ -21,6 +21,10 @@ export default function FichajeCarasAdmin({ caras: inicial }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [borrando, setBorrando] = useState<number | null>(null);
 
+  const [busqueda, setBusqueda] = useState('');
+  const texto = busqueda.trim().toLowerCase();
+  const visibles = texto ? caras.filter((c) => c.empleadoNombre.toLowerCase().includes(texto)) : caras;
+
   async function eliminar(c: CaraRegistradaAdmin) {
     if (!window.confirm(`¿Eliminar el registro facial de ${c.empleadoNombre}? Va a tener que volver a registrarse para fichar.`)) return;
     setBorrando(c.empleadoId);
@@ -74,12 +78,22 @@ export default function FichajeCarasAdmin({ caras: inicial }: Props) {
         <span className="text-xs text-slate-500">Todas las plantillas, agrupadas por persona. Contiene datos biométricos: guardalo con cuidado.</span>
       </div>
 
+      <input
+        type="search"
+        value={busqueda}
+        onChange={(e) => setBusqueda(e.target.value)}
+        placeholder="Buscar persona…"
+        className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm text-slate-100 placeholder:text-slate-500 sm:max-w-xs"
+      />
+
       <div className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
         {caras.length === 0 ? (
           <p className="px-4 py-6 text-center text-sm text-slate-500">Todavía no hay caras registradas.</p>
+        ) : visibles.length === 0 ? (
+          <p className="px-4 py-6 text-center text-sm text-slate-500">Nadie coincide con la búsqueda.</p>
         ) : (
           <ul className="divide-y divide-slate-800">
-            {caras.map((c) => (
+            {visibles.map((c) => (
               <li key={c.empleadoId} className="flex items-center justify-between gap-3 px-4 py-2.5">
                 <div>
                   <p className="text-sm font-medium text-slate-100">{c.empleadoNombre}</p>

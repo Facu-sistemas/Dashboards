@@ -18,6 +18,10 @@ const MAX_FILAS = 60;
 const FORMATO_FECHA = new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 const FORMATO_DIA = new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit', day: '2-digit' });
 
+function iniciales(n: string): string {
+  return n.split(/\s+/).filter(Boolean).slice(0, 2).map((x) => x[0]?.toUpperCase()).join('');
+}
+
 function hace(iso: string): string {
   const min = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
   if (min < 1) return 'recién';
@@ -94,22 +98,36 @@ export default function FichajeKioscosAdmin({ marcas, ultimas, latidos, nombresK
         <p className="rounded-lg border border-slate-800 bg-slate-900 px-4 py-6 text-center text-sm text-slate-500">Todavía no hay fichadas registradas.</p>
       ) : (
         <>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {kioscos.map(([username, k]) => (
-              <button
-                key={username}
-                type="button"
-                onClick={() => setFiltro(filtro === username ? 'todos' : username)}
-                className={`rounded-lg border px-4 py-3 text-left transition-colors ${
-                  filtro === username ? 'border-brand-500 bg-slate-800' : 'border-slate-800 bg-slate-900 hover:border-slate-700'
-                }`}
-              >
-                <p className="text-sm font-medium text-slate-100">{nombre(username)}</p>
-                {nombre(username) !== username && <p className="text-[11px] text-slate-500">{username}</p>}
-                <p className="mt-1 text-xs text-slate-400">{k.ultima ? `${k.hoy} hoy · última fichada ${hace(k.ultima)}` : 'Sin fichadas todavía'}</p>
-                {latidoDe.get(username) && <Senal latido={latidoDe.get(username)!} limiteMs={SIN_SENAL_MS} />}
-              </button>
-            ))}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {kioscos.map(([username, k]) => {
+              const min = k.ultima ? (Date.now() - new Date(k.ultima).getTime()) / 60000 : Infinity;
+              const estado = min < 60 ? { color: 'bg-emerald-400', label: 'Activo' } : min < 60 * 12 ? { color: 'bg-amber-400', label: 'Sin actividad' } : { color: 'bg-red-400', label: 'Inactivo' };
+              const sel = filtro === username;
+              return (
+                <button
+                  key={username}
+                  type="button"
+                  onClick={() => setFiltro(sel ? 'todos' : username)}
+                  className={`flex items-center gap-4 rounded-xl border p-4 text-left transition-all ${
+                    sel ? 'border-brand-500 bg-slate-800 shadow-lg' : 'border-slate-800 bg-slate-900 hover:-translate-y-0.5 hover:border-slate-600'
+                  }`}
+                >
+                  <div className="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-lg bg-slate-800">
+                    <span className="text-2xl font-semibold leading-none text-slate-100">{k.hoy}</span>
+                    <span className="mt-1 text-[10px] uppercase tracking-wide text-slate-500">hoy</span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-slate-100">{nombre(username)}</p>
+                    {nombre(username) !== username && <p className="truncate text-[11px] text-slate-500">{username}</p>}
+                    <p className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-400">
+                      <span className={`h-2 w-2 rounded-full ${estado.color}`} />
+                      {k.ultima ? `${estado.label} · ${hace(k.ultima)}` : 'Sin fichadas todavía'}
+                    </p>
+                    {latidoDe.get(username) && <Senal latido={latidoDe.get(username)!} limiteMs={SIN_SENAL_MS} />}
+                  </div>
+                </button>
+              );
+            })}
           </div>
 
           <div className="flex flex-col gap-2">
@@ -123,60 +141,61 @@ export default function FichajeKioscosAdmin({ marcas, ultimas, latidos, nombresK
                 className="rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm text-slate-100 placeholder:text-slate-500"
               />
             </div>
-            <div className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-900">
-              <table className="w-full text-left text-sm">
-                <thead className="border-b border-slate-800 text-xs uppercase tracking-wide text-slate-500">
-                  <tr>
-                    <th className="px-4 py-2 font-medium">Persona</th>
-                    <th className="px-4 py-2 font-medium text-emerald-400">Última entrada</th>
-                    <th className="px-4 py-2 font-medium text-red-400">Última salida</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800">
-                  {personas.length === 0 ? (
-                    <tr>
-                      <td colSpan={3} className="px-4 py-6 text-center text-slate-500">
-                        Nadie coincide con la búsqueda.
-                      </td>
-                    </tr>
-                  ) : (
-                    personas.map((p) => (
-                      <tr key={p.empleadoId}>
-                        <td className="px-4 py-2 text-slate-100">{p.empleadoNombre}</td>
-                        <td className="px-4 py-2">{celda(p.entrada)}</td>
-                        <td className="px-4 py-2">{celda(p.salida)}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+            {personas.length === 0 ? (
+              <p className="rounded-lg border border-slate-800 bg-slate-900 px-4 py-6 text-center text-sm text-slate-500">Nadie coincide con la búsqueda.</p>
+            ) : (
+              <div className="grid gap-2 md:grid-cols-2">
+                {personas.map((p) => (
+                  <div key={p.empleadoId} className="flex flex-col gap-2 rounded-xl border border-slate-800 bg-slate-900 p-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-800 text-xs font-semibold text-slate-300">
+                        {iniciales(p.empleadoNombre)}
+                      </span>
+                      <p className="truncate text-sm font-medium text-slate-100">{p.empleadoNombre}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-lg bg-emerald-500/10 px-2.5 py-1.5">
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-emerald-400">↓ Entrada</p>
+                        <div className="text-xs">{celda(p.entrada)}</div>
+                      </div>
+                      <div className="rounded-lg bg-red-500/10 px-2.5 py-1.5">
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-red-400">↑ Salida</p>
+                        <div className="text-xs">{celda(p.salida)}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
             <p className="text-xs text-slate-500">{ultimas.length} personas con fichadas registradas desde que se activó esta función.</p>
           </div>
 
           <details className="group">
             <summary className="cursor-pointer text-sm text-slate-400 hover:text-slate-200">Ver historial de fichadas</summary>
-            <div className="mt-2 flex flex-col gap-2">
-            <div className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
-              <ul className="divide-y divide-slate-800">
-                {visibles.map((m) => (
-                  <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2">
-                    <p className="text-sm text-slate-100">{m.empleadoNombre}</p>
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className={`rounded px-1.5 py-0.5 uppercase tracking-wide ${m.accion === 'entrada' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
-                        {m.accion}
+            <div className="mt-3 flex flex-col gap-2">
+              <ul className="flex flex-col gap-1.5">
+                {visibles.map((m) => {
+                  const ent = m.accion === 'entrada';
+                  return (
+                    <li key={m.id} className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2">
+                      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm ${ent ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>
+                        {ent ? '↓' : '↑'}
                       </span>
-                      <span className="text-slate-400">{nombre(m.kiosco)}</span>
-                      <span className="font-mono text-slate-500">{FORMATO_FECHA.format(new Date(m.marcadoEn))}</span>
-                    </div>
-                  </li>
-                ))}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm text-slate-100">{m.empleadoNombre}</p>
+                        <p className="truncate text-xs text-slate-500">
+                          <span className={ent ? 'text-emerald-400' : 'text-red-400'}>{ent ? 'Entrada' : 'Salida'}</span> · {nombre(m.kiosco)}
+                        </p>
+                      </div>
+                      <span className="shrink-0 font-mono text-xs text-slate-400">{FORMATO_FECHA.format(new Date(m.marcadoEn))}</span>
+                    </li>
+                  );
+                })}
               </ul>
-            </div>
-            <p className="text-xs text-slate-500">
-              {filtro === 'todos' ? 'Últimas fichadas de todos los kioscos.' : `Fichadas de ${nombre(filtro)} (tocá de nuevo la tarjeta para ver todas).`} Se muestran hasta{' '}
-              {MAX_FILAS}; el resumen usa las últimas {marcas.length}.
-            </p>
+              <p className="text-xs text-slate-500">
+                {filtro === 'todos' ? 'Últimas fichadas de todos los kioscos.' : `Fichadas de ${nombre(filtro)} (tocá de nuevo la tarjeta para ver todas).`} Se muestran hasta{' '}
+                {MAX_FILAS}; el resumen usa las últimas {marcas.length}.
+              </p>
             </div>
           </details>
         </>
