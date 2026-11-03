@@ -18,6 +18,8 @@ const CONFIRMACIONES = 3;
 const INTERVALO_MS = 400;
 /** Cuánto queda en pantalla el cartel de "Entrada/Salida registrada". */
 const RESULTADO_MS = 3000;
+/** Cuánto sigue el cartel "Hola, X" (y el botón) después de la última vez que se vio la cara: si la persona se mueve un instante, no se le va el botón. */
+const RETENCION_MS = 2000;
 const PREF_PANTALLA_COMPLETA = 'fichaje-pantalla-completa';
 
 function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
@@ -36,6 +38,8 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
   const personas = useMemo(() => agruparPersonas(caras), [caras]);
   const personasRef = useRef(personas);
   personasRef.current = personas;
+  /** Última vez que se vio (confirmada) la cara del reconocido; sirve para retener el cartel RETENCION_MS. */
+  const ultimaVistaRef = useRef(0);
 
   // Desbloqueo del audio: el navegador exige un toque antes de dejar sonar. Se intenta al cargar (por si ya lo permite) y en
   // cada toque; mientras siga bloqueado se muestra el cartel "Tocá la pantalla para activar el sonido".
@@ -78,6 +82,7 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
   // Bucle de reconocimiento: corre mientras la cámara está abierta.
   useEffect(() => {
     if (!camaraActiva) {
+      ultimaVistaRef.current = 0;
       setReconocido(null);
       return;
     }
@@ -88,6 +93,9 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
     let candidato: number | null = null;
     let racha = 0;
 
+    // Si hay un reconocido que se vio hace menos de RETENCION_MS, el cartel se mantiene aunque ahora no se lo vea bien.
+    const retenido = () => Date.now() - ultimaVistaRef.current <= RETENCION_MS;
+
     async function tick() {
       if (cancelado) return;
       const det = await detectar();
@@ -96,8 +104,10 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
       if (!det) {
         candidato = null;
         racha = 0;
-        setReconocido(null);
-        setEstado('Buscando cara...');
+        if (!retenido()) {
+          setReconocido(null);
+          setEstado('Buscando cara...');
+        }
       } else if (personasRef.current.length === 0) {
         setEstado('Hay una cara, pero todavía no hay empleados registrados.');
       } else {
@@ -110,6 +120,7 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
           racha = candidato === mejor.empleadoId ? racha + 1 : 1;
           candidato = mejor.empleadoId;
           if (racha >= CONFIRMACIONES) {
+            ultimaVistaRef.current = Date.now();
             setReconocido({ empleadoId: mejor.empleadoId, nombre: mejor.nombre, distancia: mejor.distancia });
             setEstado('Reconocido');
           } else {
@@ -118,6 +129,10 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
         } else {
           candidato = null;
           racha = 0;
+          if (retenido()) {
+            setTimeout(tick, INTERVALO_MS);
+            return;
+          }
           setReconocido(null);
           // A los empleados no se les muestra con quién se parecen ni distancias: eso es un dato de diagnóstico para
           // el dev (y para RRHH, en el reporte "Pares parecidos" del admin).
@@ -148,7 +163,8 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
   }, [fichaje]);
 
   async function ficharAhora() {
-    if (!reconocido) return;
+    if (!reconocido || fichando) return;
+    ultimaVistaRef.current = 0;
     setFichando(true);
     setError(null);
     try {
@@ -250,7 +266,12 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
             // En pantalla completa el cartel flota a ~22% del borde inferior: pegado abajo choca con la barra de
             // navegación del celular y el botón queda incómodo de tocar con el celular en un soporte.
             <div
-              className={`absolute bg-sky-700/90 px-4 text-center ${
+              // Toda la tarjeta ficha, no solo el botón: con el celular en un soporte es fácil errarle al botón.
+              onClick={(e) => {
+                e.stopPropagation();
+                void ficharAhora();
+              }}
+              className={`absolute cursor-pointer bg-sky-700/90 px-4 text-center active:bg-sky-800/90 ${
                 pantallaCompleta ? 'inset-x-4 bottom-[22%] rounded-2xl py-6 shadow-lg' : 'inset-x-3 bottom-3 rounded-xl py-3'
               }`}
             >
@@ -259,10 +280,6 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
               <button
                 type="button"
                 disabled={fichando}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void ficharAhora();
-                }}
                 className={`mt-2 rounded bg-white font-semibold text-sky-800 disabled:opacity-60 ${
                   pantallaCompleta ? 'px-12 py-4 text-xl' : 'px-5 py-2 text-sm'
                 }`}
