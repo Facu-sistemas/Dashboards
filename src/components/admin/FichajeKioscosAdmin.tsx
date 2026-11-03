@@ -36,8 +36,13 @@ function Senal({ latido, limiteMs }: { latido: KioscoLatido; limiteMs: number })
   const problema = !caido && (!latido.camaraActiva || latido.problema);
   const color = caido ? 'text-red-400' : problema ? 'text-amber-300' : 'text-emerald-400';
   return (
-    <p className={`mt-1 text-xs ${color}`}>
-      {caido ? `Sin señal desde ${hace(latido.ultimoLatido)}` : problema ? (latido.problema ?? 'Cámara apagada') : 'Conectado'}
+    <p className={`mt-1 flex flex-wrap items-center gap-x-3 text-xs ${color}`}>
+      <span>{caido ? `Sin señal desde ${hace(latido.ultimoLatido)}` : problema ? (latido.problema ?? 'Cámara apagada') : 'Conectado'}</span>
+      {latido.bateria != null && (
+        <span className={latido.bateria <= 20 && !latido.cargando ? 'font-medium text-red-400' : latido.bateria <= 40 && !latido.cargando ? 'text-amber-300' : 'text-slate-400'}>
+          {latido.cargando ? '⚡' : '🔋'} {latido.bateria}%{caido ? ' (último dato)' : ''}
+        </span>
+      )}
     </p>
   );
 }

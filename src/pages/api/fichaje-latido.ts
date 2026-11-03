@@ -5,7 +5,12 @@ import { handleApiRoute, jsonResponse, ApiValidationError } from '@/lib/api-help
 
 export const prerender = false;
 
-const bodySchema = z.object({ camara: z.boolean(), problema: z.string().max(300).nullable() });
+const bodySchema = z.object({
+  camara: z.boolean(),
+  problema: z.string().max(300).nullable(),
+  bateria: z.number().int().min(0).max(100).nullish(),
+  cargando: z.boolean().nullish(),
+});
 
 // POST /api/fichaje-latido — señal de vida del celular de quiosco (cada minuto). Guarda cuándo fue y en qué estado
 // está la cámara, para verlo en el panel de admin y notar un celular caído o con la cámara apagada.
@@ -23,7 +28,7 @@ export const POST: APIRoute = async (context) => {
     }
     const parsed = bodySchema.safeParse(body);
     if (!parsed.success) throw new ApiValidationError(parsed.error.issues.map((i) => i.message).join('; '));
-    await registrarLatido({ kiosco: usuario.username, camaraActiva: parsed.data.camara, problema: parsed.data.problema });
+    await registrarLatido({ kiosco: usuario.username, camaraActiva: parsed.data.camara, problema: parsed.data.problema, bateria: parsed.data.bateria ?? null, cargando: parsed.data.cargando ?? null });
     return { ok: true };
   });
 };

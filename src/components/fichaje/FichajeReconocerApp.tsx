@@ -69,7 +69,9 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
     let cancelado = false;
     async function latir() {
       try {
-        await enviarLatido(latidoRef.current);
+        // Battery API: solo Chrome/Android (Safari en iPhone no la tiene). Si no hay, se manda sin batería.
+        const bat = await (navigator as Navigator & { getBattery?: () => Promise<{ level: number; charging: boolean }> }).getBattery?.().catch(() => null);
+        await enviarLatido({ ...latidoRef.current, bateria: bat ? Math.round(bat.level * 100) : null, cargando: bat ? bat.charging : null });
         if (!cancelado) setSinConexion(false);
       } catch (err) {
         if (!cancelado && err instanceof RespuestaNoJsonError) recuperar();

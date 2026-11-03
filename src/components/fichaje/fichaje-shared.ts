@@ -76,7 +76,7 @@ export async function registrarCaras(empleadoId: number, empleadoNombre: string,
 }
 
 /** Señal de vida del celular de quiosco (cada tanto): sirve para ver en el admin cuáles siguen conectados. */
-export async function enviarLatido(estado: { camara: boolean; problema: string | null }): Promise<void> {
+export async function enviarLatido(estado: { camara: boolean; problema: string | null; bateria?: number | null; cargando?: boolean | null }): Promise<void> {
   const res = await fetch('/api/fichaje-latido', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
