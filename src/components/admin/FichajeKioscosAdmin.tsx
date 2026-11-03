@@ -1,10 +1,13 @@
 import { useState } from 'react';
+import type { KioscoLatido } from '@/lib/supabase/fichaje-kioscos';
 import type { MarcaFichaje, UltimasDePersona } from '@/lib/supabase/fichaje-marcas';
 
 interface Props {
   marcas: MarcaFichaje[];
   /** Por persona: dónde y cuándo fue su última entrada y su última salida. */
   ultimas: UltimasDePersona[];
+  /** Última señal de vida de cada celular de quiosco. */
+  latidos: KioscoLatido[];
   /** username → nombre completo de la cuenta (sirve como nombre de la ubicación, p. ej. "Entrada principal"). */
   nombresKioscos: Record<string, string>;
   /** Mensaje de Supabase si no se pudo leer la tabla (no existe, falta un permiso, etc.). */
@@ -24,11 +27,22 @@ function hace(iso: string): string {
   return `hace ${Math.floor(h / 24)} d`;
 }
 
+function Senal({ latido, limiteMs }: { latido: KioscoLatido; limiteMs: number }) {
+  const caido = Date.now() - new Date(latido.ultimoLatido).getTime() > limiteMs;
+  const problema = !caido && (!latido.camaraActiva || latido.problema);
+  const color = caido ? 'text-red-400' : problema ? 'text-amber-300' : 'text-emerald-400';
+  return (
+    <p className={`mt-1 text-xs ${color}`}>
+      {caido ? `Sin señal desde ${hace(latido.ultimoLatido)}` : problema ? (latido.problema ?? 'Cámara apagada') : 'Conectado'}
+    </p>
+  );
+}
+
 /**
  * Fichadas por kiosco (cuenta de celular): cuántas hizo cada uno hoy y cuándo fue su última actividad, más el listado
  * de las últimas marcas. Sirve para ver dónde ficha la gente y para notar un celular que dejó de responder en horario laboral.
  */
-export default function FichajeKioscosAdmin({ marcas, ultimas, nombresKioscos, error }: Props) {
+export default function FichajeKioscosAdmin({ marcas, ultimas, latidos, nombresKioscos, error }: Props) {
   const [filtro, setFiltro] = useState<string>('todos');
   const [busqueda, setBusqueda] = useState('');
 
@@ -41,6 +55,10 @@ export default function FichajeKioscosAdmin({ marcas, ultimas, nombresKioscos, e
     if (m.marcadoEn > k.ultima) k.ultima = m.marcadoEn;
     porKiosco.set(m.kiosco, k);
   }
+  const latidoDe = new Map(latidos.map((l) => [l.kiosco, l]));
+  // Un celular sin señal por más de 3 minutos se da por caído (manda una cada 60 s mientras la página está abierta).
+  const SIN_SENAL_MS = 3 * 60_000;
+  for (const l of latidos) if (!porKiosco.has(l.kiosco)) porKiosco.set(l.kiosco, { total: 0, hoy: 0, ultima: '' });
   const kioscos = [...porKiosco.entries()].sort((a, b) => b[1].ultima.localeCompare(a[1].ultima));
   const nombre = (username: string) => nombresKioscos[username] || username;
 
@@ -72,7 +90,7 @@ export default function FichajeKioscosAdmin({ marcas, ultimas, nombresKioscos, e
           No se pudo leer la tabla <code>fichaje_marcas</code>: {error}. El SQL de la tabla y sus permisos está en{' '}
           <code>src/lib/supabase/fichaje-marcas.ts</code>.
         </p>
-      ) : marcas.length === 0 ? (
+      ) : marcas.length === 0 && latidos.length === 0 ? (
         <p className="rounded-lg border border-slate-800 bg-slate-900 px-4 py-6 text-center text-sm text-slate-500">Todavía no hay fichadas registradas.</p>
       ) : (
         <>
@@ -88,9 +106,8 @@ export default function FichajeKioscosAdmin({ marcas, ultimas, nombresKioscos, e
               >
                 <p className="text-sm font-medium text-slate-100">{nombre(username)}</p>
                 {nombre(username) !== username && <p className="text-[11px] text-slate-500">{username}</p>}
-                <p className="mt-1 text-xs text-slate-400">
-                  {k.hoy} hoy · última {hace(k.ultima)}
-                </p>
+                <p className="mt-1 text-xs text-slate-400">{k.ultima ? `${k.hoy} hoy · última fichada ${hace(k.ultima)}` : 'Sin fichadas todavía'}</p>
+                {latidoDe.get(username) && <Senal latido={latidoDe.get(username)!} limiteMs={SIN_SENAL_MS} />}
               </button>
             ))}
           </div>

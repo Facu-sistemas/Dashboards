@@ -7,6 +7,7 @@ import FichajeCarasAdmin from '@/components/admin/FichajeCarasAdmin';
 import FichajeParecidosAdmin from '@/components/admin/FichajeParecidosAdmin';
 import { listCaras, listCarasResumen } from '@/lib/supabase/fichaje-caras';
 import FichajeKioscosAdmin from '@/components/admin/FichajeKioscosAdmin';
+import { listKioscos, type KioscoLatido } from '@/lib/supabase/fichaje-kioscos';
 import { listMarcasRecientes, listUltimasPorEmpleado, type MarcaFichaje, type UltimasDePersona } from '@/lib/supabase/fichaje-marcas';
 import { agruparPersonas, calcularParesParecidos } from '@/lib/fichaje-matching';
 
@@ -49,6 +50,8 @@ try {
 } catch (err) {
   marcasError = err instanceof Error ? err.message : String(err);
 }
+// Última señal de cada celular de quiosco; si la tabla todavía no existe, simplemente no se muestra.
+const latidosKioscos: KioscoLatido[] = await listKioscos().catch(() => []);
 const SECCIONES = [
   { id: 'usuarios', nombre: 'Usuarios' },
   { id: 'caras', nombre: 'Caras registradas' },
@@ -96,7 +99,7 @@ for (const p of perfiles ?? []) if (p.nombre_completo) nombresKioscos[p.username
     </div>
 
     <div data-panel="kioscos" role="tabpanel" hidden>
-      <FichajeKioscosAdmin client:load marcas={marcasFichaje} ultimas={ultimasFichaje} nombresKioscos={nombresKioscos} error={marcasError} />
+      <FichajeKioscosAdmin client:load marcas={marcasFichaje} ultimas={ultimasFichaje} latidos={latidosKioscos} nombresKioscos={nombresKioscos} error={marcasError} />
     </div>
   </main>
 </BaseLayout>

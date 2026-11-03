@@ -1,14 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApiQuery } from '@/components/dashboard/useApiQuery';
 import QueryProvider from '@/components/QueryProvider';
 import { agruparPersonas, rankingPersonas } from '@/lib/fichaje-matching';
+import { RespuestaNoJsonError } from '@/lib/respuesta-no-json';
 import {
+  enviarLatido,
   marcarEnOdoo,
   MARGEN_RECONOCIMIENTO,
   UMBRAL_RECONOCIMIENTO as UMBRAL,
   type CaraRegistrada,
   type ResultadoFichaje,
 } from './fichaje-shared';
+import { recargarConTope } from './fichaje-recuperacion';
 import { useFichajeCamara } from './useFichajeCamara';
 import { usePantallaCompleta } from './usePantallaCompleta';
 import { activarAudio, audioActivo, estaSilenciado, silenciar, sonar } from './fichaje-sonido';
@@ -21,6 +24,8 @@ const RESULTADO_MS = 3000;
 /** Cuánto sigue el cartel "Hola, X" (y el botón) después de la última vez que se vio la cara: si la persona se mueve un instante, no se le va el botón. */
 const RETENCION_MS = 2000;
 const PREF_PANTALLA_COMPLETA = 'fichaje-pantalla-completa';
+/** Cada cuánto el celular avisa que sigue vivo (y de paso detecta si el servidor dejó de contestar bien). */
+const LATIDO_MS = 60_000;
 
 function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
   const carasQ = useApiQuery<CaraRegistrada[]>(['fichaje-caras'], '/api/fichaje-caras');
@@ -33,6 +38,8 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
   const [fichaje, setFichaje] = useState<ResultadoFichaje | null>(null);
   const [silencio, setSilencio] = useState(estaSilenciado);
   const [audioListo, setAudioListo] = useState(false);
+  /** true cuando el servidor sigue contestando mal después de varias recargas automáticas: se muestra el aviso en pantalla. */
+  const [sinConexion, setSinConexion] = useState(false);
   const { pantallaCompleta, contenedorRef, entrar: entrarPantallaCompleta, salir: salirPantallaCompleta, alTocar } = usePantallaCompleta(PREF_PANTALLA_COMPLETA);
 
   const personas = useMemo(() => agruparPersonas(caras), [caras]);
@@ -40,6 +47,42 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
   personasRef.current = personas;
   /** Última vez que se vio (confirmada) la cara del reconocido; sirve para retener el cartel RETENCION_MS. */
   const ultimaVistaRef = useRef(0);
+
+  // Recuperación: si el servidor contesta HTML en vez de datos (deploy en curso, caída), se recarga la página sola.
+  // Si después de varias recargas sigue igual, queda el aviso en pantalla y el panel de admin lo muestra como sin señal.
+  const recuperar = useCallback(() => {
+    if (!recargarConTope()) setSinConexion(true);
+  }, []);
+  useEffect(() => {
+    if (carasQ.error instanceof RespuestaNoJsonError) recuperar();
+  }, [carasQ.error, recuperar]);
+  useEffect(() => {
+    // Vite avisa así cuando un archivo de la página ya no existe en el servidor (pasa tras un deploy): recargar lo trae de nuevo.
+    window.addEventListener('vite:preloadError', recuperar);
+    return () => window.removeEventListener('vite:preloadError', recuperar);
+  }, [recuperar]);
+
+  // Señal de vida: cada minuto. Si contesta bien, se levanta el aviso de "sin conexión"; si contesta HTML, se recupera.
+  const latidoRef = useRef({ camara: false, problema: null as string | null });
+  latidoRef.current = { camara: camaraActiva, problema: error?.slice(0, 300) ?? null };
+  useEffect(() => {
+    let cancelado = false;
+    async function latir() {
+      try {
+        await enviarLatido(latidoRef.current);
+        if (!cancelado) setSinConexion(false);
+      } catch (err) {
+        if (!cancelado && err instanceof RespuestaNoJsonError) recuperar();
+        // Sin internet (fetch rechazado): no se recarga, porque recargar sin red deja la pantalla de "sin conexión" del navegador.
+      }
+    }
+    void latir();
+    const t = setInterval(() => void latir(), LATIDO_MS);
+    return () => {
+      cancelado = true;
+      clearInterval(t);
+    };
+  }, [recuperar]);
 
   // Desbloqueo del audio: el navegador exige un toque antes de dejar sonar. Se intenta al cargar (por si ya lo permite) y en
   // cada toque; mientras siga bloqueado se muestra el cartel "Tocá la pantalla para activar el sonido".
@@ -172,7 +215,13 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
       setReconocido(null);
       setEstado('Fichaje registrado.');
     } catch (err) {
-      setError((err as Error).message);
+      if (err instanceof RespuestaNoJsonError) {
+        // No se llegó a registrar el fichaje (el servidor no contestó datos): se recarga y se vuelve a intentar.
+        setError('El sistema no respondió y el fichaje no se registró. Se recarga la página; volvé a fichar en unos segundos.');
+        recuperar();
+      } else {
+        setError((err as Error).message);
+      }
       sonar('error');
     } finally {
       setFichando(false);
@@ -184,6 +233,11 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
       <p className="text-center text-sm text-slate-400">{estado}</p>
       {!silencio && !audioListo && (
         <p className="rounded bg-amber-500/20 px-3 py-1.5 text-center text-sm text-amber-200">Tocá la pantalla para activar el sonido</p>
+      )}
+      {sinConexion && (
+        <p className="rounded bg-red-600 px-3 py-2 text-center text-sm font-semibold text-white">
+          Sin conexión con el sistema. Avisá a Sistemas.
+        </p>
       )}
       {error && <p className="rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">{error}</p>}
     </>

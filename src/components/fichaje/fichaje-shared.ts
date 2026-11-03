@@ -1,4 +1,5 @@
 import type { ApiEnvelope } from '@/components/dashboard/types';
+import { exigirJson } from '@/lib/respuesta-no-json';
 
 export interface Empleado {
   id: number;
@@ -57,6 +58,7 @@ export async function marcarEnOdoo(empleadoId: number): Promise<ResultadoFichaje
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ empleadoId }),
   });
+  exigirJson(res);
   const json = (await res.json()) as ApiEnvelope<ResultadoFichaje>;
   if (!res.ok || !json.ok || !json.data) throw new Error(json.error ?? 'No se pudo fichar');
   return json.data;
@@ -68,6 +70,17 @@ export async function registrarCaras(empleadoId: number, empleadoNombre: string,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ empleadoId, empleadoNombre, descriptores }),
   });
+  exigirJson(res);
   const json = (await res.json()) as ApiEnvelope<unknown>;
   if (!res.ok || !json.ok) throw new Error(json.error ?? 'Error al guardar');
+}
+
+/** Señal de vida del celular de quiosco (cada tanto): sirve para ver en el admin cuáles siguen conectados. */
+export async function enviarLatido(estado: { camara: boolean; problema: string | null }): Promise<void> {
+  const res = await fetch('/api/fichaje-latido', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(estado),
+  });
+  exigirJson(res);
 }
