@@ -10,6 +10,14 @@ interface Props {
 const { area, activeTabSlug } = Astro.props;
 // Las pestañas restringidas (ej. RRHH > Administración) solo aparecen para quien tiene permiso.
 const tabs = area.tabs.filter((t) => tabVisible(t, Astro.locals.usuario));
+// Áreas con subdivisión (ej. Herramientas de producción): una fila por grupo, en el orden en que aparecen.
+const grupos: { nombre: string; tabs: typeof tabs }[] = [];
+for (const t of tabs) {
+  const nombre = t.grupo ?? '';
+  const g = grupos.find((x) => x.nombre === nombre);
+  if (g) g.tabs.push(t);
+  else grupos.push({ nombre, tabs: [t] });
+}
 ---
 
 <!-- Si venís de otra pestaña del mismo área, la barra no se vuelve a animar (ver .tab-link-enter en global.css). -->
@@ -19,21 +27,45 @@ const tabs = area.tabs.filter((t) => tabVisible(t, Astro.locals.usuario));
   } catch {}
 </script>
 
-<nav class="flex flex-wrap gap-1 border-b border-slate-800" aria-label={`Secciones de ${area.name}`}>
-  {
-    tabs.map((tab, i) => (
-      <a
-        href={`/${area.slug}/${tab.slug}`}
-        aria-current={tab.slug === activeTabSlug ? 'page' : undefined}
-        style={`--i:${i}`}
-        class={`tab-link-enter rounded-t-lg border border-b-0 px-4 py-2 text-sm font-medium transition-colors ${
-          tab.slug === activeTabSlug
-            ? 'border-slate-800 bg-slate-900 text-slate-100'
-            : 'border-transparent text-slate-500 hover:text-slate-300'
-        }`}
-      >
-        {tab.name}
-      </a>
-    ))
-  }
-</nav>
+{
+  tabs.some((t) => t.grupo) ? (
+    <nav class="border-b border-slate-800" aria-label={`Secciones de ${area.name}`}>
+      {grupos.map((g) => (
+        <div class="flex flex-wrap items-end gap-1 border-b border-slate-800/60 last:border-b-0">
+          <span class="w-24 shrink-0 self-center text-[11px] font-semibold uppercase tracking-wide text-slate-500">{g.nombre}</span>
+          {g.tabs.map((tab) => (
+            <a
+              href={`/${area.slug}/${tab.slug}`}
+              aria-current={tab.slug === activeTabSlug ? 'page' : undefined}
+              style={`--i:${tabs.indexOf(tab)}`}
+              class={`tab-link-enter rounded-t-lg border border-b-0 px-4 py-2 text-sm font-medium transition-colors ${
+                tab.slug === activeTabSlug
+                  ? 'border-slate-800 bg-slate-900 text-slate-100'
+                  : 'border-transparent text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              {tab.name}
+            </a>
+          ))}
+        </div>
+      ))}
+    </nav>
+  ) : (
+    <nav class="flex flex-wrap gap-1 border-b border-slate-800" aria-label={`Secciones de ${area.name}`}>
+      {tabs.map((tab, i) => (
+        <a
+          href={`/${area.slug}/${tab.slug}`}
+          aria-current={tab.slug === activeTabSlug ? 'page' : undefined}
+          style={`--i:${i}`}
+          class={`tab-link-enter rounded-t-lg border border-b-0 px-4 py-2 text-sm font-medium transition-colors ${
+            tab.slug === activeTabSlug
+              ? 'border-slate-800 bg-slate-900 text-slate-100'
+              : 'border-transparent text-slate-500 hover:text-slate-300'
+          }`}
+        >
+          {tab.name}
+        </a>
+      ))}
+    </nav>
+  )
+}

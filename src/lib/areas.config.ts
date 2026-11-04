@@ -13,6 +13,8 @@ export interface TabConfig {
   name: string;
   /** Pestaña restringida: solo la ven y abren quienes cumplan la regla (ver tab-acceso.ts). Sin esto, la ve todo el que tenga el área. */
   acceso?: 'admin-rrhh';
+  /** Subdivisión dentro del área: la barra de pestañas muestra una fila por grupo, con su nombre a la izquierda. */
+  grupo?: string;
 }
 
 export type AccentColor = 'brand' | 'purple' | 'amber' | 'emerald' | 'orange' | 'teal' | 'cyan' | 'rose' | 'indigo';
@@ -61,6 +63,8 @@ const ICONS = {
     '<rect x="2" y="7" width="11" height="9" rx="1"/><path d="M13 10h4l3 3v3h-7"/><circle cx="7" cy="18" r="1.8"/><circle cx="16.5" cy="18" r="1.8"/>',
   faceScan:
     '<path d="M4 8V6a2 2 0 012-2h2"/><path d="M16 4h2a2 2 0 012 2v2"/><path d="M20 16v2a2 2 0 01-2 2h-2"/><path d="M8 20H6a2 2 0 01-2-2v-2"/><circle cx="12" cy="10" r="2.5"/><path d="M7.5 17c.8-2 2.4-3 4.5-3s3.7 1 4.5 3"/>',
+  factory:
+    '<path d="M3 20V10l6 3v-3l6 3V6h3v14z"/><line x1="3" y1="20" x2="21" y2="20"/>',
   coins: '<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.66 3.13 3 7 3s7-1.34 7-3V6"/><path d="M5 12v6c0 1.66 3.13 3 7 3s7-1.34 7-3v-6"/>',
 };
 
@@ -162,16 +166,17 @@ export const AREAS: AreaConfig[] = [
   {
     slug: 'produccion',
     name: 'Herramientas de producción',
-    description: 'Calculadoras y optimizadores de corte',
+    description: 'Calculadoras, optimizadores y planificación de colchones y living',
     accent: 'amber',
     icon: ICONS.ruler,
     tabs: [
-      { slug: 'calculadora-carpinteria', name: 'Calculadora Carpintería' },
-      { slug: 'calculadora-bandas', name: 'Calculadora de Bandas' },
-      { slug: 'optimizador-multicorte', name: 'Optimizador Multicorte' },
-      { slug: 'planificado-linea', name: 'Planificado Línea' },
-      { slug: 'telamax', name: 'Telamax' },
-      { slug: 'lineas-sillon', name: 'Líneas de Sillones' },
+      { slug: 'calculadora-bandas', name: 'Calculadora de Bandas', grupo: 'Colchón' },
+      { slug: 'optimizador-multicorte', name: 'Optimizador Multicorte', grupo: 'Colchón' },
+      { slug: 'planificado-linea', name: 'Planificado Línea', grupo: 'Colchón' },
+      { slug: 'espumado', name: 'Espumado', grupo: 'Colchón' },
+      { slug: 'telamax', name: 'Telamax', grupo: 'Living' },
+      { slug: 'lineas-sillon', name: 'Líneas de Sillones', grupo: 'Living' },
+      { slug: 'optimizador-vertical', name: 'Optimizador Vertical', grupo: 'Living' },
     ],
   },
   {
@@ -194,7 +199,6 @@ export const AREAS: AreaConfig[] = [
     icon: ICONS.truck,
     tabs: [
       { slug: 'avance-carga', name: 'Avance de carga' },
-      { slug: 'embalaje', name: 'Embalaje' },
       { slug: 'despachos', name: 'Pendientes de despacho' },
       { slug: 'cumplimiento', name: 'Cumplimiento de entrega' },
       { slug: 'mapa-destinos', name: 'Mapa de destinos' },
@@ -214,6 +218,17 @@ export const AREAS: AreaConfig[] = [
     ],
   },
   {
+    slug: 'planta',
+    name: 'Planta',
+    description: 'Carpintería y embalaje',
+    accent: 'teal',
+    icon: ICONS.factory,
+    tabs: [
+      { slug: 'calculadora-carpinteria', name: 'Calculadora Carpintería' },
+      { slug: 'embalaje', name: 'Embalaje' },
+    ],
+  },
+  {
     slug: 'test',
     name: 'Test',
     description: 'Experimentos y prototipos',
@@ -225,8 +240,6 @@ export const AREAS: AreaConfig[] = [
       { slug: 'cumpleanos', name: 'Cumpleaños' },
       { slug: 'flujo', name: 'Flujo' },
       { slug: 'permisos-odoo', name: 'Permisos Odoo' },
-      { slug: 'espumado', name: 'Espumado' },
-      { slug: 'optimizador-vertical', name: 'Optimizador Vertical (Living)' },
       { slug: 'diagrama-er', name: 'Diagrama ER' },
     ],
   },

@@ -50,9 +50,9 @@ const filaSchema = z.object({
 
 const bodySchema = z.object({ fecha: fechaSchema, filas: z.array(filaSchema).min(1).max(200) });
 
-// POST /api/espumado-stock — guarda el día completo ({ fecha, filas }). Quien tenga acceso al módulo Test.
+// POST /api/espumado-stock — guarda el día completo ({ fecha, filas }). Quien tenga acceso al módulo Herramientas de producción.
 export const POST: APIRoute = async (context) => {
-  if (!context.locals.usuario?.areasPermitidas.includes('test')) {
+  if (!context.locals.usuario?.areasPermitidas.includes('produccion')) {
     return jsonResponse({ ok: false, error: 'No autorizado' }, { status: 403 });
   }
 

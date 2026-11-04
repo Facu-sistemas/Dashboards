@@ -8,7 +8,7 @@ import { handleApiRoute, jsonResponse, ApiValidationError } from '@/lib/api-help
 
 export const prerender = false;
 
-const AREA = 'logistica';
+const AREA = 'planta';
 const fechaSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const horaSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 const bodySchema = z.discriminatedUnion('accion', [
