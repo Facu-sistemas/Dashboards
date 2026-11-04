@@ -1,0 +1,14 @@
+---
+import ErDiagramApp from './ErDiagramApp';
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Diagrama entidad-relación</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Mapa de las tablas propias de la web en Supabase y cómo se relacionan entre sí, agrupadas por módulo. Se puede filtrar por grupo, hacer zoom y tocar una tabla para ver sus vínculos.
+    </p>
+  </header>
+
+  <ErDiagramApp client:only="react" />
+</div>

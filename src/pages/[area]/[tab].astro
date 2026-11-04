@@ -34,6 +34,7 @@ import CumpleanosTab from '@/components/test/CumpleanosTab.astro';
 import FlujoTab from '@/components/test/FlujoTab.astro';
 import PermisosOdooTab from '@/components/test/PermisosOdooTab.astro';
 import EspumadoTab from '@/components/test/EspumadoTab.astro';
+import ErDiagramTab from '@/components/test/ErDiagramTab.astro';
 import LineasSillonTab from '@/components/produccion/LineasSillonTab.astro';
 import CalidadCncTab from '@/components/calidad/CalidadCncTab.astro';
 import FichajeReconocerTab from '@/components/fichaje/FichajeReconocerTab.astro';
@@ -87,6 +88,7 @@ if (!area || !tabConfig || !tabVisible(tabConfig, Astro.locals.usuario) || !Astr
   {area.slug === 'produccion' && tabSlug === 'calculadora-bandas' && <BandasTab />}
   {area.slug === 'produccion' && tabSlug === 'optimizador-multicorte' && <MulticorteTab />}
   {area.slug === 'test' && tabSlug === 'optimizador-vertical' && <VerticalTab />}
+  {area.slug === 'test' && tabSlug === 'diagrama-er' && <ErDiagramTab />}
   {area.slug === 'produccion' && tabSlug === 'planificado-linea' && <PlanificadoLineaTab />}
   {area.slug === 'produccion' && tabSlug === 'telamax' && <TelamaxTab />}
   {area.slug === 'produccion' && tabSlug === 'lineas-sillon' && <LineasSillonTab />}
