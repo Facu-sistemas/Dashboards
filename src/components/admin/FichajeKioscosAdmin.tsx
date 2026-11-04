@@ -186,10 +186,12 @@ export default function FichajeKioscosAdmin({ marcas, ultimas, latidos, nombresK
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{oficiales.map((e) => tarjeta(e))}</div>
                 </div>
                 {pruebas.length > 0 && (
-                  <div className="flex flex-col gap-2">
-                    <h3 className="text-xs font-medium uppercase tracking-wide text-slate-500">De prueba</h3>
-                    <div className="grid gap-3 opacity-80 sm:grid-cols-2 lg:grid-cols-3">{pruebas.map((e) => tarjeta(e))}</div>
-                  </div>
+                  <details className="group">
+                    <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-slate-500 hover:text-slate-300">
+                      De prueba ({pruebas.length})
+                    </summary>
+                    <div className="mt-2 grid gap-3 opacity-80 sm:grid-cols-2 lg:grid-cols-3">{pruebas.map((e) => tarjeta(e))}</div>
+                  </details>
                 )}
               </div>
             );
