@@ -40,6 +40,7 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
   const [audioListo, setAudioListo] = useState(false);
   /** true cuando el servidor sigue contestando mal después de varias recargas automáticas: se muestra el aviso en pantalla. */
   const [sinConexion, setSinConexion] = useState(false);
+  const [recargando, setRecargando] = useState(false);
   const { pantallaCompleta, contenedorRef, entrar: entrarPantallaCompleta, salir: salirPantallaCompleta, alTocar } = usePantallaCompleta(PREF_PANTALLA_COMPLETA);
 
   const personas = useMemo(() => agruparPersonas(caras), [caras]);
@@ -74,7 +75,10 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
         const { recargar: ordenRecarga } = await enviarLatido({ ...latidoRef.current, bateria: bat ? Math.round(bat.level * 100) : null, cargando: bat ? bat.charging : null });
         if (!cancelado) setSinConexion(false);
         // Recarga pedida desde el admin. La pantalla completa de la app se restaura sola; la real del navegador necesita un toque.
-        if (ordenRecarga) location.reload();
+        if (ordenRecarga) {
+          setRecargando(true);
+          setTimeout(() => location.reload(), 1500);
+        }
       } catch (err) {
         if (!cancelado && err instanceof RespuestaNoJsonError) recuperar();
         // Sin internet (fetch rechazado): no se recarga, porque recargar sin red deja la pantalla de "sin conexión" del navegador.
@@ -234,6 +238,7 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
 
   const mensajes = (
     <>
+      {recargando && <p className="animate-pulse rounded bg-brand-500 px-3 py-2 text-center text-sm font-semibold text-white">Recargando...</p>}
       <p className="text-center text-sm text-slate-400">{estado}</p>
       {!silencio && !audioListo && (
         <p className="rounded bg-amber-500/20 px-3 py-1.5 text-center text-sm text-amber-200">Tocá la pantalla para activar el sonido</p>
