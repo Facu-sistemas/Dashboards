@@ -1,5 +1,6 @@
 import { Fragment, useMemo, useState } from 'react';
 import QueryProvider from '@/components/QueryProvider';
+import { PropuestoInner } from './PermisosPropuestoApp';
 import { useApiQuery } from '@/components/dashboard/useApiQuery';
 import LastUpdated from '@/components/shared/LastUpdated';
 
@@ -261,9 +262,24 @@ function PermisosInner() {
 }
 
 export default function PermisosOdooApp() {
+  const [modo, setModo] = useState<'actual' | 'propuesto'>('actual');
   return (
     <QueryProvider>
-      <PermisosInner />
+      <div className="flex flex-col gap-6">
+        <div className="flex w-fit gap-1 rounded border border-slate-700 p-0.5 text-sm">
+          {(['actual', 'propuesto'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setModo(m)}
+              className={`rounded px-4 py-1 ${modo === m ? 'bg-brand-500/20 text-brand-400' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              {m === 'actual' ? 'Actual' : 'Propuesto'}
+            </button>
+          ))}
+        </div>
+        {modo === 'actual' ? <PermisosInner /> : <PropuestoInner />}
+      </div>
     </QueryProvider>
   );
 }

@@ -6,6 +6,8 @@ export interface PermisoGrupo {
   nombre: string;
   /** Aplicación a la que pertenece en Odoo (ej. "Ventas"); "Sin aplicación" para los grupos técnicos. */
   categoria: string;
+  /** Grupos que este incluye directamente (implied_ids): sirven para saber cuál es el nivel inmediato inferior. */
+  incluye: number[];
 }
 
 export interface UsuarioOdoo {
@@ -16,6 +18,8 @@ export interface UsuarioOdoo {
   activo: boolean;
   ultimoLogin: string | null;
   grupoIds: number[];
+  /** Grupos "más altos" de la cuenta: los que no incluye otro grupo que ya tiene (lo que Odoo muestra en la ficha). */
+  topIds: number[];
   /** Nivel de acceso por aplicación, como lo muestra la ficha del usuario en Odoo (solo el más alto de cada una). */
   accesos: Record<string, string[]>;
 }
@@ -74,6 +78,7 @@ export async function getPermisosUsuarios(): Promise<PermisosUsuarios> {
     id: g.id,
     nombre: g.name,
     categoria: g.category_id ? g.category_id[1] : SIN_APLICACION,
+    incluye: g.implied_ids,
   }));
   const grupoPorId = new Map(grupos.map((g) => [g.id, g]));
 
@@ -94,9 +99,11 @@ export async function getPermisosUsuarios(): Promise<PermisosUsuarios> {
   const usuarios: UsuarioOdoo[] = users.map((u) => {
     const redundantes = new Set(u.groups_id.flatMap((id) => [...(cierres.get(id) ?? [])]));
     const accesos: Record<string, string[]> = {};
+    const topIds: number[] = [];
     for (const id of u.groups_id) {
       const g = grupoPorId.get(id);
       if (!g || redundantes.has(id)) continue;
+      topIds.push(id);
       (accesos[g.categoria] ??= []).push(g.nombre);
     }
     return {
@@ -106,6 +113,7 @@ export async function getPermisosUsuarios(): Promise<PermisosUsuarios> {
       activo: u.active,
       ultimoLogin: u.login_date || null,
       grupoIds: u.groups_id,
+      topIds,
       accesos,
     };
   });
