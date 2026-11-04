@@ -22,7 +22,7 @@ interface EmbalajeResult {
   totalOdoo: number;
   totalEscaneado: number;
   ordenesCerradas: { orden: string; producto: string; barcode: string | null; unidades: number; cerrada: string }[];
-  escaneos: { id: number; barcode: string; producto: string | null; usuario: string | null; creado: string }[];
+  escaneos: { id: number; barcode: string; producto: string | null; usuario: string | null; scanner: number | null; creado: string }[];
 }
 
 interface Aviso {
@@ -31,6 +31,8 @@ interface Aviso {
   accion?: Envio['accion'];
   producto?: string;
   barcode?: string;
+  /** Qué scanner leyó (o cuál era el escaneo borrado); null si no se pudo identificar. */
+  scanner?: number | null;
   /** Totales del producto ya refrescados, para confirmar cuántos van. */
   acumulado?: { escaneado: number; odoo: number };
   /** El escaneo se contó pero hay algo para avisar. */
@@ -45,7 +47,16 @@ function hoyArgentina(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date());
 }
 
-type Envio = { accion: 'escanear' | 'deshacer'; codigo: string } | { accion: 'anular'; id: number };
+/**
+ * Cada scanner se programa para mandar un prefijo antes del código (ZZ1 / ZZ2): así, aunque los dos
+ * sean "teclados" iguales para la PC, sabemos cuál leyó. Sin prefijo, el escaneo queda sin identificar.
+ */
+function separarScanner(crudo: string): { codigo: string; scanner?: 1 | 2 } {
+  const m = /^ZZ([12])(.+)$/i.exec(crudo.trim());
+  return m ? { codigo: m[2]!, scanner: m[1] === '1' ? 1 : 2 } : { codigo: crudo.trim() };
+}
+
+type Envio = { accion: 'escanear' | 'deshacer'; codigo: string; scanner?: 1 | 2 } | { accion: 'anular'; id: number };
 
 async function enviar(envio: Envio, fecha: string): Promise<Aviso> {
   try {
@@ -54,13 +65,14 @@ async function enviar(envio: Envio, fecha: string): Promise<Aviso> {
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({ ...envio, fecha }),
     });
-    const body = (await res.json()) as ApiEnvelope<{ producto: string; barcode?: string }>;
+    const body = (await res.json()) as ApiEnvelope<{ producto: string; barcode?: string; scanner?: number | null }>;
     if (!res.ok || !body.ok || !body.data) return { ok: false, texto: body.error ?? 'No se pudo registrar el escaneo.' };
     return {
       ok: true,
       accion: envio.accion,
       producto: body.data.producto,
       barcode: body.data.barcode,
+      scanner: body.data.scanner ?? null,
       texto: `${envio.accion === 'escanear' ? '+1' : envio.accion === 'deshacer' ? '−1' : 'Borrado:'} ${body.data.producto}`.trim(),
     };
   } catch {
@@ -99,9 +111,11 @@ function Inner() {
   }, [aviso]);
 
   const accionar = async (accion: 'escanear' | 'deshacer', cod: string) => {
-    const limpio = cod.trim();
-    if (!limpio || enviando) return;
-    await ejecutar({ accion, codigo: limpio });
+    if (!cod.trim() || enviando) return;
+    // El −1 de la tabla manda el código del producto tal cual; el prefijo solo viene de un scanner.
+    const { codigo: limpio, scanner } = separarScanner(cod);
+    if (!limpio) return;
+    await ejecutar({ accion, codigo: limpio, ...(scanner ? { scanner } : {}) });
   };
 
   const ejecutar = async (envio: Envio) => {
@@ -188,6 +202,9 @@ function Inner() {
                   <li key={e.id} className="flex items-center gap-3 px-4 py-2 text-sm">
                     <span className="w-14 shrink-0 tabular-nums text-slate-400">{hora.format(new Date(e.creado))}</span>
                     <span className="min-w-0 flex-1 truncate text-slate-100">{e.producto ?? e.barcode}</span>
+                    {e.scanner && (
+                      <span className="shrink-0 rounded border border-slate-700 px-1.5 py-0.5 text-xs font-semibold text-slate-300">S{e.scanner}</span>
+                    )}
                     <span className="hidden font-mono text-xs text-slate-500 sm:inline">{e.barcode}</span>
                     {esHoy && (
                       <button
@@ -347,6 +364,12 @@ function ConfirmacionEscaneo({ aviso, onCerrar }: { aviso: Aviso | null; onCerra
         <>
           <p className="text-[12rem] font-black leading-none tabular-nums">{aviso.accion === 'escanear' ? '+1' : aviso.accion === 'deshacer' ? '−1' : '✓'}</p>
           <p className="max-w-5xl text-5xl font-bold leading-tight">{aviso.producto}</p>
+          {aviso.accion === 'escanear' && aviso.scanner && <p className="rounded-lg bg-black/25 px-8 py-3 text-5xl font-black">Scanner {aviso.scanner}</p>}
+          {aviso.accion !== 'escanear' && (
+            <p className="rounded-lg bg-black/25 px-8 py-3 text-5xl font-black">
+              {aviso.scanner ? `Era del Scanner ${aviso.scanner}` : 'Escaneo sin scanner identificado'}
+            </p>
+          )}
           {aviso.acumulado && (
             <p className="text-3xl font-semibold opacity-90">
               Van {n0.format(aviso.acumulado.escaneado)} escaneados · Odoo {n0.format(aviso.acumulado.odoo)}

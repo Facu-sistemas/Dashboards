@@ -15,6 +15,7 @@ import { addDaysIso } from '@/lib/date';
  *     created_at timestamptz not null default now()
  *   );
  *   create index on embalaje_escaneos (created_at);
+ *   alter table embalaje_escaneos add column scanner smallint;  -- 1 | 2: cuál de los dos scanners lo leyó (prefijo ZZ1 / ZZ2)
  *   alter table embalaje_escaneos enable row level security;  -- default-deny, acceso solo vía /api
  *   grant select, insert, update, delete on public.embalaje_escaneos to service_role;
  *
@@ -43,6 +44,8 @@ export interface EscaneoRegistro {
   barcode: string;
   producto: string | null;
   usuario: string | null;
+  /** 1 | 2 según el prefijo que manda cada scanner; null si no se pudo identificar. */
+  scanner: number | null;
   creado: string;
 }
 
@@ -57,7 +60,7 @@ export async function getEscaneosDia(fecha: string, desdeHora = '00:00'): Promis
   const [desde, hasta] = limitesDiaIso(fecha, desdeHora);
   const { data, error } = await getSupabaseAdminClient()
     .from(TABLA)
-    .select('id, barcode, producto, usuario, created_at')
+    .select('*')
     .eq('anulado', false)
     .gte('created_at', desde)
     .lt('created_at', hasta)
@@ -84,24 +87,38 @@ export async function getEscaneosDia(fecha: string, desdeHora = '00:00'): Promis
       barcode: r.barcode as string,
       producto: (r.producto as string | null) ?? null,
       usuario: (r.usuario as string | null) ?? null,
+      scanner: (r.scanner as number | null | undefined) ?? null,
       creado: r.created_at as string,
     }))
     .reverse();
   return { disponible: true, porProducto: [...acc.values()], lista };
 }
 
-export async function registrarEscaneo(barcode: string, producto: string, usuario: string): Promise<void> {
-  const { error } = await getSupabaseAdminClient().from(TABLA).insert({ barcode, producto, usuario });
-  if (error) throw new Error(error.message);
+export async function registrarEscaneo(barcode: string, producto: string, usuario: string, scanner?: number): Promise<void> {
+  const db = getSupabaseAdminClient();
+  const { error } = await db.from(TABLA).insert({ barcode, producto, usuario, ...(scanner ? { scanner } : {}) });
+  if (!error) return;
+  // Si todavía no existe la columna `scanner`, el escaneo se guarda igual (sin saber cuál scanner fue).
+  if (scanner && /scanner/i.test(error.message)) {
+    const { error: e2 } = await db.from(TABLA).insert({ barcode, producto, usuario });
+    if (!e2) return;
+    throw new Error(e2.message);
+  }
+  throw new Error(error.message);
 }
 
-/** Anula el último escaneo vigente de ese código en el día (el "-1"). Devuelve false si no había ninguno. */
-export async function deshacerEscaneo(barcode: string, fecha: string): Promise<boolean> {
+/** Lo que se borró: sirve para avisar de qué scanner era. */
+export interface EscaneoAnulado {
+  scanner: number | null;
+}
+
+/** Anula el último escaneo vigente de ese código en el día (el "-1"). Devuelve null si no había ninguno. */
+export async function deshacerEscaneo(barcode: string, fecha: string): Promise<EscaneoAnulado | null> {
   const db = getSupabaseAdminClient();
   const [desde, hasta] = limitesDiaIso(fecha);
   const { data, error } = await db
     .from(TABLA)
-    .select('id')
+    .select('*')
     .eq('barcode', barcode)
     .eq('anulado', false)
     .gte('created_at', desde)
@@ -110,15 +127,17 @@ export async function deshacerEscaneo(barcode: string, fecha: string): Promise<b
     .limit(1);
   if (error) throw new Error(error.message);
   const id = data?.[0]?.id;
-  if (id === undefined) return false;
+  if (id === undefined) return null;
   const { error: e2 } = await db.from(TABLA).update({ anulado: true }).eq('id', id);
   if (e2) throw new Error(e2.message);
-  return true;
+  return { scanner: (data?.[0]?.scanner as number | null | undefined) ?? null };
 }
 
-/** Anula un escaneo puntual (el que se cargó dos veces, por ejemplo). Devuelve false si ya no estaba vigente. */
-export async function anularEscaneo(id: number): Promise<boolean> {
-  const { data, error } = await getSupabaseAdminClient().from(TABLA).update({ anulado: true }).eq('id', id).eq('anulado', false).select('id');
+/** Anula un escaneo puntual (el que se cargó dos veces, por ejemplo). Devuelve null si ya no estaba vigente. */
+export async function anularEscaneo(id: number): Promise<(EscaneoAnulado & { producto: string | null }) | null> {
+  const { data, error } = await getSupabaseAdminClient().from(TABLA).update({ anulado: true }).eq('id', id).eq('anulado', false).select('*');
   if (error) throw new Error(error.message);
-  return (data?.length ?? 0) > 0;
+  const r = data?.[0];
+  if (!r) return null;
+  return { scanner: (r.scanner as number | null | undefined) ?? null, producto: (r.producto as string | null) ?? null };
 }
