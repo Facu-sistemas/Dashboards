@@ -33,6 +33,7 @@ import { tabVisible } from '@/lib/tab-acceso';
 import CumpleanosTab from '@/components/test/CumpleanosTab.astro';
 import FlujoTab from '@/components/test/FlujoTab.astro';
 import PermisosOdooTab from '@/components/test/PermisosOdooTab.astro';
+import EspumadoTab from '@/components/test/EspumadoTab.astro';
 import LineasSillonTab from '@/components/produccion/LineasSillonTab.astro';
 import CalidadCncTab from '@/components/calidad/CalidadCncTab.astro';
 import FichajeReconocerTab from '@/components/fichaje/FichajeReconocerTab.astro';
@@ -100,6 +101,7 @@ if (!area || !tabConfig || !tabVisible(tabConfig, Astro.locals.usuario) || !Astr
   {area.slug === 'test' && tabSlug === 'cumpleanos' && <CumpleanosTab />}
   {area.slug === 'test' && tabSlug === 'flujo' && <FlujoTab />}
   {area.slug === 'test' && tabSlug === 'permisos-odoo' && <PermisosOdooTab />}
+  {area.slug === 'test' && tabSlug === 'espumado' && <EspumadoTab />}
   {area.slug === 'fichaje' && tabSlug === 'reconocer' && <FichajeReconocerTab />}
   {area.slug === 'fichaje' && tabSlug === 'registrar' && <FichajeRegistrarTab />}
   {area.slug === 'fichaje' && tabSlug === 'aviso' && <FichajeAvisoTab />}
