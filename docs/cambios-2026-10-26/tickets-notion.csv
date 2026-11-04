@@ -1,0 +1,55 @@
+﻿"Problema","Estado","Categoría","Fecha","Descripción"
+"Líneas de Sillones (Test)","Resuelto","Feature","2026-10-26","Fecha: 26/10/2026 · Commits: `589793e`, `584dc6f`, `7e51889`
+Planificador de líneas que reemplaza la planilla LEAN TIEMPOS. Solo lectura sobre Odoo.
+## Qué hace
+- Reporte de hoy por línea (carpintería, tapicería, ensamble) desde las órdenes de Odoo.
+- Tiempos tomados de la hoja DATOS, con segundos exactos.
+- Personas por puesto, con preferencias de producto.
+- Equivalencias Odoo→DATOS y productos manuales.
+- Adelanto por defecto en paralelo, como la planilla.
+## PDF
+- Idéntico a la planilla HORARIOS: 3 bloques por línea, 45 filas, U.E. y eficiencia sobre 14:08. Una hoja por línea.
+- Encabezado con el logo de Frontera Living y la fecha completa.
+## Plan del día
+- Se guarda en `lineas_sillon_planes`.
+- Se fija solo si se abre antes de las 9, o a mano.
+- Se puede alternar con ""En vivo"".
+## Personas
+- Buscador de empleados de Odoo (`empleado_id`).
+- Botón Borrar en cada tarjeta.
+## Archivos
+`src/components/test/LineasSillon*`, `src/components/test/lineas-sillon-pdf.ts`, `src/lib/lineas-sillon/*`, `src/lib/odoo/lineas-sillon.ts`, `src/lib/supabase/lineas-sillon.ts`, `src/pages/api/lineas-sillon.ts`"
+"Fichaje: Aviso de privacidad","Resuelto","Feature","2026-10-26","Fecha: 26/10/2026 · Commit: `5180e4f`
+## Qué se hizo
+- Pestaña nueva con: qué se guarda, para qué se usa, quién accede y los derechos de la persona.
+- Enlace al aviso desde las pestañas Reconocer y Registrar.
+## Archivos
+`src/components/fichaje/FichajeAvisoTab.astro`, `FichajeReconocerTab.astro`, `FichajeRegistrarTab.astro`, `src/lib/areas.config.ts`, `src/pages/[area]/[tab].astro`"
+"Quiz de Bandas: KPI Fallos de cantidad","Resuelto","Feature","2026-10-26","Fecha: 26/10/2026 · Commit: `b207be2`
+## Qué se hizo
+- KPI nuevo ""Fallos de cantidad"".
+- Lee las columnas nuevas de la hoja.
+- Excluye Staging.
+## Archivos
+`src/components/calidad/QuizBandasApp.tsx`, `quiz-bandas-calc.ts`, `src/lib/quiz-bandas-sheet.ts`"
+"RRHH: tab Horas","Resuelto","Feature","2026-10-26","Fecha: 26/10/2026 · Commits: `93e9727`, `4af92b6`
+## Qué hace
+- Conciliación de horas por rango de fechas.
+- Tiempo personal y banco de horas.
+- Excel de salida.
+## Excel (ajuste posterior)
+- Formato de la planilla BASE RELOJ FICHADOR: columnas A-AI, encabezados en la fila 4.
+- Legajo sin ceros a la izquierda.
+- Columna Injustificadas.
+## Archivos
+`src/components/rrhh/QuincenaApp.tsx`, `QuincenaTab.astro`, `quincena-utils.ts`, `src/lib/odoo/rrhh-quincena.ts`, `src/pages/api/rrhh-quincena.ts`"
+"RRHH: tab Planilla","Resuelto","Feature","2026-10-26","Fecha: 26/10/2026 · Commit: `776014e`
+## Qué hace
+- Planilla de cálculo quincenal armada desde Odoo, con EXPORTA.
+## Archivos
+`src/components/rrhh/PlanillaApp.tsx`, `PlanillaTab.astro`, `src/lib/rrhh-planilla.ts`, `src/lib/rrhh-sheet.ts`, `src/pages/api/rrhh-planilla.ts`"
+"RRHH: tab Cruce reloj","Resuelto","Feature","2026-10-26","Fecha: 26/10/2026 · Commit: `776014e`
+## Qué hace
+- Cruza la hoja BASE RELOJ FICHADOR contra Odoo.
+## Archivos
+`src/components/rrhh/CruceRelojApp.tsx`, `CruceRelojTab.astro`, `src/lib/rrhh-cruce-reloj.ts`, `src/lib/rrhh-sheet.ts`, `src/pages/api/rrhh-cruce-reloj.ts`"
