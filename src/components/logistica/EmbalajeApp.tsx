@@ -4,7 +4,6 @@ import QueryProvider from '@/components/QueryProvider';
 import { useApiQuery } from '@/components/dashboard/useApiQuery';
 import LastUpdated from '@/components/shared/LastUpdated';
 import type { ApiEnvelope } from '@/components/dashboard/types';
-import { embaladoraDe } from '@/lib/embalaje-embaladora';
 
 interface EmbalajeFila {
   barcode: string | null;
@@ -34,7 +33,7 @@ interface Aviso {
   barcode?: string;
   /** Totales del producto ya refrescados, para confirmar cuántos van. */
   acumulado?: { escaneado: number; odoo: number };
-  /** El escaneo se contó pero hay algo para avisar (ej. el producto va por la otra embaladora). */
+  /** El escaneo se contó pero hay algo para avisar. */
   advertencia?: string;
 }
 
@@ -69,8 +68,6 @@ async function enviar(envio: Envio, fecha: string): Promise<Aviso> {
   }
 }
 
-type Vista = 'todas' | 1 | 2;
-const VISTA_KEY = 'embalaje-embaladora';
 const AVISO_MS = 2500;
 const AVISO_ERROR_MS = 5000;
 
@@ -79,28 +76,8 @@ function Inner() {
   const [codigo, setCodigo] = useState('');
   const [aviso, setAviso] = useState<Aviso | null>(null);
   const [enviando, setEnviando] = useState(false);
-  const [vista, setVista] = useState<Vista>('todas');
   const inputRef = useRef<HTMLInputElement>(null);
   const qc = useQueryClient();
-
-  // Cada puesto recuerda su embaladora: se elige una vez y queda en ese equipo.
-  useEffect(() => {
-    try {
-      const v = localStorage.getItem(VISTA_KEY);
-      if (v === '1') setVista(1);
-      else if (v === '2') setVista(2);
-    } catch {
-      /* sin storage: queda en "todas" */
-    }
-  }, []);
-  const elegirVista = (v: Vista) => {
-    setVista(v);
-    try {
-      localStorage.setItem(VISTA_KEY, String(v));
-    } catch {
-      /* ignorar */
-    }
-  };
 
   const query = useApiQuery<EmbalajeResult>(['embalaje', fecha], `/api/embalaje-escaneos?fecha=${fecha}`);
   const { refetch } = query;
@@ -137,9 +114,6 @@ function Inner() {
       const datos = qc.getQueryData<EmbalajeResult>(['embalaje', fecha]);
       const fila = datos?.filas.find((f) => f.producto === res.producto || (res.barcode && f.barcode?.toUpperCase() === res.barcode.toUpperCase()));
       if (fila) res.acumulado = { escaneado: fila.escaneado, odoo: fila.odoo };
-      if (envio.accion === 'escanear' && vista !== 'todas' && embaladoraDe(res.producto) !== vista) {
-        res.advertencia = `Este producto va por la Embaladora ${embaladoraDe(res.producto)}`;
-      }
     }
     setAviso(res);
     setEnviando(false);
@@ -159,38 +133,15 @@ function Inner() {
   const d = query.data;
   const esHoy = fecha === hoyArgentina();
 
-  // Vista de una embaladora: solo sus productos en tarjetas, tabla y listas.
-  const visible = (producto: string | null) => vista === 'todas' || !producto || embaladoraDe(producto) === vista;
-  const filas = d?.filas.filter((f) => visible(f.producto)) ?? [];
-  const ordenes = d?.ordenesCerradas.filter((o) => visible(o.producto)) ?? [];
-  const escaneos = d?.escaneos.filter((e) => visible(e.producto)) ?? [];
-  const totalOdoo = filas.reduce((s, f) => s + f.odoo, 0);
-  const totalEscaneado = filas.reduce((s, f) => s + f.escaneado, 0);
+  const filas = d?.filas ?? [];
+  const ordenes = d?.ordenesCerradas ?? [];
+  const escaneos = d?.escaneos ?? [];
+  const totalOdoo = d?.totalOdoo ?? 0;
+  const totalEscaneado = d?.totalEscaneado ?? 0;
 
   return (
     <div className="space-y-6">
       <ConfirmacionEscaneo aviso={aviso} onCerrar={() => setAviso(null)} />
-
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Embaladora</span>
-        <div className="flex gap-1 rounded border border-slate-700 p-0.5 text-sm">
-          {([1, 2, 'todas'] as const).map((v) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => elegirVista(v)}
-              className={`rounded px-4 py-1.5 ${vista === v ? 'bg-brand-500/20 text-brand-400' : 'text-slate-400 hover:text-slate-200'}`}
-            >
-              {v === 'todas' ? 'Todas' : `Embaladora ${v}`}
-            </button>
-          ))}
-        </div>
-        {vista !== 'todas' && (
-          <span className="text-xs text-slate-500">
-            {vista === 1 ? 'Bases (color y Olimpo), Pocket y EPS (Magnum, Krom, Jade).' : 'Todo lo que no es Base, Pocket ni EPS.'}
-          </span>
-        )}
-      </div>
 
       {query.isError && !d && (
         <p className="rounded-lg border border-status-red/50 bg-slate-900 p-4 text-sm text-status-red">
