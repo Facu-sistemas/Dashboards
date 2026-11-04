@@ -95,6 +95,7 @@ export default function EspumadoStockPanel() {
 
   function editar(f: EspumadoStockFila, campo: keyof Borrador, valor: string) {
     if (!/^\d*$/.test(valor)) return;
+    valor = valor.replace(/^0+(?=\d)/, ''); // evita 0 -> 01 al tipear sobre el cero
     // Un «Inicial» igual al final del día anterior no es un conteo: vuelve a arrastrar solo.
     const v = campo === 'inicial' && valor !== '' && Number(valor) === f.inicialAuto ? '' : valor;
     setBorrador((prev) => ({ ...prev, [key(f)]: { ...(prev[key(f)] ?? aBorrador(f)), [campo]: v } }));
@@ -224,6 +225,7 @@ export default function EspumadoStockPanel() {
                         <td className="px-3 py-1.5 text-right">
                           <input
                             inputMode="numeric"
+                            onFocus={(e) => e.target.select()}
                             value={b.inicial !== '' ? b.inicial : String(f.inicialAuto)}
                             onChange={(e) => editar(f, 'inicial', e.target.value)}
                             title={
@@ -238,6 +240,7 @@ export default function EspumadoStockPanel() {
                           <td key={c.id} className="px-3 py-1.5 text-right">
                             <input
                               inputMode="numeric"
+                              onFocus={(e) => e.target.select()}
                               value={b[c.id]}
                               placeholder="0"
                               onChange={(e) => editar(f, c.id, e.target.value)}
