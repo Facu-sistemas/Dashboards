@@ -15,6 +15,8 @@ interface Props {
 }
 
 const MAX_FILAS = 60;
+/** Cuentas de los celulares oficiales de la fábrica; el resto (ficherotest, el dev) son de prueba. */
+const ES_OFICIAL = /^fichero[123]$/;
 const FORMATO_FECHA = new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 const FORMATO_DIA = new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit', day: '2-digit' });
 
@@ -131,8 +133,8 @@ export default function FichajeKioscosAdmin({ marcas, ultimas, latidos, nombresK
         <p className="rounded-lg border border-slate-800 bg-slate-900 px-4 py-6 text-center text-sm text-slate-500">Todavía no hay fichadas registradas.</p>
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {kioscos.map(([username, k]) => {
+          {(() => {
+            const tarjeta = ([username, k]: (typeof kioscos)[number]) => {
               const min = k.ultima ? (Date.now() - new Date(k.ultima).getTime()) / 60000 : Infinity;
               const estado = min < 60 ? { color: 'bg-emerald-400', label: 'Activo' } : min < 60 * 12 ? { color: 'bg-amber-400', label: 'Sin actividad' } : { color: 'bg-red-400', label: 'Inactivo' };
               const sel = filtro === username;
@@ -174,8 +176,24 @@ export default function FichajeKioscosAdmin({ marcas, ultimas, latidos, nombresK
                 {rec && rec !== 'pidiendo' && rec !== 'pedida' && <p className="mt-1 text-xs text-red-400">{rec}</p>}
                 </div>
               );
-            })}
-          </div>
+            };
+            const oficiales = kioscos.filter(([u]) => ES_OFICIAL.test(u));
+            const pruebas = kioscos.filter(([u]) => !ES_OFICIAL.test(u));
+            return (
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <h3 className="text-xs font-medium uppercase tracking-wide text-slate-500">Oficiales</h3>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{oficiales.map((e) => tarjeta(e))}</div>
+                </div>
+                {pruebas.length > 0 && (
+                  <div className="flex flex-col gap-2">
+                    <h3 className="text-xs font-medium uppercase tracking-wide text-slate-500">De prueba</h3>
+                    <div className="grid gap-3 opacity-80 sm:grid-cols-2 lg:grid-cols-3">{pruebas.map((e) => tarjeta(e))}</div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
