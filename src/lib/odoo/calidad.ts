@@ -3,7 +3,8 @@ import { getFronteraCompany } from './reference';
 import { COLCHONES_CATEG_IDS, LIVING_CATEG_IDS } from './oee';
 import { currentMonthKey, lastMonthKeys, monthsBetween, rangePresetStartDate, type DateRangePreset } from '@/lib/date';
 import type { OdooDomain } from './types';
-import { fetchNotasDevolucionColchon, type NotaDevolucion } from './notas-credito-devolucion';
+import { fetchNotasColchonComoCnc, type NotaDevolucion } from './notas-credito-devolucion';
+import { PRODUCTO_HORA_ID } from './costo-devoluciones';
 
 const TREND_MONTHS = 12;
 
@@ -252,6 +253,8 @@ export interface ReparacionesColchonResult {
 export interface ReparacionesResult {
   /** Reparaciones (`repair.order`) cuyo producto no cae en ninguna categoría Living/Colchón (sin producto cargado, PI, Servicio, Reventa, etc.) — se informan aparte, no entran en ninguno de los dos sectores. */
   totalSinSector: number;
+  /** Valor de la hora de reparación ($): precio del producto SERVICIO DE REPARACION en Odoo (el mismo que usa Costo de devoluciones). */
+  valorHora: number;
   living: ReparacionesSectorResult;
   colchon: ReparacionesColchonResult;
 }
@@ -289,7 +292,7 @@ async function fetchProductionRows(categIds: number[], companyId: number, startD
  * `repair.order` para el sector Colchón: tienen mejor cobertura de carga.
  * No entran los descuentos, acuerdos comerciales ni publicidad. La
  * clasificación es la misma que usa Costo de no calidad
- * (`fetchNotasDevolucionColchon`).
+ * (`fetchNotasColchonComoCnc`).
  */
 function bucketColchon(
   creditNoteRows: NotaDevolucion[],
@@ -302,7 +305,7 @@ function bucketColchon(
   for (const r of creditNoteRows) {
     const month = r.invoiceDate.slice(0, 7);
     const bucket = ncByMonth.get(month) ?? emptyBucket();
-    const monto = r.amount;
+    const monto = r.amountUntaxed;
     bucket.cantidad += 1;
     bucket.monto += monto;
     if (r.grupo === 'garantia') {
@@ -346,7 +349,7 @@ function bucketColchon(
 
   return {
     totalNotasCredito: creditNoteRows.length,
-    totalMontoNotasCredito: creditNoteRows.reduce((sum, r) => sum + r.amount, 0),
+    totalMontoNotasCredito: creditNoteRows.reduce((sum, r) => sum + r.amountUntaxed, 0),
     totalHoras: repairRows.reduce((sum, r) => sum + r.x_studio_horas_de_reparacion, 0),
     totalUnidadesFabricadas: productionRows.reduce((sum, r) => sum + r.qty_produced, 0),
     mensual,
@@ -401,7 +404,7 @@ function bucketSector(repairRows: RepairRow[], productionRows: ProductionRow[], 
  * que se hizo con Colchón (ver abajo).
  *
  * Colchón, a pedido de Calidad, usa Notas de Crédito (Garantía + No
- * conformidad, ver `fetchNotasDevolucionColchon`) como fuente de "devoluciones"
+ * conformidad, ver `fetchNotasColchonComoCnc`) como fuente de "devoluciones"
  * en vez de `repair.order` — tienen mejor cobertura de carga para ese
  * sector. Las horas de reparación siguen viniendo de `repair.order` (único
  * lugar donde se cargan) y se muestran como dato complementario, no como
@@ -422,14 +425,15 @@ export async function getReparaciones(range: DateRangePreset): Promise<Reparacio
   ];
   if (startDate) totalDomain.push(['create_date', '>=', startDate]);
 
-  const [livingRepairs, livingProduction, colchonRepairs, colchonProduction, colchonCreditNotes, totalReparaciones] =
+  const [livingRepairs, livingProduction, colchonRepairs, colchonProduction, colchonCreditNotes, totalReparaciones, productoHora] =
     await Promise.all([
       fetchRepairRows(LIVING_CATEG_IDS, companyId, startDate),
       fetchProductionRows(LIVING_CATEG_IDS, companyId, startDate),
       fetchRepairRows(COLCHONES_CATEG_IDS, companyId, startDate),
       fetchProductionRows(COLCHONES_CATEG_IDS, companyId, startDate),
-      fetchNotasDevolucionColchon(startDate),
+      fetchNotasColchonComoCnc(startDate),
       searchCount('repair.order', totalDomain),
+      searchRead<{ id: number; lst_price: number }>({ model: 'product.product', domain: [['id', '=', PRODUCTO_HORA_ID]], fields: ['lst_price'], limit: 1 }),
     ]);
 
   const allMonthKeys = [
@@ -444,6 +448,7 @@ export async function getReparaciones(range: DateRangePreset): Promise<Reparacio
 
   return {
     totalSinSector: totalReparaciones - livingRepairs.length - colchonRepairs.length,
+    valorHora: productoHora[0]?.lst_price ?? 0,
     living: bucketSector(livingRepairs, livingProduction, months),
     colchon: bucketColchon(colchonCreditNotes, colchonRepairs, colchonProduction, months),
   };

@@ -75,6 +75,7 @@ export interface ReparacionesColchonResult {
 
 export interface ReparacionesResult {
   totalSinSector: number;
+  valorHora: number;
   living: ReparacionesSectorResult;
   colchon: ReparacionesColchonResult;
 }

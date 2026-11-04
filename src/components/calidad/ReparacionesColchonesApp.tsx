@@ -3,6 +3,7 @@ import type { DehydratedState } from '@tanstack/react-query';
 import QueryProvider from '@/components/QueryProvider';
 import { useApiQuery } from '@/components/dashboard/useApiQuery';
 import LastUpdated from '@/components/shared/LastUpdated';
+import Tip from '@/components/shared/Tip';
 import ReparacionesVsProduccionChart from './ReparacionesVsProduccionChart';
 import HorasYRecuperadoChart from './HorasYRecuperadoChart';
 import type { CalidadRange, ReparacionesResult } from './types';
@@ -77,33 +78,49 @@ function SectorHeader({ sectorName, accent }: { sectorName: string; accent: stri
   );
 }
 
-function KpiCard({ label, value }: { label: string; value: string }) {
+function KpiCard({ label, value, tip }: { label: string; value: string; tip: string }) {
   return (
     <div className="rounded-lg border border-slate-800 bg-slate-900 p-4">
-      <p className="text-xs text-slate-500">{label}</p>
+      <Tip text={tip} className="cursor-help text-xs text-slate-500">
+        <span className="border-b border-dotted border-slate-600">{label}</span>
+      </Tip>
       <p className="mt-1 text-lg font-semibold text-slate-100">{value}</p>
     </div>
   );
 }
 
-function LivingSection({ data }: { data: ReparacionesResult['living'] }) {
+function LivingSection({ data, valorHora }: { data: ReparacionesResult['living']; valorHora: number }) {
   const puntosVsProduccion = data.mensual.map((p) => ({
     month: p.month,
     unidadesFabricadas: p.unidadesFabricadas,
     cantidad: p.cantidadReparaciones,
     ratio: p.reparacionesPorMilUnidades,
   }));
-  const puntosMontoHoras = data.mensual.map((p) => ({ month: p.month, monto: p.totalRecuperado, horas: p.horasReparacion }));
+  const puntosMontoHoras = data.mensual.map((p) => ({ month: p.month, monto: p.horasReparacion * valorHora, horas: p.horasReparacion }));
 
   return (
     <div className="flex flex-col gap-4">
       <SectorHeader sectorName="Living" accent="bg-brand-500" />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <KpiCard label="Reparaciones" value={numero.format(data.totalReparaciones)} />
-        <KpiCard label="Unidades equivalentes fabricadas" value={numero.format(data.totalUnidadesFabricadas)} />
-        <KpiCard label="Horas de reparación" value={`${numero.format(data.totalHoras)} hs`} />
-        <KpiCard label="Plata recuperada" value={money.format(data.totalRecuperado)} />
+        <KpiCard
+          label="Reparaciones"
+          value={numero.format(data.totalReparaciones)}
+          tip={'Cantidad de órdenes de reparación terminadas de productos Living.\nOdoo: repair.order, estado Hecho, categorías Living, por fecha de creación de la orden (no de cierre).'}
+        />
+        <KpiCard
+          label="Unidades equivalentes fabricadas"
+          value={numero.format(data.totalUnidadesFabricadas)}
+          tip={'Producción de Living terminada en el período, en unidades equivalentes.\nOdoo: mrp.production en estado Hecho, categorías Living, campo x_studio_unidades_eq, por date_finished. Misma fuente que Gerencia General > Producción.'}
+        />
+        <KpiCard
+          label="Horas de reparación"
+          value={`${numero.format(data.totalHoras)} hs`}
+          tip={'Suma de las horas cargadas en las órdenes de reparación Living terminadas.\nOdoo: repair.order.x_studio_horas_de_reparacion, por fecha de creación de la orden.'}
+        />
+        <KpiCard
+          tip={`Horas de reparación × valor hora (${money.format(valorHora)}).\nValor hora: precio de venta del producto SERVICIO DE REPARACION en Odoo, el mismo que usa Costo de devoluciones y Calidad (CNC). Es el valor actual, no el histórico de cada mes.`}
+          label="Costo mano de obra por recuperación" value={money.format(data.totalHoras * valorHora)} />
       </div>
 
       <section className="flex flex-col gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
@@ -124,8 +141,14 @@ function LivingSection({ data }: { data: ReparacionesResult['living'] }) {
       </section>
 
       <section className="flex flex-col gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
-        <h3 className="text-sm font-medium text-slate-300">Horas de reparación y plata recuperada</h3>
-        <HorasYRecuperadoChart points={puntosMontoHoras} montoLabel="Plata recuperada" />
+        <div>
+          <h3 className="text-sm font-medium text-slate-300">Horas de reparación y costo de mano de obra</h3>
+          <p className="mt-1 text-xs text-slate-500">
+            Costo de mano de obra = horas de reparación × valor hora actual de Odoo ({money.format(valorHora)}, producto
+            SERVICIO DE REPARACION). Las horas y el costo se asignan al mes en que se creó la orden de reparación.
+          </p>
+        </div>
+        <HorasYRecuperadoChart points={puntosMontoHoras} montoLabel="Costo mano de obra" />
       </section>
     </div>
   );
@@ -145,21 +168,35 @@ function ColchonSection({ data }: { data: ReparacionesResult['colchon'] }) {
       <SectorHeader sectorName="Colchón" accent="bg-accent-emerald" />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <KpiCard label="Notas de crédito" value={numero.format(data.totalNotasCredito)} />
-        <KpiCard label="Colchones fabricados" value={numero.format(data.totalUnidadesFabricadas)} />
-        <KpiCard label="Horas de reparación" value={`${numero.format(data.totalHoras)} hs`} />
-        <KpiCard label="Monto de notas de crédito" value={money.format(data.totalMontoNotasCredito)} />
+        <KpiCard
+          label="Notas de crédito"
+          value={numero.format(data.totalNotasCredito)}
+          tip={'Notas de crédito que cuentan para el CNC, igual que en Gerencia General > Calidad (CNC): posteadas desde oct-2026, con motivo/nota cargados, nota con "¿Cuenta?" = Sí e importe sin impuestos ≥ $1.000.\nOdoo: account.move, move_type = out_refund, por invoice_date.'}
+        />
+        <KpiCard
+          label="Colchones fabricados"
+          value={numero.format(data.totalUnidadesFabricadas)}
+          tip={'Colchones terminados en el período.\nOdoo: mrp.production en estado Hecho, categorías Colchón, qty_produced, por date_finished.'}
+        />
+        <KpiCard
+          label="Horas de reparación"
+          value={`${numero.format(data.totalHoras)} hs`}
+          tip={'Horas de las órdenes de reparación de Colchón terminadas (repair.order.x_studio_horas_de_reparacion, por fecha de creación). No son necesariamente las de las notas de crédito de al lado.'}
+        />
+        <KpiCard
+          label="Monto de notas de crédito"
+          value={money.format(data.totalMontoNotasCredito)}
+          tip={'Suma del importe sin impuestos de las notas de crédito que cuentan (las mismas de la tarjeta Notas de crédito).\nOdoo: account.move.amount_untaxed_signed en valor absoluto.'}
+        />
       </div>
 
       <section className="flex flex-col gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4">
         <div>
           <h3 className="text-sm font-medium text-slate-300">Notas de crédito de Colchón vs. colchones fabricados</h3>
           <p className="mt-1 text-xs text-slate-500">
-            A pedido de Calidad, Colchón usa Notas de Crédito por Garantía + No conformidad (motivo "Calidad" en Odoo) en
-            vez de órdenes de reparación — tienen mejor cobertura de carga. Cruzadas contra lo fabricado ese mismo mes. La
-            línea es la tasa: cuántas notas de crédito hubo por cada 1000 colchones fabricados. El campo Sector/Motivo recién
-            se empezó a cargar en Odoo en septiembre 2026, así que todavía hay un solo mes de historia — va a crecer un mes
-            por vez.
+            Colchón usa las mismas notas de crédito que cuentan en Gerencia General → Calidad (CNC) (nota con "¿Cuenta?" = Sí
+            e importe ≥ $1.000) en vez de órdenes de reparación. Cruzadas contra lo fabricado ese mismo mes. La
+            línea es la tasa: cuántas notas de crédito hubo por cada 1000 colchones fabricados. El motivo/nota se empezó a cargar en Odoo en octubre 2026, así que el historial arranca ahí.
           </p>
         </div>
         <ReparacionesVsProduccionChart
@@ -287,7 +324,7 @@ function ReparacionesColchonesInner() {
         <div className="h-[600px] w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
       ) : data ? (
         <>
-          <LivingSection data={data.living} />
+          <LivingSection data={data.living} valorHora={data.valorHora} />
           <ColchonSection data={data.colchon} />
           {data.totalSinSector > 0 && (
             <p className="text-xs text-slate-500">

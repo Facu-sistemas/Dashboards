@@ -1,6 +1,7 @@
 import { searchReadAll } from './client';
 import { COLCHONES_CATEG_IDS } from './oee';
 import type { OdooDomain } from './types';
+import { IMPORTE_MINIMO, PARAMETROS } from '../../components/calidad/calidad-demo-data';
 
 /**
  * Notas de crédito de Colchón que cuentan como "devolución", con su causa.
@@ -234,6 +235,64 @@ export async function fetchNotasDevolucionColchon(desde: string | null): Promise
         motivo: clasif.motivo,
         grupo: clasif.grupo,
         costoProducto: i?.costo ?? 0,
+      },
+    ];
+  });
+}
+
+/** Mayúsculas y sin tildes, para cruzar la nota de Odoo ("Garantía real") con el parámetro ("GARANTIA REAL"). Igual que en Calidad (CNC). */
+const claveCnc = (t: string) =>
+  t
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toUpperCase()
+    .trim();
+const ALIAS_CNC: Record<string, string> = { 'SERVICIO POST VENTA': 'SERVI POS VENTA' };
+
+/** Primer mes con el criterio nuevo de motivo/nota en Odoo (mismo corte que Calidad (CNC)). */
+const CNC_DESDE = '2026-10-01';
+
+/**
+ * Notas de crédito que cuentan igual que en Gerencia General → Calidad (CNC),
+ * que es la referencia: NC posteadas con motivo o nota cargados, cuya nota
+ * tiene "¿Cuenta?" = Sí en los parámetros de la empresa y con importe sin
+ * impuestos ≥ IMPORTE_MINIMO. Sin filtro de sector ni de empresa (CNC tampoco).
+ * Los "¿Cuenta?" son los de fábrica: no toma los que se editen en CNC.
+ */
+export async function fetchNotasColchonComoCnc(desde: string | null): Promise<NotaDevolucion[]> {
+  const info = new Map(PARAMETROS.map((p) => [claveCnc(p.nota), p]));
+  const desdeEfectivo = desde && desde > CNC_DESDE ? desde : CNC_DESDE;
+  const rows = await searchReadAll<CreditNoteRow>({
+    model: 'account.move',
+    domain: [
+      ['move_type', '=', 'out_refund'],
+      ['state', '=', 'posted'],
+      ['invoice_date', '>=', desdeEfectivo],
+      '|',
+      ['x_studio_motivo_1', '!=', false],
+      ['x_studio_nota', '!=', false],
+    ],
+    fields: ['name', 'partner_id', 'company_id', 'invoice_date', 'amount_total_signed', 'amount_untaxed_signed', 'x_studio_motivo_1', 'x_studio_nota'],
+  });
+  return rows.flatMap((n) => {
+    const nota = n.x_studio_nota ? n.x_studio_nota[1] : '';
+    const meta = info.get(ALIAS_CNC[claveCnc(nota)] ?? claveCnc(nota));
+    const importe = Math.abs(n.amount_untaxed_signed);
+    if (!meta?.cuenta || importe < IMPORTE_MINIMO) return [];
+    const motivo = n.x_studio_motivo_1 ? n.x_studio_motivo_1[1] : '';
+    return [
+      {
+        id: n.id,
+        name: n.name,
+        partnerId: n.partner_id,
+        companyId: n.company_id ? n.company_id[0] : 0,
+        invoiceDate: n.invoice_date,
+        amount: Math.abs(n.amount_total_signed),
+        amountUntaxed: importe,
+        causa: 'calidad' as Causa,
+        motivo: motivo && nota ? `${motivo} / ${nota}` : nota || motivo,
+        grupo: claveCnc(motivo) === 'CALIDAD' ? ('calidad' as const) : ('garantia' as const),
+        costoProducto: 0,
       },
     ];
   });
