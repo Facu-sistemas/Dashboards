@@ -28,13 +28,14 @@ export interface MarcaFichaje {
   marcadoEn: string;
 }
 
-export async function registrarMarca(marca: { empleadoId: number; empleadoNombre: string; accion: 'entrada' | 'salida'; kiosco: string }): Promise<void> {
+export async function registrarMarca(marca: { empleadoId: number; empleadoNombre: string; accion: 'entrada' | 'salida'; kiosco: string; marcadoEn?: string }): Promise<void> {
   const admin = getSupabaseAdminClient();
   const { error } = await admin.from('fichaje_marcas').insert({
     empleado_id: marca.empleadoId,
     empleado_nombre: marca.empleadoNombre,
     accion: marca.accion,
     kiosco: marca.kiosco,
+    ...(marca.marcadoEn ? { marcado_en: marca.marcadoEn } : {}),
   });
   if (error) throw new Error(error.message);
 }

@@ -11,6 +11,7 @@ import {
   type CaraRegistrada,
   type ResultadoFichaje,
 } from './fichaje-shared';
+import { encolar, esFalloDeRed, leerCola, sincronizarCola } from './fichaje-cola';
 import { recargarConTope } from './fichaje-recuperacion';
 import { useFichajeCamara } from './useFichajeCamara';
 import { usePantallaCompleta } from './usePantallaCompleta';
@@ -36,6 +37,9 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
   const [reconocido, setReconocido] = useState<{ empleadoId: number; nombre: string; distancia: number } | null>(null);
   const [fichando, setFichando] = useState(false);
   const [fichaje, setFichaje] = useState<ResultadoFichaje | null>(null);
+  /** Nombre de quien acaba de fichar sin internet (la fichada quedó guardada en el celular, pendiente de enviar). */
+  const [guardado, setGuardado] = useState<string | null>(null);
+  const [pendientes, setPendientes] = useState(0);
   const [silencio, setSilencio] = useState(estaSilenciado);
   const [audioListo, setAudioListo] = useState(false);
   /** true cuando el servidor sigue contestando mal después de varias recargas automáticas: se muestra el aviso en pantalla. */
@@ -65,7 +69,10 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
 
   // Señal de vida: cada minuto. Si contesta bien, se levanta el aviso de "sin conexión"; si contesta HTML, se recupera.
   const latidoRef = useRef({ camara: false, problema: null as string | null });
-  latidoRef.current = { camara: camaraActiva, problema: error?.slice(0, 300) ?? null };
+  latidoRef.current = {
+    camara: camaraActiva,
+    problema: (error ?? (pendientes > 0 ? `${pendientes} fichada(s) guardada(s) sin enviar` : null))?.slice(0, 300) ?? null,
+  };
   useEffect(() => {
     let cancelado = false;
     async function latir() {
@@ -139,7 +146,7 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
     }
     // Mientras se ficha y mientras se muestra el resultado, el reconocimiento se pausa: así el cartel no
     // desaparece si la cara sale un instante de cámara, y no se puede fichar dos veces seguidas por accidente.
-    if (fichando || fichaje) return;
+    if (fichando || fichaje || guardado) return;
     let cancelado = false;
     let candidato: number | null = null;
     let racha = 0;
@@ -204,7 +211,7 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
     return () => {
       cancelado = true;
     };
-  }, [camaraActiva, detectar, setEstado, fichando, fichaje, esDev]);
+  }, [camaraActiva, detectar, setEstado, fichando, fichaje, guardado, esDev]);
 
   // El resultado del fichaje queda en pantalla unos segundos y después se vuelve a buscar caras.
   useEffect(() => {
@@ -213,16 +220,65 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
     return () => clearTimeout(t);
   }, [fichaje]);
 
+  // El cartel de "guardado sin internet" dura lo mismo que el de resultado.
+  useEffect(() => {
+    if (!guardado) return;
+    const t = setTimeout(() => setGuardado(null), RESULTADO_MS);
+    return () => clearTimeout(t);
+  }, [guardado]);
+
+  // Fichadas guardadas sin internet: se reenvían solas cada 15 s y apenas el navegador detecta que volvió la red.
+  const sincronizar = useCallback(async () => {
+    if (leerCola().length === 0) {
+      setPendientes(0);
+      return;
+    }
+    const r = await sincronizarCola();
+    setPendientes(r.pendientes);
+    if (r.descartadas.length > 0) setError(`El sistema rechazó fichadas guardadas: ${r.descartadas.join('; ')}`);
+  }, [setError]);
+  useEffect(() => {
+    void sincronizar();
+    const t = setInterval(() => void sincronizar(), 15_000);
+    const alVolver = () => void sincronizar();
+    window.addEventListener('online', alVolver);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener('online', alVolver);
+    };
+  }, [sincronizar]);
+
+  function guardarSinInternet(empleadoId: number, nombre: string) {
+    encolar({ empleadoId, nombre, tomadoEn: new Date().toISOString() });
+    setPendientes(leerCola().length);
+    setGuardado(nombre);
+    setReconocido(null);
+    setEstado('Fichaje guardado sin internet.');
+    sonar('reconocido');
+  }
+
   async function ficharAhora() {
     if (!reconocido || fichando) return;
+    const { empleadoId, nombre } = reconocido;
     ultimaVistaRef.current = 0;
     setFichando(true);
     setError(null);
     try {
-      setFichaje(await marcarEnOdoo(reconocido.empleadoId));
+      // Si quedaron fichadas guardadas, van primero (Odoo las recibe en el orden en que se tocaron); si no se pueden
+      // enviar todavía, esta también se guarda en la cola en lugar de saltearles el turno.
+      if (leerCola().length > 0) await sincronizar();
+      if (leerCola().length > 0) {
+        guardarSinInternet(empleadoId, nombre);
+        return;
+      }
+      setFichaje(await marcarEnOdoo(empleadoId));
       setReconocido(null);
       setEstado('Fichaje registrado.');
     } catch (err) {
+      if (esFalloDeRed(err)) {
+        guardarSinInternet(empleadoId, nombre);
+        return;
+      }
       if (err instanceof RespuestaNoJsonError) {
         // No se llegó a registrar el fichaje (el servidor no contestó datos): se recarga y se vuelve a intentar.
         setError('El sistema no respondió y el fichaje no se registró. Se recarga la página; volvé a fichar en unos segundos.');
@@ -242,6 +298,11 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
       <p className="text-center text-sm text-slate-400">{estado}</p>
       {!silencio && !audioListo && (
         <p className="rounded bg-amber-500/20 px-3 py-1.5 text-center text-sm text-amber-200">Tocá la pantalla para activar el sonido</p>
+      )}
+      {pendientes > 0 && (
+        <p className="rounded bg-amber-500/20 px-3 py-1.5 text-center text-sm text-amber-200">
+          {pendientes} fichada{pendientes === 1 ? '' : 's'} guardada{pendientes === 1 ? '' : 's'} sin internet: se envía{pendientes === 1 ? '' : 'n'} sola{pendientes === 1 ? '' : 's'} cuando vuelva.
+        </p>
       )}
       {sinConexion && (
         <p className="rounded bg-red-600 px-3 py-2 text-center text-sm font-semibold text-white">
@@ -323,6 +384,14 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
               <p className="text-lg">{new Date(fichaje.hora).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })} hs</p>
             )}
             <p className="text-xs opacity-80">Registrada en Odoo</p>
+          </div>
+        ) : guardado ? (
+          // Ámbar = guardada sin internet: no se sabe todavía si es entrada o salida, lo decide Odoo al recibirla.
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-amber-600/95 px-4 text-center text-white">
+            <span className="text-6xl leading-none">✓</span>
+            <p className="text-3xl font-bold uppercase tracking-wide">Fichaje guardado</p>
+            <p className="text-xl font-semibold">{guardado}</p>
+            <p className="text-sm opacity-90">Sin internet: se registra solo cuando vuelva la conexión</p>
           </div>
         ) : (
           reconocido && (

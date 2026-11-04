@@ -66,7 +66,17 @@ function ahoraOdoo(): string {
   return new Date().toISOString().slice(0, 19).replace('T', ' ');
 }
 
-export async function marcarAsistencia(empleadoId: number): Promise<ResultadoFichaje> {
+/** Pasa un ISO a "YYYY-MM-DD HH:MM:SS" en UTC. */
+function aFormatoOdoo(iso: string): string {
+  return new Date(iso).toISOString().slice(0, 19).replace('T', ' ');
+}
+
+/**
+ * `horaIso` solo se usa para fichadas diferidas (el celular se quedó sin internet y las manda al volver): se registra
+ * con la hora en que se tocó, no con la de llegada. Se corrige para no pisar las asistencias vecinas (Odoo rechaza
+ * solapamientos): una entrada no puede ser anterior al cierre de la asistencia previa ni una salida anterior a su entrada.
+ */
+export async function marcarAsistencia(empleadoId: number, horaIso?: string): Promise<ResultadoFichaje> {
   const config = getOdooConfig();
   const uid = await getUid();
   const call = <T>(model: string, method: string, args: unknown[]) =>
@@ -75,21 +85,26 @@ export async function marcarAsistencia(empleadoId: number): Promise<ResultadoFic
   const [empleado] = await call<EmpleadoAsistencia[]>('hr.employee', 'read', [[empleadoId], ['name', 'attendance_state', 'last_attendance_id']]);
   if (!empleado) throw new OdooError(`Empleado ${empleadoId} no encontrado en Odoo`);
 
-  const hora = ahoraOdoo();
+  let hora = horaIso ? aFormatoOdoo(horaIso) : ahoraOdoo();
 
   if (empleado.attendance_state === 'checked_out') {
+    if (horaIso && empleado.last_attendance_id) {
+      const [ultima] = await call<{ check_out: string | false }[]>('hr.attendance', 'read', [[empleado.last_attendance_id[0]], ['check_out']]);
+      if (ultima && typeof ultima.check_out === 'string' && ultima.check_out > hora) hora = ultima.check_out;
+    }
     await call<number>('hr.attendance', 'create', [[{ employee_id: empleadoId, check_in: hora, in_mode: 'kiosk' }]]);
     return { empleado: empleado.name, accion: 'entrada', hora: `${hora.replace(' ', 'T')}Z` };
   }
 
-  const [abierta] = await call<{ id: number }[]>('hr.attendance', 'search_read', [
+  const [abierta] = await call<{ id: number; check_in: string }[]>('hr.attendance', 'search_read', [
     [['employee_id', '=', empleadoId], ['check_out', '=', false]],
-    ['id'],
+    ['id', 'check_in'],
     0,
     1,
     'check_in desc',
   ]);
   if (!abierta) throw new OdooError('El empleado figura adentro pero no tiene una asistencia abierta en Odoo');
+  if (horaIso && abierta.check_in > hora) hora = abierta.check_in;
   await call<boolean>('hr.attendance', 'write', [[abierta.id], { check_out: hora, out_mode: 'kiosk' }]);
   return { empleado: empleado.name, accion: 'salida', hora: `${hora.replace(' ', 'T')}Z` };
 }

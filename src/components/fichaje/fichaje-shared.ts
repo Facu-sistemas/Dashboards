@@ -52,11 +52,14 @@ export function loadFaceApi(): Promise<FaceApi> {
   return faceApiPromise;
 }
 
-export async function marcarEnOdoo(empleadoId: number): Promise<ResultadoFichaje> {
+/** `hora` (ISO) solo se manda al reenviar una fichada guardada sin internet. */
+export async function marcarEnOdoo(empleadoId: number, hora?: string): Promise<ResultadoFichaje> {
   const res = await fetch('/api/fichaje-marcar', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ empleadoId }),
+    body: JSON.stringify({ empleadoId, hora }),
+    // Sin tope, una red a medias deja el cartel en "Fichando..." para siempre: pasado el plazo se trata como sin internet.
+    signal: AbortSignal.timeout(15_000),
   });
   exigirJson(res);
   const json = (await res.json()) as ApiEnvelope<ResultadoFichaje>;
