@@ -54,6 +54,8 @@ function Senal({ latido, limiteMs }: { latido: KioscoLatido; limiteMs: number })
 export default function FichajeKioscosAdmin({ marcas, ultimas, latidos, nombresKioscos, error }: Props) {
   const [filtro, setFiltro] = useState<string>('todos');
   const [busqueda, setBusqueda] = useState('');
+  const [periodo, setPeriodo] = useState<'hoy' | 'recientes'>('hoy');
+  const [busquedaHist, setBusquedaHist] = useState('');
   const [recargas, setRecargas] = useState<Record<string, 'pidiendo' | 'pedida' | string>>({});
 
   async function recargar(username: string) {
@@ -67,7 +69,7 @@ export default function FichajeKioscosAdmin({ marcas, ultimas, latidos, nombresK
       const json = (await res.json()) as { ok: boolean; error?: string };
       if (!res.ok || !json.ok) throw new Error(json.error ?? 'No se pudo pedir la recarga');
       setRecargas((r) => ({ ...r, [username]: 'pedida' }));
-      setTimeout(() => setRecargas((r) => ({ ...r, [username]: '' })), 70_000);
+      setTimeout(() => setRecargas((r) => ({ ...r, [username]: '' })), 5000);
     } catch (err) {
       setRecargas((r) => ({ ...r, [username]: (err as Error).message }));
     }
@@ -100,7 +102,15 @@ export default function FichajeKioscosAdmin({ marcas, ultimas, latidos, nombresK
       <span className="text-slate-600">—</span>
     );
 
-  const visibles = (filtro === 'todos' ? marcas : marcas.filter((m) => m.kiosco === filtro)).slice(0, MAX_FILAS);
+  const textoHist = busquedaHist.trim().toLowerCase();
+  const delPeriodo = marcas.filter(
+    (m) =>
+      (filtro === 'todos' || m.kiosco === filtro) &&
+      (periodo === 'recientes' || FORMATO_DIA.format(new Date(m.marcadoEn)) === hoy) &&
+      (!textoHist || m.empleadoNombre.toLowerCase().includes(textoHist)),
+  );
+  const visibles = periodo === 'hoy' ? delPeriodo : delPeriodo.slice(0, MAX_FILAS);
+  const personasDistintas = new Set(delPeriodo.map((m) => m.empleadoId)).size;
 
   return (
     <section className="flex flex-col gap-3">
@@ -155,10 +165,10 @@ export default function FichajeKioscosAdmin({ marcas, ultimas, latidos, nombresK
                     type="button"
                     disabled={rec === 'pidiendo' || rec === 'pedida'}
                     onClick={() => void recargar(username)}
-                    title="El celular recarga la página en menos de 1 minuto"
+                    title="El celular recarga la página en menos de 1 minuto (cuando recibe la próxima señal)"
                     className="absolute right-3 top-3 rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] text-slate-300 hover:bg-slate-800 disabled:opacity-60"
                   >
-                    {rec === 'pidiendo' ? 'Pidiendo…' : rec === 'pedida' ? 'Recargando…' : '↻ Recargar'}
+                    {rec === 'pidiendo' ? 'Pidiendo…' : rec === 'pedida' ? 'Pedido ✓' : '↻ Recargar'}
                   </button>
                 )}
                 {rec && rec !== 'pidiendo' && rec !== 'pedida' && <p className="mt-1 text-xs text-red-400">{rec}</p>}
@@ -167,9 +177,74 @@ export default function FichajeKioscosAdmin({ marcas, ultimas, latidos, nombresK
             })}
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-medium text-slate-300">Última entrada y última salida por persona</h3>
+              <div>
+                <h3 className="text-sm font-medium text-slate-300">
+                  {periodo === 'hoy' ? 'Fichadas de hoy' : 'Últimas fichadas'} · {filtro === 'todos' ? 'todos los kioscos' : nombre(filtro)}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {delPeriodo.length} fichadas · {personasDistintas} personas
+                  {filtro === 'todos' ? ' — tocá una tarjeta de arriba para ver quiénes ficharon en ese kiosco.' : ' — tocá la tarjeta de nuevo para ver todos.'}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex overflow-hidden rounded-md border border-slate-700 text-xs">
+                  {(['hoy', 'recientes'] as const).map((per) => (
+                    <button
+                      key={per}
+                      type="button"
+                      onClick={() => setPeriodo(per)}
+                      className={`px-3 py-1.5 ${periodo === per ? 'bg-slate-700 text-slate-100' : 'bg-slate-900 text-slate-400 hover:text-slate-200'}`}
+                    >
+                      {per === 'hoy' ? 'Hoy' : 'Recientes'}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="search"
+                  value={busquedaHist}
+                  onChange={(e) => setBusquedaHist(e.target.value)}
+                  placeholder="Buscar persona…"
+                  className="rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm text-slate-100 placeholder:text-slate-500"
+                />
+              </div>
+            </div>
+            {visibles.length === 0 ? (
+              <p className="rounded-lg border border-slate-800 bg-slate-900 px-4 py-6 text-center text-sm text-slate-500">No hay fichadas para mostrar.</p>
+            ) : (
+              <ul className="flex flex-col gap-1.5">
+                {visibles.map((m) => {
+                  const ent = m.accion === 'entrada';
+                  return (
+                    <li key={m.id} className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2">
+                      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm ${ent ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>
+                        {ent ? '↓' : '↑'}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm text-slate-100">{m.empleadoNombre}</p>
+                        <p className="truncate text-xs text-slate-500">
+                          <span className={ent ? 'text-emerald-400' : 'text-red-400'}>{ent ? 'Entrada' : 'Salida'}</span> · {nombre(m.kiosco)}
+                        </p>
+                      </div>
+                      <span className="shrink-0 font-mono text-xs text-slate-400">{FORMATO_FECHA.format(new Date(m.marcadoEn))}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {periodo === 'recientes' && (
+              <p className="text-xs text-slate-500">
+                Se muestran hasta {MAX_FILAS}; el resumen usa las últimas {marcas.length}.
+              </p>
+            )}
+          </div>
+
+          <details className="group">
+            <summary className="cursor-pointer text-sm text-slate-400 hover:text-slate-200">Última entrada y última salida por persona</summary>
+          <div className="mt-3 flex flex-col gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-slate-500">Dónde y cuándo fue la última entrada y la última salida de cada persona.</p>
               <input
                 type="search"
                 value={busqueda}
@@ -207,33 +282,6 @@ export default function FichajeKioscosAdmin({ marcas, ultimas, latidos, nombresK
             <p className="text-xs text-slate-500">{ultimas.length} personas con fichadas registradas desde que se activó esta función.</p>
           </div>
 
-          <details className="group">
-            <summary className="cursor-pointer text-sm text-slate-400 hover:text-slate-200">Ver historial de fichadas</summary>
-            <div className="mt-3 flex flex-col gap-2">
-              <ul className="flex flex-col gap-1.5">
-                {visibles.map((m) => {
-                  const ent = m.accion === 'entrada';
-                  return (
-                    <li key={m.id} className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2">
-                      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm ${ent ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}>
-                        {ent ? '↓' : '↑'}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm text-slate-100">{m.empleadoNombre}</p>
-                        <p className="truncate text-xs text-slate-500">
-                          <span className={ent ? 'text-emerald-400' : 'text-red-400'}>{ent ? 'Entrada' : 'Salida'}</span> · {nombre(m.kiosco)}
-                        </p>
-                      </div>
-                      <span className="shrink-0 font-mono text-xs text-slate-400">{FORMATO_FECHA.format(new Date(m.marcadoEn))}</span>
-                    </li>
-                  );
-                })}
-              </ul>
-              <p className="text-xs text-slate-500">
-                {filtro === 'todos' ? 'Últimas fichadas de todos los kioscos.' : `Fichadas de ${nombre(filtro)} (tocá de nuevo la tarjeta para ver todas).`} Se muestran hasta{' '}
-                {MAX_FILAS}; el resumen usa las últimas {marcas.length}.
-              </p>
-            </div>
           </details>
         </>
       )}
