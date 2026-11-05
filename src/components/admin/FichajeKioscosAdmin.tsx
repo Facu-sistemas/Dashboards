@@ -56,7 +56,8 @@ function Senal({ latido, limiteMs }: { latido: KioscoLatido; limiteMs: number })
 export default function FichajeKioscosAdmin({ marcas: marcasIniciales, ultimas, latidos, nombresKioscos, error }: Props) {
   const [marcas, setMarcas] = useState<MarcaFichaje[]>(marcasIniciales);
   const [sonido, setSonido] = useState(true);
-  const [, setAhora] = useState(Date.now());
+  const [ahora, setAhora] = useState(Date.now());
+  const [ultimaConsulta, setUltimaConsulta] = useState<number | null>(null);
   const [verLista, setVerLista] = useState<'adentro' | 'afuera' | null>(null);
   const vistas = useRef<Set<string>>(new Set(marcasIniciales.map((m) => m.id)));
   const ctxAudio = useRef<AudioContext | null>(null);
@@ -96,6 +97,7 @@ export default function FichajeKioscosAdmin({ marcas: marcasIniciales, ultimas, 
         const res = await fetch('/api/admin/fichaje-marcas-recientes', { cache: 'no-store' });
         const json = (await res.json()) as { ok: boolean; marcas?: MarcaFichaje[] };
         if (!vivo || !res.ok || !json.ok || !json.marcas) return;
+        setUltimaConsulta(Date.now());
         const nuevas = json.marcas.filter((m) => !vistas.current.has(m.id));
         if (nuevas.length === 0) return;
         for (const m of nuevas) vistas.current.add(m.id);
@@ -110,7 +112,7 @@ export default function FichajeKioscosAdmin({ marcas: marcasIniciales, ultimas, 
     }
     const t = setInterval(() => void consultar(), 5000);
     // Refresca los "hace X min" aunque no llegue nada nuevo.
-    const reloj = setInterval(() => setAhora(Date.now()), 30_000);
+    const reloj = setInterval(() => setAhora(Date.now()), 1000);
     // Los navegadores bloquean el audio hasta que la página recibe un gesto: se destraba con el primer clic o tecla.
     const destrabar = () => {
       try {
@@ -370,6 +372,9 @@ export default function FichajeKioscosAdmin({ marcas: marcasIniciales, ultimas, 
                 >
                   {sonido ? '🔔 Sonido activado' : '🔕 Sonido apagado'}
                 </button>
+                <span className="text-[11px] text-slate-500" title="Última vez que se consultaron fichadas nuevas (cada 5 s)">
+                  {ultimaConsulta ? `actualizado hace ${Math.max(0, Math.round((ahora - ultimaConsulta) / 1000))} s` : 'esperando…'}
+                </span>
                 <div className="flex overflow-hidden rounded-md border border-slate-700 text-xs">
                   {(['hoy', 'recientes'] as const).map((per) => (
                     <button
