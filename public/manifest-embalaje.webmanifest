@@ -1,0 +1,18 @@
+{
+  "name": "Embalaje · Frontera Living",
+  "short_name": "Embalaje",
+  "description": "Escaneo de códigos de barras de embalaje contra lo cerrado en Odoo.",
+  "lang": "es-AR",
+  "start_url": "/planta/embalaje",
+  "scope": "/",
+  "id": "/planta/embalaje",
+  "display": "standalone",
+  "display_override": ["standalone"],
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
