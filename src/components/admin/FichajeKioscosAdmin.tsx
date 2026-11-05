@@ -56,6 +56,7 @@ function Senal({ latido, limiteMs }: { latido: KioscoLatido; limiteMs: number })
 export default function FichajeKioscosAdmin({ marcas: marcasIniciales, ultimas, latidos, nombresKioscos, error }: Props) {
   const [marcas, setMarcas] = useState<MarcaFichaje[]>(marcasIniciales);
   const [sonido, setSonido] = useState(true);
+  const [verLista, setVerLista] = useState<'adentro' | 'afuera' | null>(null);
   const vistas = useRef<Set<string>>(new Set(marcasIniciales.map((m) => m.id)));
   const ctxAudio = useRef<AudioContext | null>(null);
   const sonidoRef = useRef(sonido);
@@ -188,12 +189,15 @@ export default function FichajeKioscosAdmin({ marcas: marcasIniciales, ultimas, 
     return difs.length ? difs.reduce((a, b) => a + b, 0) / difs.length / 1000 : null;
   };
   // Adentro = su última fichada de hoy fue una entrada; afuera = fue una salida (marcas vienen de la más nueva a la más vieja).
-  const ultimaDeHoy = new Map<number, 'entrada' | 'salida'>();
+  const ultimaDeHoy = new Map<number, MarcaFichaje>();
   for (const m of marcas) {
-    if (FORMATO_DIA.format(new Date(m.marcadoEn)) === hoy && !ultimaDeHoy.has(m.empleadoId)) ultimaDeHoy.set(m.empleadoId, m.accion);
+    if (FORMATO_DIA.format(new Date(m.marcadoEn)) === hoy && !ultimaDeHoy.has(m.empleadoId)) ultimaDeHoy.set(m.empleadoId, m);
   }
-  const adentro = [...ultimaDeHoy.values()].filter((a) => a === 'entrada').length;
-  const afuera = ultimaDeHoy.size - adentro;
+  const listaAdentro = [...ultimaDeHoy.values()].filter((m) => m.accion === 'entrada').sort((a, b) => a.empleadoNombre.localeCompare(b.empleadoNombre, 'es'));
+  const listaAfuera = [...ultimaDeHoy.values()].filter((m) => m.accion === 'salida').sort((a, b) => a.empleadoNombre.localeCompare(b.empleadoNombre, 'es'));
+  const adentro = listaAdentro.length;
+  const afuera = listaAfuera.length;
+  const listaVisible = verLista === 'adentro' ? listaAdentro : verLista === 'afuera' ? listaAfuera : [];
   const fmtSeg =(s: number | null) => (s === null ? '—' : s < 90 ? `${Math.round(s)} s` : `${(s / 60).toFixed(1)} min`);
 
   return (
@@ -280,12 +284,12 @@ export default function FichajeKioscosAdmin({ marcas: marcasIniciales, ultimas, 
           })()}
 
           <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 text-xs text-slate-400">
-            <span title="Su última fichada de hoy fue una entrada">
+            <button type="button" onClick={() => setVerLista(verLista === 'adentro' ? null : 'adentro')} title="Su última fichada de hoy fue una entrada. Tocá para ver quiénes son" className={`rounded-md px-2 py-1 hover:bg-slate-800 ${verLista === 'adentro' ? 'bg-slate-800' : ''}`}>
               🟢 Trabajando: <strong className="text-sm text-emerald-400">{adentro}</strong>
-            </span>
-            <span title="Su última fichada de hoy fue una salida">
+            </button>
+            <button type="button" onClick={() => setVerLista(verLista === 'afuera' ? null : 'afuera')} title="Su última fichada de hoy fue una salida. Tocá para ver quiénes son" className={`rounded-md px-2 py-1 hover:bg-slate-800 ${verLista === 'afuera' ? 'bg-slate-800' : ''}`}>
               🔴 Afuera: <strong className="text-sm text-red-400">{afuera}</strong>
-            </span>
+            </button>
             <span>
               Promedio entre fichadas hoy: <strong className="text-sm text-slate-100">{fmtSeg(promedioEntre(null))}</strong>
             </span>
@@ -297,6 +301,28 @@ export default function FichajeKioscosAdmin({ marcas: marcasIniciales, ultimas, 
                 </span>
               ))}
           </div>
+          {verLista && (
+            <div className="rounded-lg border border-slate-800 bg-slate-900 p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs font-medium text-slate-300">
+                  {verLista === 'adentro' ? 'Trabajando ahora' : 'Afuera (ya salieron hoy)'} · {listaVisible.length}
+                </p>
+                <button type="button" onClick={() => setVerLista(null)} className="text-xs text-slate-500 hover:text-slate-200">
+                  Cerrar ✕
+                </button>
+              </div>
+              <ul className="grid max-h-72 gap-x-4 gap-y-1 overflow-y-auto text-xs sm:grid-cols-2 lg:grid-cols-3">
+                {listaVisible.map((m) => (
+                  <li key={m.empleadoId} className="flex items-center justify-between gap-2 border-b border-slate-800/60 py-1">
+                    <span className="truncate text-slate-200">{m.empleadoNombre}</span>
+                    <span className="shrink-0 font-mono text-slate-500">
+                      {nombre(m.kiosco)} · {FORMATO_FECHA.format(new Date(m.marcadoEn)).split(', ').pop()}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
