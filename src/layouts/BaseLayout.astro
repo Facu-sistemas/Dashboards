@@ -16,6 +16,9 @@ const usuario = Astro.locals.usuario;
 const commitSha = import.meta.env.VERCEL_GIT_COMMIT_SHA;
 const commitShort = commitSha?.slice(0, 7);
 const commitMessage = import.meta.env.VERCEL_GIT_COMMIT_MESSAGE?.split('\n')[0];
+
+// Cada app instalable tiene su manifest: Fichaje (kiosco) por defecto y Embalaje (puesto de escaneo) en su pantalla.
+const manifest = Astro.url.pathname.startsWith('/planta/embalaje') ? '/manifest-embalaje.webmanifest' : '/manifest.webmanifest';
 ---
 
 <!doctype html>
