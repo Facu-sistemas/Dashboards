@@ -1,5 +1,5 @@
 import { getOdooCerradoDia, type OdooOrdenCerrada } from '@/lib/odoo/embalaje';
-import { getEscaneosDia, type EscaneoRegistro } from '@/lib/supabase/embalaje-escaneos';
+import { getEscaneosDia, type EscaneoAnuladoRegistro, type EscaneoRegistro } from '@/lib/supabase/embalaje-escaneos';
 
 export interface EmbalajeFila {
   barcode: string | null;
@@ -19,6 +19,7 @@ export interface EmbalajeResult {
   totalOdoo: number;
   totalEscaneado: number;
   escaneos: EscaneoRegistro[];
+  anulados: EscaneoAnuladoRegistro[];
   ordenesCerradas: OdooOrdenCerrada[];
 }
 
@@ -61,6 +62,7 @@ export async function getEmbalaje(fecha: string, desdeHora = '00:00'): Promise<E
     totalOdoo: lista.reduce((s, f) => s + f.odoo, 0),
     totalEscaneado: lista.reduce((s, f) => s + f.escaneado, 0),
     escaneos: esc.lista,
+    anulados: esc.anulados,
     ordenesCerradas: odoo.ordenes,
   };
 }

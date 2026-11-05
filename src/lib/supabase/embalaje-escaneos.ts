@@ -15,6 +15,7 @@ import { addDaysIso } from '@/lib/date';
  *     created_at timestamptz not null default now()
  *   );
  *   create index on embalaje_escaneos (created_at);
+ *   alter table embalaje_escaneos add column anulado_at timestamptz;  -- cuándo se anuló (Borrar / −1)
  *   alter table embalaje_escaneos add column scanner smallint;  -- 1 | 2: cuál de los dos scanners lo leyó (prefijo ZZ1 / ZZ2)
  *   alter table embalaje_escaneos enable row level security;  -- default-deny, acceso solo vía /api
  *   grant select, insert, update, delete on public.embalaje_escaneos to service_role;
@@ -49,11 +50,18 @@ export interface EscaneoRegistro {
   creado: string;
 }
 
+export interface EscaneoAnuladoRegistro extends EscaneoRegistro {
+  /** Cuándo se anuló; null en los que se anularon antes de existir la columna. */
+  anuladoAt: string | null;
+}
+
 export interface EscaneosDia {
   disponible: boolean;
   porProducto: EscaneoProducto[];
   /** Escaneos individuales vigentes, el más reciente primero (para poder borrar uno). */
   lista: EscaneoRegistro[];
+  /** Escaneos anulados del día (no cuentan), el más reciente primero: sirven para auditar qué se borró. */
+  anulados: EscaneoAnuladoRegistro[];
 }
 
 export async function getEscaneosDia(fecha: string, desdeHora = '00:00'): Promise<EscaneosDia> {
@@ -61,17 +69,29 @@ export async function getEscaneosDia(fecha: string, desdeHora = '00:00'): Promis
   const { data, error } = await getSupabaseAdminClient()
     .from(TABLA)
     .select('*')
-    .eq('anulado', false)
     .gte('created_at', desde)
     .lt('created_at', hasta)
     .order('created_at', { ascending: true })
     .limit(20000);
   if (error) {
     console.error('[embalaje-escaneos]', error.message);
-    return { disponible: false, porProducto: [], lista: [] };
+    return { disponible: false, porProducto: [], lista: [], anulados: [] };
   }
+  const registro = (r: Record<string, unknown>): EscaneoRegistro => ({
+    id: Number(r.id),
+    barcode: r.barcode as string,
+    producto: (r.producto as string | null) ?? null,
+    usuario: (r.usuario as string | null) ?? null,
+    scanner: (r.scanner as number | null | undefined) ?? null,
+    creado: r.created_at as string,
+  });
+  const anulados = (data ?? [])
+    .filter((r) => r.anulado)
+    .map((r) => ({ ...registro(r), anuladoAt: (r.anulado_at as string | null | undefined) ?? null }))
+    .reverse();
+  const vigentes = (data ?? []).filter((r) => !r.anulado);
   const acc = new Map<string, EscaneoProducto>();
-  for (const r of data ?? []) {
+  for (const r of vigentes) {
     const barcode = r.barcode as string;
     const prev = acc.get(barcode);
     acc.set(barcode, {
@@ -81,17 +101,8 @@ export async function getEscaneosDia(fecha: string, desdeHora = '00:00'): Promis
       ultimo: r.created_at as string,
     });
   }
-  const lista = (data ?? [])
-    .map((r) => ({
-      id: Number(r.id),
-      barcode: r.barcode as string,
-      producto: (r.producto as string | null) ?? null,
-      usuario: (r.usuario as string | null) ?? null,
-      scanner: (r.scanner as number | null | undefined) ?? null,
-      creado: r.created_at as string,
-    }))
-    .reverse();
-  return { disponible: true, porProducto: [...acc.values()], lista };
+  const lista = vigentes.map(registro).reverse();
+  return { disponible: true, porProducto: [...acc.values()], lista, anulados };
 }
 
 export async function registrarEscaneo(barcode: string, producto: string, usuario: string, scanner?: number): Promise<void> {
@@ -128,14 +139,14 @@ export async function deshacerEscaneo(barcode: string, fecha: string): Promise<E
   if (error) throw new Error(error.message);
   const id = data?.[0]?.id;
   if (id === undefined) return null;
-  const { error: e2 } = await db.from(TABLA).update({ anulado: true }).eq('id', id);
+  const { error: e2 } = await db.from(TABLA).update({ anulado: true, anulado_at: new Date().toISOString() }).eq('id', id);
   if (e2) throw new Error(e2.message);
   return { scanner: (data?.[0]?.scanner as number | null | undefined) ?? null };
 }
 
 /** Anula un escaneo puntual (el que se cargó dos veces, por ejemplo). Devuelve null si ya no estaba vigente. */
 export async function anularEscaneo(id: number): Promise<(EscaneoAnulado & { producto: string | null }) | null> {
-  const { data, error } = await getSupabaseAdminClient().from(TABLA).update({ anulado: true }).eq('id', id).eq('anulado', false).select('*');
+  const { data, error } = await getSupabaseAdminClient().from(TABLA).update({ anulado: true, anulado_at: new Date().toISOString() }).eq('id', id).eq('anulado', false).select('*');
   if (error) throw new Error(error.message);
   const r = data?.[0];
   if (!r) return null;

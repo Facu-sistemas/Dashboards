@@ -23,6 +23,7 @@ interface EmbalajeResult {
   totalEscaneado: number;
   ordenesCerradas: { orden: string; producto: string; barcode: string | null; unidades: number; cerrada: string }[];
   escaneos: { id: number; barcode: string; producto: string | null; usuario: string | null; scanner: number | null; creado: string }[];
+  anulados: { id: number; barcode: string; producto: string | null; usuario: string | null; scanner: number | null; creado: string; anuladoAt: string | null }[];
 }
 
 interface Aviso {
@@ -150,6 +151,7 @@ function Inner() {
   const filas = d?.filas ?? [];
   const ordenes = d?.ordenesCerradas ?? [];
   const escaneos = d?.escaneos ?? [];
+  const anulados = d?.anulados ?? [];
   const totalOdoo = d?.totalOdoo ?? 0;
   const totalEscaneado = d?.totalEscaneado ?? 0;
 
@@ -221,6 +223,22 @@ function Inner() {
                   </li>
                 ))}
               </ul>
+            )}
+            {anulados.length > 0 && (
+              <details className="border-t border-slate-800">
+                <summary className="cursor-pointer px-4 py-2 text-xs text-slate-500 hover:text-slate-300">
+                  Anulados ({n0.format(anulados.length)}) — no cuentan en el total
+                </summary>
+                <ul className="max-h-60 divide-y divide-slate-800/60 overflow-y-auto">
+                  {anulados.map((e) => (
+                    <li key={e.id} className="flex items-center gap-3 px-4 py-2 text-sm text-slate-500">
+                      <span className="w-14 shrink-0 tabular-nums">{hora.format(new Date(e.creado))}</span>
+                      <span className="min-w-0 flex-1 truncate line-through">{e.producto ?? e.barcode}</span>
+                      <span className="shrink-0 text-xs">{e.anuladoAt ? `anulado ${hora.format(new Date(e.anuladoAt))}` : 'anulado'}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
             )}
           </div>
         </div>
