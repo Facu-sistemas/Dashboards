@@ -95,13 +95,15 @@ export default function FichajeKioscosAdmin({ marcas: marcasIniciales, ultimas, 
     async function consultar() {
       try {
         const res = await fetch('/api/admin/fichaje-marcas-recientes', { cache: 'no-store' });
-        const json = (await res.json()) as { ok: boolean; marcas?: MarcaFichaje[] };
-        if (!vivo || !res.ok || !json.ok || !json.marcas) return;
+        // handleApiRoute envuelve la respuesta: { ok, data: { ok, marcas } }.
+        const json = (await res.json()) as { ok: boolean; data?: { marcas?: MarcaFichaje[] } };
+        const lista = json.data?.marcas;
+        if (!vivo || !res.ok || !json.ok || !lista) return;
         setUltimaConsulta(Date.now());
-        const nuevas = json.marcas.filter((m) => !vistas.current.has(m.id));
+        const nuevas = lista.filter((m) => !vistas.current.has(m.id));
         if (nuevas.length === 0) return;
         for (const m of nuevas) vistas.current.add(m.id);
-        setMarcas(json.marcas);
+        setMarcas(lista);
         if (sonidoRef.current) {
           const ult = nuevas.reduce((a, b) => (a.marcadoEn > b.marcadoEn ? a : b));
           pitar(ult.accion);
