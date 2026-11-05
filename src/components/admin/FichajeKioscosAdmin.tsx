@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { KioscoLatido } from '@/lib/supabase/fichaje-kioscos';
 import type { MarcaFichaje, UltimasDePersona } from '@/lib/supabase/fichaje-marcas';
 
@@ -53,7 +53,67 @@ function Senal({ latido, limiteMs }: { latido: KioscoLatido; limiteMs: number })
  * Fichadas por kiosco (cuenta de celular): cuántas hizo cada uno hoy y cuándo fue su última actividad, más el listado
  * de las últimas marcas. Sirve para ver dónde ficha la gente y para notar un celular que dejó de responder en horario laboral.
  */
-export default function FichajeKioscosAdmin({ marcas, ultimas, latidos, nombresKioscos, error }: Props) {
+export default function FichajeKioscosAdmin({ marcas: marcasIniciales, ultimas, latidos, nombresKioscos, error }: Props) {
+  const [marcas, setMarcas] = useState<MarcaFichaje[]>(marcasIniciales);
+  const [sonido, setSonido] = useState(true);
+  const vistas = useRef<Set<string>>(new Set(marcasIniciales.map((m) => m.id)));
+  const ctxAudio = useRef<AudioContext | null>(null);
+  const sonidoRef = useRef(sonido);
+  sonidoRef.current = sonido;
+
+  // Pitidos cortos: entrada = dos tonos que suben, salida = dos que bajan.
+  function pitar(accion: 'entrada' | 'salida') {
+    try {
+      const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = (ctxAudio.current ??= new Ctx());
+      if (ctx.state === 'suspended') void ctx.resume();
+      const tonos = accion === 'entrada' ? [660, 880] : [880, 520];
+      tonos.forEach((hz, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const t0 = ctx.currentTime + i * 0.16;
+        osc.frequency.value = hz;
+        gain.gain.setValueAtTime(0.0001, t0);
+        gain.gain.exponentialRampToValueAtTime(0.25, t0 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.14);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(t0);
+        osc.stop(t0 + 0.15);
+      });
+    } catch {
+      /* sin audio disponible */
+    }
+  }
+
+  // Consulta las fichadas cada 5 s (solo con la pestaña visible) y suena por cada una nueva.
+  useEffect(() => {
+    let vivo = true;
+    async function consultar() {
+      if (document.hidden) return;
+      try {
+        const res = await fetch('/api/admin/fichaje-marcas-recientes', { cache: 'no-store' });
+        const json = (await res.json()) as { ok: boolean; marcas?: MarcaFichaje[] };
+        if (!vivo || !res.ok || !json.ok || !json.marcas) return;
+        const nuevas = json.marcas.filter((m) => !vistas.current.has(m.id));
+        if (nuevas.length === 0) return;
+        for (const m of nuevas) vistas.current.add(m.id);
+        setMarcas(json.marcas);
+        if (sonidoRef.current) {
+          const ult = nuevas.reduce((a, b) => (a.marcadoEn > b.marcadoEn ? a : b));
+          pitar(ult.accion);
+        }
+      } catch {
+        /* se reintenta en la próxima vuelta */
+      }
+    }
+    const t = setInterval(() => void consultar(), 5000);
+    return () => {
+      vivo = false;
+      clearInterval(t);
+    };
+  }, []);
+
   const [filtro, setFiltro] = useState<string>('todos');
   const [busqueda, setBusqueda] = useState('');
   const [periodo, setPeriodo] = useState<'hoy' | 'recientes'>('hoy');
@@ -113,6 +173,28 @@ export default function FichajeKioscosAdmin({ marcas, ultimas, latidos, nombresK
   );
   const visibles = periodo === 'hoy' ? delPeriodo : delPeriodo.slice(0, MAX_FILAS);
   const personasDistintas = new Set(delPeriodo.map((m) => m.empleadoId)).size;
+
+  // Tiempo promedio entre una fichada y la siguiente (mismo kiosco, hoy). Se descartan pausas de más de 10 min (no hay cola).
+  const promedioEntre = (usuario: string | null): number | null => {
+    const horas = marcas
+      .filter((m) => (usuario === null || m.kiosco === usuario) && FORMATO_DIA.format(new Date(m.marcadoEn)) === hoy)
+      .map((m) => new Date(m.marcadoEn).getTime())
+      .sort((a, b) => a - b);
+    const difs: number[] = [];
+    for (let i = 1; i < horas.length; i++) {
+      const d = horas[i]! - horas[i - 1]!;
+      if (d <= 10 * 60_000) difs.push(d);
+    }
+    return difs.length ? difs.reduce((a, b) => a + b, 0) / difs.length / 1000 : null;
+  };
+  // Adentro = su última fichada de hoy fue una entrada; afuera = fue una salida (marcas vienen de la más nueva a la más vieja).
+  const ultimaDeHoy = new Map<number, 'entrada' | 'salida'>();
+  for (const m of marcas) {
+    if (FORMATO_DIA.format(new Date(m.marcadoEn)) === hoy && !ultimaDeHoy.has(m.empleadoId)) ultimaDeHoy.set(m.empleadoId, m.accion);
+  }
+  const adentro = [...ultimaDeHoy.values()].filter((a) => a === 'entrada').length;
+  const afuera = ultimaDeHoy.size - adentro;
+  const fmtSeg =(s: number | null) => (s === null ? '—' : s < 90 ? `${Math.round(s)} s` : `${(s / 60).toFixed(1)} min`);
 
   return (
     <section className="flex flex-col gap-3">
@@ -197,6 +279,25 @@ export default function FichajeKioscosAdmin({ marcas, ultimas, latidos, nombresK
             );
           })()}
 
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 text-xs text-slate-400">
+            <span title="Su última fichada de hoy fue una entrada">
+              🟢 Trabajando: <strong className="text-sm text-emerald-400">{adentro}</strong>
+            </span>
+            <span title="Su última fichada de hoy fue una salida">
+              🔴 Afuera: <strong className="text-sm text-red-400">{afuera}</strong>
+            </span>
+            <span>
+              Promedio entre fichadas hoy: <strong className="text-sm text-slate-100">{fmtSeg(promedioEntre(null))}</strong>
+            </span>
+            {kioscos
+              .filter(([u]) => ES_OFICIAL.test(u))
+              .map(([u]) => (
+                <span key={u}>
+                  {nombre(u)}: <strong className="text-slate-200">{fmtSeg(promedioEntre(u))}</strong>
+                </span>
+              ))}
+          </div>
+
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
@@ -209,6 +310,17 @@ export default function FichajeKioscosAdmin({ marcas, ultimas, latidos, nombresK
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSonido((s) => !s);
+                    pitar('entrada');
+                  }}
+                  title="Suena cuando alguien entra (tono que sube) o sale (tono que baja) mientras tenés esta pestaña abierta"
+                  className="rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+                >
+                  {sonido ? '🔔 Sonido activado' : '🔕 Sonido apagado'}
+                </button>
                 <div className="flex overflow-hidden rounded-md border border-slate-700 text-xs">
                   {(['hoy', 'recientes'] as const).map((per) => (
                     <button
