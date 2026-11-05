@@ -56,6 +56,7 @@ function Senal({ latido, limiteMs }: { latido: KioscoLatido; limiteMs: number })
 export default function FichajeKioscosAdmin({ marcas: marcasIniciales, ultimas, latidos, nombresKioscos, error }: Props) {
   const [marcas, setMarcas] = useState<MarcaFichaje[]>(marcasIniciales);
   const [sonido, setSonido] = useState(true);
+  const [, setAhora] = useState(Date.now());
   const [verLista, setVerLista] = useState<'adentro' | 'afuera' | null>(null);
   const vistas = useRef<Set<string>>(new Set(marcasIniciales.map((m) => m.id)));
   const ctxAudio = useRef<AudioContext | null>(null);
@@ -91,7 +92,6 @@ export default function FichajeKioscosAdmin({ marcas: marcasIniciales, ultimas, 
   useEffect(() => {
     let vivo = true;
     async function consultar() {
-      if (document.hidden) return;
       try {
         const res = await fetch('/api/admin/fichaje-marcas-recientes', { cache: 'no-store' });
         const json = (await res.json()) as { ok: boolean; marcas?: MarcaFichaje[] };
@@ -109,9 +109,32 @@ export default function FichajeKioscosAdmin({ marcas: marcasIniciales, ultimas, 
       }
     }
     const t = setInterval(() => void consultar(), 5000);
+    // Refresca los "hace X min" aunque no llegue nada nuevo.
+    const reloj = setInterval(() => setAhora(Date.now()), 30_000);
+    // Los navegadores bloquean el audio hasta que la página recibe un gesto: se destraba con el primer clic o tecla.
+    const destrabar = () => {
+      try {
+        const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (!Ctx) return;
+        const ctx = (ctxAudio.current ??= new Ctx());
+        if (ctx.state === 'suspended') void ctx.resume();
+      } catch {
+        /* sin audio */
+      }
+    };
+    const alVolver = () => {
+      if (!document.hidden) void consultar();
+    };
+    window.addEventListener('pointerdown', destrabar);
+    window.addEventListener('keydown', destrabar);
+    document.addEventListener('visibilitychange', alVolver);
     return () => {
       vivo = false;
       clearInterval(t);
+      clearInterval(reloj);
+      window.removeEventListener('pointerdown', destrabar);
+      window.removeEventListener('keydown', destrabar);
+      document.removeEventListener('visibilitychange', alVolver);
     };
   }, []);
 
