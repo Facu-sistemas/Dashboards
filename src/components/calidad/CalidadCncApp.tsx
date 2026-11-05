@@ -6,17 +6,12 @@ import LastUpdated from '../shared/LastUpdated';
 import Tip from '../shared/Tip';
 import { monthsBetween } from '../../lib/date';
 import type { CncData } from '../../lib/odoo/calidad-cnc';
+import PeriodPicker, { idxsForPeriodo, periodoActual } from '../gerencia/PeriodPicker';
 import CncPanel, { type PuntoMes } from './CncPanel';
 import { IMPORTE_MINIMO, PARAMETROS, type ParametroNota } from './calidad-demo-data';
 
 /** Primer mes con el criterio nuevo de motivo/nota en Odoo. */
 const PRIMER_MES = '2026-10';
-
-const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-const mesLabel = (k: string) => {
-  const [y, m] = k.split('-').map(Number);
-  return `${MESES[m! - 1]} ${y}`;
-};
 
 /** Mayúsculas y sin tildes, para cruzar la nota de Odoo ("Garantía real") con el parámetro ("GARANTIA REAL"). */
 const clave = (t: string) =>
@@ -148,6 +143,7 @@ const inputCls =
 
 function Body({
   data,
+  objetivoPeriodo,
   selector,
   meses,
   params,
@@ -155,6 +151,7 @@ function Body({
   estadoGuardado,
 }: {
   data: CncData;
+  objetivoPeriodo: number | null;
   selector: ReactNode;
   meses: CncData[];
   params: Record<string, ParamEdit>;
@@ -344,7 +341,7 @@ function Body({
         totalCnc={calc.porDueno.reduce((s, d) => s + d.total, 0)}
         facturacionNeta={data.facturacionNeta}
         historial={historial}
-        objetivoMes={data.objetivos[Number(data.mes.slice(5))] ?? null}
+        objetivoMes={objetivoPeriodo}
         duenosOrden={DUENOS}
       />
 
@@ -536,9 +533,19 @@ const fechaAr = (iso: string) => iso.slice(0, 10).split('-').reverse().join('/')
 
 function CalidadCncInner() {
   const hoy = new Date();
-  const actual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+  const year = hoy.getFullYear();
+  const nMeses = hoy.getMonth() + 1;
+  const keyMes = (i: number) => `${year}-${String(i + 1).padStart(2, '0')}`;
+  const actual = keyMes(nMeses - 1);
   const meses = monthsBetween(PRIMER_MES, actual < PRIMER_MES ? PRIMER_MES : actual).reverse();
-  const [mes, setMes] = useState(meses[0]!);
+  // Mismo selector que el resto de Gerencia General; los meses anteriores al criterio nuevo quedan deshabilitados.
+  const primerIdx = Math.max(0, Number(PRIMER_MES.slice(5)) - 1);
+  const [periodo, setPeriodo] = useState(periodoActual);
+  const mesesSel = useMemo(() => {
+    const sel = idxsForPeriodo(periodo, nMeses).map(keyMes).filter((k) => k >= PRIMER_MES);
+    return sel.length ? sel : [meses[0]!];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodo, nMeses]);
 
   // Parámetros por nota: se guardan en Supabase y valen para todos. Viven acá (no en Body) para sobrevivir al cambio de mes.
   const guardados = useApiQuery<ParametrosGuardados>(['cnc-parametros'], '/api/cnc-parametros');
@@ -582,7 +589,6 @@ function CalidadCncInner() {
     ) : guardado === 'error' ? (
       <span className="text-red-400">No se pudo guardar el último cambio.</span>
     ) : null;
-  const query = useApiQuery<CncData>(['calidad-cnc', mes], `/api/calidad-cnc?month=${mes}`);
   // Todos los meses con datos, para los gráficos mensuales (comparten caché con la query del mes elegido).
   const todos = useQueries({
     queries: meses.map((m) => ({
@@ -597,27 +603,32 @@ function CalidadCncInner() {
   });
   const cargados = todos.flatMap((q) => (q.data ? [q.data] : []));
 
-  const selector = (
-    <label className="flex items-center gap-2 text-sm font-medium text-slate-100">
-      Mes
-      <select
-        className="rounded border border-slate-600 bg-slate-900 px-2 py-1 text-sm capitalize text-slate-100"
-        value={mes}
-        onChange={(e) => setMes(e.target.value)}
-      >
-        {meses.map((m) => (
-          <option key={m} value={m}>
-            {mesLabel(m)}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
+  const selector = <PeriodPicker nMeses={nMeses} periodo={periodo} onChange={setPeriodo} primerMes={primerIdx} />;
 
-  if (query.isError) {
-    return <p className="rounded-md border border-red-700/50 bg-red-900/20 p-3 text-sm text-red-200">{(query.error as Error).message}</p>;
+  const delPeriodo = todos.filter((_, i) => mesesSel.includes(meses[i]!));
+  const error = delPeriodo.find((q) => q.isError)?.error as Error | undefined;
+  const listos = delPeriodo.length > 0 && delPeriodo.every((q) => q.data);
+  const data = useMemo(() => {
+    if (!listos) return null;
+    const ms = delPeriodo.map((q) => q.data!);
+    const ultimo = ms.reduce((a, m) => (m.mes > a.mes ? m : a));
+    const objs = ms.map((m) => ultimo.objetivos[Number(m.mes.slice(5))]).filter((o): o is number => o !== undefined);
+    return {
+      data: {
+        ...ultimo,
+        notas: ms.flatMap((m) => m.notas),
+        facturacionNeta: ms.reduce((s, m) => s + m.facturacionNeta, 0),
+        pedidosEntregados: ms.reduce((s, m) => s + m.pedidosEntregados, 0),
+      } as CncData,
+      objetivo: objs.length ? objs.reduce((s, o) => s + o, 0) / objs.length : null,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listos, periodo, todos.map((q) => q.dataUpdatedAt).join()]);
+
+  if (error) {
+    return <p className="rounded-md border border-red-700/50 bg-red-900/20 p-3 text-sm text-red-200">{error.message}</p>;
   }
-  if (!query.data || !params) {
+  if (!data || !params) {
     return (
       <div>
         {selector}
@@ -627,8 +638,8 @@ function CalidadCncInner() {
   }
   return (
     <div className="space-y-4">
-      <LastUpdated dataUpdatedAt={query.dataUpdatedAt} />
-      <Body key={query.data.mes} data={query.data} selector={selector} meses={cargados} params={params} setParam={setParam} estadoGuardado={estadoGuardado} />
+      <LastUpdated dataUpdatedAt={Math.max(...delPeriodo.map((q) => q.dataUpdatedAt))} />
+      <Body key={periodo} data={data.data} objetivoPeriodo={data.objetivo} selector={selector} meses={cargados} params={params} setParam={setParam} estadoGuardado={estadoGuardado} />
     </div>
   );
 }

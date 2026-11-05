@@ -7,7 +7,7 @@ import GerenciaSyncButton from './GerenciaSyncButton';
 import VentasGerenciaKpiCard from './VentasGerenciaKpiCard';
 import VentasGerenciaChart from './VentasGerenciaChart';
 import DesvioMensualChart from './DesvioMensualChart';
-import PeriodPicker, { consensuadoDelPeriodo, idxsForPeriodo } from './PeriodPicker';
+import PeriodPicker, { periodoActual, consensuadoDelPeriodo, idxsForPeriodo } from './PeriodPicker';
 import CumplimientoBars from './CumplimientoBars';
 import DiasHabilesStrip from './DiasHabilesStrip';
 import MedidaToggle, { seriesPorMedida, type Medida } from './MedidaToggle';
@@ -80,7 +80,7 @@ function VentasGerenciaInner() {
   const query = useApiQuery<VentasGerenciaResult>(['ventas-gerencia'], '/api/ventas-gerencia');
   const data = query.data;
   const nMeses = data?.mesesConDatos ?? 12;
-  const [periodo, setPeriodo] = useState('ACU');
+  const [periodo, setPeriodo] = useState(periodoActual);
   const [medida, setMedida] = useState<Medida>('completo');
 
   const idxs = useMemo(() => idxsForPeriodo(periodo, nMeses), [periodo, nMeses]);

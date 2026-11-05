@@ -6,6 +6,9 @@ export const TRIMESTRES: [string, number[]][] = [
   ['T4', [9, 10, 11]],
 ];
 
+/** Período con el que arrancan las pestañas: el mes en curso. */
+export const periodoActual = () => `M${new Date().getMonth()}`;
+
 /** "ACU" (all elapsed months), "M<i>" (one month), or a TRIMESTRES key — shared across every Gerencia General tab with a period selector. */
 export function idxsForPeriodo(periodo: string, nMeses: number): number[] {
   if (periodo === 'ACU') return Array.from({ length: nMeses }, (_, i) => i);
@@ -37,9 +40,11 @@ interface Props {
   nMeses: number;
   periodo: string;
   onChange: (p: string) => void;
+  /** Índice (0-11) del primer mes con datos; los anteriores se muestran deshabilitados. */
+  primerMes?: number;
 }
 
-export default function PeriodPicker({ nMeses, periodo, onChange }: Props) {
+export default function PeriodPicker({ nMeses, periodo, onChange, primerMes = 0 }: Props) {
   const btnClass = (active: boolean, disabled: boolean) =>
     `rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
       disabled
@@ -54,7 +59,7 @@ export default function PeriodPicker({ nMeses, periodo, onChange }: Props) {
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="mr-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Mes</span>
         {MESES.map((mes, i) => {
-          const disabled = i >= nMeses;
+          const disabled = i >= nMeses || i < primerMes;
           return (
             <button
               key={mes}
@@ -71,7 +76,7 @@ export default function PeriodPicker({ nMeses, periodo, onChange }: Props) {
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="mr-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Período</span>
         {TRIMESTRES.map(([key, idxs]) => {
-          const disabled = !idxs.some((i) => i < nMeses);
+          const disabled = !idxs.some((i) => i < nMeses && i >= primerMes);
           return (
             <button key={key} type="button" disabled={disabled} className={btnClass(periodo === key, disabled)} onClick={() => onChange(key)}>
               {key}

@@ -85,7 +85,7 @@ function DesvioChart({ data, desde, hasta }: { data: { mes: string; desvio: numb
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-900 p-4">
       <h3 className="text-sm font-medium text-slate-300">
-        <Tip text={"Toma: $ neto de los ajustes de inventario (Odoo stock.valuation.layer, is_inventory) de cada mes ÷ $ de materia prima consumida en producción ese mes. Sigue el filtro de categoría y producto.\nObjetivo: hoja «Objetivos Inventario» del dashboard Equipo de gestión de Odoo (un valor por mes).\nCalcula: la barra es el desvío en valor absoluto (sobrante o faltante); verde si no pasa el objetivo, rojo si lo pasa. Las opacas son el período elegido."} className="cursor-help border-b border-dotted border-slate-500">
+        <Tip text={"Toma: $ neto de los ajustes de inventario (Odoo stock.valuation.layer, is_inventory) de cada mes ÷ $ de materia prima consumida en producción ese mes. No sigue el filtro de categoría y producto: siempre es todo el inventario.\nObjetivo: hoja «Objetivos Inventario» del dashboard Equipo de gestión de Odoo (un valor por mes).\nCalcula: la barra es el desvío en valor absoluto (sobrante o faltante); verde si no pasa el objetivo, rojo si lo pasa. Las opacas son el período elegido."} className="cursor-help border-b border-dotted border-slate-500">
           Desvío % s/ materia prima vs objetivo
         </Tip>
       </h3>
@@ -433,11 +433,11 @@ No cambia con el filtro de categoría o producto.`}
           </div>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <MesChart title="$ neto por mes" tip={"Toma: Odoo stock.valuation.layer de ajustes de inventario (is_inventory = true), por mes de create_date.\nCalcula: suma del valor ($) de las capas del mes (ingresos + egresos). Las barras opacas son el período elegido."} data={data.mensual.map((m, i) => ({ mes: MESES[i]!, v: m.netoValor }))} format="currency" desde={desde} hasta={hasta} />
-            <MesChart title="Unidades netas por mes" tip={"Toma: las mismas capas de ajuste de Valoración.\nCalcula: suma de cantidades del mes (ingresos + egresos). Mezcla kg, unidades y metros."} data={data.mensual.map((m, i) => ({ mes: MESES[i]!, v: m.netoCantidad }))} format="number" desde={desde} hasta={hasta} />
+            <MesChart title="$ neto por mes" tip={"Toma: Odoo stock.valuation.layer de ajustes de inventario (is_inventory = true), por mes de create_date.\nCalcula: suma del valor ($) de las capas del mes (ingresos + egresos). Las barras opacas son el período elegido."} data={data.evolucion.netoValor.map((v, i) => ({ mes: MESES[i]!, v }))} format="currency" desde={desde} hasta={hasta} />
+            <MesChart title="Unidades netas por mes" tip={"Toma: las mismas capas de ajuste de Valoración.\nCalcula: suma de cantidades del mes (ingresos + egresos). Mezcla kg, unidades y metros."} data={data.evolucion.netoCantidad.map((v, i) => ({ mes: MESES[i]!, v }))} format="number" desde={desde} hasta={hasta} />
           </div>
 
-          <DesvioChart data={data.mensual.map((m, i) => ({ mes: MESES[i]!, desvio: pctNum(m.netoValor, data.base.materiaPrima[i]!), objetivo: data.base.objetivo[i] ?? null }))} desde={desde} hasta={hasta} />
+          <DesvioChart data={data.evolucion.netoValor.map((v, i) => ({ mes: MESES[i]!, desvio: pctNum(v, data.base.materiaPrima[i]!), objetivo: data.base.objetivo[i] ?? null }))} desde={desde} hasta={hasta} />
 
           <div className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-900">
             <table className="w-full text-sm">

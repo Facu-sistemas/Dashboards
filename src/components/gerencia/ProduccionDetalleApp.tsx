@@ -3,7 +3,7 @@ import type { DehydratedState } from '@tanstack/react-query';
 import QueryProvider from '@/components/QueryProvider';
 import { useApiQuery } from '@/components/dashboard/useApiQuery';
 import LastUpdated from '@/components/shared/LastUpdated';
-import PeriodPicker, { idxsForPeriodo } from './PeriodPicker';
+import PeriodPicker, { periodoActual, idxsForPeriodo } from './PeriodPicker';
 import ProduccionDetalleChart, { type SerieProducto } from './ProduccionDetalleChart';
 import ProduccionDetalleTable, { type FilaDetalle } from './ProduccionDetalleTable';
 import { DESTACADOS_DEFAULT, DESTACADOS_MAX } from './produccion-detalle-palette';
@@ -93,7 +93,7 @@ function ProduccionDetalleInner() {
   const [sector, setSector] = useState<Sector>('sillones');
   const [vista, setVista] = useState<Vista>('familia');
   const [medida, setMedida] = useState<Medida>('ue');
-  const [periodo, setPeriodo] = useState('ACU');
+  const [periodo, setPeriodo] = useState(periodoActual);
   const [destacados, setDestacados] = useState(DESTACADOS_DEFAULT);
   // Se guardan las apagadas (no las prendidas) para que una categoría nueva aparezca prendida por defecto.
   const [categsExcluidas, setCategsExcluidas] = useState<Set<string>>(new Set());
