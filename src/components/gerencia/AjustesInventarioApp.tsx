@@ -3,6 +3,7 @@ import { Bar, BarChart, Cell, CartesianGrid, ComposedChart, Line, ReferenceLine,
 import QueryProvider from '@/components/QueryProvider';
 import { useApiQuery } from '@/components/dashboard/useApiQuery';
 import LastUpdated from '@/components/shared/LastUpdated';
+import PeriodPicker, { idxsForPeriodo, periodoActual } from './PeriodPicker';
 import AjustesInventarioSyncButton from './AjustesInventarioSyncButton';
 import AjusteMovimientosModal from './AjusteMovimientosModal';
 import KpiCard from '@/components/shared/KpiCard';
@@ -18,8 +19,6 @@ const qtyFmt = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 });
 function signClass(v: number): string {
   return v < 0 ? 'text-red-400' : v > 0 ? 'text-emerald-400' : 'text-slate-400';
 }
-
-type Modo = 'mes' | 'acumulado';
 
 function sumarMeses(meses: AjusteMes[]): Omit<AjusteMes, 'mes'> {
   const z = { capas: 0, ingresoCantidad: 0, ingresoValor: 0, egresoCantidad: 0, egresoValor: 0, netoCantidad: 0, netoValor: 0, difCantidad: 0, movimientosConDiferencia: 0, movimientos: 0 };
@@ -215,11 +214,7 @@ function AjustesInner() {
   const [year, setYear] = useState(thisYear);
   const [abierto, setAbierto] = useState<string | null>(null);
   const [movimientos, setMovimientos] = useState<{ productId: number; producto: string; uom: string; mes: string } | null>(null);
-  const [modo, setModo] = useState<Modo>('mes');
-  // Sin selección = resumen de todo el año.
-  const [mesSel, setMesSel] = useState<number | null>(null);
-  const [desdeSel, setDesdeSel] = useState<number | null>(null);
-  const [hastaSel, setHastaSel] = useState<number | null>(null);
+  const [per, setPer] = useState(periodoActual);
   // Filtros de producto: vacíos = se muestra todo.
   const [categorias, setCategorias] = useState<string[]>([]);
   const [productoTxt, setProductoTxt] = useState('');
@@ -236,15 +231,11 @@ function AjustesInner() {
     setProductoTxt('');
     setProductId(null);
   };
-  const desde = modo === 'mes' ? (mesSel ?? 0) : (desdeSel ?? 0);
-  const hasta = modo === 'mes' ? (mesSel ?? 11) : (hastaSel ?? 11);
-  const hayFiltro = modo === 'mes' ? mesSel !== null : desdeSel !== null || hastaSel !== null;
-  const periodo = !hayFiltro ? `Año ${year}` : desde === hasta ? `${MESES[desde]} ${year}` : `${MESES[desde]}–${MESES[hasta]} ${year}`;
-  const limpiar = () => {
-    setMesSel(null);
-    setDesdeSel(null);
-    setHastaSel(null);
-  };
+  const nMeses = year === thisYear ? new Date().getMonth() + 1 : 12;
+  const idxs = idxsForPeriodo(per, nMeses);
+  const desde = idxs.length ? idxs[0]! : 0;
+  const hasta = idxs.length ? idxs[idxs.length - 1]! : 11;
+  const periodo = desde === hasta ? `${MESES[desde]} ${year}` : `${MESES[desde]}–${MESES[hasta]} ${year}`;
   const sel = data ? sumarMeses(data.mensual.slice(desde, hasta + 1)) : undefined;
   const enRango = (i: number) => i >= desde && i <= hasta;
   const baseMp = data ? data.base.materiaPrima.slice(desde, hasta + 1).reduce((a, v) => a + v, 0) : 0;
@@ -276,76 +267,7 @@ function AjustesInner() {
             ))}
           </select>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex overflow-hidden rounded border border-slate-700 text-xs">
-            {(['mes', 'acumulado'] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => {
-                  setModo(m);
-                  limpiar();
-                }}
-                className={`px-3 py-1 ${modo === m ? 'bg-slate-700 text-slate-100' : 'bg-slate-950 text-slate-400 hover:text-slate-200'}`}
-              >
-                {m === 'mes' ? 'Mes' : 'Acumulado'}
-              </button>
-            ))}
-          </div>
-          {modo === 'mes' ? (
-            <select aria-label="Mes" value={mesSel ?? ''} onChange={(e) => setMesSel(e.target.value === '' ? null : Number(e.target.value))} className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200">
-              <option value="">Todo el año</option>
-              {MESES.map((m, i) => (
-                  <option key={m} value={i}>{m}</option>
-                ))}
-            </select>
-          ) : (
-            <>
-              <span className="text-xs text-slate-400">de</span>
-              <select
-                aria-label="Desde"
-                value={desdeSel ?? ''}
-                onChange={(e) => {
-                  const v = e.target.value === '' ? null : Number(e.target.value);
-                  setDesdeSel(v);
-                  if (v !== null && hastaSel !== null && v > hastaSel) setHastaSel(v);
-                }}
-                className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200"
-              >
-                <option value="">Inicio</option>
-                {MESES.map((m, i) => (
-                  <option key={m} value={i}>{m}</option>
-                ))}
-              </select>
-              <span className="text-xs text-slate-400">a</span>
-              <select
-                aria-label="Hasta"
-                value={hastaSel ?? ''}
-                onChange={(e) => {
-                  const v = e.target.value === '' ? null : Number(e.target.value);
-                  setHastaSel(v);
-                  if (v !== null && desdeSel !== null && v < desdeSel) setDesdeSel(v);
-                }}
-                className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200"
-              >
-                <option value="">Fin</option>
-                {MESES.map((m, i) => (
-                  <option key={m} value={i}>{m}</option>
-                ))}
-              </select>
-            </>
-          )}
-                      <button
-              disabled={!hayFiltro}
-              type="button"
-              onClick={limpiar}
-              aria-label="Quitar selección y ver todo el año"
-              title="Quitar selección y ver todo el año"
-              className={`rounded border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-400 hover:text-slate-100 ${hayFiltro ? '' : 'invisible'}`}
-            >
-              ✕
-            </button>
-        </div>
+        <PeriodPicker nMeses={nMeses} periodo={per} onChange={setPer} />
         <div className="flex flex-wrap items-center gap-2">
           <CategoriasMulti
             opciones={data?.opciones.categorias ?? []}
