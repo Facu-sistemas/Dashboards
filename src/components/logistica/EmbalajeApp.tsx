@@ -209,6 +209,8 @@ function Inner() {
                     {esHoy && (
                       <button
                         type="button"
+                        tabIndex={-1}
+                        onMouseDown={(ev) => ev.preventDefault()}
                         onClick={() => void ejecutar({ accion: 'anular', id: e.id })}
                         disabled={enviando}
                         className="rounded border border-status-red/50 px-2 py-1 text-xs text-status-red hover:bg-slate-800 disabled:opacity-50"
@@ -319,6 +321,8 @@ function Inner() {
                       {esHoy && f.barcode && f.escaneado > 0 && (
                         <button
                           type="button"
+                          tabIndex={-1}
+                          onMouseDown={(ev) => ev.preventDefault()}
                           onClick={() => void accionar('deshacer', f.barcode!)}
                           disabled={enviando}
                           className="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50"
