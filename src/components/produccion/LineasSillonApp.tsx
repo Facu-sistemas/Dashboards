@@ -3,14 +3,12 @@ import { useQueryClient } from '@tanstack/react-query';
 import QueryProvider from '@/components/QueryProvider';
 import { useApiQuery } from '@/components/dashboard/useApiQuery';
 import LastUpdated from '@/components/shared/LastUpdated';
-import { CIERRE_SEG } from '@/lib/lineas-sillon/engine';
 import type { LineaPlan } from '@/lib/lineas-sillon/plan';
-import LineasSillonDias from './LineasSillonDias';
 import LineasSillonLineas from './LineasSillonLineas';
 import LineasSillonPersonas from './LineasSillonPersonas';
 import LineasSillonEquivalencias from './LineasSillonEquivalencias';
 import { generarPdfSillon } from './lineas-sillon-pdf';
-import { SLOTS_UI, cantidadDias, fechaCorta, fechaDia, fechaLarga, guardarSillon, horaCorta, porcentaje, tonoEficiencia, type LineasSillonResponse } from './lineas-sillon-shared';
+import { SLOTS_UI, fechaLarga, guardarSillon, horaCorta, porcentaje, tonoEficiencia, type LineasSillonResponse } from './lineas-sillon-shared';
 
 type Vista = 'reporte' | 'lineas' | 'personas' | 'equivalencias';
 
@@ -19,20 +17,17 @@ const FILAS_VISIBLES = 60;
 
 function LineaCard({
   lp,
-  dia,
   nombres,
   onPdf,
   onIgnorar,
 }: {
   lp: LineaPlan;
-  /** Día planificado que se muestra: 0 = hoy. */
-  dia: number;
   nombres: Map<string, string>;
   onPdf: () => void;
   onIgnorar: (orden: string) => void;
 }) {
   const [carp, tap, ens] = lp.estaciones;
-  const hoy = carp!.tramos.filter((t) => t.dia === dia);
+  const hoy = carp!.tramos.filter((t) => t.dia === 0);
   const filas = hoy.slice(0, FILAS_VISIBLES);
   const asignados = SLOTS_UI.map((s) => ({ ...s, nombre: lp.config.asignados[s.slot] ? nombres.get(lp.config.asignados[s.slot]!) : undefined }));
 
@@ -43,7 +38,7 @@ function LineaCard({
           <h3 className="text-sm font-semibold text-slate-100">Línea {lp.linea}</h3>
           <span className="flex items-center gap-3 text-xs text-slate-500">
             <span>
-              {hoy.length} {dia === 0 ? 'hoy' : 'ese día'}{carp!.tramos.some((t) => t.dia > dia) ? ` · ${carp!.tramos.filter((t) => t.dia > dia).length} para después` : ''}
+              {hoy.length} hoy{carp!.pendientes > 0 ? ` · ${carp!.pendientes} para después` : ''}
             </span>
             {hoy.length > 0 && (
               <button type="button" onClick={onPdf} className="text-brand-400 hover:underline print:hidden">
@@ -75,7 +70,7 @@ function LineaCard({
             </tr>
           </thead>
           <tbody>
-            {filas.map((t) => (
+            {filas.map((t, i) => (
               <tr key={t.idx} className="group border-t border-slate-800/60" title={t.origen}>
                 <td className="whitespace-nowrap px-3 py-1 tabular-nums text-slate-500">
                   {t.idx}
@@ -96,8 +91,8 @@ function LineaCard({
                   {t.manual && <span className="ml-1.5 rounded bg-sky-500/15 px-1 text-[10px] text-sky-300">manual</span>}
                 </td>
                 <td className="py-1 text-right tabular-nums text-slate-400">{t.finReloj}</td>
-                <td className="py-1 text-right tabular-nums text-slate-400">{tap!.tramos[t.idx - 1]!.finReloj}</td>
-                <td className="px-3 py-1 text-right tabular-nums text-slate-400">{ens!.tramos[t.idx - 1]!.finReloj}</td>
+                <td className="py-1 text-right tabular-nums text-slate-400">{tap!.tramos[i]!.finReloj}</td>
+                <td className="px-3 py-1 text-right tabular-nums text-slate-400">{ens!.tramos[i]!.finReloj}</td>
               </tr>
             ))}
           </tbody>
@@ -107,8 +102,8 @@ function LineaCard({
                 {hoy.length > filas.length ? `+${hoy.length - filas.length} más · ` : ''}Eficiencia
               </td>
               {lp.estaciones.map((e, i) => (
-                <td key={e.id} className={`py-1.5 text-right font-semibold tabular-nums ${i === 2 ? 'px-3' : ''} ${tonoEficiencia(hoy.length ? (e.tramos.filter((x) => x.dia === dia).at(-1)?.finRelojSeg ?? 0) / CIERRE_SEG : 0)}`}>
-                  {porcentaje(hoy.length ? (e.tramos.filter((x) => x.dia === dia).at(-1)?.finRelojSeg ?? 0) / CIERRE_SEG : 0)}
+                <td key={e.id} className={`py-1.5 text-right font-semibold tabular-nums ${i === 2 ? 'px-3' : ''} ${tonoEficiencia(e.eficiencia)}`}>
+                  {porcentaje(e.eficiencia)}
                 </td>
               ))}
             </tr>
@@ -133,9 +128,6 @@ function Reporte({
   const { config, fijado } = data;
   const [vista, setVista] = useState<'fijado' | 'vivo'>(fijado ? 'fijado' : 'vivo');
   const [error, setError] = useState('');
-  /** 'dias': grilla con todos los días planificados; 'dia': un solo día completo, como la hoja impresa. */
-  const [modo, setModo] = useState<'dias' | 'dia'>('dias');
-  const [dia, setDia] = useState(0);
   const [fijando, setFijando] = useState(false);
   const mostrandoFijado = vista === 'fijado' && fijado !== null;
   const plan = mostrandoFijado ? fijado.plan : data.plan;
@@ -147,11 +139,8 @@ function Reporte({
   const pie = mostrandoFijado
     ? `Plan fijado a las ${horaCorta(fijado.creadoEn)} (${fijado.creadoPor})`
     : `Plan en vivo generado a las ${horaCorta(new Date().toISOString())}`;
-  const diasTotal = cantidadDias(activas);
-  const diaActual = Math.min(dia, diasTotal - 1);
-  const fechaActual = fechaDia(plan.hoy, diaActual);
   const pdf = (lineas: LineaPlan[], archivo: string) => {
-    setError(generarPdfSillon(lineas, fechaActual, pie, archivo, nombres, diaActual) ? '' : 'No hay unidades para imprimir.');
+    setError(generarPdfSillon(lineas, plan.hoy, pie, archivo, nombres) ? '' : 'No hay unidades para imprimir.');
   };
 
   const ignorar = async (orden: string, delta: 1 | -1) => {
@@ -218,42 +207,13 @@ function Reporte({
         >
           {fijando ? 'Fijando…' : 'Fijar el plan actual como el del día'}
         </button>
-        <div className="inline-flex rounded-lg border border-slate-800 bg-slate-900/60 p-1">
-          {([['dias', 'Planificación por días'], ['dia', 'Un día completo']] as const).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setModo(id)}
-              className={`rounded px-3 py-1 text-xs ${modo === id ? 'bg-brand-500/15 text-brand-400' : 'text-slate-400'}`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        {modo === 'dia' && (
-          <>
-            <select
-              value={diaActual}
-              onChange={(e) => setDia(Number(e.target.value))}
-              className="rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs capitalize text-slate-200"
-              aria-label="Día"
-            >
-              {Array.from({ length: diasTotal }, (_, d) => (
-                <option key={d} value={d}>
-                  {fechaCorta(fechaDia(plan.hoy, d))}
-                  {d === 0 ? ' (hoy)' : ''}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={() => pdf(activas, `lineas-sillon-${fechaActual}.pdf`)}
-              className="rounded bg-brand-500/20 px-3 py-1.5 text-xs text-brand-400 hover:bg-brand-500/30"
-            >
-              Descargar PDF (todas las líneas)
-            </button>
-          </>
-        )}
+        <button
+          type="button"
+          onClick={() => pdf(activas, `lineas-sillon-${plan.hoy}.pdf`)}
+          className="rounded bg-brand-500/20 px-3 py-1.5 text-xs text-brand-400 hover:bg-brand-500/30"
+        >
+          Descargar PDF (todas las líneas)
+        </button>
         <label className="inline-flex items-center gap-2 text-xs text-slate-300">
           <input type="checkbox" checked={repartir} onChange={(e) => setRepartir(e.target.checked)} />
           Repartir las órdenes sin línea entre las líneas habilitadas
@@ -315,32 +275,11 @@ function Reporte({
         </details>
       )}
 
-      {modo === 'dias' ? (
-        activas.length > 0 && (
-          <LineasSillonDias
-            lineas={activas}
-            hoy={plan.hoy}
-            nombres={nombres}
-            onElegirDia={(d) => {
-              setDia(d);
-              setModo('dia');
-            }}
-          />
-        )
-      ) : (
-        <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-          {activas.map((lp) => (
-            <LineaCard
-              key={lp.linea}
-              lp={lp}
-              dia={diaActual}
-              nombres={nombres}
-              onPdf={() => setError(generarPdfSillon([lp], fechaActual, pie, `linea-${lp.linea}-${fechaActual}.pdf`, nombres, diaActual) ? '' : 'No hay unidades para imprimir.')}
-              onIgnorar={(o) => void ignorar(o, 1)}
-            />
-          ))}
-        </div>
-      )}
+      <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+        {activas.map((lp) => (
+          <LineaCard key={lp.linea} lp={lp} nombres={nombres} onPdf={() => pdf([lp], `linea-${lp.linea}-${plan.hoy}.pdf`)} onIgnorar={(o) => void ignorar(o, 1)} />
+        ))}
+      </div>
       {activas.length === 0 && <p className="py-8 text-center text-sm text-slate-500">No hay líneas habilitadas.</p>}
     </div>
   );
@@ -390,7 +329,7 @@ function Inner() {
       </div>
 
       {data && vista === 'reporte' && (
-        <h3 className="text-base font-semibold capitalize text-slate-100">Producción — desde {fechaLarga(data.plan.hoy)}</h3>
+        <h3 className="text-base font-semibold capitalize text-slate-100">Producción — {fechaLarga(data.plan.hoy)}</h3>
       )}
 
       {query.isLoading && <div className="h-40 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />}

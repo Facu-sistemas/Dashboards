@@ -1,4 +1,4 @@
-import type { LineaPlan, PlanSillon } from '@/lib/lineas-sillon/plan';
+import type { PlanSillon } from '@/lib/lineas-sillon/plan';
 import type { ConfigSillon, PersonaSillon, PuestoPersona, Slot } from '@/lib/supabase/lineas-sillon';
 import type { ProcesoHoja } from '@/lib/lineas-sillon/polivalencia';
 
@@ -74,22 +74,3 @@ export const fechaLarga = (iso: string) =>
     month: 'long',
     timeZone: 'UTC',
   });
-
-/** Fecha del día planificado número `n` (0 = hoy): cada día de planificación es un día hábil, se saltean sábados y domingos. */
-export function fechaDia(hoy: string, n: number): string {
-  const d = new Date(`${hoy}T00:00:00Z`);
-  for (let i = 0; i < n; i++) {
-    do d.setUTCDate(d.getUTCDate() + 1);
-    while (d.getUTCDay() === 0 || d.getUTCDay() === 6);
-  }
-  return d.toISOString().slice(0, 10);
-}
-
-/** Cuántos días planificados abarcan las líneas (mínimo 1, tope para no desbordar la grilla). */
-export function cantidadDias(lineas: LineaPlan[], tope = 15): number {
-  const ultimo = Math.max(0, ...lineas.map((l) => l.estaciones[0]!.tramos.at(-1)?.dia ?? 0));
-  return Math.min(tope, ultimo + 1);
-}
-
-export const fechaCorta = (iso: string) =>
-  new Date(`${iso}T00:00:00Z`).toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: '2-digit', timeZone: 'UTC' });
