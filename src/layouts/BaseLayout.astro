@@ -17,8 +17,13 @@ const commitSha = import.meta.env.VERCEL_GIT_COMMIT_SHA;
 const commitShort = commitSha?.slice(0, 7);
 const commitMessage = import.meta.env.VERCEL_GIT_COMMIT_MESSAGE?.split('\n')[0];
 
-// Cada app instalable tiene su manifest: Fichaje (kiosco) por defecto y Embalaje (puesto de escaneo) en su pantalla.
-const manifest = Astro.url.pathname.startsWith('/planta/embalaje') ? '/manifest-embalaje.webmanifest' : '/manifest.webmanifest';
+// Cada app instalable tiene su manifest: Fichaje (kiosco) en /fichaje, Embalaje (puesto de escaneo) en su pantalla y Frontera Living en el resto.
+const ruta = Astro.url.pathname;
+const manifest = ruta.startsWith('/fichaje')
+  ? '/manifest-fichaje.webmanifest'
+  : ruta.startsWith('/planta/embalaje')
+    ? '/manifest-embalaje.webmanifest'
+    : '/manifest.webmanifest';
 ---
 
 <!doctype html>
@@ -30,7 +35,7 @@ const manifest = Astro.url.pathname.startsWith('/planta/embalaje') ? '/manifest-
     <link rel="icon" type="image/svg+xml" href="/Logo%20FL%20icon.svg" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <!-- Instalable como app (celular de quiosco de Fichaje, puesto de Embalaje): se abre sin barra de direcciones ni pestañas. -->
+    <!-- Instalable como app (quiosco de Fichaje, puesto de Embalaje o Frontera Living en general): se abre sin barra de direcciones ni pestañas. -->
     <link rel="manifest" href={manifest} />
     <meta name="theme-color" content="#020617" />
     <title>{title}</title>
