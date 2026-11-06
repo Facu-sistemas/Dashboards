@@ -1,0 +1,15 @@
+---
+import Gs1App from './Gs1App';
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Generador GS1-128</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Buscá el producto en Odoo (o cargá los datos a mano) y completá lote y peso neto. El código GS1-128 se dibuja en vivo con
+      GTIN, peso y lote. No escribe nada en Odoo.
+    </p>
+  </header>
+
+  <Gs1App client:load />
+</div>

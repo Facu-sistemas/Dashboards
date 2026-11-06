@@ -161,6 +161,7 @@ export const AREAS: AreaConfig[] = [
       { slug: 'mapa-deposito', name: 'Mapa de Depósito' },
       { slug: 'historial', name: 'Historial' },
       { slug: 'etiquetas-proveedor', name: 'Etiquetas de Proveedor' },
+      { slug: 'gs1', name: 'GS1' },
     ],
   },
   {

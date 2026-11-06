@@ -19,6 +19,7 @@ import TelamaxTab from '@/components/produccion/TelamaxTab.astro';
 import VerticalTab from '@/components/test/VerticalTab.astro';
 import PlanificadoLineaTab from '@/components/produccion/PlanificadoLineaTab.astro';
 import EtiquetasTab from '@/components/almacen/EtiquetasTab.astro';
+import Gs1Tab from '@/components/almacen/Gs1Tab.astro';
 import TicketsSoporteTab from '@/components/calidad/TicketsSoporteTab.astro';
 import ReparacionesColchonesTab from '@/components/calidad/ReparacionesColchonesTab.astro';
 import ColchonTab from '@/components/test/ColchonTab.astro';
@@ -94,6 +95,7 @@ if (!area || !tabConfig || !tabVisible(tabConfig, Astro.locals.usuario) || !Astr
   {area.slug === 'produccion' && tabSlug === 'telamax' && <TelamaxTab />}
   {area.slug === 'produccion' && tabSlug === 'lineas-sillon' && <LineasSillonTab />}
   {area.slug === 'almacen' && tabSlug === 'etiquetas-proveedor' && <EtiquetasTab />}
+  {area.slug === 'almacen' && tabSlug === 'gs1' && <Gs1Tab />}
   {area.slug === 'gestion-calidad' && tabSlug === 'tickets-soporte' && <TicketsSoporteTab />}
   {area.slug === 'gestion-calidad' && tabSlug === 'reparaciones-colchones' && <ReparacionesColchonesTab />}
   {area.slug === 'gestion-calidad' && tabSlug === 'costo-devoluciones' && <CostoDevolucionesTab />}
