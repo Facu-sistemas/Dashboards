@@ -1,15 +1,27 @@
 ---
 import Gs1App from './Gs1App';
+import BarcodeCode128 from '@/components/test/BarcodeCode128';
 ---
 
 <div>
   <header class="mb-6">
-    <h2 class="text-lg font-semibold text-slate-100">Generador GS1-128</h2>
+    <h2 class="text-lg font-semibold text-slate-100">GS1</h2>
     <p class="mt-1 text-sm text-slate-400">
-      Buscá el producto en Odoo (o cargá los datos a mano) y completá lote y peso neto. El código GS1-128 se dibuja en vivo con
-      GTIN, peso y lote. No escribe nada en Odoo.
+      Buscá el producto en Odoo (o cargá los datos a mano) y completá lote y cantidad neta. El código GS1-128 se dibuja en vivo
+      con GTIN, cantidad y lote. No escribe nada en Odoo.
     </p>
   </header>
 
   <Gs1App client:load />
+
+  <hr class="my-8 border-slate-800" />
+
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">128</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Escribí un texto y generá su código de barras Code-128. Sin datos de Odoo; todo se procesa en tu navegador.
+    </p>
+  </header>
+
+  <BarcodeCode128 client:only="react" />
 </div>

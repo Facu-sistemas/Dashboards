@@ -90,13 +90,21 @@ function ProductPicker({ selected, onSelect }: { selected: EtiquetaProducto | nu
   );
 }
 
-type Unidad = 'kg' | 'g' | 'lb';
+type Unidad = 'kg' | 'g' | 'lb' | 'm' | 'cm' | 'm2' | 'l' | 'm3';
 
-/** GS1: 3103 = kg y 3203 = lb, ambos con 3 decimales (6 dígitos). Los gramos se codifican como kg: 1 g = 0,001 kg. */
-const UNIDADES: Record<Unidad, { ai: string; milesimas: number; label: string }> = {
-  kg: { ai: '3103', milesimas: 1000, label: 'kg' },
-  g: { ai: '3103', milesimas: 1, label: 'g' },
-  lb: { ai: '3203', milesimas: 1000, label: 'lb' },
+/**
+ * AIs GS1 de cantidad neta, todos con 3 decimales (6 dígitos): 3103 kg, 3203 lb, 3113 largo en m,
+ * 3143 área en m², 3153 volumen en l, 3163 volumen en m³. g y cm se codifican en kg y m (1 g = 0,001 kg; 1 cm = 0,01 m).
+ */
+const UNIDADES: Record<Unidad, { ai: string; factor: number; label: string; max: string }> = {
+  kg: { ai: '3103', factor: 1000, label: 'kg (peso)', max: '1000 kg' },
+  g: { ai: '3103', factor: 1, label: 'g (peso)', max: '1.000.000 g' },
+  lb: { ai: '3203', factor: 1000, label: 'lb (peso)', max: '1000 lb' },
+  m: { ai: '3113', factor: 1000, label: 'm (largo)', max: '1000 m' },
+  cm: { ai: '3113', factor: 10, label: 'cm (largo)', max: '100.000 cm' },
+  m2: { ai: '3143', factor: 1000, label: 'm² (área)', max: '1000 m²' },
+  l: { ai: '3153', factor: 1000, label: 'l (volumen)', max: '1000 l' },
+  m3: { ai: '3163', factor: 1000, label: 'm³ (volumen)', max: '1000 m³' },
 };
 
 function descargar(blob: Blob, nombre: string) {
@@ -122,7 +130,7 @@ function Gs1Inner() {
 
   const g = aGtin14(gtin);
   const pesoNum = Number(peso.replace(',', '.'));
-  const pesoCod = Math.round(pesoNum * UNIDADES[unidad].milesimas);
+  const pesoCod = Math.round(pesoNum * UNIDADES[unidad].factor);
   const pesoOk = peso.trim() !== '' && Number.isFinite(pesoNum) && pesoCod > 0 && pesoCod <= 999999;
   const loteLimpio = lote.trim();
 
@@ -132,10 +140,10 @@ function Gs1Inner() {
   if (!loteLimpio) errores.push('Falta el lote.');
   else if (loteLimpio.length > 20) errores.push('El lote admite hasta 20 caracteres.');
   else if (/[()]/.test(loteLimpio)) errores.push('El lote no puede llevar paréntesis.');
-  if (!peso.trim()) errores.push('Falta el peso neto.');
-  else if (!pesoOk) errores.push(`El peso neto debe ser un número mayor a 0 y menor a ${unidad === 'g' ? '1.000.000 g' : `1000 ${unidad}`} (máx. 3 decimales).`);
+  if (!peso.trim()) errores.push('Falta la cantidad neta.');
+  else if (!pesoOk) errores.push(`La cantidad neta debe ser un número mayor a 0 y menor a ${UNIDADES[unidad].max} (máx. 3 decimales).`);
 
-  // (3103) = peso neto en kg con 3 decimales, 6 dígitos. Orden: AIs de largo fijo primero, lote (variable) al final → no hace falta separador FNC1 extra.
+  // AI de cantidad neta según la unidad elegida (ver UNIDADES), 6 dígitos. Orden: AIs de largo fijo primero, lote (variable) al final → no hace falta separador FNC1 extra.
   const texto = useMemo(() => {
     if (errores.length > 0 || !g) return '';
     return `(01)${g.gtin}(${UNIDADES[unidad].ai})${String(pesoCod).padStart(6, '0')}(10)${loteLimpio}`;
@@ -180,17 +188,19 @@ function Gs1Inner() {
           <input value={lote} onChange={(e) => setLote(e.target.value)} maxLength={20} placeholder="ej. L2406-A" className={inputClasses} />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-slate-400">Peso neto</span>
+          <span className="text-xs text-slate-400">Cantidad neta</span>
           <div className="flex gap-2">
             <input value={peso} onChange={(e) => setPeso(e.target.value)} inputMode="decimal" placeholder="ej. 25,5" className={inputClasses} />
-            <select value={unidad} onChange={(e) => setUnidad(e.target.value as Unidad)} aria-label="Unidad de peso" className={`${inputClasses} w-24`}>
-              <option value="kg">kg</option>
-              <option value="g">g</option>
-              <option value="lb">lb</option>
+            <select value={unidad} onChange={(e) => setUnidad(e.target.value as Unidad)} aria-label="Unidad" className={`${inputClasses} w-36`}>
+              {(Object.keys(UNIDADES) as Unidad[]).map((u) => (
+                <option key={u} value={u}>
+                  {UNIDADES[u].label}
+                </option>
+              ))}
             </select>
           </div>
         </label>
-        <p className="text-xs text-slate-500">Se genera un GS1-128 con (01) GTIN, (3103) peso neto en kg (o (3203) en libras) y (10) lote. No escribe nada en Odoo.</p>
+        <p className="text-xs text-slate-500">Se genera un GS1-128 con (01) GTIN, la cantidad neta (peso, largo, área o volumen según la unidad) y (10) lote. No escribe nada en Odoo.</p>
       </div>
 
       <div className="flex flex-col items-start gap-3">
