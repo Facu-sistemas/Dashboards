@@ -49,12 +49,14 @@ function hoyArgentina(): string {
 }
 
 /**
- * Cada scanner se programa para mandar un prefijo antes del código (ZZ1 / ZZ2): así, aunque los dos
- * sean "teclados" iguales para la PC, sabemos cuál leyó. Sin prefijo, el escaneo queda sin identificar.
+ * Cada scanner se programa para mandar un prefijo antes del código ("E1 " / "E2 ", con espacio): así,
+ * aunque los dos sean "teclados" iguales para la PC, sabemos cuál leyó. Se acepta también ZZ1 / ZZ2.
+ * Sin prefijo, el escaneo queda sin identificar.
  */
 function separarScanner(crudo: string): { codigo: string; scanner?: 1 | 2 } {
-  const m = /^ZZ([12])(.+)$/i.exec(crudo.trim());
-  return m ? { codigo: m[2]!, scanner: m[1] === '1' ? 1 : 2 } : { codigo: crudo.trim() };
+  const limpio = crudo.trim();
+  const m = /^E([12])\s+(.+)$/i.exec(limpio) ?? /^ZZ([12])\s*(.+)$/i.exec(limpio);
+  return m ? { codigo: m[2]!.trim(), scanner: m[1] === '1' ? 1 : 2 } : { codigo: limpio };
 }
 
 type Envio = { accion: 'escanear' | 'deshacer'; codigo: string; scanner?: 1 | 2 } | { accion: 'anular'; id: number };
@@ -205,7 +207,7 @@ function Inner() {
                     <span className="w-14 shrink-0 tabular-nums text-slate-400">{hora.format(new Date(e.creado))}</span>
                     <span className="min-w-0 flex-1 truncate text-slate-100">{e.producto ?? e.barcode}</span>
                     {e.scanner && (
-                      <span className="shrink-0 rounded border border-slate-700 px-1.5 py-0.5 text-xs font-semibold text-slate-300">S{e.scanner}</span>
+                      <span className="shrink-0 rounded border border-slate-700 px-1.5 py-0.5 text-xs font-semibold text-slate-300">E{e.scanner}</span>
                     )}
                     <span className="hidden font-mono text-xs text-slate-500 sm:inline">{e.barcode}</span>
                     {esHoy && (
@@ -386,10 +388,10 @@ function ConfirmacionEscaneo({ aviso, onCerrar }: { aviso: Aviso | null; onCerra
         <>
           <p className="text-[12rem] font-black leading-none tabular-nums">{aviso.accion === 'escanear' ? '+1' : aviso.accion === 'deshacer' ? '−1' : '✓'}</p>
           <p className="max-w-5xl text-5xl font-bold leading-tight">{aviso.producto}</p>
-          {aviso.accion === 'escanear' && aviso.scanner && <p className="rounded-lg bg-black/25 px-8 py-3 text-5xl font-black">Scanner {aviso.scanner}</p>}
+          {aviso.accion === 'escanear' && aviso.scanner && <p className="rounded-lg bg-black/25 px-8 py-3 text-5xl font-black">E{aviso.scanner}</p>}
           {aviso.accion !== 'escanear' && (
             <p className="rounded-lg bg-black/25 px-8 py-3 text-5xl font-black">
-              {aviso.scanner ? `Era del Scanner ${aviso.scanner}` : 'Escaneo sin scanner identificado'}
+              {aviso.scanner ? `Era del E${aviso.scanner}` : 'Escaneo sin E1 / E2 identificado'}
             </p>
           )}
           {aviso.acumulado && (
