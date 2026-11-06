@@ -65,6 +65,8 @@ const ICONS = {
     '<path d="M4 8V6a2 2 0 012-2h2"/><path d="M16 4h2a2 2 0 012 2v2"/><path d="M20 16v2a2 2 0 01-2 2h-2"/><path d="M8 20H6a2 2 0 01-2-2v-2"/><circle cx="12" cy="10" r="2.5"/><path d="M7.5 17c.8-2 2.4-3 4.5-3s3.7 1 4.5 3"/>',
   factory:
     '<path d="M3 20V10l6 3v-3l6 3V6h3v14z"/><line x1="3" y1="20" x2="21" y2="20"/>',
+  share:
+    '<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><line x1="8.2" y1="10.8" x2="15.8" y2="7.2"/><line x1="8.2" y1="13.2" x2="15.8" y2="16.8"/>',
   coins: '<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.66 3.13 3 7 3s7-1.34 7-3V6"/><path d="M5 12v6c0 1.66 3.13 3 7 3s7-1.34 7-3v-6"/>',
 };
 
@@ -244,6 +246,14 @@ export const AREAS: AreaConfig[] = [
       { slug: 'permisos-odoo', name: 'Permisos Odoo' },
       { slug: 'diagrama-er', name: 'Diagrama ER' },
     ],
+  },
+  {
+    slug: 'compartidos',
+    name: 'Compartidos',
+    description: 'Herramientas de uso común entre áreas',
+    accent: 'emerald',
+    icon: ICONS.share,
+    tabs: [{ slug: 'gs1', name: 'GS1' }],
   },
 ];
 

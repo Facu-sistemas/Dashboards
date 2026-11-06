@@ -96,6 +96,7 @@ if (!area || !tabConfig || !tabVisible(tabConfig, Astro.locals.usuario) || !Astr
   {area.slug === 'produccion' && tabSlug === 'lineas-sillon' && <LineasSillonTab />}
   {area.slug === 'almacen' && tabSlug === 'etiquetas-proveedor' && <EtiquetasTab />}
   {area.slug === 'almacen' && tabSlug === 'gs1' && <Gs1Tab />}
+  {area.slug === 'compartidos' && tabSlug === 'gs1' && <Gs1Tab />}
   {area.slug === 'gestion-calidad' && tabSlug === 'tickets-soporte' && <TicketsSoporteTab />}
   {area.slug === 'gestion-calidad' && tabSlug === 'reparaciones-colchones' && <ReparacionesColchonesTab />}
   {area.slug === 'gestion-calidad' && tabSlug === 'costo-devoluciones' && <CostoDevolucionesTab />}
