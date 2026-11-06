@@ -177,9 +177,6 @@ function Inner() {
         <div className="grid gap-6 lg:grid-cols-2">
           <EscaneosPorScanner titulo="Escaneó E1" escaneos={escaneos.filter((e) => e.scanner === 1)} esHoy={esHoy} enviando={enviando} onBorrar={(id) => void ejecutar({ accion: 'anular', id })} />
           <EscaneosPorScanner titulo="Escaneó E2" escaneos={escaneos.filter((e) => e.scanner === 2)} esHoy={esHoy} enviando={enviando} onBorrar={(id) => void ejecutar({ accion: 'anular', id })} />
-          {escaneos.some((e) => e.scanner !== 1 && e.scanner !== 2) && (
-            <EscaneosPorScanner titulo="Sin identificar" escaneos={escaneos.filter((e) => e.scanner !== 1 && e.scanner !== 2)} esHoy={esHoy} enviando={enviando} onBorrar={(id) => void ejecutar({ accion: 'anular', id })} />
-          )}
         </div>
       )}
 
@@ -374,6 +371,12 @@ function Inner() {
               </details>
             )}
           </div>
+        </div>
+      )}
+
+      {d && escaneos.some((e) => e.scanner !== 1 && e.scanner !== 2) && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <EscaneosPorScanner titulo="Sin identificar" escaneos={escaneos.filter((e) => e.scanner !== 1 && e.scanner !== 2)} esHoy={esHoy} enviando={enviando} onBorrar={(id) => void ejecutar({ accion: 'anular', id })} />
         </div>
       )}
     </div>
