@@ -200,6 +200,10 @@ export async function getPalletsDia(fecha: string): Promise<PalletRegistro[]> {
 
 export async function iniciarPallet(scanner: number, usuario: string): Promise<void> {
   const db = getSupabaseAdminClient();
+  // Un pallet que quedó abierto de un día anterior se cierra solo al empezar el día: la numeración arranca de 1.
+  const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date());
+  const [inicioHoy] = limitesDiaIso(hoy);
+  await db.from('embalaje_pallets').update({ fin: inicioHoy }).eq('scanner', scanner).is('fin', null).lt('inicio', inicioHoy);
   const { data, error } = await db.from('embalaje_pallets').select('id').eq('scanner', scanner).is('fin', null).limit(1);
   if (error) throw new Error('Falta crear la tabla embalaje_pallets en Supabase. Avisá a sistemas.');
   if (data?.length) throw new Error(`El E${scanner} ya tiene un pallet en curso.`);
