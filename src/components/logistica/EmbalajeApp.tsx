@@ -175,74 +175,11 @@ function Inner() {
 
       {d && (
         <div className="grid gap-6 lg:grid-cols-2">
-          <div className="rounded-lg border border-slate-800 bg-slate-900">
-            <h3 className="border-b border-slate-800 px-4 py-3 text-sm font-semibold text-slate-100">
-              Cerrado en Odoo ({n0.format(ordenes.length)} órdenes)
-            </h3>
-            {ordenes.length === 0 ? (
-              <p className="px-4 py-6 text-center text-sm text-slate-500">Todavía no se cerró ninguna orden en este día.</p>
-            ) : (
-              <ul className="max-h-96 divide-y divide-slate-800/60 overflow-y-auto">
-                {ordenes.map((o) => (
-                  <li key={o.orden} className="flex items-center gap-3 px-4 py-2 text-sm">
-                    <span className="w-14 shrink-0 tabular-nums text-slate-400">{hora.format(new Date(o.cerrada))}</span>
-                    <span className="min-w-0 flex-1 truncate text-slate-100">{o.producto}</span>
-                    <span className="hidden font-mono text-xs text-slate-500 sm:inline">{o.orden}</span>
-                    <span className="w-10 shrink-0 text-right font-semibold tabular-nums text-slate-100">{n0.format(o.unidades)}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          <div className="rounded-lg border border-slate-800 bg-slate-900">
-            <h3 className="border-b border-slate-800 px-4 py-3 text-sm font-semibold text-slate-100">
-              Escaneos registrados ({n0.format(escaneos.length)})
-            </h3>
-            {escaneos.length === 0 ? (
-              <p className="px-4 py-6 text-center text-sm text-slate-500">Todavía no hay escaneos en este día.</p>
-            ) : (
-              <ul className="max-h-96 divide-y divide-slate-800/60 overflow-y-auto">
-                {escaneos.map((e) => (
-                  <li key={e.id} className="flex items-center gap-3 px-4 py-2 text-sm">
-                    <span className="w-14 shrink-0 tabular-nums text-slate-400">{hora.format(new Date(e.creado))}</span>
-                    <span className="min-w-0 flex-1 truncate text-slate-100">{e.producto ?? e.barcode}</span>
-                    {e.scanner && (
-                      <span className="shrink-0 rounded border border-slate-700 px-1.5 py-0.5 text-xs font-semibold text-slate-300">E{e.scanner}</span>
-                    )}
-                    <span className="hidden font-mono text-xs text-slate-500 sm:inline">{e.barcode}</span>
-                    {esHoy && (
-                      <button
-                        type="button"
-                        tabIndex={-1}
-                        onMouseDown={(ev) => ev.preventDefault()}
-                        onClick={() => void ejecutar({ accion: 'anular', id: e.id })}
-                        disabled={enviando}
-                        className="rounded border border-status-red/50 px-2 py-1 text-xs text-status-red hover:bg-slate-800 disabled:opacity-50"
-                      >
-                        Borrar
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-            {anulados.length > 0 && (
-              <details className="border-t border-slate-800">
-                <summary className="cursor-pointer px-4 py-2 text-xs text-slate-500 hover:text-slate-300">
-                  Anulados ({n0.format(anulados.length)}) — no cuentan en el total
-                </summary>
-                <ul className="max-h-60 divide-y divide-slate-800/60 overflow-y-auto">
-                  {anulados.map((e) => (
-                    <li key={e.id} className="flex items-center gap-3 px-4 py-2 text-sm text-slate-500">
-                      <span className="w-14 shrink-0 tabular-nums">{hora.format(new Date(e.creado))}</span>
-                      <span className="min-w-0 flex-1 truncate line-through">{e.producto ?? e.barcode}</span>
-                      <span className="shrink-0 text-xs">{e.anuladoAt ? `anulado ${hora.format(new Date(e.anuladoAt))}` : 'anulado'}</span>
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            )}
-          </div>
+          <EscaneosPorScanner titulo="Escaneó E1" escaneos={escaneos.filter((e) => e.scanner === 1)} esHoy={esHoy} enviando={enviando} onBorrar={(id) => void ejecutar({ accion: 'anular', id })} />
+          <EscaneosPorScanner titulo="Escaneó E2" escaneos={escaneos.filter((e) => e.scanner === 2)} esHoy={esHoy} enviando={enviando} onBorrar={(id) => void ejecutar({ accion: 'anular', id })} />
+          {escaneos.some((e) => e.scanner !== 1 && e.scanner !== 2) && (
+            <EscaneosPorScanner titulo="Sin identificar" escaneos={escaneos.filter((e) => e.scanner !== 1 && e.scanner !== 2)} esHoy={esHoy} enviando={enviando} onBorrar={(id) => void ejecutar({ accion: 'anular', id })} />
+          )}
         </div>
       )}
 
@@ -365,6 +302,127 @@ function Inner() {
             <DescargarPdf data={d} />
           </div>
         </>
+      )}
+
+      {d && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="rounded-lg border border-slate-800 bg-slate-900">
+            <h3 className="border-b border-slate-800 px-4 py-3 text-sm font-semibold text-slate-100">
+              Cerrado en Odoo ({n0.format(ordenes.length)} órdenes)
+            </h3>
+            {ordenes.length === 0 ? (
+              <p className="px-4 py-6 text-center text-sm text-slate-500">Todavía no se cerró ninguna orden en este día.</p>
+            ) : (
+              <ul className="max-h-96 divide-y divide-slate-800/60 overflow-y-auto">
+                {ordenes.map((o) => (
+                  <li key={o.orden} className="flex items-center gap-3 px-4 py-2 text-sm">
+                    <span className="w-14 shrink-0 tabular-nums text-slate-400">{hora.format(new Date(o.cerrada))}</span>
+                    <span className="min-w-0 flex-1 truncate text-slate-100">{o.producto}</span>
+                    <span className="hidden font-mono text-xs text-slate-500 sm:inline">{o.orden}</span>
+                    <span className="w-10 shrink-0 text-right font-semibold tabular-nums text-slate-100">{n0.format(o.unidades)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="rounded-lg border border-slate-800 bg-slate-900">
+            <h3 className="border-b border-slate-800 px-4 py-3 text-sm font-semibold text-slate-100">
+              Escaneos registrados ({n0.format(escaneos.length)})
+            </h3>
+            {escaneos.length === 0 ? (
+              <p className="px-4 py-6 text-center text-sm text-slate-500">Todavía no hay escaneos en este día.</p>
+            ) : (
+              <ul className="max-h-96 divide-y divide-slate-800/60 overflow-y-auto">
+                {escaneos.map((e) => (
+                  <li key={e.id} className="flex items-center gap-3 px-4 py-2 text-sm">
+                    <span className="w-14 shrink-0 tabular-nums text-slate-400">{hora.format(new Date(e.creado))}</span>
+                    <span className="min-w-0 flex-1 truncate text-slate-100">{e.producto ?? e.barcode}</span>
+                    {e.scanner && (
+                      <span className="shrink-0 rounded border border-slate-700 px-1.5 py-0.5 text-xs font-semibold text-slate-300">E{e.scanner}</span>
+                    )}
+                    <span className="hidden font-mono text-xs text-slate-500 sm:inline">{e.barcode}</span>
+                    {esHoy && (
+                      <button
+                        type="button"
+                        tabIndex={-1}
+                        onMouseDown={(ev) => ev.preventDefault()}
+                        onClick={() => void ejecutar({ accion: 'anular', id: e.id })}
+                        disabled={enviando}
+                        className="rounded border border-status-red/50 px-2 py-1 text-xs text-status-red hover:bg-slate-800 disabled:opacity-50"
+                      >
+                        Borrar
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {anulados.length > 0 && (
+              <details className="border-t border-slate-800">
+                <summary className="cursor-pointer px-4 py-2 text-xs text-slate-500 hover:text-slate-300">
+                  Anulados ({n0.format(anulados.length)}) — no cuentan en el total
+                </summary>
+                <ul className="max-h-60 divide-y divide-slate-800/60 overflow-y-auto">
+                  {anulados.map((e) => (
+                    <li key={e.id} className="flex items-center gap-3 px-4 py-2 text-sm text-slate-500">
+                      <span className="w-14 shrink-0 tabular-nums">{hora.format(new Date(e.creado))}</span>
+                      <span className="min-w-0 flex-1 truncate line-through">{e.producto ?? e.barcode}</span>
+                      <span className="shrink-0 text-xs">{e.anuladoAt ? `anulado ${hora.format(new Date(e.anuladoAt))}` : 'anulado'}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+type EscaneoFila = EmbalajeResult['escaneos'][number];
+
+/** Lo que cargó un scanner (E1 o E2), con la opción de borrar cada escaneo. */
+function EscaneosPorScanner({
+  titulo,
+  escaneos,
+  esHoy,
+  enviando,
+  onBorrar,
+}: {
+  titulo: string;
+  escaneos: EscaneoFila[];
+  esHoy: boolean;
+  enviando: boolean;
+  onBorrar: (id: number) => void;
+}) {
+  return (
+    <div className="rounded-lg border border-slate-800 bg-slate-900">
+      <h3 className="border-b border-slate-800 px-4 py-3 text-sm font-semibold text-slate-100">
+        {titulo} ({n0.format(escaneos.length)})
+      </h3>
+      {escaneos.length === 0 ? (
+        <p className="px-4 py-6 text-center text-sm text-slate-500">Todavía no hay escaneos.</p>
+      ) : (
+        <ul className="max-h-96 divide-y divide-slate-800/60 overflow-y-auto">
+          {escaneos.map((e) => (
+            <li key={e.id} className="flex items-center gap-3 px-4 py-2 text-sm">
+              <span className="w-14 shrink-0 tabular-nums text-slate-400">{hora.format(new Date(e.creado))}</span>
+              <span className="min-w-0 flex-1 truncate text-slate-100">{e.producto ?? e.barcode}</span>
+              <span className="hidden font-mono text-xs text-slate-500 sm:inline">{e.barcode}</span>
+              {esHoy && (
+                <button
+                  type="button"
+                  onClick={() => onBorrar(e.id)}
+                  disabled={enviando}
+                  className="rounded border border-status-red/50 px-2 py-1 text-xs text-status-red hover:bg-slate-800 disabled:opacity-50"
+                >
+                  Borrar
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
