@@ -22,7 +22,8 @@ interface EmbalajeResult {
   totalOdoo: number;
   totalEscaneado: number;
   ordenesCerradas: { orden: string; producto: string; barcode: string | null; unidades: number; cerrada: string }[];
-  escaneos: { id: number; barcode: string; producto: string | null; usuario: string | null; scanner: number | null; creado: string }[];
+  escaneos: { id: number; barcode: string; producto: string | null; usuario: string | null; scanner: number | null; creado: string; pallet: number | null }[];
+  pallets: { id: number; scanner: number; numero: number; inicio: string; fin: string | null; cantidad: number }[];
   anulados: { id: number; barcode: string; producto: string | null; usuario: string | null; scanner: number | null; creado: string; anuladoAt: string | null }[];
 }
 
@@ -36,6 +37,8 @@ interface Aviso {
   scanner?: number | null;
   /** Totales del producto ya refrescados, para confirmar cuántos van. */
   acumulado?: { escaneado: number; odoo: number };
+  /** Pallet abierto del scanner que leyó, con cuántos lleva; null si no hay pallet en curso. */
+  pallet?: { numero: number; cantidad: number } | null;
   /** El escaneo se contó pero hay algo para avisar. */
   advertencia?: string;
 }
@@ -59,7 +62,10 @@ function separarScanner(crudo: string): { codigo: string; scanner?: 1 | 2 } {
   return m ? { codigo: m[2]!.trim(), scanner: m[1] === '1' ? 1 : 2 } : { codigo: limpio };
 }
 
-type Envio = { accion: 'escanear' | 'deshacer'; codigo: string; scanner?: 1 | 2 } | { accion: 'anular'; id: number };
+type Envio =
+  | { accion: 'escanear' | 'deshacer'; codigo: string; scanner?: 1 | 2 }
+  | { accion: 'anular'; id: number }
+  | { accion: 'pallet-iniciar' | 'pallet-terminar'; scanner: 1 | 2 };
 
 async function enviar(envio: Envio, fecha: string): Promise<Aviso> {
   try {
@@ -133,8 +139,14 @@ function Inner() {
     const res = await enviar(envio, fecha);
     await qc.invalidateQueries({ queryKey: ['embalaje', fecha] });
     // Con los datos ya refrescados: cuántos van de ese producto, para confirmar de un vistazo.
+    if (res.ok && (envio.accion === 'pallet-iniciar' || envio.accion === 'pallet-terminar')) {
+      setEnviando(false);
+      return; // sin pantalla grande: el botón cambia solo
+    }
     if (res.ok && res.producto) {
       const datos = qc.getQueryData<EmbalajeResult>(['embalaje', fecha]);
+      const abierto = datos?.pallets.find((p) => p.scanner === res.scanner && !p.fin);
+      res.pallet = abierto ? { numero: abierto.numero, cantidad: abierto.cantidad } : null;
       const fila = datos?.filas.find((f) => f.producto === res.producto || (res.barcode && f.barcode?.toUpperCase() === res.barcode.toUpperCase()));
       if (fila) res.acumulado = { escaneado: fila.escaneado, odoo: fila.odoo };
     }
@@ -167,9 +179,30 @@ function Inner() {
     <div className="space-y-6">
       <ConfirmacionEscaneo aviso={aviso} onCerrar={() => setAviso(null)} />
 
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          tabIndex={-1}
+          onMouseDown={(ev) => ev.preventDefault()}
+          onClick={() =>
+            setAviso({
+              ok: true,
+              accion: 'escanear',
+              texto: '+1 BASE MARRON 100X190',
+              producto: 'BASE MARRON 100X190',
+              scanner: 2,
+              acumulado: { escaneado: 5, odoo: 0 },
+              pallet: { numero: 1, cantidad: 5 },
+            })
+          }
+          className="rounded border border-slate-700 px-3 py-1 text-xs text-slate-300 hover:bg-slate-800"
+        >
+          Probar pantalla de escaneo
+        </button>
       <p className="text-right text-[11px] text-slate-500" title={`Se consulta Odoo y los escaneos cada ${REFRESH_MS / 1000} s`}>
         {query.dataUpdatedAt ? `actualizado hace ${Math.max(0, Math.round((ahora - query.dataUpdatedAt) / 1000))} s · se refresca cada ${REFRESH_MS / 1000} s` : 'esperando…'}
       </p>
+      </div>
 
       {query.isError && !d && (
         <p className="rounded-lg border border-status-red/50 bg-slate-900 p-4 text-sm text-status-red">
@@ -185,8 +218,8 @@ function Inner() {
 
       {d && (
         <div className="grid gap-6 lg:grid-cols-2">
-          <EscaneosPorScanner titulo="Escaneó E1" escaneos={escaneos.filter((e) => e.scanner === 1)} esHoy={esHoy} enviando={enviando} onBorrar={(id) => void ejecutar({ accion: 'anular', id })} />
-          <EscaneosPorScanner titulo="Escaneó E2" escaneos={escaneos.filter((e) => e.scanner === 2)} esHoy={esHoy} enviando={enviando} onBorrar={(id) => void ejecutar({ accion: 'anular', id })} />
+          <EscaneosPorScanner scanner={1} pallets={d.pallets} titulo="Escaneó E1" escaneos={escaneos.filter((e) => e.scanner === 1)} esHoy={esHoy} enviando={enviando} onBorrar={(id) => void ejecutar({ accion: 'anular', id })} onPallet={(a) => void ejecutar({ accion: a, scanner: 1 })} />
+          <EscaneosPorScanner scanner={2} pallets={d.pallets} titulo="Escaneó E2" escaneos={escaneos.filter((e) => e.scanner === 2)} esHoy={esHoy} enviando={enviando} onBorrar={(id) => void ejecutar({ accion: 'anular', id })} onPallet={(a) => void ejecutar({ accion: a, scanner: 2 })} />
         </div>
       )}
 
@@ -395,46 +428,82 @@ function Inner() {
 
 type EscaneoFila = EmbalajeResult['escaneos'][number];
 
-/** Lo que cargó un scanner (E1 o E2), con la opción de borrar cada escaneo. */
+const FONDO_PALLET = ['bg-sky-500/15', 'bg-emerald-500/15'];
+
+/** Lo que cargó un scanner (E1 o E2), por pallets, con la opción de borrar cada escaneo. */
 function EscaneosPorScanner({
   titulo,
   escaneos,
   esHoy,
   enviando,
   onBorrar,
+  scanner,
+  pallets = [],
+  onPallet,
 }: {
   titulo: string;
   escaneos: EscaneoFila[];
   esHoy: boolean;
   enviando: boolean;
   onBorrar: (id: number) => void;
+  scanner?: 1 | 2;
+  pallets?: EmbalajeResult['pallets'];
+  onPallet?: (accion: 'pallet-iniciar' | 'pallet-terminar') => void;
 }) {
+  const abierto = scanner ? pallets.find((p) => p.scanner === scanner && !p.fin) : undefined;
   return (
     <div className="rounded-lg border border-slate-800 bg-slate-900">
-      <h3 className="border-b border-slate-800 px-4 py-3 text-sm font-semibold text-slate-100">
-        {titulo} ({n0.format(escaneos.length)})
-      </h3>
+      <div className="flex items-center justify-between gap-3 border-b border-slate-800 px-4 py-3">
+        <h3 className="text-sm font-semibold text-slate-100">
+          {titulo} ({n0.format(escaneos.length)})
+        </h3>
+        {scanner && onPallet && esHoy && (
+          <button
+            type="button"
+            tabIndex={-1}
+            onMouseDown={(ev) => ev.preventDefault()}
+            onClick={() => onPallet(abierto ? 'pallet-terminar' : 'pallet-iniciar')}
+            disabled={enviando}
+            className={`rounded border px-3 py-1 text-sm font-semibold disabled:opacity-50 ${
+              abierto ? 'border-status-red/60 text-status-red hover:bg-slate-800' : 'border-status-green/60 text-status-green hover:bg-slate-800'
+            }`}
+          >
+            {abierto ? `■ Terminar pallet ${abierto.numero} (${abierto.cantidad})` : '▶ Empezar pallet'}
+          </button>
+        )}
+      </div>
       {escaneos.length === 0 ? (
         <p className="px-4 py-6 text-center text-sm text-slate-500">Todavía no hay escaneos.</p>
       ) : (
-        <ul className="max-h-96 divide-y divide-slate-800/60 overflow-y-auto">
-          {escaneos.map((e) => (
-            <li key={e.id} className="flex items-center gap-3 px-4 py-2 text-sm">
-              <span className="w-14 shrink-0 tabular-nums text-slate-400">{hora.format(new Date(e.creado))}</span>
-              <span className="min-w-0 flex-1 truncate text-slate-100">{e.producto ?? e.barcode}</span>
-              <span className="hidden font-mono text-xs text-slate-500 sm:inline">{e.barcode}</span>
-              {esHoy && (
-                <button
-                  type="button"
-                  onClick={() => onBorrar(e.id)}
-                  disabled={enviando}
-                  className="rounded border border-status-red/50 px-2 py-1 text-xs text-status-red hover:bg-slate-800 disabled:opacity-50"
-                >
-                  Borrar
-                </button>
-              )}
-            </li>
-          ))}
+        <ul className="max-h-96 overflow-y-auto">
+          {escaneos.map((e, i) => {
+            const nuevoGrupo = i === 0 || escaneos[i - 1]!.pallet !== e.pallet;
+            const p = e.pallet ? pallets.find((x) => x.scanner === e.scanner && x.numero === e.pallet) : undefined;
+            return (
+              <li key={e.id} className={e.pallet ? FONDO_PALLET[e.pallet % 2] : ''}>
+                {nuevoGrupo && (
+                  <p className="border-t border-slate-700 px-4 pt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                    {p ? `Pallet ${p.numero} · ${n0.format(p.cantidad)}${p.fin ? '' : ' · en curso'}` : 'Sin pallet'}
+                  </p>
+                )}
+                <div className="flex items-center gap-3 border-b border-slate-800/60 px-4 py-2 text-sm">
+                  <span className="w-14 shrink-0 tabular-nums text-slate-400">{hora.format(new Date(e.creado))}</span>
+                  <span className="min-w-0 flex-1 truncate text-slate-100">{e.producto ?? e.barcode}</span>
+                  <span className="hidden font-mono text-xs text-slate-500 sm:inline">{e.barcode}</span>
+                  {esHoy && (
+                    <button
+                      type="button"
+                      onClick={() => onBorrar(e.id)}
+                      disabled={enviando}
+                      className="rounded border border-status-red/50 px-2 py-1 text-xs text-status-red hover:bg-slate-800 disabled:opacity-50"
+                    >
+                      Borrar
+                    </button>
+                  )}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
@@ -453,21 +522,23 @@ function ConfirmacionEscaneo({ aviso, onCerrar }: { aviso: Aviso | null; onCerra
       role="status"
       aria-live="assertive"
       onClick={onCerrar}
-      className={`fixed inset-0 z-50 flex cursor-pointer flex-col items-center justify-center gap-6 p-8 text-center text-white ${tono}`}
+      className={`fixed inset-0 z-50 flex cursor-pointer flex-col items-center justify-center gap-8 p-8 text-center text-white ${tono}`}
     >
       {aviso.ok && aviso.accion ? (
         <>
-          <p className="text-[12rem] font-black leading-none tabular-nums">{aviso.accion === 'escanear' ? '+1' : aviso.accion === 'deshacer' ? '−1' : '✓'}</p>
-          <p className="max-w-5xl text-5xl font-bold leading-tight">{aviso.producto}</p>
-          {aviso.accion === 'escanear' && aviso.scanner && <p className="rounded-lg bg-black/25 px-8 py-3 text-5xl font-black">E{aviso.scanner}</p>}
-          {aviso.accion !== 'escanear' && (
-            <p className="rounded-lg bg-black/25 px-8 py-3 text-5xl font-black">
-              {aviso.scanner ? `Era del E${aviso.scanner}` : 'Escaneo sin E1 / E2 identificado'}
-            </p>
+          <p className="max-w-[95vw] break-words font-black leading-none" style={{ fontSize: 'clamp(3rem, 10vw, 12rem)' }}>
+            {aviso.producto}
+          </p>
+          <p className="font-black leading-none tabular-nums" style={{ fontSize: 'clamp(3rem, 8vw, 9rem)' }}>
+            {aviso.scanner ? `E${aviso.scanner} ` : ''}
+            {aviso.accion === 'escanear' ? '+1' : aviso.accion === 'deshacer' ? '−1' : '✓'}
+          </p>
+          {aviso.accion !== 'escanear' && !aviso.scanner && (
+            <p className="rounded-lg bg-black/25 px-8 py-3 text-4xl font-black">Escaneo sin E1 / E2 identificado</p>
           )}
-          {aviso.acumulado && (
-            <p className="text-3xl font-semibold opacity-90">
-              Van {n0.format(aviso.acumulado.escaneado)} escaneados · Odoo {n0.format(aviso.acumulado.odoo)}
+          {aviso.accion === 'escanear' && (
+            <p className="font-bold" style={{ fontSize: 'clamp(2rem, 5vw, 6rem)' }}>
+              {aviso.pallet ? `Van ${n0.format(aviso.pallet.cantidad)} del Pallet ${aviso.pallet.numero}` : 'Sin pallet iniciado'}
             </p>
           )}
           {aviso.advertencia && <p className="rounded-lg bg-black/25 px-6 py-3 text-4xl font-bold">{aviso.advertencia}</p>}

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getEmbalaje } from '@/lib/embalaje';
 import { buscarProductoPorBarcode } from '@/lib/odoo/embalaje';
 import { getArgentinaTodayIso } from '@/lib/odoo/oee';
-import { anularEscaneo, deshacerEscaneo, registrarEscaneo } from '@/lib/supabase/embalaje-escaneos';
+import { anularEscaneo, deshacerEscaneo, iniciarPallet, registrarEscaneo, terminarPallet } from '@/lib/supabase/embalaje-escaneos';
 import { handleApiRoute, jsonResponse, ApiValidationError } from '@/lib/api-helpers';
 
 export const prerender = false;
@@ -20,6 +20,7 @@ const bodySchema = z.discriminatedUnion('accion', [
     scanner: z.union([z.literal(1), z.literal(2)]).optional(),
   }),
   z.object({ accion: z.literal('anular'), id: z.number().int().positive() }),
+  z.object({ accion: z.enum(['pallet-iniciar', 'pallet-terminar']), scanner: z.union([z.literal(1), z.literal(2)]) }),
 ]);
 
 // GET /api/embalaje-escaneos?fecha=YYYY-MM-DD&desde=HH:MM — cerrado en Odoo vs escaneado por embalaje
@@ -50,11 +51,18 @@ export const POST: APIRoute = async (context) => {
     }
     const parsed = bodySchema.safeParse(body);
     if (!parsed.success) throw new ApiValidationError('Código inválido');
+    if (parsed.data.accion === 'pallet-iniciar' || parsed.data.accion === 'pallet-terminar') {
+      const { accion: a, scanner: sc } = parsed.data;
+      if (a === 'pallet-iniciar') await iniciarPallet(sc, context.locals.usuario!.username);
+      else await terminarPallet(sc);
+      return { producto: a === 'pallet-iniciar' ? `Pallet iniciado (E${sc})` : `Pallet terminado (E${sc})`, scanner: sc };
+    }
     if (parsed.data.accion === 'anular') {
       const anulado = await anularEscaneo(parsed.data.id);
       if (!anulado) throw new ApiValidationError('Ese escaneo ya estaba borrado.');
       return { producto: anulado.producto ?? 'escaneo borrado', barcode: '', scanner: anulado.scanner };
     }
+    if (!('codigo' in parsed.data)) throw new ApiValidationError('Acción inválida');
     const { accion, codigo, fecha, scanner } = parsed.data;
 
     // Las órdenes (WH/MO/...) no se cuentan: embalaje escanea el código de barras del producto.

@@ -24,6 +24,22 @@ import { addDaysIso } from '@/lib/date';
  * avisa que los escaneos no se están guardando.
  */
 
+/**
+ * Pallets: cada scanner arma pallets de a uno (Empezar / Terminar). Un escaneo pertenece al pallet de su
+ * scanner que estaba abierto cuando se leyó. Tabla creada a mano:
+ *
+ *   create table embalaje_pallets (
+ *     id bigint generated always as identity primary key,
+ *     scanner smallint not null,
+ *     usuario text,
+ *     inicio timestamptz not null default now(),
+ *     fin timestamptz
+ *   );
+ *   create index on embalaje_pallets (inicio);
+ *   alter table embalaje_pallets enable row level security;
+ *   grant select, insert, update, delete on public.embalaje_pallets to service_role;
+ */
+
 const ARG_UTC_OFFSET_H = 3;
 const TABLA = 'embalaje_escaneos';
 
@@ -151,4 +167,53 @@ export async function anularEscaneo(id: number): Promise<(EscaneoAnulado & { pro
   const r = data?.[0];
   if (!r) return null;
   return { scanner: (r.scanner as number | null | undefined) ?? null, producto: (r.producto as string | null) ?? null };
+}
+
+export interface PalletRegistro {
+  id: number;
+  scanner: number;
+  inicio: string;
+  /** null = abierto (se están sumando colchones). */
+  fin: string | null;
+}
+
+export async function getPalletsDia(fecha: string): Promise<PalletRegistro[]> {
+  const [desde, hasta] = limitesDiaIso(fecha);
+  const { data, error } = await getSupabaseAdminClient()
+    .from('embalaje_pallets')
+    .select('*')
+    .gte('inicio', desde)
+    .lt('inicio', hasta)
+    .order('inicio', { ascending: true })
+    .limit(2000);
+  if (error) {
+    console.error('[embalaje-pallets]', error.message);
+    return [];
+  }
+  return (data ?? []).map((r) => ({
+    id: Number(r.id),
+    scanner: Number(r.scanner),
+    inicio: r.inicio as string,
+    fin: (r.fin as string | null) ?? null,
+  }));
+}
+
+export async function iniciarPallet(scanner: number, usuario: string): Promise<void> {
+  const db = getSupabaseAdminClient();
+  const { data, error } = await db.from('embalaje_pallets').select('id').eq('scanner', scanner).is('fin', null).limit(1);
+  if (error) throw new Error('Falta crear la tabla embalaje_pallets en Supabase. Avisá a sistemas.');
+  if (data?.length) throw new Error(`El E${scanner} ya tiene un pallet en curso.`);
+  const { error: e2 } = await db.from('embalaje_pallets').insert({ scanner, usuario });
+  if (e2) throw new Error(e2.message);
+}
+
+export async function terminarPallet(scanner: number): Promise<void> {
+  const { data, error } = await getSupabaseAdminClient()
+    .from('embalaje_pallets')
+    .update({ fin: new Date().toISOString() })
+    .eq('scanner', scanner)
+    .is('fin', null)
+    .select('id');
+  if (error) throw new Error(error.message);
+  if (!data?.length) throw new Error(`El E${scanner} no tiene un pallet en curso.`);
 }

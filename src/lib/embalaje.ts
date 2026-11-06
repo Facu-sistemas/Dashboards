@@ -1,5 +1,5 @@
 import { getOdooCerradoDia, type OdooOrdenCerrada } from '@/lib/odoo/embalaje';
-import { getEscaneosDia, type EscaneoAnuladoRegistro, type EscaneoRegistro } from '@/lib/supabase/embalaje-escaneos';
+import { getEscaneosDia, getPalletsDia, type EscaneoAnuladoRegistro, type EscaneoRegistro, type PalletRegistro } from '@/lib/supabase/embalaje-escaneos';
 
 export interface EmbalajeFila {
   barcode: string | null;
@@ -18,13 +18,14 @@ export interface EmbalajeResult {
   filas: EmbalajeFila[];
   totalOdoo: number;
   totalEscaneado: number;
-  escaneos: EscaneoRegistro[];
+  escaneos: (EscaneoRegistro & { pallet: number | null })[];
+  pallets: (PalletRegistro & { numero: number; cantidad: number })[];
   anulados: EscaneoAnuladoRegistro[];
   ordenesCerradas: OdooOrdenCerrada[];
 }
 
 export async function getEmbalaje(fecha: string, desdeHora = '00:00'): Promise<EmbalajeResult> {
-  const [odoo, esc] = await Promise.all([getOdooCerradoDia(fecha, desdeHora), getEscaneosDia(fecha, desdeHora)]);
+  const [odoo, esc, pallets] = await Promise.all([getOdooCerradoDia(fecha, desdeHora), getEscaneosDia(fecha, desdeHora), getPalletsDia(fecha)]);
   const filas = new Map<string, EmbalajeFila>();
   const key = (barcode: string | null, id: number | string) => (barcode ? barcode.toUpperCase() : `odoo-${id}`);
 
@@ -54,6 +55,18 @@ export async function getEmbalaje(fecha: string, desdeHora = '00:00'): Promise<E
   }
   const lista = [...filas.values()].map((f) => ({ ...f, diferencia: f.escaneado - f.odoo }));
   lista.sort((a, b) => Math.abs(b.diferencia) - Math.abs(a.diferencia) || a.producto.localeCompare(b.producto));
+  // Número de pallet por scanner (1, 2, 3… en el día) y a qué pallet cae cada escaneo.
+  const contador = new Map<number, number>();
+  const palletsNum = pallets.map((p) => {
+    const numero = (contador.get(p.scanner) ?? 0) + 1;
+    contador.set(p.scanner, numero);
+    return { ...p, numero, cantidad: 0 };
+  });
+  const escaneos = esc.lista.map((e) => {
+    const p = palletsNum.find((x) => x.scanner === e.scanner && e.creado >= x.inicio && (!x.fin || e.creado < x.fin));
+    if (p) p.cantidad++;
+    return { ...e, pallet: p?.numero ?? null };
+  });
   return {
     fecha,
     desdeHora,
@@ -61,7 +74,8 @@ export async function getEmbalaje(fecha: string, desdeHora = '00:00'): Promise<E
     filas: lista,
     totalOdoo: lista.reduce((s, f) => s + f.odoo, 0),
     totalEscaneado: lista.reduce((s, f) => s + f.escaneado, 0),
-    escaneos: esc.lista,
+    escaneos,
+    pallets: palletsNum,
     anulados: esc.anulados,
     ordenesCerradas: odoo.ordenes,
   };
