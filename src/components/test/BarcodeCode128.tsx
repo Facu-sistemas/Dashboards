@@ -62,7 +62,7 @@ export default function BarcodeCode128() {
   };
 
   return (
-    <div className="grid gap-6 md:grid-cols-2">
+    <div className="grid items-start gap-6 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       <div className="flex flex-col gap-3">
         <label className="text-sm font-medium text-slate-300" htmlFor="barcode-data">
           Datos (Code-128)
