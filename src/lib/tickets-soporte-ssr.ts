@@ -1,17 +1,13 @@
 import { QueryClient, dehydrate, type DehydratedState } from '@tanstack/react-query';
-import { getTicketsSoporte, type NotasCreditoEmpresa } from './odoo/calidad';
-import type { DateRangePreset } from './date';
+import { getTicketsSoporte } from './odoo/calidad';
 
 /** Mirrors the other tabs' SSR pattern: prefetch server-side under the same query key the client island uses. */
-export async function buildTicketsSoporteDehydratedState(
-  range: DateRangePreset,
-  notasCreditoEmpresa: NotasCreditoEmpresa = 'all'
-): Promise<DehydratedState> {
+export async function buildTicketsSoporteDehydratedState(desde: string, hasta: string): Promise<DehydratedState> {
   const queryClient = new QueryClient();
 
   await queryClient.query({
-    queryKey: ['tickets-soporte', range, notasCreditoEmpresa],
-    queryFn: () => getTicketsSoporte(range, notasCreditoEmpresa),
+    queryKey: ['tickets-soporte', desde, hasta],
+    queryFn: () => getTicketsSoporte(desde, hasta),
   });
 
   return dehydrate(queryClient);

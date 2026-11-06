@@ -1,54 +1,10 @@
 import { searchRead, searchReadAll, searchCount } from './client';
 import { getFronteraCompany } from './reference';
 import { COLCHONES_CATEG_IDS, LIVING_CATEG_IDS } from './oee';
-import { currentMonthKey, lastMonthKeys, monthsBetween, rangePresetStartDate, type DateRangePreset } from '@/lib/date';
+import { addDaysIso, currentMonthKey, monthBounds, monthsBetween, rangePresetStartDate, type DateRangePreset } from '@/lib/date';
 import type { OdooDomain } from './types';
 import { fetchNotasColchonComoCnc, type NotaDevolucion } from './notas-credito-devolucion';
 import { PRODUCTO_HORA_ID } from './costo-devoluciones';
-
-const TREND_MONTHS = 12;
-
-const PRIORITY_LABELS: Record<string, string> = {
-  '0': 'Baja',
-  '1': 'Media',
-  '2': 'Alta',
-  '3': 'Urgente',
-};
-const PRIORITY_ORDER = ['Baja', 'Media', 'Alta', 'Urgente'];
-
-export interface TicketsPorTipoRow {
-  tipo: string;
-  cantidad: number;
-}
-
-export interface TicketsPorPrioridadRow {
-  prioridad: string;
-  cantidad: number;
-}
-
-export interface TicketsMonthlyPoint {
-  month: string; // "YYYY-MM"
-  cantidad: number;
-}
-
-export interface NotasCreditoGarantiaPoint {
-  month: string; // "YYYY-MM"
-  living: number;
-  colchon: number;
-  sinSector: number;
-  /** Monto total de TODAS las notas de crédito posteadas ese mes (cualquier motivo), para poder dimensionar qué % representa la garantía. */
-  totalNotasCredito: number;
-  /** (living+colchon+sinSector)/totalNotasCredito × 100 — null si no hubo notas de crédito ese mes (dividir por 0 no tiene sentido). */
-  pctDelTotal: number | null;
-}
-
-export interface TicketsSoporteResult {
-  total: number;
-  porTipo: TicketsPorTipoRow[];
-  porPrioridad: TicketsPorPrioridadRow[];
-  mensual: TicketsMonthlyPoint[];
-  notasCreditoGarantia: NotasCreditoGarantiaPoint[];
-}
 
 /**
  * `x_studio_motivo` on `account.move` ("Tipo de Nota de Crédito") stores this
@@ -68,144 +24,275 @@ export const CREDIT_NOTE_WARRANTY_MOTIVO = 'Garantatía';
  */
 export const CREDIT_NOTE_NO_CONFORMIDAD_MOTIVO = 'Producto';
 
-/**
- * Selector de empresa para Notas de Crédito por Garantía — deliberately
- * separate from Tickets' `companyId` (siempre Frontera Living S.A. para
- * tickets, ver `getTicketsSoporte`). 'all' es el default y reproduce la
- * vista `cids=1-2` de Odoo que el usuario usa para confirmar estos números.
- */
-export type NotasCreditoEmpresa = 'all' | 'frontera' | 'presupuesto';
-
-const EMPRESA_NAME: Record<Exclude<NotasCreditoEmpresa, 'all'>, string> = {
-  frontera: 'Frontera Living S.A',
-  presupuesto: 'Presupuesto',
-};
-
-async function resolveEmpresaDomain(empresa: NotasCreditoEmpresa): Promise<OdooDomain> {
-  if (empresa === 'all') return [];
-  type Row = { id: number; name: string };
-  const rows = await searchRead<Row>({ model: 'res.company', fields: ['name'] });
-  const company = rows.find((r) => r.name === EMPRESA_NAME[empresa]);
-  // No match => an empty (impossible) filter rather than silently falling
-  // back to "all", so a renamed/missing company shows 0 instead of lying.
-  return [['company_id', '=', company?.id ?? -1]];
+export interface TicketsPorMotivoRow {
+  motivo: string;
+  cantidad: number;
 }
 
+/** Un punto del gráfico creadas vs. cerradas: un día ("YYYY-MM-DD") o, en períodos largos, un mes ("YYYY-MM"). */
+export interface ReparacionesFlujoPoint {
+  clave: string;
+  creadas: number;
+  cerradas: number;
+}
+
+export interface ReparacionGasto {
+  ref: string;
+  ticket: string | null;
+  producto: string;
+  estado: string;
+  creada: string; // YYYY-MM-DD
+  cerrada: string | null;
+  horas: number;
+  horasMonto: number;
+  /** Valor de la tela y piezas agregadas ($): costo del producto × cantidad. */
+  materiales: number;
+  /** Detalle legible de lo que se agregó: "CUEROTEX BEIGE × 1 m". */
+  materialesDetalle: string;
+  total: number;
+}
+
+export interface TicketDetalle {
+  id: number;
+  ref: string;
+  tipo: string;
+  motivo: string;
+  etapa: string;
+  creado: string;
+  cerrado: string | null;
+  cliente: string;
+  /** Descripción del ticket en texto plano (viene como HTML en Odoo). */
+  descripcion: string;
+}
+
+export interface TicketsSoporteResult {
+  desde: string;
+  hasta: string;
+  /** Tickets creados en el período. */
+  total: number;
+  porMotivo: TicketsPorMotivoRow[];
+  /** 'dia' si el gráfico va día por día, 'mes' si el período es largo. */
+  granularidad: 'dia' | 'mes';
+  /** Ventana que cubre el gráfico (si se eligió un solo día, se muestra el mes entero para dar contexto). */
+  flujoDesde: string;
+  flujoHasta: string;
+  flujo: ReparacionesFlujoPoint[];
+  /** Totales de reparaciones dentro de [desde, hasta]. */
+  reparacionesCreadas: number;
+  reparacionesCerradas: number;
+  gasto: {
+    valorHora: number;
+    cantidad: number;
+    horas: number;
+    horasMonto: number;
+    materiales: number;
+    total: number;
+    items: ReparacionGasto[];
+  };
+  tickets: TicketDetalle[];
+}
+
+/** Odoo guarda UTC; Argentina es UTC-3 todo el año (sin horario de verano). */
+function diaArgentina(utc: string): string {
+  const d = new Date(`${utc.replace(' ', 'T')}Z`);
+  return new Date(d.getTime() - 3 * 3600_000).toISOString().slice(0, 10);
+}
+
+function htmlATexto(html: string | false): string {
+  if (!html) return '';
+  return html
+    .replace(/<\/(p|div|li|h\d)>|<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{2,}/g, '\n')
+    .trim();
+}
+
+function diasEntre(desde: string, hasta: string): string[] {
+  const out: string[] = [];
+  for (let d = desde; d <= hasta; d = addDaysIso(d, 1)) out.push(d);
+  return out;
+}
+
+const DIAS_MAX_GRAFICO = 92;
+
 /**
- * Monto ($) de notas de crédito por garantía, por mes, separado Living vs.
- * Colchón — histórico completo sin recorte de rango: a diferencia de
- * Tickets, este dato recién empezó a cargarse en Odoo en septiembre 2026,
- * así que no hay un "antes" no comparable que excluir; el gráfico
- * simplemente crece un mes por vez.
+ * Tickets de Soporte del período [desde, hasta] (fechas inclusivas, día argentino).
  *
- * Deliberately NOT scoped to `company_id` by default (unlike
- * `getTicketsSoporte`) — confirmed live against the user's own Odoo view
- * (`cids=1-2`, both "Frontera Living S.A" and "Presupuesto"): restricting to
- * one company dropped 5 of 14 September rows and undercounted Colchón by
- * ~$1.5M. `empresa` lets the user narrow to one company when they want to.
+ *  - Por motivo: tickets CREADOS en el período, agrupados por `x_studio_motivo`
+ *    (Living) o `x_studio_motivo_1` (el otro formulario): Post-Venta / Calidad / Transporte / Devolución.
+ *  - Creadas vs. cerradas: órdenes de reparación (`repair.order`, sin canceladas).
+ *    Creada = `create_date`; cerrada = fecha del movimiento de stock en que se
+ *    terminó (la orden no guarda fecha de cierre propia), o su última
+ *    modificación si no tiene movimientos.
+ *  - Gasto: de las reparaciones creadas en el período, horas × valor hora
+ *    (precio de SERVICIO DE REPARACION, igual que Calidad CNC) + costo de la tela y piezas agregadas.
  */
-async function getNotasCreditoGarantia(empresa: NotasCreditoEmpresa): Promise<NotasCreditoGarantiaPoint[]> {
-  type Row = { invoice_date: string; x_studio_sector: string | false; x_studio_motivo: string | false; amount_total_signed: number };
-
-  const empresaDomain = await resolveEmpresaDomain(empresa);
-
-  // Un solo fetch de TODAS las notas de crédito posteadas (cualquier
-  // motivo) — de ahí sacamos tanto el desglose de Garantía (Living/Colchón)
-  // como el total mensual que sirve de denominador para el %.
-  const rows = await searchReadAll<Row>({
-    model: 'account.move',
-    domain: [
-      ['move_type', '=', 'out_refund'],
-      ['state', '=', 'posted'],
-      ...empresaDomain,
-    ],
-    fields: ['invoice_date', 'x_studio_sector', 'x_studio_motivo', 'amount_total_signed'],
-  });
-
-  const garantiaRows = rows.filter((r) => r.x_studio_motivo === CREDIT_NOTE_WARRANTY_MOTIVO);
-  if (garantiaRows.length === 0) return [];
-
-  const byMonth = new Map<string, { living: number; colchon: number; sinSector: number }>();
-  for (const r of garantiaRows) {
-    const month = r.invoice_date.slice(0, 7);
-    const bucket = byMonth.get(month) ?? { living: 0, colchon: 0, sinSector: 0 };
-    const monto = Math.abs(r.amount_total_signed);
-    if (r.x_studio_sector === 'Living') bucket.living += monto;
-    else if (r.x_studio_sector === 'Colchon') bucket.colchon += monto;
-    else bucket.sinSector += monto;
-    byMonth.set(month, bucket);
-  }
-
-  const totalByMonth = new Map<string, number>();
-  for (const r of rows) {
-    const month = r.invoice_date.slice(0, 7);
-    totalByMonth.set(month, (totalByMonth.get(month) ?? 0) + Math.abs(r.amount_total_signed));
-  }
-
-  const months = [...byMonth.keys()].sort();
-  const allMonths = monthsBetween(months[0]!, currentMonthKey());
-  return allMonths.map((month) => {
-    const bucket = byMonth.get(month) ?? { living: 0, colchon: 0, sinSector: 0 };
-    const totalNotasCredito = totalByMonth.get(month) ?? 0;
-    const garantiaTotal = bucket.living + bucket.colchon + bucket.sinSector;
-    const pctDelTotal = totalNotasCredito > 0 ? (garantiaTotal / totalNotasCredito) * 100 : null;
-    return { month, ...bucket, totalNotasCredito, pctDelTotal };
-  });
-}
-
-/**
- * Only "Tipo" (`ticket_type_id`) and "Prioridad" (`priority`) are usably
- * populated on real tickets — confirmed live that "Motivo"
- * (`x_studio_motivo` / `x_studio_motivo_1`, split by Tipo) is set on only 1
- * of 219 tickets, and "Bajo garantía" has zero real variance (218/219
- * false). The heatmap Tipo×Motivo and Pareto-de-Motivos from the original
- * plan would render as essentially empty against real data, so this v1
- * only covers what Calidad actually tracks today: tickets by Tipo, by
- * Prioridad, and monthly volume. Revisit once Motivo gets filled in
- * consistently.
- */
-export async function getTicketsSoporte(range: DateRangePreset, notasCreditoEmpresa: NotasCreditoEmpresa = 'all'): Promise<TicketsSoporteResult> {
+export async function getTicketsSoporte(desde: string, hasta: string): Promise<TicketsSoporteResult> {
   const { companyId } = await getFronteraCompany();
 
-  type Row = { ticket_type_id: [number, string] | false; priority: string; create_date: string };
-  const [allRows, notasCreditoGarantia] = await Promise.all([
-    searchReadAll<Row>({
+  type TicketRow = {
+    id: number;
+    name: string;
+    ticket_type_id: [number, string] | false;
+    stage_id: [number, string] | false;
+    partner_id: [number, string] | false;
+    x_studio_motivo: string | false;
+    x_studio_motivo_1: string | false;
+    description: string | false;
+    create_date: string;
+    close_date: string | false;
+  };
+  type RepairRow = {
+    id: number;
+    name: string;
+    state: string;
+    create_date: string;
+    write_date: string;
+    ticket_id: [number, string] | false;
+    product_id: [number, string] | false;
+    x_studio_horas_de_reparacion: number;
+  };
+  type MoveRow = {
+    repair_id: [number, string] | false;
+    product_id: [number, string];
+    product_uom_qty: number;
+    quantity: number;
+    product_uom: [number, string] | false;
+    repair_line_type: string | false;
+    state: string;
+    date: string;
+  };
+
+  const [tickets, repairs, productoHora] = await Promise.all([
+    searchReadAll<TicketRow>({
       model: 'helpdesk.ticket',
       domain: [['company_id', '=', companyId]],
-      fields: ['ticket_type_id', 'priority', 'create_date'],
+      fields: ['name', 'ticket_type_id', 'stage_id', 'partner_id', 'x_studio_motivo', 'x_studio_motivo_1', 'description', 'create_date', 'close_date'],
     }),
-    getNotasCreditoGarantia(notasCreditoEmpresa),
+    searchReadAll<RepairRow>({
+      model: 'repair.order',
+      domain: [['company_id', '=', companyId], ['state', '!=', 'cancel']],
+      fields: ['name', 'state', 'create_date', 'write_date', 'ticket_id', 'product_id', 'x_studio_horas_de_reparacion'],
+    }),
+    searchRead<{ id: number; lst_price: number }>({ model: 'product.product', domain: [['id', '=', PRODUCTO_HORA_ID]], fields: ['lst_price'], limit: 1 }),
   ]);
+  const valorHora = productoHora[0]?.lst_price ?? 0;
 
-  const startDate = rangePresetStartDate(range);
-  const filtered = startDate ? allRows.filter((r) => r.create_date >= startDate) : allRows;
-
-  const tipoCounts = new Map<string, number>();
-  for (const r of filtered) {
-    const tipo = r.ticket_type_id ? r.ticket_type_id[1] : 'Sin tipo';
-    tipoCounts.set(tipo, (tipoCounts.get(tipo) ?? 0) + 1);
+  const repairIds = repairs.map((r) => r.id);
+  const moves = repairIds.length
+    ? await searchReadAll<MoveRow>({
+        model: 'stock.move',
+        domain: [['repair_id', 'in', repairIds], ['state', '!=', 'cancel']],
+        fields: ['repair_id', 'product_id', 'product_uom_qty', 'quantity', 'product_uom', 'repair_line_type', 'state', 'date'],
+      })
+    : [];
+  const agregadas = moves.filter((m) => m.repair_line_type === 'add' && m.product_id[0] !== PRODUCTO_HORA_ID);
+  const prodIds = [...new Set(agregadas.map((m) => m.product_id[0]))];
+  const costos = new Map<number, number>();
+  if (prodIds.length) {
+    const rows = await searchReadAll<{ id: number; standard_price: number }>({
+      model: 'product.product',
+      domain: [['id', 'in', prodIds]],
+      fields: ['standard_price'],
+      context: { active_test: false },
+    });
+    for (const r of rows) costos.set(r.id, r.standard_price);
   }
-  const porTipo = [...tipoCounts.entries()].map(([tipo, cantidad]) => ({ tipo, cantidad })).sort((a, b) => b.cantidad - a.cantidad);
 
-  const prioridadCounts = new Map<string, number>();
-  for (const r of filtered) {
-    const label = PRIORITY_LABELS[r.priority] ?? r.priority;
-    prioridadCounts.set(label, (prioridadCounts.get(label) ?? 0) + 1);
+  // ---- Reparaciones: fecha de creación, de cierre y gasto ----
+  const movesPorOrden = new Map<number, MoveRow[]>();
+  for (const m of moves) {
+    if (!m.repair_id) continue;
+    const list = movesPorOrden.get(m.repair_id[0]) ?? [];
+    list.push(m);
+    movesPorOrden.set(m.repair_id[0], list);
   }
-  const porPrioridad = PRIORITY_ORDER.map((prioridad) => ({ prioridad, cantidad: prioridadCounts.get(prioridad) ?? 0 }));
+  const fichas = repairs.map((r) => {
+    const creada = diaArgentina(r.create_date);
+    let cerrada: string | null = null;
+    if (r.state === 'done') {
+      const hechos = (movesPorOrden.get(r.id) ?? []).filter((m) => m.state === 'done').map((m) => m.date);
+      cerrada = diaArgentina(hechos.length ? hechos.sort().at(-1)! : r.write_date);
+    }
+    const piezas = (movesPorOrden.get(r.id) ?? []).filter((m) => m.repair_line_type === 'add' && m.product_id[0] !== PRODUCTO_HORA_ID);
+    const materiales = piezas.reduce((s, m) => s + (costos.get(m.product_id[0]) ?? 0) * (m.quantity || m.product_uom_qty), 0);
+    const detalle = piezas
+      .map((m) => `${m.product_id[1]} × ${m.quantity || m.product_uom_qty}${m.product_uom ? ` ${m.product_uom[1]}` : ''}`)
+      .join(' · ');
+    const horas = r.x_studio_horas_de_reparacion || 0;
+    const item: ReparacionGasto = {
+      ref: r.name,
+      ticket: r.ticket_id ? r.ticket_id[1] : null,
+      producto: r.product_id ? r.product_id[1] : '—',
+      estado: r.state,
+      creada,
+      cerrada,
+      horas,
+      horasMonto: horas * valorHora,
+      materiales,
+      materialesDetalle: detalle,
+      total: horas * valorHora + materiales,
+    };
+    return item;
+  });
+  const enRango = (f: string) => f >= desde && f <= hasta;
 
-  // Fixed last-12-months trend, independent of the range filter — same
-  // convention as Facturación's monthly trend row.
-  const months = lastMonthKeys(TREND_MONTHS);
-  const monthSet = new Set(months);
-  const monthCounts = new Map<string, number>();
-  for (const r of allRows) {
-    const month = r.create_date.slice(0, 7);
-    if (monthSet.has(month)) monthCounts.set(month, (monthCounts.get(month) ?? 0) + 1);
+  // ---- Gráfico creadas vs cerradas ----
+  const unSoloDia = desde === hasta;
+  const flujoDesde = unSoloDia ? monthBounds(desde.slice(0, 7)).start : desde;
+  const flujoHasta = unSoloDia ? addDaysIso(monthBounds(desde.slice(0, 7)).endExclusive, -1) : hasta;
+  const granularidad: 'dia' | 'mes' = diasEntre(flujoDesde, flujoHasta).length > DIAS_MAX_GRAFICO ? 'mes' : 'dia';
+  const claves = granularidad === 'dia' ? diasEntre(flujoDesde, flujoHasta) : monthsBetween(flujoDesde.slice(0, 7), flujoHasta.slice(0, 7));
+  const claveDe = (f: string) => (granularidad === 'dia' ? f : f.slice(0, 7));
+  const flujoMap = new Map<string, ReparacionesFlujoPoint>(claves.map((k) => [k, { clave: k, creadas: 0, cerradas: 0 }]));
+  for (const f of fichas) {
+    if (f.creada >= flujoDesde && f.creada <= flujoHasta) flujoMap.get(claveDe(f.creada))!.creadas += 1;
+    if (f.cerrada && f.cerrada >= flujoDesde && f.cerrada <= flujoHasta) flujoMap.get(claveDe(f.cerrada))!.cerradas += 1;
   }
-  const mensual = months.map((month) => ({ month, cantidad: monthCounts.get(month) ?? 0 }));
 
-  return { total: filtered.length, porTipo, porPrioridad, mensual, notasCreditoGarantia };
+  // ---- Gasto: reparaciones creadas en el período ----
+  const items = fichas.filter((f) => enRango(f.creada)).sort((a, b) => b.total - a.total || b.creada.localeCompare(a.creada));
+  const horas = items.reduce((s, i) => s + i.horas, 0);
+  const materiales = items.reduce((s, i) => s + i.materiales, 0);
+
+  // ---- Tickets del período ----
+  const delPeriodo = tickets.filter((t) => enRango(diaArgentina(t.create_date)));
+  const motivoDe = (t: TicketRow) => t.x_studio_motivo || t.x_studio_motivo_1 || 'Sin motivo';
+  const conteo = new Map<string, number>();
+  for (const t of delPeriodo) conteo.set(motivoDe(t), (conteo.get(motivoDe(t)) ?? 0) + 1);
+
+  return {
+    desde,
+    hasta,
+    total: delPeriodo.length,
+    porMotivo: [...conteo.entries()].map(([motivo, cantidad]) => ({ motivo, cantidad })).sort((a, b) => b.cantidad - a.cantidad),
+    granularidad,
+    flujoDesde,
+    flujoHasta,
+    flujo: [...flujoMap.values()],
+    reparacionesCreadas: fichas.filter((f) => enRango(f.creada)).length,
+    reparacionesCerradas: fichas.filter((f) => f.cerrada && enRango(f.cerrada)).length,
+    gasto: { valorHora, cantidad: items.length, horas, horasMonto: horas * valorHora, materiales, total: horas * valorHora + materiales, items },
+    tickets: delPeriodo
+      .map((t) => ({
+        id: t.id,
+        ref: t.name,
+        tipo: t.ticket_type_id ? t.ticket_type_id[1] : 'Sin tipo',
+        motivo: motivoDe(t),
+        etapa: t.stage_id ? t.stage_id[1] : '—',
+        creado: diaArgentina(t.create_date),
+        cerrado: t.close_date ? diaArgentina(t.close_date) : null,
+        cliente: t.partner_id ? t.partner_id[1] : '—',
+        descripcion: htmlATexto(t.description),
+      }))
+      .sort((a, b) => b.creado.localeCompare(a.creado) || b.id - a.id),
+  };
 }
 
 export interface ReparacionSectorMonthlyPoint {

@@ -1,23 +1,15 @@
 ---
 import TicketsSoporteApp from './TicketsSoporteApp';
 import { buildTicketsSoporteDehydratedState } from '@/lib/tickets-soporte-ssr';
-import type { CalidadRange, NotasCreditoEmpresaFilter } from './types';
+import { getArgentinaTodayIso } from '@/lib/odoo/oee';
 
-const RANGE_VALUES: CalidadRange[] = ['all', 'this-year', 'last-12-months', 'last-6-months'];
-const EMPRESA_VALUES: NotasCreditoEmpresaFilter[] = ['all', 'frontera', 'presupuesto'];
-
-const params = Astro.url.searchParams;
-const rangeParam = params.get('range');
-const initialRange: CalidadRange = RANGE_VALUES.includes(rangeParam as CalidadRange) ? (rangeParam as CalidadRange) : 'last-12-months';
-const empresaParam = params.get('notasCreditoEmpresa');
-const initialEmpresa: NotasCreditoEmpresaFilter = EMPRESA_VALUES.includes(empresaParam as NotasCreditoEmpresaFilter)
-  ? (empresaParam as NotasCreditoEmpresaFilter)
-  : 'all';
+// Por defecto: el día de hoy (año, mes y día actuales). Cambia en el selector del tab.
+const hoy = getArgentinaTodayIso();
 
 let dehydratedState;
 let ssrError: string | null = null;
 try {
-  dehydratedState = await buildTicketsSoporteDehydratedState(initialRange, initialEmpresa);
+  dehydratedState = await buildTicketsSoporteDehydratedState(hoy, hoy);
 } catch (err) {
   ssrError = err instanceof Error ? err.message : 'Error desconocido consultando Odoo';
 }
@@ -27,10 +19,8 @@ try {
   <header class="mb-6">
     <h2 class="text-lg font-semibold text-slate-100">Tickets de Soporte</h2>
     <p class="mt-1 text-sm text-slate-400">
-      Tickets por Tipo, por Prioridad, y volumen mensual. El campo "Motivo" (Post-Venta, Calidad,
-      Transporte, etc.) todavía no se carga de forma consistente en Odoo — está poblado en 1 de
-      cada ~220 tickets — así que el desglose por motivo queda pendiente hasta que se cargue mejor.
-      Solo lectura.
+      Tickets por motivo, reparaciones creadas vs. cerradas y cuánto se gastó reparando (horas + tela).
+      Pasá el mouse sobre cada título para ver de dónde sale el dato. Solo lectura.
     </p>
   </header>
 
@@ -43,5 +33,5 @@ try {
     )
   }
 
-  <TicketsSoporteApp client:load initialRange={initialRange} initialNotasCreditoEmpresa={initialEmpresa} dehydratedState={dehydratedState} />
+  <TicketsSoporteApp client:load hoy={hoy} dehydratedState={dehydratedState} />
 </div>
