@@ -179,30 +179,9 @@ function Inner() {
     <div className="space-y-6">
       <ConfirmacionEscaneo aviso={aviso} onCerrar={() => setAviso(null)} />
 
-      <div className="flex items-center justify-between gap-3">
-        <button
-          type="button"
-          tabIndex={-1}
-          onMouseDown={(ev) => ev.preventDefault()}
-          onClick={() =>
-            setAviso({
-              ok: true,
-              accion: 'escanear',
-              texto: '+1 BASE MARRON 100X190',
-              producto: 'BASE MARRON 100X190',
-              scanner: 2,
-              acumulado: { escaneado: 5, odoo: 0 },
-              pallet: { numero: 1, cantidad: 5 },
-            })
-          }
-          className="rounded border border-slate-700 px-3 py-1 text-xs text-slate-300 hover:bg-slate-800"
-        >
-          Probar pantalla de escaneo
-        </button>
       <p className="text-right text-[11px] text-slate-500" title={`Se consulta Odoo y los escaneos cada ${REFRESH_MS / 1000} s`}>
         {query.dataUpdatedAt ? `actualizado hace ${Math.max(0, Math.round((ahora - query.dataUpdatedAt) / 1000))} s · se refresca cada ${REFRESH_MS / 1000} s` : 'esperando…'}
       </p>
-      </div>
 
       {query.isError && !d && (
         <p className="rounded-lg border border-status-red/50 bg-slate-900 p-4 text-sm text-status-red">
@@ -345,11 +324,11 @@ function Inner() {
       )}
 
       {d && (
-        <div className="grid gap-6 lg:grid-cols-2">
-          <div className="rounded-lg border border-slate-800 bg-slate-900">
-            <h3 className="border-b border-slate-800 px-4 py-3 text-sm font-semibold text-slate-100">
+        <div className="space-y-3">
+          <details className="group rounded-lg border border-slate-800 bg-slate-900">
+            <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-slate-100 hover:bg-slate-800/40">
               Cerrado en Odoo ({n0.format(ordenes.length)} órdenes)
-            </h3>
+            </summary>
             {ordenes.length === 0 ? (
               <p className="px-4 py-6 text-center text-sm text-slate-500">Todavía no se cerró ninguna orden en este día.</p>
             ) : (
@@ -364,11 +343,11 @@ function Inner() {
                 ))}
               </ul>
             )}
-          </div>
-          <div className="rounded-lg border border-slate-800 bg-slate-900">
-            <h3 className="border-b border-slate-800 px-4 py-3 text-sm font-semibold text-slate-100">
+          </details>
+          <details className="group rounded-lg border border-slate-800 bg-slate-900">
+            <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-slate-100 hover:bg-slate-800/40">
               Escaneos registrados ({n0.format(escaneos.length)})
-            </h3>
+            </summary>
             {escaneos.length === 0 ? (
               <p className="px-4 py-6 text-center text-sm text-slate-500">Todavía no hay escaneos en este día.</p>
             ) : (
@@ -413,13 +392,15 @@ function Inner() {
                 </ul>
               </details>
             )}
-          </div>
-        </div>
-      )}
-
-      {d && escaneos.some((e) => e.scanner !== 1 && e.scanner !== 2) && (
-        <div className="grid gap-6 lg:grid-cols-2">
-          <EscaneosPorScanner titulo="Sin identificar" escaneos={escaneos.filter((e) => e.scanner !== 1 && e.scanner !== 2)} esHoy={esHoy} enviando={enviando} onBorrar={(id) => void ejecutar({ accion: 'anular', id })} />
+          </details>
+          {escaneos.some((e) => e.scanner !== 1 && e.scanner !== 2) && (
+            <details className="group rounded-lg border border-slate-800 bg-slate-900">
+              <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-slate-100 hover:bg-slate-800/40">
+                Sin identificar ({n0.format(escaneos.filter((e) => e.scanner !== 1 && e.scanner !== 2).length)})
+              </summary>
+              <EscaneosPorScanner titulo="Sin identificar" escaneos={escaneos.filter((e) => e.scanner !== 1 && e.scanner !== 2)} esHoy={esHoy} enviando={enviando} onBorrar={(id) => void ejecutar({ accion: 'anular', id })} sinCabecera />
+            </details>
+          )}
         </div>
       )}
     </div>
@@ -440,6 +421,7 @@ function EscaneosPorScanner({
   scanner,
   pallets = [],
   onPallet,
+  sinCabecera,
 }: {
   titulo: string;
   escaneos: EscaneoFila[];
@@ -449,11 +431,13 @@ function EscaneosPorScanner({
   scanner?: 1 | 2;
   pallets?: EmbalajeResult['pallets'];
   onPallet?: (accion: 'pallet-iniciar' | 'pallet-terminar') => void;
+  /** Sin el recuadro ni el título (cuando ya va dentro de un acordeón). */
+  sinCabecera?: boolean;
 }) {
   const abierto = scanner ? pallets.find((p) => p.scanner === scanner && !p.fin) : undefined;
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900">
-      <div className="flex items-center justify-between gap-3 border-b border-slate-800 px-4 py-3">
+    <div className={sinCabecera ? 'border-t border-slate-800' : 'rounded-lg border border-slate-800 bg-slate-900'}>
+      <div className={`${sinCabecera ? 'hidden' : 'flex'} items-center justify-between gap-3 border-b border-slate-800 px-4 py-3`}>
         <h3 className="text-sm font-semibold text-slate-100">
           {titulo} ({n0.format(escaneos.length)})
         </h3>
@@ -516,7 +500,8 @@ function EscaneosPorScanner({
  */
 function ConfirmacionEscaneo({ aviso, onCerrar }: { aviso: Aviso | null; onCerrar: () => void }) {
   if (!aviso) return null;
-  const tono = !aviso.ok ? 'bg-status-red' : aviso.advertencia ? 'bg-status-yellow' : 'bg-status-green';
+  // Colores fijos (los del tema oscuro): en el tema claro los status-* son otros (el verde queda oliva).
+  const tono = !aviso.ok ? 'bg-[rgb(248,113,113)]' : aviso.advertencia ? 'bg-[rgb(251,191,36)]' : 'bg-[rgb(52,211,153)]';
   return (
     <div
       role="status"
