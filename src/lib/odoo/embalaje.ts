@@ -14,7 +14,7 @@ import { COLCHONES_CATEG_IDS } from './oee';
  */
 
 const ARG_UTC_OFFSET_H = 3; // Argentina = UTC-3, sin horario de verano
-const TTL_MS = 30 * 1000;
+const TTL_MS = 10 * 1000;
 
 export interface OdooOrdenCerrada {
   orden: string;

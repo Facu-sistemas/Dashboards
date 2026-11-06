@@ -40,7 +40,7 @@ interface Aviso {
   advertencia?: string;
 }
 
-const REFRESH_MS = 30 * 1000;
+const REFRESH_MS = 10 * 1000;
 const n0 = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
 const hora = new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit' });
 
@@ -96,6 +96,12 @@ function Inner() {
 
   const query = useApiQuery<EmbalajeResult>(['embalaje', fecha], `/api/embalaje-escaneos?fecha=${fecha}`);
   const { refetch } = query;
+  // Reloj para el "actualizado hace N s" (el refresco de datos va aparte, cada REFRESH_MS).
+  const [ahora, setAhora] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setAhora(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
   useEffect(() => {
     const id = setInterval(() => void refetch(), REFRESH_MS);
     return () => clearInterval(id);
@@ -160,6 +166,10 @@ function Inner() {
   return (
     <div className="space-y-6">
       <ConfirmacionEscaneo aviso={aviso} onCerrar={() => setAviso(null)} />
+
+      <p className="text-right text-[11px] text-slate-500" title={`Se consulta Odoo y los escaneos cada ${REFRESH_MS / 1000} s`}>
+        {query.dataUpdatedAt ? `actualizado hace ${Math.max(0, Math.round((ahora - query.dataUpdatedAt) / 1000))} s · se refresca cada ${REFRESH_MS / 1000} s` : 'esperando…'}
+      </p>
 
       {query.isError && !d && (
         <p className="rounded-lg border border-status-red/50 bg-slate-900 p-4 text-sm text-status-red">
