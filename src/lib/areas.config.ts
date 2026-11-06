@@ -236,6 +236,7 @@ export const AREAS: AreaConfig[] = [
     icon: ICONS.flask,
     tabs: [
       { slug: 'conversor', name: 'Conversor' },
+      { slug: 'barcode', name: 'Barcode' },
       { slug: 'colchon', name: 'Colchón' },
       { slug: 'cumpleanos', name: 'Cumpleaños' },
       { slug: 'flujo', name: 'Flujo' },
