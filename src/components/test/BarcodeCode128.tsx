@@ -14,7 +14,10 @@ function generar(texto: string, mostrarTexto: boolean): { svg: string; error: st
       paddingwidth: 10,
       paddingheight: 10,
     });
-    return { svg, error: '' };
+    // bwip-js no pone width/height: sin esto el SVG colapsa a un punto en un contenedor sin ancho fijo.
+    const vb = svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/);
+    const conTamano = vb ? svg.replace('<svg ', `<svg width="${vb[1]}" height="${vb[2]}" `) : svg;
+    return { svg: conTamano, error: '' };
   } catch (e) {
     return { svg: '', error: e instanceof Error ? e.message : String(e) };
   }
