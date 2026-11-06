@@ -90,6 +90,15 @@ function ProductPicker({ selected, onSelect }: { selected: EtiquetaProducto | nu
   );
 }
 
+type Unidad = 'kg' | 'g' | 'lb';
+
+/** GS1: 3103 = kg y 3203 = lb, ambos con 3 decimales (6 dígitos). Los gramos se codifican como kg: 1 g = 0,001 kg. */
+const UNIDADES: Record<Unidad, { ai: string; milesimas: number; label: string }> = {
+  kg: { ai: '3103', milesimas: 1000, label: 'kg' },
+  g: { ai: '3103', milesimas: 1, label: 'g' },
+  lb: { ai: '3203', milesimas: 1000, label: 'lb' },
+};
+
 function descargar(blob: Blob, nombre: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -104,6 +113,7 @@ function Gs1Inner() {
   const [gtin, setGtin] = useState('');
   const [lote, setLote] = useState('');
   const [peso, setPeso] = useState('');
+  const [unidad, setUnidad] = useState<Unidad>('kg');
 
   const elegir = (p: EtiquetaProducto) => {
     setProducto(p);
@@ -112,7 +122,8 @@ function Gs1Inner() {
 
   const g = aGtin14(gtin);
   const pesoNum = Number(peso.replace(',', '.'));
-  const pesoOk = peso.trim() !== '' && Number.isFinite(pesoNum) && pesoNum > 0 && pesoNum < 1000;
+  const pesoCod = Math.round(pesoNum * UNIDADES[unidad].milesimas);
+  const pesoOk = peso.trim() !== '' && Number.isFinite(pesoNum) && pesoCod > 0 && pesoCod <= 999999;
   const loteLimpio = lote.trim();
 
   const errores: string[] = [];
@@ -122,15 +133,14 @@ function Gs1Inner() {
   else if (loteLimpio.length > 20) errores.push('El lote admite hasta 20 caracteres.');
   else if (/[()]/.test(loteLimpio)) errores.push('El lote no puede llevar paréntesis.');
   if (!peso.trim()) errores.push('Falta el peso neto.');
-  else if (!pesoOk) errores.push('El peso neto debe ser un número entre 0 y 1000 kg.');
+  else if (!pesoOk) errores.push(`El peso neto debe ser un número mayor a 0 y menor a ${unidad === 'g' ? '1.000.000 g' : `1000 ${unidad}`} (máx. 3 decimales).`);
 
   // (3103) = peso neto en kg con 3 decimales, 6 dígitos. Orden: AIs de largo fijo primero, lote (variable) al final → no hace falta separador FNC1 extra.
   const texto = useMemo(() => {
     if (errores.length > 0 || !g) return '';
-    const p6 = String(Math.round(pesoNum * 1000)).padStart(6, '0');
-    return `(01)${g.gtin}(3103)${p6}(10)${loteLimpio}`;
+    return `(01)${g.gtin}(${UNIDADES[unidad].ai})${String(pesoCod).padStart(6, '0')}(10)${loteLimpio}`;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gtin, lote, peso]);
+  }, [gtin, lote, peso, unidad]);
 
   const { svg, error } = useMemo(() => {
     if (!texto) return { svg: '', error: '' };
@@ -170,10 +180,17 @@ function Gs1Inner() {
           <input value={lote} onChange={(e) => setLote(e.target.value)} maxLength={20} placeholder="ej. L2406-A" className={inputClasses} />
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-slate-400">Peso neto (kg)</span>
-          <input value={peso} onChange={(e) => setPeso(e.target.value)} inputMode="decimal" placeholder="ej. 25,5" className={inputClasses} />
+          <span className="text-xs text-slate-400">Peso neto</span>
+          <div className="flex gap-2">
+            <input value={peso} onChange={(e) => setPeso(e.target.value)} inputMode="decimal" placeholder="ej. 25,5" className={inputClasses} />
+            <select value={unidad} onChange={(e) => setUnidad(e.target.value as Unidad)} aria-label="Unidad de peso" className={`${inputClasses} w-24`}>
+              <option value="kg">kg</option>
+              <option value="g">g</option>
+              <option value="lb">lb</option>
+            </select>
+          </div>
         </label>
-        <p className="text-xs text-slate-500">Se genera un GS1-128 con (01) GTIN, (3103) peso neto en kg y (10) lote. No escribe nada en Odoo.</p>
+        <p className="text-xs text-slate-500">Se genera un GS1-128 con (01) GTIN, (3103) peso neto en kg (o (3203) en libras) y (10) lote. No escribe nada en Odoo.</p>
       </div>
 
       <div className="flex flex-col items-start gap-3">
