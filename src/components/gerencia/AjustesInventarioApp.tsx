@@ -213,6 +213,7 @@ function AjustesInner() {
   const thisYear = new Date().getFullYear();
   const [year, setYear] = useState(thisYear);
   const [abierto, setAbierto] = useState<string | null>(null);
+  const [catAbierta, setCatAbierta] = useState<string | null>(null);
   const [movimientos, setMovimientos] = useState<{ productId: number; producto: string; uom: string; mes: string } | null>(null);
   const [per, setPer] = useState(periodoActual);
   // Filtros de producto: vacíos = se muestra todo.
@@ -235,7 +236,7 @@ function AjustesInner() {
   const idxs = idxsForPeriodo(per, nMeses);
   const desde = idxs.length ? idxs[0]! : 0;
   const hasta = idxs.length ? idxs[idxs.length - 1]! : 11;
-  const periodo = desde === hasta ? `${MESES[desde]} ${year}` : `${MESES[desde]}–${MESES[hasta]} ${year}`;
+  const periodo = /^T\d$/.test(per) ? `${per} ${year}` : desde === hasta ? `${MESES[desde]} ${year}` : `${MESES[desde]}–${MESES[hasta]} ${year}`;
   const sel = data ? sumarMeses(data.mensual.slice(desde, hasta + 1)) : undefined;
   const enRango = (i: number) => i >= desde && i <= hasta;
   const baseMp = data ? data.base.materiaPrima.slice(desde, hasta + 1).reduce((a, v) => a + v, 0) : 0;
@@ -245,6 +246,23 @@ function AjustesInner() {
   const categoriasSel = (data?.categorias ?? [])
     .map((c) => ({ ...c, totalSel: c.netoValor.slice(desde, hasta + 1).reduce((a, v) => a + v, 0) }))
     .sort((a, b) => Math.abs(b.totalSel) - Math.abs(a.totalSel));
+
+  const esTrimestre = /^T\d$/.test(per);
+  const catTrim = (data?.categorias ?? [])
+    .map((c) => {
+      const ms = c.meses.slice(desde, hasta + 1);
+      const s = (k: 'ingresoCantidad' | 'ingresoValor' | 'egresoCantidad' | 'egresoValor') => ms.reduce((a, m) => a + m[k], 0);
+      const r = { categoria: c.categoria, ingresoCantidad: s('ingresoCantidad'), ingresoValor: s('ingresoValor'), egresoCantidad: s('egresoCantidad'), egresoValor: s('egresoValor') };
+      const porMes = c.meses.slice(desde, hasta + 1).map((m, k) => ({
+        idx: desde + k,
+        ...m,
+        netoCantidad: m.ingresoCantidad + m.egresoCantidad,
+        netoValor: m.ingresoValor + m.egresoValor,
+      }));
+      return { ...r, porMes, netoCantidad: r.ingresoCantidad + r.egresoCantidad, netoValor: r.ingresoValor + r.egresoValor };
+    })
+    .filter((c) => c.ingresoValor !== 0 || c.egresoValor !== 0 || c.ingresoCantidad !== 0 || c.egresoCantidad !== 0)
+    .sort((a, b) => Math.abs(b.netoValor) - Math.abs(a.netoValor));
 
   return (
     <div className="flex flex-col gap-6">
@@ -361,6 +379,73 @@ No cambia con el filtro de categoría o producto.`}
 
           <DesvioChart data={data.evolucion.netoValor.map((v, i) => ({ mes: MESES[i]!, desvio: pctNum(v, data.base.materiaPrima[i]!), objetivo: data.base.objetivo[i] ?? null }))} desde={desde} hasta={hasta} />
 
+          {esTrimestre ? (
+            <>
+              <div className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-900">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-slate-500">
+                      <Th tip={"Odoo: categoría del producto (product.category)."} className="p-3 font-medium">Categoría · {periodo}</Th>
+                      <Th tip={"Calcula: suma de cantidades positivas de los ajustes del trimestre, por categoría."} className="p-3 text-right font-medium">Unid. (+)</Th>
+                      <Th tip={"Calcula: suma del valor ($) de las capas que ingresan stock en el trimestre."} className="p-3 text-right font-medium">$ (+)</Th>
+                      <Th tip={"Calcula: suma de cantidades negativas de los ajustes del trimestre, por categoría."} className="p-3 text-right font-medium">Unid. (−)</Th>
+                      <Th tip={"Calcula: suma del valor ($) de las capas que sacan stock en el trimestre."} className="p-3 text-right font-medium">$ (−)</Th>
+                      <Th tip={"Calcula: Unid. (+) + Unid. (−). Mezcla kg, unidades y metros."} className="p-3 text-right font-medium">Unid. netas</Th>
+                      <Th tip={"Calcula: $ (+) + $ (−)."} className="p-3 text-right font-medium">$ neto</Th>
+                      <Th tip={"Calcula: $ neto de la categoría ÷ $ materia prima consumida en el trimestre."} className="p-3 text-right font-medium">% s/ MP</Th>
+                      <Th tip={"Calcula: $ neto de la categoría ÷ facturación del trimestre."} className="p-3 text-right font-medium">% s/ fact.</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {catTrim.map((c) => (
+                      <Fragment key={c.categoria}>
+                      <tr className="cursor-pointer border-t border-slate-800 hover:bg-slate-800/40" onClick={() => setCatAbierta(catAbierta === c.categoria ? null : c.categoria)}>
+                        <td className="p-3 font-medium text-slate-200">{catAbierta === c.categoria ? '▾' : '▸'} {c.categoria}</td>
+                        <td className="p-3 text-right tabular-nums text-emerald-400">{qtyFmt.format(c.ingresoCantidad)}</td>
+                        <td className="p-3 text-right tabular-nums text-emerald-400">{money.format(c.ingresoValor)}</td>
+                        <td className="p-3 text-right tabular-nums text-red-400">{qtyFmt.format(c.egresoCantidad)}</td>
+                        <td className="p-3 text-right tabular-nums text-red-400">{money.format(c.egresoValor)}</td>
+                        <td className={`p-3 text-right tabular-nums font-medium ${signClass(c.netoCantidad)}`}>{qtyFmt.format(c.netoCantidad)}</td>
+                        <td className={`p-3 text-right tabular-nums font-medium ${signClass(c.netoValor)}`}>{money.format(c.netoValor)}</td>
+                        <td className={`p-3 text-right tabular-nums ${signClass(c.netoValor)}`}>{pct(c.netoValor, baseMp)}</td>
+                        <td className={`p-3 text-right tabular-nums ${signClass(c.netoValor)}`}>{pct(c.netoValor, baseFact)}</td>
+                      </tr>
+                      {catAbierta === c.categoria &&
+                        c.porMes.map((m) => (
+                          <tr key={m.idx} className="bg-slate-950/40 text-xs">
+                            <td className="py-2 pl-9 pr-3 text-slate-400">{MESES[m.idx]}</td>
+                            <td className="p-2 pr-3 text-right tabular-nums text-emerald-400/80">{qtyFmt.format(m.ingresoCantidad)}</td>
+                            <td className="p-2 pr-3 text-right tabular-nums text-emerald-400/80">{money.format(m.ingresoValor)}</td>
+                            <td className="p-2 pr-3 text-right tabular-nums text-red-400/80">{qtyFmt.format(m.egresoCantidad)}</td>
+                            <td className="p-2 pr-3 text-right tabular-nums text-red-400/80">{money.format(m.egresoValor)}</td>
+                            <td className={`p-2 pr-3 text-right tabular-nums ${signClass(m.netoCantidad)}`}>{qtyFmt.format(m.netoCantidad)}</td>
+                            <td className={`p-2 pr-3 text-right tabular-nums font-medium ${signClass(m.netoValor)}`}>{money.format(m.netoValor)}</td>
+                            <td className={`p-2 pr-3 text-right tabular-nums ${signClass(m.netoValor)}`}>{pct(m.netoValor, data.base.materiaPrima[m.idx]!)}</td>
+                            <td className={`p-2 pr-3 text-right tabular-nums ${signClass(m.netoValor)}`}>{pct(m.netoValor, data.base.facturacion[m.idx]!)}</td>
+                          </tr>
+                        ))}
+                      </Fragment>
+                    ))}
+                    <tr className="border-t-2 border-slate-700 font-semibold">
+                      <td className="p-3 text-slate-200">Total {periodo}</td>
+                      <td className="p-3 text-right tabular-nums text-emerald-400">{qtyFmt.format(sel!.ingresoCantidad)}</td>
+                      <td className="p-3 text-right tabular-nums text-emerald-400">{money.format(sel!.ingresoValor)}</td>
+                      <td className="p-3 text-right tabular-nums text-red-400">{qtyFmt.format(sel!.egresoCantidad)}</td>
+                      <td className="p-3 text-right tabular-nums text-red-400">{money.format(sel!.egresoValor)}</td>
+                      <td className={`p-3 text-right tabular-nums ${signClass(sel!.netoCantidad)}`}>{qtyFmt.format(sel!.netoCantidad)}</td>
+                      <td className={`p-3 text-right tabular-nums ${signClass(sel!.netoValor)}`}>{money.format(sel!.netoValor)}</td>
+                      <td className={`p-3 text-right tabular-nums ${semaforoClass(cumple(pctNum(sel!.netoValor, baseMp), objetivoSel), signClass(sel!.netoValor))}`}>{pct(sel!.netoValor, baseMp)}</td>
+                      <td className={`p-3 text-right tabular-nums ${signClass(sel!.netoValor)}`}>{pct(sel!.netoValor, baseFact)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="-mt-3 text-[10px] text-slate-500">
+                Detalle por categoría del trimestre. Tocá una categoría para ver cómo se movió mes a mes. Elegí un mes para volver al detalle mes a mes y por producto. Las unidades suman distintas UdM (kg, unidades, metros).
+              </p>
+            </>
+          ) : (
+          <>
           <div className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-900">
             <table className="w-full text-sm">
               <thead>
@@ -433,6 +518,8 @@ No cambia con el filtro de categoría o producto.`}
             «Dif. vs historial» son las unidades de esa diferencia. Las unidades suman distintas UdM (kg, unidades, metros):
             mirá la UdM en el detalle por producto.
           </p>
+          </>
+          )}
 
           <div>
             <h3 className="mb-3 border-b border-slate-800 pb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500"><Tip text={"Toma: Odoo stock.valuation.layer de ajustes de inventario, agrupado por la categoría del producto (product.category).\nCalcula: suma del valor ($) por categoría y mes. El total es la suma de los meses del período elegido."} className="cursor-help border-b border-dotted border-slate-500">$ neto por categoría</Tip></h3>

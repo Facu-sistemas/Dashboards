@@ -103,6 +103,8 @@ export interface AjusteCategoria {
   netoValor: number[];
   totalCantidad: number;
   totalValor: number;
+  /** Ingresos/egresos por mes (12 entradas) para el detalle por categoría de un período. */
+  meses: { ingresoCantidad: number; ingresoValor: number; egresoCantidad: number; egresoValor: number }[];
 }
 
 export interface AjusteAnomalo {
@@ -391,7 +393,7 @@ function agregar(raw: Raw, filtro: AjustesFiltro): AjustesInventarioResult {
   // Agregación por mes, por producto y por categoría.
   const porMes = new Map<string, Acum>(months.map((m) => [m, nuevoAcum()]));
   const prodMes = new Map<string, Map<number, Acum & { dif: number; conDif: number }>>(months.map((m) => [m, new Map()]));
-  const catMes = new Map<string, { cant: number[]; valor: number[] }>();
+  const catMes = new Map<string, { cant: number[]; valor: number[]; acum: Acum[] }>();
   const moves = new Map<number, { mes: string; productId: number }>();
 
   for (const l of buenas) {
@@ -406,8 +408,9 @@ function agregar(raw: Raw, filtro: AjustesFiltro): AjustesInventarioResult {
     sumarCapa(pm.get(pid)!, l.quantity, l.value);
 
     const cat = info.get(pid)?.categoria ?? 'Sin categoría';
-    if (!catMes.has(cat)) catMes.set(cat, { cant: Array(12).fill(0), valor: Array(12).fill(0) });
+    if (!catMes.has(cat)) catMes.set(cat, { cant: Array(12).fill(0), valor: Array(12).fill(0), acum: Array.from({ length: 12 }, nuevoAcum) });
     const mi = months.indexOf(mes);
+    sumarCapa(catMes.get(cat)!.acum[mi]!, l.quantity, l.value);
     catMes.get(cat)!.cant[mi]! += l.quantity;
     catMes.get(cat)!.valor[mi]! += l.value;
 
@@ -493,6 +496,7 @@ function agregar(raw: Raw, filtro: AjustesFiltro): AjustesInventarioResult {
     netoValor: v.valor,
     totalCantidad: v.cant.reduce((s, x) => s + x, 0),
     totalValor: v.valor.reduce((s, x) => s + x, 0),
+    meses: v.acum.map((a) => ({ ingresoCantidad: a.ingresoCantidad, ingresoValor: a.ingresoValor, egresoCantidad: a.egresoCantidad, egresoValor: a.egresoValor })),
   }));
   categorias.sort((a, b) => Math.abs(b.totalValor) - Math.abs(a.totalValor));
 
