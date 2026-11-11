@@ -24,7 +24,8 @@ const INTERVALO_MS = 400;
 const RESULTADO_MS = 3000;
 /** Cuánto sigue el cartel "Hola, X" (y el botón) después de la última vez que se vio la cara: si la persona se mueve un instante, no se le va el botón. */
 const RETENCION_MS = 2000;
-const PREF_PANTALLA_COMPLETA = 'fichaje-pantalla-completa';
+// v2: la clave anterior pudo quedar guardada en "apagada" por un error que sacaba al quiosco de pantalla completa sin avisar.
+const PREF_PANTALLA_COMPLETA = 'fichaje-pantalla-completa-v2';
 /** Cada cuánto el celular avisa que sigue vivo (y de paso detecta si el servidor dejó de contestar bien). */
 const LATIDO_MS = 60_000;
 
@@ -45,7 +46,7 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
   /** true cuando el servidor sigue contestando mal después de varias recargas automáticas: se muestra el aviso en pantalla. */
   const [sinConexion, setSinConexion] = useState(false);
   const [recargando, setRecargando] = useState(false);
-  const { pantallaCompleta, contenedorRef, entrar: entrarPantallaCompleta, salir: salirPantallaCompleta, alTocar } = usePantallaCompleta(PREF_PANTALLA_COMPLETA);
+  const { pantallaCompleta, contenedorRef, entrar: entrarPantallaCompleta, salir: salirPantallaCompleta, alTocar } = usePantallaCompleta(PREF_PANTALLA_COMPLETA, !esDev);
 
   const personas = useMemo(() => agruparPersonas(caras), [caras]);
   const personasRef = useRef(personas);
@@ -71,7 +72,9 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
   const latidoRef = useRef({ camara: false, problema: null as string | null });
   latidoRef.current = {
     camara: camaraActiva,
-    problema: (error ?? (pendientes > 0 ? `${pendientes} fichada(s) guardada(s) sin enviar` : null))?.slice(0, 300) ?? null,
+    problema:
+      (error ??
+        (pendientes > 0 ? `${pendientes} fichada(s) guardada(s) sin enviar` : !pantallaCompleta && !esDev ? 'No está en pantalla completa' : null))?.slice(0, 300) ?? null,
   };
   useEffect(() => {
     let cancelado = false;

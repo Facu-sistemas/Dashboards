@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 
-function leerPreferencia(clave: string): boolean {
+/** null = nunca se eligió nada en este dispositivo. */
+function leerPreferencia(clave: string): boolean | null {
   try {
-    return localStorage.getItem(clave) === '1';
+    const valor = localStorage.getItem(clave);
+    return valor === null ? null : valor === '1';
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -21,10 +23,13 @@ function guardarPreferencia(clave: string, valor: boolean) {
  * `fixed inset-0` (única opción en iPhone, que no tiene Fullscreen API para elementos) y además pide pantalla
  * completa real al navegador cuando existe. El contenedor que recibe `contenedorRef` es el que se agranda.
  *
- * Con `claveRecordar` el modo se recuerda en el dispositivo (celular de quiosco); sin ella arranca siempre apagado.
+ * Con `claveRecordar` el modo se recuerda en el dispositivo (celular de quiosco) y solo se apaga con el botón de salir
+ * (no cuando el navegador sale de pantalla completa real, algo que pasa solo al apagarse la pantalla o con una notificación:
+ * el quiosco no puede quedar en la vista chica sin que nadie lo note). Sin preferencia guardada arranca como diga
+ * `porDefecto`; sin `claveRecordar` arranca siempre apagado.
  */
-export function usePantallaCompleta(claveRecordar?: string) {
-  const [pantallaCompleta, setPantallaCompleta] = useState(() => (claveRecordar ? leerPreferencia(claveRecordar) : false));
+export function usePantallaCompleta(claveRecordar?: string, porDefecto = false) {
+  const [pantallaCompleta, setPantallaCompleta] = useState(() => (claveRecordar ? (leerPreferencia(claveRecordar) ?? porDefecto) : false));
   const contenedorRef = useRef<HTMLDivElement>(null);
   /** true si el navegador entró en pantalla completa real. */
   const fsRealRef = useRef(false);
@@ -33,13 +38,15 @@ export function usePantallaCompleta(claveRecordar?: string) {
     if (claveRecordar) guardarPreferencia(claveRecordar, valor);
   }
 
-  // Si el navegador sale de pantalla completa real (ej. gesto de volver o ESC), salimos también del modo.
+  // Si el navegador sale de pantalla completa real (ej. gesto de volver o ESC), salimos también del modo, salvo en el
+  // quiosco (con `claveRecordar`): ahí queda la vista grande y el próximo toque vuelve a pedir la pantalla completa real.
   useEffect(() => {
     function alCambiar() {
       if (document.fullscreenElement) {
         fsRealRef.current = true;
       } else if (fsRealRef.current) {
         fsRealRef.current = false;
+        if (claveRecordar) return;
         setPantallaCompleta(false);
         recordar(false);
       }
