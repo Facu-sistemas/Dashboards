@@ -125,7 +125,9 @@ export interface ProductoPorCodigo {
 }
 
 /** Busca un colchón por código de barras exacto (sin distinguir mayúsculas). */
-export async function buscarProductoPorBarcode(codigo: string): Promise<ProductoPorCodigo | null> {
+export async function buscarProductoPorBarcode(codigoCrudo: string): Promise<ProductoPorCodigo | null> {
+  // Con teclado en español el lector escribe `'` (o similares) donde el código lleva `-`: EBABY60'120'9C → EBABY60-120-9C.
+  const codigo = codigoCrudo.replace(/['´`’‘?¿]/g, '-');
   const rows = await searchRead<{ id: number; name: string; barcode: string } & Record<string, unknown>>({
     model: 'product.product',
     domain: [
