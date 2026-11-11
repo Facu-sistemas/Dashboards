@@ -31,14 +31,14 @@ for (const t of tabs) {
   tabs.some((t) => t.grupo) ? (
     <nav class="border-b border-slate-800" aria-label={`Secciones de ${area.name}`}>
       {grupos.map((g) => (
-        <div class="flex flex-wrap items-end gap-1 border-b border-slate-800/60 last:border-b-0">
-          <span class="w-24 shrink-0 self-center text-[11px] font-semibold uppercase tracking-wide text-slate-500">{g.nombre}</span>
+        <div class="flex items-end gap-1 overflow-x-auto overflow-y-hidden border-b border-slate-800/60 [scrollbar-width:none] last:border-b-0 sm:flex-wrap sm:overflow-visible [&::-webkit-scrollbar]:hidden">
+          <span class="w-16 shrink-0 self-center sm:w-24 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{g.nombre}</span>
           {g.tabs.map((tab) => (
             <a
               href={`/${area.slug}/${tab.slug}`}
               aria-current={tab.slug === activeTabSlug ? 'page' : undefined}
               style={`--i:${tabs.indexOf(tab)}`}
-              class={`tab-link-enter rounded-t-lg border border-b-0 px-4 py-2 text-sm font-medium transition-colors ${
+              class={`tab-link-enter shrink-0 whitespace-nowrap rounded-t-lg border border-b-0 px-4 py-2 text-sm font-medium transition-colors ${
                 tab.slug === activeTabSlug
                   ? 'border-slate-800 bg-slate-900 text-slate-100'
                   : 'border-transparent text-slate-500 hover:text-slate-300'
@@ -51,13 +51,13 @@ for (const t of tabs) {
       ))}
     </nav>
   ) : (
-    <nav class="flex flex-wrap gap-1 border-b border-slate-800" aria-label={`Secciones de ${area.name}`}>
+    <nav class="flex gap-1 overflow-x-auto overflow-y-hidden border-b border-slate-800 [scrollbar-width:none] sm:flex-wrap sm:overflow-visible [&::-webkit-scrollbar]:hidden" aria-label={`Secciones de ${area.name}`}>
       {tabs.map((tab, i) => (
         <a
           href={`/${area.slug}/${tab.slug}`}
           aria-current={tab.slug === activeTabSlug ? 'page' : undefined}
           style={`--i:${i}`}
-          class={`tab-link-enter rounded-t-lg border border-b-0 px-4 py-2 text-sm font-medium transition-colors ${
+          class={`tab-link-enter shrink-0 whitespace-nowrap rounded-t-lg border border-b-0 px-4 py-2 text-sm font-medium transition-colors ${
             tab.slug === activeTabSlug
               ? 'border-slate-800 bg-slate-900 text-slate-100'
               : 'border-transparent text-slate-500 hover:text-slate-300'

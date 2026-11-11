@@ -65,7 +65,7 @@ export default function CarteraControls({
     <div className="flex flex-wrap items-end gap-5 rounded-lg border border-slate-800 bg-slate-900 p-4">
       <div className="flex flex-col gap-1 text-sm text-slate-300">
         Empresa
-        <div className="flex items-center gap-3 rounded border border-slate-700 bg-slate-950 px-2 py-1.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded border border-slate-700 bg-slate-950 px-2 py-1.5">
           {companies.map((c, idx) => (
             <label key={c.id} className="flex items-center gap-1.5 text-xs text-slate-300">
               <input type="checkbox" checked={selectedCompanies.has(idx)} onChange={() => toggleCompany(idx)} />

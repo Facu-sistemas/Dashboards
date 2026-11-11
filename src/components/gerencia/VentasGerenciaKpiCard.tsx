@@ -45,7 +45,7 @@ export default function VentasGerenciaKpiCard({ label, real, objetivoProrrateado
       <p className="mt-1 text-xl font-semibold text-slate-100">{clickable && expanded ? fullMoney.format(real) : fmt(real, format)}</p>
       {!sinObjetivo && <p className="mt-0.5 text-xs text-slate-500">objetivo {fmt(objetivoProrrateado, format)}</p>}
       {consensuado && consensuado.valor > 0 && (
-        <p className="text-xs text-slate-600">
+        <p className="text-xs text-slate-500">
           consensuado {consensuado.label}: {fmt(consensuado.valor, format)}
         </p>
       )}

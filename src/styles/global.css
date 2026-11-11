@@ -19,8 +19,9 @@
   --slate-200: 226 232 240;
   --slate-300: 203 213 225;
   --slate-400: 148 163 184;
-  --slate-500: 100 116 139;
-  --slate-600: 71 85 105;
+  /* 500/600 subidos para contraste en oscuro (500: ~5:1 sobre slate-900; antes 3.75:1. 600: antes 2.4:1, ilegible). */
+  --slate-500: 122 138 161;
+  --slate-600: 100 116 139;
   --slate-700: 51 65 85;
   --slate-800: 30 41 59;
   --slate-900: 15 23 42;
@@ -132,5 +133,17 @@ html[data-tab-nav='interno'] .tab-enter {
   .tab-enter,
   .tab-link-enter {
     animation: none;
+  }
+}
+
+/* Leyendas de Recharts: el texto heredaba el color de la serie (azul/ocre, ~3.9:1 sobre oscuro). El cuadradito/ícono conserva el color de la serie; el texto va legible. */
+.recharts-legend-item-text {
+  color: rgb(var(--slate-300)) !important;
+}
+
+/* Celular: un <select> con opciones largas (departamentos, empresas) ensanchaba toda la página. */
+@media (max-width: 639px) {
+  select {
+    max-width: calc(100vw - 2rem);
   }
 }
