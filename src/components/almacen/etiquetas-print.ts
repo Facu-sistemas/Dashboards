@@ -51,13 +51,15 @@ export function etiquetaCajaHtml(d: EtiquetaData): string {
   return `<div class="label">
     <div class="band"><span>${esc(d.empresa)}</span><b>CAJA MASTER <small>· MASTER CARTON</small></b></div>
     <div class="idrow"><div><div class="code">${esc(d.codigo)}</div><div class="desc">${esc(d.descripcion)} · ${d.rollosCaja} × ${fmt(d.mRollo)} m</div></div></div>
-    <div class="grid g2">
+    <div class="grid g3">
       ${cell('Lote / Lot', esc(d.lote))}
       ${cell('Contenido / Qty', `${d.rollosCaja} rollos`)}
-      ${cell('Metros totales / Total length', `${fmt(mCaja)} m`)}
-      ${cell('Peso bruto / Gross weight', `${fmt(d.kgCaja, 1)} kg`)}
+      ${cell('Metros / Length', `${fmt(mCaja)} m`)}
+      ${cell('Peso bruto / Gross', `${fmt(d.kgCaja, 1)} kg`)}
+      ${cell('Origen / Origin', esc(d.origen))}
+      ${cell('Fecha / Date', esc(d.fecha))}
     </div>
-    <div class="fine">${esc(d.color)} · ${esc(d.ancho)} · Medidas: ${esc(d.medidasCaja)} · Origen: ${esc(d.origen)}<br>${esc(d.importador)}</div>
+    <div class="fine">${esc(d.color)} · ${esc(d.ancho)} · Medidas / Size: ${esc(d.medidasCaja)}<br>${esc(d.importador)}</div>
     <div class="spacer"></div>
     ${barcodeHtml(d.bcCaja, 16)}
   </div>`;
