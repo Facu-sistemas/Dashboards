@@ -121,8 +121,8 @@ export const AREAS: AreaConfig[] = [
     accent: 'emerald',
     icon: ICONS.checkCircle,
     tabs: [
-      { slug: 'reparaciones-colchones', name: 'Reparaciones' },
       { slug: 'tickets-soporte', name: 'Tickets de Soporte' },
+      { slug: 'reparaciones-colchones', name: 'Reparaciones' },
       { slug: 'costo-devoluciones', name: 'Costo de devoluciones' },
       { slug: 'quiz-bandas', name: 'Quiz de Bandas' },
     ],
@@ -137,7 +137,6 @@ export const AREAS: AreaConfig[] = [
       { slug: 'plan-produccion', name: 'Plan de Producción' },
       { slug: 'seguimiento-mo', name: 'Seguimiento MO' },
       { slug: 'mas-detalles', name: 'Más Detalles' },
-      { slug: 'detalle-produccion', name: 'Detalle de Producción' },
     ],
   },
   {
@@ -192,6 +191,7 @@ export const AREAS: AreaConfig[] = [
       { slug: 'salud-cartera', name: 'Salud de la Cartera' },
       { slug: 'clientes-activos', name: 'Clientes Activos' },
       { slug: 'tendencia-precios', name: 'Tendencia de Precios' },
+      { slug: 'detalle-produccion', name: 'Detalle de Producción' },
     ],
   },
   {
