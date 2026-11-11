@@ -7,6 +7,7 @@ import {
   SLOTS,
   agregarManual,
   ajustarIgnoradas,
+  borrarAjuste,
   borrarManual,
   borrarPersona,
   borrarTodasPersonas,
@@ -16,6 +17,7 @@ import {
   getPlanFijado,
   limpiarIgnoradas,
   guardarPersona,
+  setAjuste,
   setAlias,
   setLinea,
   setTiempo,
@@ -111,6 +113,20 @@ const bodySchema = z.discriminatedUnion('tipo', [
   }),
   z.object({ tipo: z.literal('manual-borrar'), id: z.string().uuid() }),
   z.object({ tipo: z.literal('fijar-plan'), repartir: z.boolean() }),
+  // Lista de una estación armada a mano (una entrada por fila; null = en blanco) y su vuelta al automático.
+  z.object({
+    tipo: z.literal('celdas'),
+    linea: z.number().int().min(1).max(NUM_LINEAS),
+    estacion: z.enum(['carpinteria', 'tapiceria', 'ensamble']),
+    celdas: z.array(z.string().max(200).nullable()).max(150),
+    repartir: z.boolean(),
+  }),
+  z.object({
+    tipo: z.literal('celdas-reset'),
+    linea: z.number().int().min(1).max(NUM_LINEAS),
+    estacion: z.enum(['carpinteria', 'tapiceria', 'ensamble']).nullable(),
+    repartir: z.boolean(),
+  }),
   // delta +1 = ignorar una unidad de la orden; -1 = volver a incluirla.
   z.object({ tipo: z.literal('ignorar-limpiar'), repartir: z.boolean() }),
   z.object({ tipo: z.literal('ignorar'), orden: z.string().trim().min(1).max(80), delta: z.union([z.literal(1), z.literal(-1)]), repartir: z.boolean() }),
@@ -213,6 +229,19 @@ export const POST: APIRoute = async (context) => {
         if (d.tipo === 'ignorar') await ajustarIgnoradas(d.orden, d.delta, usuario);
         else await limpiarIgnoradas();
         // Si ya hay plan fijado hoy, se rearma sin lo ignorado para que la hoja impresa también se corra.
+        const hoy = hoyArgentina();
+        if (await getPlanFijado<PlanSillon>(hoy)) {
+          await fijarPlan(hoy, armarPlan(await getOrdenesSillon(), await getConfigSillon(), hoy, d.repartir), usuario);
+        }
+        break;
+      }
+      case 'celdas':
+      case 'celdas-reset': {
+        if (d.tipo === 'celdas') {
+          d.celdas.forEach((c) => c !== null && productoValido(c));
+          await setAjuste(d.linea, d.estacion, d.celdas, usuario);
+        } else await borrarAjuste(d.linea, d.estacion);
+        // Si ya hay plan fijado hoy se rearma con el ajuste, para que lo impreso coincida con la pantalla.
         const hoy = hoyArgentina();
         if (await getPlanFijado<PlanSillon>(hoy)) {
           await fijarPlan(hoy, armarPlan(await getOrdenesSillon(), await getConfigSillon(), hoy, d.repartir), usuario);

@@ -68,6 +68,18 @@ import { ADELANTO_PARALELO, NUM_LINEAS, type Adelanto } from '@/lib/lineas-sillo
  *   alter table lineas_sillon_ignoradas enable row level security;
  *   grant select, insert, update, delete on lineas_sillon_ignoradas to service_role;
  *
+ *   create table lineas_sillon_ajustes (          -- lista de una estación armada a mano, por día
+ *     fecha date not null,
+ *     linea integer not null check (linea between 1 and 8),
+ *     estacion text not null check (estacion in ('carpinteria','tapiceria','ensamble')),
+ *     celdas jsonb not null,                       -- [ "PRODUCTO" | null, ... ] una por fila; null = en blanco
+ *     actualizado_por text,
+ *     updated_at timestamptz not null default now(),
+ *     primary key (fecha, linea, estacion)
+ *   );
+ *   alter table lineas_sillon_ajustes enable row level security;
+ *   grant select, insert, update, delete on lineas_sillon_ajustes to service_role;
+ *
  * Una línea sin fila = activa (salvo la 8, que arranca apagada). Si las tablas no
  * existen, las lecturas devuelven `disponible: false` y el plan usa los defaults.
  */
@@ -123,7 +135,13 @@ export interface ConfigSillon {
   manuales: ManualSillon[];
   /** Unidades a descartar por orden de Odoo (MO → cantidad): ya cerradas en la línea. */
   ignoradas: Record<string, number>;
+  /** Listas armadas a mano de hoy: `${linea}|${estacion}` → producto por fila (null = en blanco). */
+  ajustes: Record<string, (string | null)[]>;
+  /** false si la tabla de ajustes todavía no existe en Supabase (no se puede editar celda por celda). */
+  ajustesDisponible: boolean;
 }
+
+const hoyAR = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date());
 
 const lineaDefault = (linea: number): LineaConfig => ({
   linea,
@@ -134,19 +152,25 @@ const lineaDefault = (linea: number): LineaConfig => ({
 
 export async function getConfigSillon(): Promise<ConfigSillon> {
   const admin = getSupabaseAdminClient();
-  const [lineasRes, personasRes, aliasRes, tiemposRes, manualesRes, ignoradasRes] = await Promise.all([
+  const [lineasRes, personasRes, aliasRes, tiemposRes, manualesRes, ignoradasRes, ajustesRes] = await Promise.all([
     admin.from('lineas_sillon_lineas').select('linea, activa, asignados, adelanto'),
     admin.from('lineas_sillon_personas').select('*').order('nombre'),
     admin.from('lineas_sillon_alias').select('odoo_base, producto'),
     admin.from('lineas_sillon_tiempos').select('producto, minutos'),
     admin.from('lineas_sillon_manuales').select('id, linea, producto, cantidad, nota').order('updated_at'),
     admin.from('lineas_sillon_ignoradas').select('orden, unidades'),
+    admin.from('lineas_sillon_ajustes').select('linea, estacion, celdas').eq('fecha', hoyAR()),
   ]);
+  if (ajustesRes.error) console.error('[lineas-sillon] ajustes', ajustesRes.error.message);
+  const ajustes: ConfigSillon['ajustes'] = Object.fromEntries(
+    (ajustesRes.data ?? []).map((r) => [`${r.linea}|${r.estacion}`, (r.celdas ?? []) as (string | null)[]]),
+  );
+  const ajustesDisponible = !ajustesRes.error;
   const error = lineasRes.error ?? personasRes.error ?? aliasRes.error ?? tiemposRes.error ?? manualesRes.error ?? ignoradasRes.error;
   const lineas = Array.from({ length: NUM_LINEAS }, (_, i) => lineaDefault(i + 1));
   if (error) {
     console.error('[lineas-sillon]', error.message);
-    return { disponible: false, lineas, personas: [], alias: {}, tiempos: {}, manuales: [], ignoradas: {} };
+    return { disponible: false, lineas, personas: [], alias: {}, tiempos: {}, manuales: [], ignoradas: {}, ajustes: {}, ajustesDisponible: false };
   }
   for (const r of lineasRes.data ?? []) {
     const l = lineas[Number(r.linea) - 1];
@@ -169,6 +193,8 @@ export async function getConfigSillon(): Promise<ConfigSillon> {
     })),
     alias: Object.fromEntries((aliasRes.data ?? []).map((r) => [r.odoo_base as string, r.producto as string])),
     tiempos: Object.fromEntries((tiemposRes.data ?? []).map((r) => [r.producto as string, Number(r.minutos)])),
+    ajustes,
+    ajustesDisponible,
     ignoradas: Object.fromEntries((ignoradasRes.data ?? []).map((r) => [r.orden as string, Number(r.unidades)])),
     manuales: (manualesRes.data ?? []).map((r) => ({
       id: r.id as string,
@@ -292,6 +318,22 @@ export async function ajustarIgnoradas(orden: string, delta: number, usuario: st
 
 export async function limpiarIgnoradas(): Promise<void> {
   const { error } = await getSupabaseAdminClient().from('lineas_sillon_ignoradas').delete().neq('orden', '');
+  if (error) throw new Error(error.message);
+}
+
+/** Guarda la lista de una estación para hoy. */
+export async function setAjuste(linea: number, estacion: string, celdas: (string | null)[], usuario: string): Promise<void> {
+  const { error } = await getSupabaseAdminClient()
+    .from('lineas_sillon_ajustes')
+    .upsert({ fecha: hoyAR(), linea, estacion, celdas, actualizado_por: usuario, updated_at: ahora() });
+  if (error) throw new Error(error.message);
+}
+
+/** Vuelve la estación (o toda la línea, sin `estacion`) al plan automático. */
+export async function borrarAjuste(linea: number, estacion: string | null): Promise<void> {
+  let q = getSupabaseAdminClient().from('lineas_sillon_ajustes').delete().eq('fecha', hoyAR()).eq('linea', linea);
+  if (estacion) q = q.eq('estacion', estacion);
+  const { error } = await q;
   if (error) throw new Error(error.message);
 }
 

@@ -5,7 +5,9 @@ import {
   planearLinea,
   resolverProducto,
   sugerencias,
+  type EstacionId,
   type EstacionPlan,
+  type ListaEstacion,
   type ProductoDato,
   type UnidadPlan,
 } from './engine';
@@ -21,6 +23,8 @@ export interface LineaPlan {
   config: LineaConfig;
   estaciones: EstacionPlan[];
   unidades: number;
+  /** Estaciones cuya lista se armó a mano (celdas elegidas o en blanco): no siguen a Odoo. */
+  editadas: EstacionId[];
   /** Minutos de una estación para fabricar todo lo asignado (sirve para comparar carga entre líneas). */
   minutosTotales: number;
 }
@@ -154,14 +158,25 @@ export function armarPlan(ordenes: OrdenSillon[], config: ConfigSillon, hoy: str
 
   const lineas: LineaPlan[] = config.lineas.map((c) => {
     const unidades = c.activa ? porLinea.get(c.linea)! : [];
-    const estaciones = planearLinea(unidades, c.adelanto);
+    const listas: Partial<Record<EstacionId, ListaEstacion>> = {};
+    const editadas: EstacionId[] = [];
+    for (const id of ['carpinteria', 'tapiceria', 'ensamble'] as const) {
+      const celdas = c.activa ? config.ajustes[`${c.linea}|${id}`] : undefined;
+      if (!celdas) continue;
+      editadas.push(id);
+      listas[id] = celdas.map((nombre) => {
+        const dato = nombre ? productos.find((p) => p.nombre === nombre) : null;
+        return dato?.minutos ? { producto: dato.nombre, origen: 'A mano', minutos: dato.minutos, personas: dato.personas ?? 5, manual: true } : null;
+      });
+    }
+    const estaciones = planearLinea(unidades, c.adelanto, listas);
     for (const t of estaciones[0]!.tramos) {
-      if (t.dia !== 0) continue;
+      if (t.dia !== 0 || t.vacio) continue;
       const k = `${c.linea}|${t.producto}`;
       const previo = hoyPorProducto.get(k);
       hoyPorProducto.set(k, { linea: c.linea, unidades: (previo?.unidades ?? 0) + 1 });
     }
-    return { linea: c.linea, config: c, estaciones, unidades: unidades.length, minutosTotales: carga.get(c.linea) ?? 0 };
+    return { linea: c.linea, config: c, estaciones, editadas, unidades: unidades.length, minutosTotales: carga.get(c.linea) ?? 0 };
   });
 
   const coincidencias: PlanSillon['coincidencias'] = {};

@@ -123,6 +123,8 @@ export interface Tramo {
   finRelojSeg: number;
   /** Unidades equivalentes acumuladas hasta esta unidad inclusive (columna U.E. de la planilla). */
   ueAcum: number;
+  /** Celda que se dejó en blanco a mano en esta estación: no consume tiempo ni muestra hora. */
+  vacio?: boolean;
 }
 
 export interface EstacionPlan {
@@ -155,14 +157,28 @@ export function relojDe(workMin: number, esInicio: boolean): { dia: number; seg:
   return { dia, seg, hms: `${h}:${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}` };
 }
 
-export function planearLinea(unidades: UnidadPlan[], adelanto: Adelanto = ADELANTO_VACIO): EstacionPlan[] {
+/** Lista propia de una estación (ajuste a mano): una unidad por fila, null = fila en blanco. */
+export type ListaEstacion = (UnidadPlan | null)[];
+
+export function planearLinea(
+  unidades: UnidadPlan[],
+  adelanto: Adelanto = ADELANTO_VACIO,
+  listas: Partial<Record<EstacionId, ListaEstacion>> = {},
+): EstacionPlan[] {
   const finPrev: number[] = [];
   return ESTACIONES.map((est, j) => {
     const tramos: Tramo[] = [];
     let libre = 0;
     let ueAcum = 0;
-    unidades.forEach((u, i) => {
-      const disponible = j === 0 || i < adelanto[est.id] ? 0 : finPrev[i]!;
+    const lista: ListaEstacion = listas[est.id] ?? unidades;
+    lista.forEach((u, i) => {
+      const disponible = j === 0 || i < adelanto[est.id] ? 0 : (finPrev[i] ?? 0);
+      if (!u) {
+        // Fila en blanco: la estación no hace nada, el reloj no avanza.
+        const t = Math.max(libre, disponible);
+        tramos.push({ idx: i + 1, producto: '', origen: '', manual: false, iniMin: t, finMin: t, dia: relojDe(t, true).dia, iniReloj: '', finReloj: '', finRelojSeg: 0, ueAcum, vacio: true });
+        return;
+      }
       const iniMin = Math.max(libre, disponible);
       const finMin = iniMin + u.minutos;
       libre = finMin;
@@ -184,7 +200,7 @@ export function planearLinea(unidades: UnidadPlan[], adelanto: Adelanto = ADELAN
       });
     });
     tramos.forEach((t, i) => (finPrev[i] = t.finMin));
-    const hoy = tramos.filter((t) => t.dia === 0);
+    const hoy = tramos.filter((t) => t.dia === 0 && !t.vacio);
     const ultimoHoy = hoy[hoy.length - 1];
     return {
       id: est.id,
@@ -192,7 +208,18 @@ export function planearLinea(unidades: UnidadPlan[], adelanto: Adelanto = ADELAN
       puesto: est.puesto,
       tramos,
       eficiencia: ultimoHoy ? ultimoHoy.finRelojSeg / CIERRE_SEG : 0,
-      pendientes: tramos.length - hoy.length,
+      pendientes: tramos.filter((t) => t.dia > 0 && !t.vacio).length,
     };
   });
+}
+
+/** Filas a mostrar/imprimir hoy: hasta la última unidad real de hoy de cualquiera de las tres estaciones. */
+export function filasDeHoy(estaciones: EstacionPlan[]): number {
+  let n = 0;
+  for (const e of estaciones) {
+    e.tramos.forEach((t, i) => {
+      if (t.dia === 0 && !t.vacio) n = Math.max(n, i + 1);
+    });
+  }
+  return n;
 }

@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import type { LineaPlan } from '@/lib/lineas-sillon/plan';
+import { filasDeHoy } from '@/lib/lineas-sillon/engine';
 import { LOGO_GRIS_PNG_BASE64 } from '@/lib/logos';
 import { porcentaje } from './lineas-sillon-shared';
 
@@ -53,7 +54,7 @@ function bloque(
   gente: string,
 ) {
   const est = lp.estaciones[estacion]!;
-  const tramos = est.tramos.filter((t) => t.dia === 0);
+  const tramos = est.tramos;
   const esUltimo = estacion === 2;
   const anchoCuerpo = esUltimo ? anchoBloque - ANCHO_UE : anchoBloque;
   const anchoProd = anchoCuerpo - ANCHO_NUM - ANCHO_HORA;
@@ -104,7 +105,7 @@ function bloque(
     celda(doc, x + ANCHO_NUM, y, anchoProd, altoFila);
     celda(doc, x + ANCHO_NUM + anchoProd, y, ANCHO_HORA, altoFila);
     texto(doc, String(desde + i + 1), x, y, ANCHO_NUM, altoFila, 'right', 2);
-    if (t) {
+    if (t && t.dia === 0 && !t.vacio) {
       texto(doc, t.producto, x + ANCHO_NUM, y, anchoProd, altoFila, 'left');
       texto(doc, t.finReloj, x + ANCHO_NUM + anchoProd, y, ANCHO_HORA, altoFila, 'right');
       ueMostrado = t.ueAcum;
@@ -154,7 +155,7 @@ export function generarPdfSillon(lineas: LineaPlan[], hoy: string, pie: string, 
 
   let primera = true;
   for (const lp of lineas) {
-    const n = lp.estaciones[0]!.tramos.filter((t) => t.dia === 0).length;
+    const n = filasDeHoy(lp.estaciones);
     for (let desde = 0; desde < n; desde += FILAS_POR_HOJA) {
       if (!primera) doc.addPage();
       primera = false;

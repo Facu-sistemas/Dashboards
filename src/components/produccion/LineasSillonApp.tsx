@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import QueryProvider from '@/components/QueryProvider';
 import { useApiQuery } from '@/components/dashboard/useApiQuery';
 import LastUpdated from '@/components/shared/LastUpdated';
 import type { LineaPlan } from '@/lib/lineas-sillon/plan';
+import { filasDeHoy, type EstacionId } from '@/lib/lineas-sillon/engine';
 import LineasSillonLineas from './LineasSillonLineas';
 import LineasSillonPersonas from './LineasSillonPersonas';
 import LineasSillonEquivalencias from './LineasSillonEquivalencias';
@@ -12,24 +13,96 @@ import { SLOTS_UI, fechaLarga, guardarSillon, horaCorta, porcentaje, tonoEficien
 
 type Vista = 'reporte' | 'lineas' | 'personas' | 'equivalencias';
 
-/** Cuántas unidades de hoy se listan por línea antes de plegar el resto. */
-const FILAS_VISIBLES = 60;
+/** Filas en blanco que se ofrecen debajo de la última unidad para seguir cargando a mano. */
+const FILAS_EXTRA = 2;
+const ID_LISTA = 'productos-sillon';
+
+/** Celda editable: se elige del desplegable (o se escribe para filtrar); vacía = la estación no hace nada en esa fila. */
+function CeldaEstacion({
+  valor,
+  hora,
+  manana,
+  editable,
+  validos,
+  onCambio,
+}: {
+  valor: string;
+  hora: string;
+  manana: boolean;
+  editable: boolean;
+  validos: Set<string>;
+  onCambio: (v: string | null) => void;
+}) {
+  const [texto, setTexto] = useState(valor);
+  useEffect(() => setTexto(valor), [valor]);
+  const confirmar = () => {
+    const limpio = texto.trim();
+    if (limpio === valor) return;
+    if (limpio === '') return onCambio(null);
+    const ok = [...validos].find((n) => n.toLowerCase() === limpio.toLowerCase());
+    if (ok) onCambio(ok);
+    else setTexto(valor); // lo escrito no es un producto: vuelve a lo que había
+  };
+  return (
+    <div className="flex items-center gap-1">
+      {editable ? (
+        <input
+          list={ID_LISTA}
+          value={texto}
+          placeholder="—"
+          onFocus={(e) => e.currentTarget.select()}
+          onChange={(e) => setTexto(e.target.value)}
+          onBlur={confirmar}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.currentTarget.blur();
+            if (e.key === 'Escape') setTexto(valor);
+          }}
+          className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-1 py-0.5 text-xs text-slate-200 placeholder:text-slate-700 hover:border-slate-700 focus:border-brand-500 focus:bg-slate-950 focus:outline-none"
+        />
+      ) : (
+        <span className="min-w-0 flex-1 truncate px-1 text-xs text-slate-200">{valor}</span>
+      )}
+      <span className={`w-[4.5rem] shrink-0 text-right text-xs tabular-nums ${manana ? 'text-amber-500/70' : 'text-slate-400'}`} title={manana ? 'Termina mañana' : undefined}>
+        {valor ? (manana ? 'mañana' : hora) : ''}
+      </span>
+    </div>
+  );
+}
 
 function LineaCard({
   lp,
   nombres,
+  validos,
+  editable,
   onPdf,
   onIgnorar,
+  onCeldas,
+  onReset,
 }: {
   lp: LineaPlan;
   nombres: Map<string, string>;
+  validos: Set<string>;
+  editable: boolean;
   onPdf: () => void;
   onIgnorar: (orden: string) => void;
+  onCeldas: (estacion: EstacionId, celdas: (string | null)[]) => void;
+  onReset: (estacion: EstacionId) => void;
 }) {
-  const [carp, tap, ens] = lp.estaciones;
-  const hoy = carp!.tramos.filter((t) => t.dia === 0);
-  const filas = hoy.slice(0, FILAS_VISIBLES);
+  const [carp] = lp.estaciones;
+  const reales = filasDeHoy(lp.estaciones);
+  const total = Math.min(150, reales + FILAS_EXTRA);
   const asignados = SLOTS_UI.map((s) => ({ ...s, nombre: lp.config.asignados[s.slot] ? nombres.get(lp.config.asignados[s.slot]!) : undefined }));
+  const editadas = lp.editadas ?? []; // los planes fijados antes de este cambio no traen el campo
+  const hayEditadas = editadas.length > 0;
+
+  const cambiar = (j: number, fila: number, valor: string | null) => {
+    const est = lp.estaciones[j]!;
+    const celdas: (string | null)[] = est.tramos.map((t) => (t.vacio ? null : t.producto));
+    while (celdas.length <= fila) celdas.push(null);
+    celdas[fila] = valor;
+    while (celdas.length > 0 && celdas[celdas.length - 1] === null) celdas.pop();
+    onCeldas(est.id, celdas);
+  };
 
   return (
     <section className="break-inside-avoid rounded-lg border border-slate-800 bg-slate-900/60">
@@ -38,9 +111,9 @@ function LineaCard({
           <h3 className="text-sm font-semibold text-slate-100">Línea {lp.linea}</h3>
           <span className="flex items-center gap-3 text-xs text-slate-500">
             <span>
-              {hoy.length} hoy{carp!.pendientes > 0 ? ` · ${carp!.pendientes} para después` : ''}
+              {reales} hoy{carp!.pendientes > 0 ? ` · ${carp!.pendientes} para después` : ''}
             </span>
-            {hoy.length > 0 && (
+            {reales > 0 && (
               <button type="button" onClick={onPdf} className="text-brand-400 hover:underline print:hidden">
                 PDF
               </button>
@@ -56,60 +129,75 @@ function LineaCard({
         </div>
       </header>
 
-      {hoy.length === 0 ? (
-        <p className="px-3 py-6 text-center text-xs text-slate-500">Sin órdenes asignadas a esta línea.</p>
-      ) : (
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="text-left text-[10px] uppercase tracking-wide text-slate-500">
-              <th className="px-3 py-1.5 font-medium">#</th>
-              <th className="py-1.5 font-medium">Producto</th>
-              <th className="py-1.5 text-right font-medium">C</th>
-              <th className="py-1.5 text-right font-medium">T</th>
-              <th className="px-3 py-1.5 text-right font-medium">E</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filas.map((t, i) => (
-              <tr key={t.idx} className="group border-t border-slate-800/60" title={t.origen}>
-                <td className="whitespace-nowrap px-3 py-1 tabular-nums text-slate-500">
-                  {t.idx}
-                  {!t.manual && (
+      <table className="w-full table-fixed text-xs">
+        <thead>
+          <tr className="text-left text-[10px] uppercase tracking-wide text-slate-500">
+            <th className="w-10 px-3 py-1.5 font-medium">#</th>
+            {lp.estaciones.map((e) => (
+              <th key={e.id} className="px-1 py-1.5 font-medium">
+                <span className="flex items-center justify-between gap-2">
+                  <span>{e.nombre.split(' ')[0]}</span>
+                  {editadas.includes(e.id) && (
                     <button
                       type="button"
-                      onClick={() => onIgnorar(t.origen)}
-                      title="Ya está terminada: sacarla del plan"
-                      aria-label={`Sacar ${t.producto} del plan`}
-                      className="ml-1 text-slate-600 opacity-0 transition-opacity hover:text-rose-400 focus:opacity-100 group-hover:opacity-100 print:hidden"
+                      onClick={() => onReset(e.id)}
+                      title="Esta estación está armada a mano: volver al plan automático de Odoo"
+                      className="rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] normal-case text-sky-300 hover:bg-sky-500/25 print:hidden"
                     >
-                      ✕
+                      a mano · ↺ automático
                     </button>
                   )}
-                </td>
-                <td className="py-1 text-slate-200">
-                  {t.producto}
-                  {t.manual && <span className="ml-1.5 rounded bg-sky-500/15 px-1 text-[10px] text-sky-300">manual</span>}
-                </td>
-                <td className="py-1 text-right tabular-nums text-slate-400">{t.finReloj}</td>
-                <td className="py-1 text-right tabular-nums text-slate-400">{tap!.tramos[i]!.finReloj}</td>
-                <td className="px-3 py-1 text-right tabular-nums text-slate-400">{ens!.tramos[i]!.finReloj}</td>
-              </tr>
+                </span>
+              </th>
             ))}
-          </tbody>
-          <tfoot>
-            <tr className="border-t border-slate-700 text-[11px]">
-              <td colSpan={2} className="px-3 py-1.5 text-slate-500">
-                {hoy.length > filas.length ? `+${hoy.length - filas.length} más · ` : ''}Eficiencia
+          </tr>
+        </thead>
+        <tbody>
+          {Array.from({ length: total }, (_, i) => (
+            <tr key={i} className="group border-t border-slate-800/60">
+              <td className="whitespace-nowrap px-3 py-0.5 tabular-nums text-slate-500">
+                {i + 1}
+                {editable && !hayEditadas && carp!.tramos[i] && !carp!.tramos[i]!.vacio && !carp!.tramos[i]!.manual && (
+                  <button
+                    type="button"
+                    onClick={() => onIgnorar(carp!.tramos[i]!.origen)}
+                    title="Ya está terminada en todas las estaciones: sacarla del plan (para una sola estación, vaciá su celda)"
+                    aria-label="Sacar del plan"
+                    className="ml-1 text-slate-600 opacity-0 transition-opacity hover:text-rose-400 focus:opacity-100 group-hover:opacity-100 print:hidden"
+                  >
+                    ✕
+                  </button>
+                )}
               </td>
-              {lp.estaciones.map((e, i) => (
-                <td key={e.id} className={`py-1.5 text-right font-semibold tabular-nums ${i === 2 ? 'px-3' : ''} ${tonoEficiencia(e.eficiencia)}`}>
-                  {porcentaje(e.eficiencia)}
-                </td>
-              ))}
+              {lp.estaciones.map((e, j) => {
+                const t = e.tramos[i];
+                return (
+                  <td key={e.id} className="px-1 py-0.5">
+                    <CeldaEstacion
+                      valor={t && !t.vacio ? t.producto : ''}
+                      hora={t?.finReloj ?? ''}
+                      manana={!!t && t.dia > 0}
+                      editable={editable}
+                      validos={validos}
+                      onCambio={(v) => cambiar(j, i, v)}
+                    />
+                  </td>
+                );
+              })}
             </tr>
-          </tfoot>
-        </table>
-      )}
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className="border-t border-slate-700 text-[11px]">
+            <td className="px-3 py-1.5 text-slate-500">Efic.</td>
+            {lp.estaciones.map((e) => (
+              <td key={e.id} className={`px-1 py-1.5 text-right font-semibold tabular-nums ${tonoEficiencia(e.eficiencia)}`}>
+                {porcentaje(e.eficiencia)}
+              </td>
+            ))}
+          </tr>
+        </tfoot>
+      </table>
     </section>
   );
 }
@@ -134,6 +222,8 @@ function Reporte({
   const nombres = new Map(config.personas.map((p) => [p.id, p.nombre]));
   const activas = plan.lineas.filter((l) => l.config.activa);
   const apagadas = plan.lineas.filter((l) => !l.config.activa).map((l) => l.linea);
+  const productosConTiempo = plan.productos.filter((p) => p.minutos);
+  const validos = new Set(productosConTiempo.map((p) => p.nombre));
   const sinResolverUnidades = plan.sinResolver.reduce((a, r) => a + r.unidades, 0);
 
   const pie = mostrandoFijado
@@ -147,6 +237,26 @@ function Reporte({
     setError('');
     try {
       await guardarSillon({ tipo: 'ignorar', orden, delta, repartir });
+      onSaved();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  const celdas = async (linea: number, estacion: EstacionId, lista: (string | null)[]) => {
+    setError('');
+    try {
+      await guardarSillon({ tipo: 'celdas', linea, estacion, celdas: lista, repartir });
+      onSaved();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  const volverAutomatico = async (linea: number, estacion: EstacionId) => {
+    setError('');
+    try {
+      await guardarSillon({ tipo: 'celdas-reset', linea, estacion, repartir });
       onSaved();
     } catch (e) {
       setError((e as Error).message);
@@ -275,9 +385,32 @@ function Reporte({
         </details>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+      <datalist id={ID_LISTA}>
+        {productosConTiempo.map((p) => (
+          <option key={p.nombre} value={p.nombre} />
+        ))}
+      </datalist>
+      {!config.ajustesDisponible && (
+        <p className="text-xs text-amber-300">
+          Para armar las estaciones a mano falta crear la tabla lineas_sillon_ajustes en Supabase (el SQL está en src/lib/supabase/lineas-sillon.ts).
+        </p>
+      )}
+      <p className="text-xs text-slate-500">
+        Cada estación se puede armar por separado: elegí un producto del desplegable o dejá la celda vacía, y los horarios de esa columna se recalculan solos.
+      </p>
+      <div className="grid gap-4">
         {activas.map((lp) => (
-          <LineaCard key={lp.linea} lp={lp} nombres={nombres} onPdf={() => pdf([lp], `linea-${lp.linea}-${plan.hoy}.pdf`)} onIgnorar={(o) => void ignorar(o, 1)} />
+          <LineaCard
+            key={lp.linea}
+            lp={lp}
+            nombres={nombres}
+            validos={validos}
+            editable={config.ajustesDisponible}
+            onPdf={() => pdf([lp], `linea-${lp.linea}-${plan.hoy}.pdf`)}
+            onIgnorar={(o) => void ignorar(o, 1)}
+            onCeldas={(est, lista) => void celdas(lp.linea, est, lista)}
+            onReset={(est) => void volverAutomatico(lp.linea, est)}
+          />
         ))}
       </div>
       {activas.length === 0 && <p className="py-8 text-center text-sm text-slate-500">No hay líneas habilitadas.</p>}
