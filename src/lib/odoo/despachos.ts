@@ -1,6 +1,6 @@
 import { searchCount, searchReadAll } from './client';
 import { addDaysIso, lastMonthKeys, monthBounds } from '@/lib/date';
-import { getArgentinaTodayIso } from './oee';
+import { getArgentinaTodayIso, LIVING_CATEG_IDS } from './oee';
 import type { OdooDomain } from './types';
 
 export type DespachoEstado = 'assigned' | 'confirmed' | 'waiting';
@@ -14,6 +14,10 @@ export interface DespachoPendiente {
   estado: DespachoEstado;
   fechaProgramada: string;
   diasAtraso: number;
+  /** Unidades de colchón pendientes en este picking. */
+  colchones: number;
+  /** Unidades equivalentes (UE) de sillón pendientes en este picking. */
+  sillonesEq: number;
 }
 
 export interface DespachosAntiguedadBucket {
@@ -26,13 +30,34 @@ export interface DespachosData {
   pendientes: DespachoPendiente[];
   porEstado: Record<DespachoEstado, number>;
   atrasados: number;
+  /** Totales pendientes de recolectar (suma de todos los pickings pendientes). */
+  colchonesPendientes: number;
+  sillonesEqPendientes: number;
   antiguedad: DespachosAntiguedadBucket[];
   despachados30d: number;
   despachadosMensual: { month: string; count: number }[];
 }
 
-/** Remitos de salida (`stock.picking` outgoing) de todas las compañías/almacenes. */
-const OUTGOING: OdooDomain = [['picking_type_code', '=', 'outgoing']];
+/**
+ * Pickings WH/PICK (tipo de operación "Recolectar", id 3: WH/Existencias → WH/Salida).
+ * Se usan en lugar de los remitos WH/OUT: el pendiente real de depósito es lo que
+ * todavía no se recolectó. Mismo id que usa Logística > Avance de carga.
+ */
+const PICKING_TYPE_RECOLECTAR = 3;
+const OUTGOING: OdooDomain = [['picking_type_id', '=', PICKING_TYPE_RECOLECTAR]];
+/** Categorías que cuentan como "colchón" (unidad); Bases (8) viaja con el colchón y no suma unidades. */
+const COLCHON_UNIDAD_CATEG_IDS = [5, 9, 6, 20];
+
+interface MoveRow extends Record<string, unknown> {
+  picking_id: [number, string] | false;
+  product_id: [number, string];
+  product_uom_qty: number;
+}
+interface ProductRow extends Record<string, unknown> {
+  id: number;
+  x_studio_equivalente_produccion: number;
+  categ_id: [number, string];
+}
 
 interface PickingRow extends Record<string, unknown> {
   id: number;
@@ -84,9 +109,44 @@ export async function getDespachosData(): Promise<DespachosData> {
     ),
   ]);
 
+  // Colchones y sillones (UE) pendientes: demanda de los movimientos de los pickings pendientes.
+  const moves = await searchReadAll<MoveRow>({
+    model: 'stock.move',
+    domain: [
+      ['picking_id.picking_type_id', '=', PICKING_TYPE_RECOLECTAR],
+      ['picking_id.state', 'in', ['assigned', 'confirmed', 'waiting']],
+      ['state', 'not in', ['done', 'cancel']],
+    ],
+    fields: ['picking_id', 'product_id', 'product_uom_qty'],
+  });
+  const productIds = [...new Set(moves.map((m) => m.product_id[0]))];
+  const products = productIds.length
+    ? await searchReadAll<ProductRow>({
+        model: 'product.product',
+        domain: [['id', 'in', productIds]],
+        fields: ['x_studio_equivalente_produccion', 'categ_id'],
+        context: { active_test: false },
+      })
+    : [];
+  const productById = new Map(products.map((p) => [p.id, p]));
+  const porPicking = new Map<number, { colchones: number; sillonesEq: number }>();
+  for (const m of moves) {
+    if (!m.picking_id) continue;
+    const prod = productById.get(m.product_id[0]);
+    if (!prod) continue;
+    const acc = porPicking.get(m.picking_id[0]) ?? { colchones: 0, sillonesEq: 0 };
+    const categ = prod.categ_id[0];
+    if (COLCHON_UNIDAD_CATEG_IDS.includes(categ)) acc.colchones += m.product_uom_qty;
+    else if (LIVING_CATEG_IDS.includes(categ)) acc.sillonesEq += m.product_uom_qty * (prod.x_studio_equivalente_produccion || 0);
+    porPicking.set(m.picking_id[0], acc);
+  }
+
   const pendientes: DespachoPendiente[] = rows.map((r) => {
     const fecha = r.scheduled_date.slice(0, 10);
+    const u = porPicking.get(r.id);
     return {
+      colchones: u?.colchones ?? 0,
+      sillonesEq: u?.sillonesEq ?? 0,
       id: r.id,
       name: r.name,
       cliente: r.partner_id ? r.partner_id[1] : '—',
@@ -112,6 +172,8 @@ export async function getDespachosData(): Promise<DespachosData> {
     pendientes,
     porEstado,
     atrasados: pendientes.filter((p) => p.diasAtraso > 0).length,
+    colchonesPendientes: pendientes.reduce((s, p) => s + p.colchones, 0),
+    sillonesEqPendientes: pendientes.reduce((s, p) => s + p.sillonesEq, 0),
     antiguedad,
     despachados30d,
     despachadosMensual: mensual,

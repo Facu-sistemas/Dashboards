@@ -14,9 +14,9 @@ try {
 }
 
 const ESTADO_LABEL: Record<DespachoEstado, string> = {
-  assigned: 'Listo para despachar',
+  assigned: 'Listo para preparar',
   confirmed: 'Esperando disponibilidad',
-  waiting: 'Esperando otra operación',
+  waiting: 'En espera',
 };
 const ESTADO_CLASS: Record<DespachoEstado, string> = {
   assigned: 'text-status-green',
@@ -53,9 +53,9 @@ const searchClass =
   <header class="mb-6">
     <h2 class="text-lg font-semibold text-slate-100">Pendientes de despacho</h2>
     <p class="mt-1 text-sm text-slate-400">
-      Todo lo que está esperando salir, visto como remitos de salida (operación de depósito, todos los almacenes)
-      o como pedidos de venta confirmados (con los días desde la confirmación). Para lo ya despachado, ver
-      "Cumplimiento de entrega". Solo lectura.
+      Todo lo que está esperando salir, visto como pickings WH/PICK (movimientos de Existencias a Salida
+      pendientes de preparación) o como pedidos de venta confirmados (con los días desde la confirmación).
+      Para lo ya despachado, ver "Cumplimiento de entrega". Solo lectura.
     </p>
   </header>
 
@@ -70,23 +70,23 @@ const searchClass =
   {
     desp && ped && (
       <>
-        <section class="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <section class="mb-3 grid grid-cols-2 gap-3 lg:grid-cols-5">
           <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
-            <p class="text-xs text-slate-400">Remitos pendientes</p>
+            <p class="text-xs text-slate-400">Pickings pendientes</p>
             <p class="mt-1 text-2xl font-semibold text-slate-100">{fmt(desp.pendientes.length)}</p>
           </div>
           <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
-            <p class="text-xs text-slate-400">Listos para despachar</p>
+            <p class="text-xs text-slate-400">Listos para preparar</p>
             <p class="mt-1 text-2xl font-semibold text-status-green">{fmt(desp.porEstado.assigned)}</p>
           </div>
           <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
-            <p class="text-xs text-slate-400">Esperando stock u otra operación</p>
+            <p class="text-xs text-slate-400">Esperando disponibilidad</p>
             <p class="mt-1 text-2xl font-semibold text-status-yellow">
               {fmt(desp.porEstado.confirmed + desp.porEstado.waiting)}
             </p>
           </div>
           <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
-            <p class="text-xs text-slate-400">Remitos atrasados</p>
+            <p class="text-xs text-slate-400">Pickings atrasados</p>
             <p class="mt-1 text-2xl font-semibold text-status-red">{fmt(desp.atrasados)}</p>
           </div>
           <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
@@ -98,9 +98,22 @@ const searchClass =
           </div>
         </section>
 
+        <section class="mb-6 grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+            <p class="text-xs text-slate-400">Colchones pendientes</p>
+            <p class="mt-1 text-2xl font-semibold text-sky-400">{fmt(Math.round(desp.colchonesPendientes))} unidades</p>
+          </div>
+          <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
+            <p class="text-xs text-slate-400">Sillones pendientes</p>
+            <p class="mt-1 text-2xl font-semibold text-violet-400">
+              {fmt(Math.round(desp.sillonesEqPendientes))} unidades equivalentes
+            </p>
+          </div>
+        </section>
+
         <div class="mb-4 inline-flex rounded-lg border border-slate-800 bg-slate-900 p-1 text-sm" role="tablist">
           <button type="button" data-vista="remitos" class="vista-btn rounded px-3 py-1.5 font-medium">
-            Por remito
+            Por picking
           </button>
           <button type="button" data-vista="pedidos" class="vista-btn rounded px-3 py-1.5 font-medium">
             Por pedido
@@ -109,7 +122,7 @@ const searchClass =
 
         <div data-panel="remitos">
           <section class="mb-6 rounded-lg border border-slate-800 bg-slate-900 p-4">
-            <h3 class="mb-3 text-sm font-medium text-slate-200">Antigüedad de remitos pendientes <span class="font-normal text-slate-500">(respecto de la fecha programada)</span></h3>
+            <h3 class="mb-3 text-sm font-medium text-slate-200">Antigüedad de pickings pendientes <span class="font-normal text-slate-500">(respecto de la fecha programada)</span></h3>
             <ul class="space-y-2">
               {desp.antiguedad.map((b) => (
                 <li class="flex items-center gap-3 text-sm">
@@ -126,21 +139,22 @@ const searchClass =
           <section class="rounded-lg border border-slate-800 bg-slate-900 p-4">
             <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
               <h3 class="text-sm font-medium text-slate-200">
-                Remitos pendientes
+                Pickings pendientes
                 <span id="desp-count" class="font-normal text-slate-500">({fmt(desp.pendientes.length)})</span>
               </h3>
-              <input id="desp-search" type="search" placeholder="Buscar por cliente o remito…" class={searchClass} />
+              <input id="desp-search" type="search" placeholder="Buscar por cliente, picking o pedido…" class={searchClass} />
             </div>
             <div class="overflow-x-auto">
               <table id="desp-table" class="w-full text-left text-sm">
                 <thead class="text-xs text-slate-400">
                   <tr class="border-b border-slate-800">
-                    <th class="py-2 pr-4 font-medium"><button type="button" data-sort="remito" class="hover:text-slate-200">Remito</button></th>
+                    <th class="py-2 pr-4 font-medium"><button type="button" data-sort="remito" class="hover:text-slate-200">Picking</button></th>
                     <th class="py-2 pr-4 font-medium"><button type="button" data-sort="cliente" class="hover:text-slate-200">Cliente</button></th>
-                    <th class="py-2 pr-4 font-medium"><button type="button" data-sort="origen" class="hover:text-slate-200">Origen</button></th>
-                    <th class="py-2 pr-4 font-medium"><button type="button" data-sort="almacen" class="hover:text-slate-200">Almacén</button></th>
+                    <th class="py-2 pr-4 font-medium"><button type="button" data-sort="origen" class="hover:text-slate-200">Pedido</button></th>
                     <th class="py-2 pr-4 font-medium"><button type="button" data-sort="estado" class="hover:text-slate-200">Estado</button></th>
                     <th class="py-2 pr-4 font-medium"><button type="button" data-sort="fecha" class="hover:text-slate-200">Programado</button></th>
+                    <th class="py-2 pr-4 text-right font-medium"><button type="button" data-sort="colchones" class="hover:text-slate-200">Colchones</button></th>
+                    <th class="py-2 pr-4 text-right font-medium"><button type="button" data-sort="sillones" class="hover:text-slate-200">Sillones eq.</button></th>
                     <th class="py-2 text-right font-medium"><button type="button" data-sort="atraso" class="hover:text-slate-200">Días de atraso</button></th>
                   </tr>
                 </thead>
@@ -151,23 +165,25 @@ const searchClass =
                       data-remito={p.name}
                       data-cliente={p.cliente}
                       data-origen={p.origen}
-                      data-almacen={p.almacen}
                       data-estado={ESTADO_ORDEN[p.estado]}
                       data-fecha={p.fechaProgramada}
+                      data-colchones={p.colchones}
+                      data-sillones={p.sillonesEq}
                       data-atraso={p.diasAtraso}
                     >
                       <td class="py-2 pr-4 whitespace-nowrap">{p.name}</td>
                       <td class="py-2 pr-4">{p.cliente}</td>
                       <td class="py-2 pr-4 whitespace-nowrap">{p.origen}</td>
-                      <td class="py-2 pr-4 whitespace-nowrap">{p.almacen}</td>
                       <td class={`py-2 pr-4 whitespace-nowrap ${ESTADO_CLASS[p.estado]}`}>{ESTADO_LABEL[p.estado]}</td>
                       <td class="py-2 pr-4 whitespace-nowrap">{fmtFecha(p.fechaProgramada)}</td>
+                      <td class="py-2 pr-4 text-right tabular-nums">{fmt(Math.round(p.colchones))}</td>
+                      <td class="py-2 pr-4 text-right tabular-nums">{fmt(Math.round(p.sillonesEq))}</td>
                       <td class="py-2 text-right tabular-nums">{fmt(p.diasAtraso)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              <p id="desp-empty" class="hidden py-6 text-center text-sm text-slate-500">Ningún remito coincide con la búsqueda.</p>
+              <p id="desp-empty" class="hidden py-6 text-center text-sm text-slate-500">Ningún picking coincide con la búsqueda.</p>
             </div>
           </section>
         </div>
@@ -249,8 +265,8 @@ const searchClass =
 
   initSortableTable({
     prefix: 'desp',
-    searchKeys: ['cliente', 'remito'],
-    numericKeys: ['estado', 'atraso'],
+    searchKeys: ['cliente', 'remito', 'origen'],
+    numericKeys: ['estado', 'atraso', 'colchones', 'sillones'],
     defaultSort: 'fecha',
     descFirst: ['atraso'],
     tieBreaker: 'atraso',
