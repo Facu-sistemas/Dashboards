@@ -1,6 +1,6 @@
 import { searchCount, searchReadAll } from './client';
 import { addDaysIso, lastMonthKeys, monthBounds } from '@/lib/date';
-import { getArgentinaTodayIso, LIVING_CATEG_IDS } from './oee';
+import { getArgentinaTodayIso, COLCHONES_CATEG_IDS, LIVING_CATEG_IDS } from './oee';
 import type { OdooDomain } from './types';
 
 export type DespachoEstado = 'assigned' | 'confirmed' | 'waiting';
@@ -45,8 +45,8 @@ export interface DespachosData {
  */
 const PICKING_TYPE_RECOLECTAR = 3;
 const OUTGOING: OdooDomain = [['picking_type_id', '=', PICKING_TYPE_RECOLECTAR]];
-/** Categorías que cuentan como "colchón" (unidad); Bases (8) viaja con el colchón y no suma unidades. */
-const COLCHON_UNIDAD_CATEG_IDS = [5, 9, 6, 20];
+/** Categorías de colchones (incluye Bases, 8): así coincide con el "Cant. por entregar" de Colchones en Análisis de ventas de Odoo. */
+const COLCHON_UNIDAD_CATEG_IDS = COLCHONES_CATEG_IDS;
 
 interface MoveRow extends Record<string, unknown> {
   picking_id: [number, string] | false;
