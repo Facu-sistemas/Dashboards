@@ -14,6 +14,9 @@ export default {
   content: ['./src/**/*.{astro,html,js,jsx,ts,tsx,vue,svelte,md,mdx}'],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Manrope', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+      },
       colors: {
         // Overrides Tailwind's built-in slate scale. Role stays the same in
         // both themes (950/900 = backgrounds, 100/200 = primary text, etc.)

@@ -23,64 +23,132 @@ const sessionExpired = Astro.url.searchParams.get('expired') === '1';
 ---
 
 <BaseLayout title="Iniciar sesión — Frontera Living">
-  <main class="flex min-h-screen items-center justify-center px-4">
-    <div class="w-full max-w-sm rounded-lg border border-slate-800 bg-slate-900 p-6">
-      <h1 class="mb-1 text-lg font-semibold text-slate-100">Frontera Living</h1>
-      <p class="mb-6 text-sm text-slate-400">Ingresá con el usuario de tu área.</p>
+  <div id="stage" class="stage">
+    <!-- Lado izquierdo: plano técnico que se dibuja solo -->
+    <section class="plano" aria-hidden="true">
+      <div class="blueprint-grid"></div>
+      <div class="scan"></div>
 
-      {
-        sessionExpired && (
-          <p class="mb-4 rounded border border-amber-900 bg-amber-950/50 p-3 text-sm text-amber-300">
-            Tu sesión se cerró automáticamente por tiempo. Ingresá de nuevo.
-          </p>
-        )
-      }
+      <header class="brand">
+        <img src="/Logo%20FL%20icon.svg" alt="" class="brand-logo" />
+        <span>Frontera Living</span>
+      </header>
 
-      <form id="login-form" class="flex flex-col gap-4">
-        <label class="flex flex-col gap-1 text-sm text-slate-300">
-          Usuario
-          <input
-            type="text"
-            name="username"
-            autocomplete="username"
-            required
-            class="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 focus:border-brand-500 focus:outline-none"
-          />
-        </label>
-        <label class="flex flex-col gap-1 text-sm text-slate-300">
-          Contraseña
-          <input
-            type="password"
-            name="password"
-            autocomplete="current-password"
-            required
-            class="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 focus:border-brand-500 focus:outline-none"
-          />
-        </label>
+      <div class="hero">
+        <p class="eyebrow">Panel de gestión</p>
+        <h2 class="headline">Toda la operación,<br />en un solo lugar.</h2>
+        <p class="lead">Producción, almacén, comercial y finanzas conectados con Odoo en tiempo real.</p>
+      </div>
 
-        <p id="login-error" class="hidden text-sm text-red-400"></p>
+      <div class="drawing" id="drawing">
+        <svg viewBox="0 0 640 400" class="sofa" fill="none">
+          <!-- ejes de referencia -->
+          <line class="ln dash" x1="300" y1="70" x2="300" y2="340" pathLength="1" style="--d:2.6s"></line>
+          <line class="ln dash" x1="40" y1="285" x2="600" y2="285" pathLength="1" style="--d:2.6s"></line>
 
-        <button
-          type="submit"
-          id="login-submit"
-          class="rounded bg-brand-500 px-4 py-2 text-sm font-medium text-slate-950 transition-colors hover:bg-brand-400 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          Ingresar
-        </button>
-      </form>
-    </div>
-  </main>
+          <!-- respaldo -->
+          <rect class="ln fillable" x="120" y="90" width="360" height="110" rx="22" pathLength="1" style="--d:0s"></rect>
+          <rect class="ln fillable" x="138" y="108" width="152" height="86" rx="14" pathLength="1" style="--d:0.5s"></rect>
+          <rect class="ln fillable" x="310" y="108" width="152" height="86" rx="14" pathLength="1" style="--d:0.6s"></rect>
+          <!-- apoyabrazos -->
+          <rect class="ln fillable" x="68" y="132" width="60" height="156" rx="20" pathLength="1" style="--d:0.9s"></rect>
+          <rect class="ln fillable" x="472" y="132" width="60" height="156" rx="20" pathLength="1" style="--d:1s"></rect>
+          <!-- asiento -->
+          <rect class="ln fillable" x="128" y="200" width="344" height="58" rx="10" pathLength="1" style="--d:1.3s"></rect>
+          <line class="ln" x1="300" y1="200" x2="300" y2="258" pathLength="1" style="--d:1.6s"></line>
+          <rect class="ln fillable" x="128" y="258" width="344" height="30" rx="8" pathLength="1" style="--d:1.7s"></rect>
+          <!-- patas -->
+          <path class="ln" d="M92 288 L98 322 H112 L116 288" pathLength="1" style="--d:2s"></path>
+          <path class="ln" d="M484 288 L488 322 H502 L508 288" pathLength="1" style="--d:2s"></path>
+
+          <!-- cota horizontal -->
+          <g class="dim" style="--d:3s">
+            <line x1="68" y1="362" x2="532" y2="362"></line>
+            <line x1="68" y1="352" x2="68" y2="372"></line>
+            <line x1="532" y1="352" x2="532" y2="372"></line>
+            <rect x="263" y="350" width="74" height="24" fill="var(--bp-bg)" stroke="none"></rect>
+            <text x="300" y="367" text-anchor="middle" id="dim-w">0 mm</text>
+          </g>
+          <!-- cota vertical -->
+          <g class="dim" style="--d:3.3s">
+            <line x1="580" y1="90" x2="580" y2="322"></line>
+            <line x1="570" y1="90" x2="590" y2="90"></line>
+            <line x1="570" y1="322" x2="590" y2="322"></line>
+            <rect x="552" y="195" width="56" height="24" fill="var(--bp-bg)" stroke="none"></rect>
+            <text x="580" y="212" text-anchor="middle" id="dim-h">0 mm</text>
+          </g>
+        </svg>
+      </div>
+
+      <footer class="plano-foot">
+        <span id="reloj">--:--</span>
+        <span class="sep"></span>
+        <span id="fecha">&nbsp;</span>
+      </footer>
+    </section>
+
+    <!-- Lado derecho: formulario -->
+    <main class="panel">
+      <div class="form-box">
+        <img src="/Logo%20FL%20icon.svg" alt="Frontera Living" class="mobile-logo" />
+        <h1 class="title">Iniciar sesión</h1>
+        <p class="sub">Ingresá con el usuario de tu área.</p>
+
+        {
+          sessionExpired && (
+            <p class="expired">Tu sesión se cerró automáticamente por tiempo. Ingresá de nuevo.</p>
+          )
+        }
+
+        <form id="login-form" class="form" novalidate>
+          <label class="field" style="--i:0">
+            <span class="lbl">Usuario</span>
+            <input type="text" name="username" autocomplete="username" required />
+            <i class="bar"></i>
+          </label>
+
+          <label class="field" style="--i:1">
+            <span class="lbl">Contraseña</span>
+            <input type="password" name="password" autocomplete="current-password" required />
+            <button type="button" id="peek" class="peek" aria-label="Mostrar contraseña">
+              <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+            </button>
+            <i class="bar"></i>
+          </label>
+
+          <p id="login-error" class="err hidden"></p>
+
+          <button type="submit" id="login-submit" class="go" style="--i:2">
+            <span class="go-spin"></span>
+            <svg class="go-check" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>
+            <span id="go-txt">Ingresar</span>
+          </button>
+        </form>
+
+        <p class="foot">Acceso restringido a personal autorizado</p>
+      </div>
+    </main>
+  </div>
 
   <script define:vars={{ redirectTo }}>
     const form = document.getElementById('login-form');
     const errorEl = document.getElementById('login-error');
     const submitBtn = document.getElementById('login-submit');
+    const goTxt = document.getElementById('go-txt');
+    const box = document.querySelector('.form-box');
+    const stage = document.getElementById('stage');
+
+    document.getElementById('peek').addEventListener('click', () => {
+      const pw = form.elements.password;
+      pw.type = pw.type === 'password' ? 'text' : 'password';
+    });
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       errorEl.classList.add('hidden');
       submitBtn.disabled = true;
-      submitBtn.textContent = 'Ingresando…';
+      submitBtn.classList.add('loading');
+      goTxt.textContent = 'Verificando…';
 
       const formData = new FormData(form);
       try {
@@ -97,13 +165,176 @@ const sessionExpired = Astro.url.searchParams.get('expired') === '1';
         if (!res.ok || !body.ok) {
           throw new Error(body.error ?? 'No se pudo iniciar sesión.');
         }
-        window.location.href = redirectTo;
+        submitBtn.classList.remove('loading');
+        submitBtn.classList.add('ok');
+        goTxt.textContent = 'Acceso concedido';
+        setTimeout(() => stage.classList.add('done'), 450);
+        setTimeout(() => {
+          window.location.href = redirectTo;
+        }, 1000);
       } catch (err) {
         errorEl.textContent = err instanceof Error ? err.message : 'No se pudo iniciar sesión.';
         errorEl.classList.remove('hidden');
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Ingresar';
+        submitBtn.classList.remove('loading');
+        goTxt.textContent = 'Ingresar';
+        box.classList.remove('shake');
+        void box.offsetWidth;
+        box.classList.add('shake');
       }
     });
   </script>
+
+  <script>
+    // Cotas que cuentan hasta la medida, reloj, y leve parallax del plano.
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function countUp(id: string, to: number, delay: number, dur = 1400) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const fmt = (n: number) => `${Math.round(n).toLocaleString('es-AR')} mm`;
+      if (reduce) {
+        el.textContent = fmt(to);
+        return;
+      }
+      setTimeout(() => {
+        const t0 = performance.now();
+        const tick = (now: number) => {
+          const k = Math.min((now - t0) / dur, 1);
+          el.textContent = fmt(to * (1 - Math.pow(1 - k, 3)));
+          if (k < 1) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }, delay);
+    }
+    countUp('dim-w', 2200, 3000);
+    countUp('dim-h', 950, 3300);
+
+    const reloj = document.getElementById('reloj');
+    const fecha = document.getElementById('fecha');
+    function reloj_() {
+      const d = new Date();
+      if (reloj) reloj.textContent = d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+      if (fecha) fecha.textContent = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+    }
+    reloj_();
+    setInterval(reloj_, 15000);
+
+    const drawing = document.getElementById('drawing');
+    if (drawing && !reduce) {
+      addEventListener('pointermove', (e) => {
+        const x = (e.clientX / innerWidth - 0.5) * 2;
+        const y = (e.clientY / innerHeight - 0.5) * 2;
+        drawing.style.transform = `translate(${x * -10}px, ${y * -8}px)`;
+      });
+    }
+  </script>
+
+  <style is:global>
+    .stage {
+      --bg: rgb(var(--slate-950)); --surface: rgb(var(--slate-900)); --text: rgb(var(--slate-100)); --text2: rgb(var(--slate-300)); --muted: rgb(var(--slate-400)); --faint: rgb(var(--slate-500)); --line: rgb(var(--slate-700)); --brand: rgb(var(--brand-500)); --brand-d: rgb(var(--brand-600)); --brand-l: rgb(var(--brand-400)); --bp-bg: var(--bg);
+      position: fixed; inset: 0; z-index: 30; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+      background: var(--bg); color: var(--text); transition: opacity 0.5s, transform 0.5s, background-color 0.3s;
+    }
+    .stage.done { opacity: 0; transform: scale(1.015); }
+
+    /* ---------- Plano ---------- */
+    .plano { position: relative; overflow: hidden; background: radial-gradient(120% 90% at 20% 0%, rgb(var(--brand-600) / 0.28) 0%, var(--surface) 55%, var(--bg) 100%); color: var(--text2); transition: background 0.3s, color 0.3s; padding: 2.5rem 3rem; display: flex; flex-direction: column; }
+    .blueprint-grid {
+      position: absolute; inset: 0; opacity: 0.55;
+      background-image:
+        linear-gradient(rgb(var(--brand-400) / 0.16) 1px, transparent 1px), linear-gradient(90deg, rgba(120, 170, 235, 0.14) 1px, transparent 1px),
+        linear-gradient(rgb(var(--brand-400) / 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(120, 170, 235, 0.07) 1px, transparent 1px);
+      background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px;
+      animation: gridin 1.6s ease-out both;
+    }
+    @keyframes gridin { from { opacity: 0; } }
+    .scan { position: absolute; top: 0; bottom: 0; width: 160px; left: -200px; background: linear-gradient(90deg, transparent, rgb(var(--brand-400) / 0.12), transparent); animation: scan 9s ease-in-out 3.5s infinite; }
+    @keyframes scan { 0% { left: -200px; } 55%, 100% { left: 110%; } }
+
+    .brand { position: relative; display: flex; align-items: center; gap: 0.7rem; font-weight: 600; letter-spacing: 0.02em; color: var(--text); animation: fadeup 0.8s 0.1s both; }
+    .brand-logo { width: 28px; height: 28px; }
+    @keyframes fadeup { from { opacity: 0; transform: translateY(14px); } }
+
+    .hero { position: relative; margin-top: clamp(1.5rem, 6vh, 4rem); max-width: 30rem; }
+    .eyebrow { font-size: 0.72rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--brand-l); margin-bottom: 0.8rem; animation: fadeup 0.8s 0.3s both; }
+    .headline { font-size: clamp(1.7rem, 3.2vw, 2.6rem); line-height: 1.12; font-weight: 700; letter-spacing: -0.02em; color: var(--text); animation: fadeup 0.9s 0.45s both; }
+    .lead { margin-top: 1rem; font-size: 0.95rem; line-height: 1.55; color: var(--muted); animation: fadeup 0.9s 0.65s both; }
+
+    .drawing { position: relative; margin: auto; width: min(100%, 640px); transition: transform 0.25s ease-out; }
+    .sofa { width: 100%; height: auto; overflow: visible; }
+    .ln { stroke: var(--brand-l); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 1.3s cubic-bezier(0.5, 0, 0.2, 1) forwards; animation-delay: calc(0.9s + var(--d)); }
+    .ln.dash { stroke: rgb(var(--brand-400) / 0.4); stroke-width: 1; stroke-dasharray: 0.02 0.012; stroke-dashoffset: 0; opacity: 0; animation: fadein 1s forwards; animation-delay: calc(0.9s + var(--d)); }
+    @keyframes draw { to { stroke-dashoffset: 0; } }
+    @keyframes fadein { to { opacity: 1; } }
+    .ln.fillable { animation: draw 1.3s cubic-bezier(0.5, 0, 0.2, 1) forwards, fillin 1.2s ease-out forwards; animation-delay: calc(0.9s + var(--d)), calc(3.4s + var(--d)); }
+    @keyframes fillin { to { fill: rgb(var(--brand-500) / 0.12); } }
+    .dim line { stroke: var(--brand-l); stroke-width: 1; opacity: 0; animation: fadein 0.8s forwards; animation-delay: calc(0.9s + var(--d)); }
+    .dim text { fill: var(--text); font: 600 13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: 0.04em; opacity: 0; animation: fadein 0.8s forwards; animation-delay: calc(0.9s + var(--d)); }
+
+    .plano-foot { position: relative; display: flex; align-items: center; gap: 0.9rem; font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; animation: fadeup 0.8s 1s both; }
+    #reloj { color: var(--text); font-weight: 600; font-size: 1rem; }
+    #fecha { text-transform: capitalize; }
+    .sep { width: 28px; height: 1px; background: var(--line); }
+
+    /* ---------- Panel ---------- */
+    .panel { display: flex; align-items: center; justify-content: center; padding: 2rem; overflow-y: auto; background: var(--bg); position: relative; transition: background-color 0.3s; }
+    .panel::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: linear-gradient(to bottom, transparent, var(--brand) 30%, var(--brand) 70%, transparent); transform-origin: top; animation: lineIn 1.2s 0.4s both cubic-bezier(0.2, 0.9, 0.2, 1); }
+    @keyframes lineIn { from { transform: scaleY(0); } }
+    .form-box { width: min(22rem, 100%); margin: auto; animation: slidein 0.9s 0.3s cubic-bezier(0.2, 0.9, 0.2, 1) both; }
+    @keyframes slidein { from { opacity: 0; transform: translateX(28px); } }
+    .form-box.shake { animation: shake 0.45s; }
+    @keyframes shake { 20% { transform: translateX(-9px); } 40% { transform: translateX(8px); } 60% { transform: translateX(-5px); } 80% { transform: translateX(3px); } }
+
+    .mobile-logo { display: none; width: 40px; height: 40px; margin-bottom: 1.25rem; }
+    .title { font-size: 1.7rem; font-weight: 700; letter-spacing: -0.02em; color: var(--text); }
+    .sub { margin: 0.35rem 0 2rem; font-size: 0.9rem; color: var(--muted); }
+    .expired { margin-bottom: 1.2rem; border: 1px solid rgb(var(--status-yellow) / 0.4); background: rgb(var(--status-yellow) / 0.12); color: rgb(var(--status-yellow)); border-radius: 0.5rem; padding: 0.6rem 0.8rem; font-size: 0.82rem; }
+
+    .form { display: flex; flex-direction: column; gap: 1.5rem; }
+    .field { position: relative; display: block; animation: fadeup 0.7s both; animation-delay: calc(0.7s + var(--i) * 0.1s); }
+    .lbl { display: block; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.35rem; transition: color 0.2s; }
+    .field:focus-within .lbl { color: var(--brand); }
+    .field input { width: 100%; padding: 0.55rem 2rem 0.6rem 0; background: transparent; border: 0; border-bottom: 1.5px solid var(--line); border-radius: 0; font-size: 1rem; color: var(--text); outline: none; box-shadow: none; }
+    .field input:-webkit-autofill { -webkit-box-shadow: 0 0 0 40px var(--bg) inset; -webkit-text-fill-color: var(--text); }
+    .bar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--brand); transform: scaleX(0); transform-origin: left; transition: transform 0.35s cubic-bezier(0.2, 0.9, 0.2, 1); }
+    .field:focus-within .bar { transform: scaleX(1); }
+    .peek { position: absolute; right: 0; bottom: 0.5rem; background: none; border: 0; padding: 0.2rem; cursor: pointer; }
+    .peek svg { width: 1.1rem; height: 1.1rem; fill: none; stroke: var(--faint); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: stroke 0.2s; }
+    .peek:hover svg { stroke: var(--brand); }
+
+    .err { color: rgb(var(--status-red)); font-size: 0.84rem; animation: fadeup 0.35s both; }
+    .err.hidden { display: none; }
+
+    .go { position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; gap: 0.55rem; padding: 0.85rem 1rem; border: 0; border-radius: 0.5rem; background: var(--brand-d); color: #fff; font-weight: 600; font-size: 0.95rem; cursor: pointer; animation: fadeup 0.7s both; animation-delay: calc(0.7s + var(--i) * 0.1s); transition: background 0.25s, box-shadow 0.25s, transform 0.15s; }
+    .go::after { content: ''; position: absolute; top: 0; bottom: 0; width: 35%; left: -50%; background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.22), transparent); transform: skewX(-20deg); transition: left 0.7s; }
+    .go:hover:not(:disabled) { background: var(--brand); box-shadow: 0 10px 24px -10px rgb(var(--brand-500) / 0.7); }
+    .go:hover:not(:disabled)::after { left: 120%; }
+    .go:active:not(:disabled) { transform: scale(0.985); }
+    .go:disabled { cursor: progress; }
+    .go-spin, .go-check { display: none; width: 1rem; height: 1rem; }
+    .go-spin { border: 2px solid rgba(255, 255, 255, 0.35); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .go-check { fill: none; stroke: #fff; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; }
+    .go-check path { stroke-dasharray: 24; stroke-dashoffset: 24; animation: tick 0.4s 0.05s forwards; }
+    @keyframes tick { to { stroke-dashoffset: 0; } }
+    .go.loading .go-spin { display: block; }
+    .go.ok { background: rgb(var(--status-green)); color: #052e1b; }
+    .go.ok .go-check { stroke: #052e1b; }
+    .go.ok .go-check { display: block; }
+
+    .foot { margin-top: 2.2rem; font-size: 0.72rem; color: var(--faint); text-align: center; animation: fadeup 0.8s 1.1s both; }
+
+    @media (max-width: 900px) {
+      .stage { grid-template-columns: 1fr; }
+      .plano { display: none; }
+      .panel::before { display: none; }
+      .mobile-logo { display: block; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .stage *, .stage *::before, .stage *::after { animation-duration: 0.01ms !important; animation-delay: 0s !important; }
+      .ln { stroke-dashoffset: 0; }
+      .ln.dash, .dim line, .dim text { opacity: 1; }
+    }
+  </style>
 </BaseLayout>

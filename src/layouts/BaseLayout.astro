@@ -38,6 +38,9 @@ const manifest = ruta.startsWith('/fichaje')
     <!-- Instalable como app (quiosco de Fichaje, puesto de Embalaje o Frontera Living en general): se abre sin barra de direcciones ni pestañas. -->
     <link rel="manifest" href={manifest} />
     <meta name="theme-color" content="#020617" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <title>{title}</title>
     <script is:inline>
       // Blocking (not type=module, not deferred) and first in <head> on
