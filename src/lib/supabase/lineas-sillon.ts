@@ -359,6 +359,26 @@ export async function getPlanFijado<T>(fecha: string): Promise<PlanFijado<T> | n
   return { fecha: data.fecha as string, creadoEn: data.creado_en as string, creadoPor: (data.creado_por ?? '') as string, plan: data.plan as T };
 }
 
+/** Último plan fijado anterior a `fecha` (hasta 6 días atrás: cubre fines de semana y feriados). */
+export async function getPlanFijadoAnterior<T>(fecha: string): Promise<PlanFijado<T> | null> {
+  const desde = new Date(`${fecha}T00:00:00Z`);
+  desde.setUTCDate(desde.getUTCDate() - 6);
+  const { data, error } = await getSupabaseAdminClient()
+    .from('lineas_sillon_planes')
+    .select('fecha, plan, creado_por, creado_en')
+    .lt('fecha', fecha)
+    .gte('fecha', desde.toISOString().slice(0, 10))
+    .order('fecha', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.error('[lineas-sillon] plan anterior', error.message);
+    return null;
+  }
+  if (!data) return null;
+  return { fecha: data.fecha as string, creadoEn: data.creado_en as string, creadoPor: (data.creado_por ?? '') as string, plan: data.plan as T };
+}
+
 export async function fijarPlan(fecha: string, plan: unknown, usuario: string): Promise<void> {
   const { error } = await getSupabaseAdminClient()
     .from('lineas_sillon_planes')

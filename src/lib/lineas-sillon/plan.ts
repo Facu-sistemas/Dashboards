@@ -25,6 +25,8 @@ export interface LineaPlan {
   unidades: number;
   /** Estaciones cuya lista se armó a mano (celdas elegidas o en blanco): no siguen a Odoo. */
   editadas: EstacionId[];
+  /** Tapicería y ensamble arrancan con lo que la estación de arriba terminó el día anterior (en vez de repetir la lista de carpintería). */
+  escalonada: boolean;
   /** Minutos de una estación para fabricar todo lo asignado (sirve para comparar carga entre líneas). */
   minutosTotales: number;
 }
@@ -82,8 +84,28 @@ const porFecha = (a: OrdenSillon, b: OrdenSillon) =>
   (a.prioridad || Infinity) - (b.prioridad || Infinity) ||
   a.id - b.id;
 
+/**
+ * Lo que `previo` (el plan del último día anterior) terminó en carpintería pasa a la tapicería de hoy, y lo que terminó en
+ * tapicería pasa al ensamble. Solo si esa línea ya venía escalonada: en el modelo "las tres estaciones hacen lo mismo el mismo
+ * día" todo se terminó entero ayer y no queda nada pendiente entre estaciones.
+ */
+function arrastreDe(previo: PlanSillon | null, linea: number, productos: ProductoDato[]) {
+  const prev = previo?.lineas.find((l) => l.linea === linea);
+  if (!prev || prev.escalonada !== true) return null;
+  const aUnidades = (est: EstacionPlan | undefined): UnidadPlan[] =>
+    (est?.tramos ?? [])
+      .filter((t) => t.dia === 0 && !t.vacio && !t.manual)
+      .flatMap((t) => {
+        const dato = productos.find((p) => p.nombre === t.producto);
+        const minutos = dato?.minutos ?? t.finMin - t.iniMin;
+        return minutos > 0 ? [{ producto: t.producto, origen: t.origen, minutos, personas: dato?.personas ?? 5, manual: false }] : [];
+      });
+  return { tapiceria: aUnidades(prev.estaciones[0]), ensamble: aUnidades(prev.estaciones[1]) };
+}
+
 export function armarPlan(ordenes: OrdenSillon[], config: ConfigSillon, hoy: string,
   repartirSinLinea: boolean,
+  previo: PlanSillon | null = null,
 ): PlanSillon {
   const productos = catalogoDe(config);
   const cat = armarCatalogo(productos, config.alias);
@@ -100,6 +122,19 @@ export function armarPlan(ordenes: OrdenSillon[], config: ConfigSillon, hoy: str
     for (let i = 0; i < m.cantidad; i++) {
       porLinea.get(m.linea)!.push({ producto: dato.nombre, origen: m.nota || 'Manual', minutos: dato.minutos, personas: dato.personas ?? 5, manual: true });
       carga.set(m.linea, carga.get(m.linea)! + dato.minutos);
+    }
+  }
+
+  const arrastres = new Map<number, NonNullable<ReturnType<typeof arrastreDe>>>();
+  // Unidades de cada orden que ya están en tapicería o ensamble: no se vuelven a pedir a carpintería.
+  const arrastreRestante = new Map<string, number>();
+  for (const c of config.lineas) {
+    const a = c.activa ? arrastreDe(previo, c.linea, productos) : null;
+    if (!a) continue;
+    arrastres.set(c.linea, a);
+    for (const u of [...a.tapiceria, ...a.ensamble]) {
+      const k = `${c.linea}|${u.origen}`;
+      arrastreRestante.set(k, (arrastreRestante.get(k) ?? 0) + 1);
     }
   }
 
@@ -150,16 +185,24 @@ export function armarPlan(ordenes: OrdenSillon[], config: ConfigSillon, hoy: str
       continue;
     }
     const lista = porLinea.get(linea)!;
-    for (let i = 0; i < n; i++) {
+    const kArr = `${linea}|${o.nombre}`;
+    const yaAdelante = Math.min(n, arrastreRestante.get(kArr) ?? 0);
+    if (yaAdelante > 0) arrastreRestante.set(kArr, (arrastreRestante.get(kArr) ?? 0) - yaAdelante);
+    for (let i = 0; i < n - yaAdelante; i++) {
       lista.push({ producto: dato.nombre, origen: o.nombre, minutos: dato.minutos, personas: dato.personas ?? 5, manual: false });
     }
-    carga.set(linea, carga.get(linea)! + dato.minutos * n);
+    carga.set(linea, carga.get(linea)! + dato.minutos * (n - yaAdelante));
   }
 
   const lineas: LineaPlan[] = config.lineas.map((c) => {
     const unidades = c.activa ? porLinea.get(c.linea)! : [];
     const listas: Partial<Record<EstacionId, ListaEstacion>> = {};
     const editadas: EstacionId[] = [];
+    const arrastre = arrastres.get(c.linea);
+    if (arrastre) {
+      listas.tapiceria = arrastre.tapiceria;
+      listas.ensamble = arrastre.ensamble;
+    }
     for (const id of ['carpinteria', 'tapiceria', 'ensamble'] as const) {
       const celdas = c.activa ? config.ajustes[`${c.linea}|${id}`] : undefined;
       if (!celdas) continue;
@@ -176,7 +219,7 @@ export function armarPlan(ordenes: OrdenSillon[], config: ConfigSillon, hoy: str
       const previo = hoyPorProducto.get(k);
       hoyPorProducto.set(k, { linea: c.linea, unidades: (previo?.unidades ?? 0) + 1 });
     }
-    return { linea: c.linea, config: c, estaciones, editadas, unidades: unidades.length, minutosTotales: carga.get(c.linea) ?? 0 };
+    return { linea: c.linea, config: c, estaciones, editadas, escalonada: !!arrastre || editadas.length > 0, unidades: unidades.length, minutosTotales: carga.get(c.linea) ?? 0 };
   });
 
   const coincidencias: PlanSillon['coincidencias'] = {};

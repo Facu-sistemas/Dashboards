@@ -171,8 +171,10 @@ export function planearLinea(
     let libre = 0;
     let ueAcum = 0;
     const lista: ListaEstacion = listas[est.id] ?? unidades;
+    const propia = listas[est.id] !== undefined;
     lista.forEach((u, i) => {
-      const disponible = j === 0 || i < adelanto[est.id] ? 0 : (finPrev[i] ?? 0);
+      // Una estación con lista propia (arrastre del día anterior o armada a mano) no espera a la de arriba: arranca a las 06:00 como en la planilla.
+      const disponible = j === 0 || propia || i < adelanto[est.id] ? 0 : (finPrev[i] ?? 0);
       if (!u) {
         // Fila en blanco: la estación no hace nada, el reloj no avanza.
         const t = Math.max(libre, disponible);

@@ -214,11 +214,24 @@ function Reporte({
   onSaved: () => void;
 }) {
   const { config, fijado } = data;
+  const hoy = data.plan.hoy;
+  const [fecha, setFecha] = useState(hoy);
+  const pasado = fecha < hoy;
+  // Un día anterior se consulta tal como quedó fijado ese día: no se toca Odoo ni se edita.
+  const historico = useApiQuery<{ fijado: LineasSillonResponse['fijado'] }>(['lineas-sillon-dia', fecha], `/api/lineas-sillon?fecha=${fecha}`, { enabled: pasado });
   const [vista, setVista] = useState<'fijado' | 'vivo'>(fijado ? 'fijado' : 'vivo');
   const [error, setError] = useState('');
   const [fijando, setFijando] = useState(false);
-  const mostrandoFijado = vista === 'fijado' && fijado !== null;
-  const plan = mostrandoFijado ? fijado.plan : data.plan;
+  const mostrandoFijado = pasado || (vista === 'fijado' && fijado !== null);
+  const fijadoMostrado = pasado ? (historico.data?.fijado ?? null) : fijado;
+  const planDia = pasado ? fijadoMostrado?.plan : mostrandoFijado ? fijado!.plan : data.plan;
+  const plan = planDia ?? data.plan;
+  const moverDia = (delta: number) => {
+    const d = new Date(`${fecha}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + delta);
+    const nueva = d.toISOString().slice(0, 10);
+    if (nueva <= hoy) setFecha(nueva);
+  };
   const nombres = new Map(config.personas.map((p) => [p.id, p.nombre]));
   const activas = plan.lineas.filter((l) => l.config.activa);
   const apagadas = plan.lineas.filter((l) => !l.config.activa).map((l) => l.linea);
@@ -226,8 +239,8 @@ function Reporte({
   const validos = new Set(productosConTiempo.map((p) => p.nombre));
   const sinResolverUnidades = plan.sinResolver.reduce((a, r) => a + r.unidades, 0);
 
-  const pie = mostrandoFijado
-    ? `Plan fijado a las ${horaCorta(fijado.creadoEn)} (${fijado.creadoPor})`
+  const pie = mostrandoFijado && fijadoMostrado
+    ? `Plan fijado a las ${horaCorta(fijadoMostrado.creadoEn)} (${fijadoMostrado.creadoPor})`
     : `Plan en vivo generado a las ${horaCorta(new Date().toISOString())}`;
   const pdf = (lineas: LineaPlan[], archivo: string) => {
     setError(generarPdfSillon(lineas, plan.hoy, pie, archivo, nombres) ? '' : 'No hay unidades para imprimir.');
@@ -289,8 +302,54 @@ function Reporte({
     }
   };
 
+  const navegacion = (
+    <div className="flex flex-wrap items-center gap-3 print:hidden">
+      <h3 className="text-base font-semibold capitalize text-slate-100">Producción — {fechaLarga(fecha)}</h3>
+      <div className="inline-flex items-center gap-1">
+        <button type="button" onClick={() => moverDia(-1)} aria-label="Día anterior" className="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:border-slate-500">
+          ◀
+        </button>
+        <input
+          type="date"
+          value={fecha}
+          max={hoy}
+          onChange={(e) => e.target.value && e.target.value <= hoy && setFecha(e.target.value)}
+          className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-200 focus:border-brand-500 focus:outline-none"
+        />
+        <button
+          type="button"
+          onClick={() => moverDia(1)}
+          disabled={!pasado}
+          aria-label="Día siguiente"
+          className="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:border-slate-500 disabled:opacity-40"
+        >
+          ▶
+        </button>
+        {pasado && (
+          <button type="button" onClick={() => setFecha(hoy)} className="rounded bg-brand-500/20 px-3 py-1 text-xs text-brand-400 hover:bg-brand-500/30">
+            Hoy
+          </button>
+        )}
+      </div>
+      {pasado && <span className="text-xs text-slate-500">Día anterior: solo lectura</span>}
+    </div>
+  );
+
+  if (pasado && !planDia) {
+    return (
+      <div className="space-y-4">
+        {navegacion}
+        <p className="rounded-lg border border-slate-800 px-4 py-8 text-center text-sm text-slate-500">
+          {historico.isLoading ? 'Cargando…' : 'No quedó un plan guardado para ese día.'}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
+      {navegacion}
+      {!pasado && (
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="inline-flex rounded-lg border border-slate-800 bg-slate-900/60 p-1">
           <button
@@ -330,12 +389,23 @@ function Reporte({
         </label>
         {error && <span className="text-xs text-rose-400">{error}</span>}
       </div>
+      )}
+      {pasado && (
+        <button
+          type="button"
+          onClick={() => pdf(activas, `lineas-sillon-${plan.hoy}.pdf`)}
+          className="rounded bg-brand-500/20 px-3 py-1.5 text-xs text-brand-400 hover:bg-brand-500/30"
+        >
+          Descargar PDF (todas las líneas)
+        </button>
+      )}
       {!mostrandoFijado && fijado && (
         <p className="text-xs text-amber-300">
           Estás viendo el plan en vivo: lo que ya se fabricó desde las {horaCorta(fijado.creadoEn)} no aparece y los horarios se recalculan.
         </p>
       )}
 
+      {!pasado && (
       <div className="flex flex-wrap gap-2 text-xs">
         {sinResolverUnidades > 0 && (
           <span className="rounded border border-amber-500/30 bg-amber-500/5 px-2.5 py-1 text-amber-300">
@@ -358,8 +428,9 @@ function Reporte({
           </span>
         )}
       </div>
+      )}
 
-      {config.ignoradas && Object.keys(config.ignoradas).length > 0 && (
+      {!pasado && config.ignoradas && Object.keys(config.ignoradas).length > 0 && (
         <details className="rounded border border-slate-800 px-3 py-2 text-xs text-slate-400 print:hidden">
           <summary className="cursor-pointer">
             {Object.values(config.ignoradas).reduce((a, n) => a + n, 0)} unidades sacadas del plan (cerradas en la línea, abiertas en Odoo)
@@ -390,12 +461,12 @@ function Reporte({
           <option key={p.nombre} value={p.nombre} />
         ))}
       </datalist>
-      {!config.ajustesDisponible && (
+      {!pasado && !config.ajustesDisponible && (
         <p className="text-xs text-amber-300">
           Para armar las estaciones a mano falta crear la tabla lineas_sillon_ajustes en Supabase (el SQL está en src/lib/supabase/lineas-sillon.ts).
         </p>
       )}
-      <p className="text-xs text-slate-500">
+      <p className={`text-xs text-slate-500 ${pasado ? 'hidden' : ''}`}>
         Cada estación se puede armar por separado: elegí un producto del desplegable o dejá la celda vacía, y los horarios de esa columna se recalculan solos.
       </p>
       <div className="grid gap-4">
@@ -405,7 +476,7 @@ function Reporte({
             lp={lp}
             nombres={nombres}
             validos={validos}
-            editable={config.ajustesDisponible}
+            editable={config.ajustesDisponible && !pasado}
             onPdf={() => pdf([lp], `linea-${lp.linea}-${plan.hoy}.pdf`)}
             onIgnorar={(o) => void ignorar(o, 1)}
             onCeldas={(est, lista) => void celdas(lp.linea, est, lista)}
@@ -460,10 +531,6 @@ function Inner() {
           </button>
         </div>
       </div>
-
-      {data && vista === 'reporte' && (
-        <h3 className="text-base font-semibold capitalize text-slate-100">Producción — {fechaLarga(data.plan.hoy)}</h3>
-      )}
 
       {query.isLoading && <div className="h-40 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />}
       {query.isError && !data && (

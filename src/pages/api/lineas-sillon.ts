@@ -15,6 +15,7 @@ import {
   fijarPlan,
   getConfigSillon,
   getPlanFijado,
+  getPlanFijadoAnterior,
   limpiarIgnoradas,
   guardarPersona,
   setAjuste,
@@ -44,6 +45,12 @@ function requireTestAccess(context: { locals: App.Locals }): Response | null {
   return null;
 }
 
+/** Plan de hoy con lo que la estación de arriba dejó hecho en el último día anterior fijado. */
+async function planDeHoy(hoy: string, repartir: boolean, config?: Awaited<ReturnType<typeof getConfigSillon>>) {
+  const [ordenes, cfg, anterior] = await Promise.all([getOrdenesSillon(), config ?? getConfigSillon(), getPlanFijadoAnterior<PlanSillon>(hoy)]);
+  return armarPlan(ordenes, cfg, hoy, repartir, anterior?.plan ?? null);
+}
+
 const hoyArgentina = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date());
 const horaArgentina = () =>
   Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', hour12: false }).format(new Date()));
@@ -56,16 +63,17 @@ const HORA_LIMITE_FOTO_AUTO = 9;
 export const GET: APIRoute = async (context) => {
   const denied = requireTestAccess(context);
   if (denied) return denied;
-  const repartir = new URL(context.request.url).searchParams.get('repartir') === '1';
+  const params = new URL(context.request.url).searchParams;
+  const repartir = params.get('repartir') === '1';
+  const fecha = params.get('fecha');
   return handleApiRoute(async () => {
     const hoy = hoyArgentina();
-    const [ordenes, config, empleados, fijadoPrevio] = await Promise.all([
-      getOrdenesSillon(),
-      getConfigSillon(),
-      getEmpleadosActivos(),
-      getPlanFijado<PlanSillon>(hoy),
-    ]);
-    const plan = armarPlan(ordenes, config, hoy, repartir);
+    // Un día pasado solo se consulta: es la foto que quedó fijada, sin tocar Odoo.
+    if (fecha && /^\d{4}-\d{2}-\d{2}$/.test(fecha) && fecha < hoy) {
+      return { historico: true, fecha, fijado: await getPlanFijado<PlanSillon>(fecha) };
+    }
+    const [config, empleados, fijadoPrevio] = await Promise.all([getConfigSillon(), getEmpleadosActivos(), getPlanFijado<PlanSillon>(hoy)]);
+    const plan = await planDeHoy(hoy, repartir, config);
     let fijado = fijadoPrevio;
     if (!fijado && config.disponible && horaArgentina() < HORA_LIMITE_FOTO_AUTO) {
       await fijarPlan(hoy, plan, 'automático');
@@ -231,7 +239,7 @@ export const POST: APIRoute = async (context) => {
         // Si ya hay plan fijado hoy, se rearma sin lo ignorado para que la hoja impresa también se corra.
         const hoy = hoyArgentina();
         if (await getPlanFijado<PlanSillon>(hoy)) {
-          await fijarPlan(hoy, armarPlan(await getOrdenesSillon(), await getConfigSillon(), hoy, d.repartir), usuario);
+          await fijarPlan(hoy, await planDeHoy(hoy, d.repartir), usuario);
         }
         break;
       }
@@ -244,14 +252,13 @@ export const POST: APIRoute = async (context) => {
         // Si ya hay plan fijado hoy se rearma con el ajuste, para que lo impreso coincida con la pantalla.
         const hoy = hoyArgentina();
         if (await getPlanFijado<PlanSillon>(hoy)) {
-          await fijarPlan(hoy, armarPlan(await getOrdenesSillon(), await getConfigSillon(), hoy, d.repartir), usuario);
+          await fijarPlan(hoy, await planDeHoy(hoy, d.repartir), usuario);
         }
         break;
       }
       case 'fijar-plan': {
         const hoy = hoyArgentina();
-        const config = await getConfigSillon();
-        await fijarPlan(hoy, armarPlan(await getOrdenesSillon(), config, hoy, d.repartir), usuario);
+        await fijarPlan(hoy, await planDeHoy(hoy, d.repartir), usuario);
         break;
       }
     }
