@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { AREAS } from '@/lib/areas.config';
 
 export interface UsuarioConPermisos {
@@ -19,6 +19,9 @@ const TODAS = AREAS.map((a) => a.slug);
 /** Áreas que casi nadie necesita: la mayoría de las cuentas ve todo menos esto. */
 const AREAS_ESPECIALES = ['test', 'fichaje'];
 const TODAS_MENOS_ESPECIALES = TODAS.filter((s) => !AREAS_ESPECIALES.includes(s));
+
+/** Minúsculas y sin acentos, para que "almacen" encuentre "Almacén". */
+const normalizar = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
 function mismasAreas(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((s) => b.includes(s));
@@ -262,6 +265,7 @@ function UsuarioRow({ usuario, onError }: { usuario: UsuarioConPermisos; onError
 }
 
 export default function AdminUsuariosApp({ usuarios }: Props) {
+  const [busqueda, setBusqueda] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [nombreCompleto, setNombreCompleto] = useState('');
@@ -306,15 +310,50 @@ export default function AdminUsuariosApp({ usuarios }: Props) {
     }
   }
 
+  // Busca por usuario, nombre, rol o nombre de un área habilitada; cada palabra tiene que aparecer en alguno.
+  const visibles = useMemo(() => {
+    const palabras = normalizar(busqueda).split(/\s+/).filter(Boolean);
+    if (palabras.length === 0) return usuarios;
+    return usuarios.filter((u) => {
+      const texto = normalizar(
+        [u.username, u.nombreCompleto ?? '', u.rol, ...u.areasActivas.map((slug) => AREAS.find((a) => a.slug === slug)?.name ?? slug)].join(' '),
+      );
+      return palabras.every((p) => texto.includes(p));
+    });
+  }, [usuarios, busqueda]);
+
   return (
     <div className="flex flex-col gap-8">
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium text-slate-300">Cuentas existentes</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-sm font-medium text-slate-300">
+            Cuentas existentes
+            {usuarios.length > 0 && (
+              <span className="ml-2 text-xs font-normal text-slate-500">
+                {visibles.length === usuarios.length ? usuarios.length : `${visibles.length} de ${usuarios.length}`}
+              </span>
+            )}
+          </h2>
+          {usuarios.length > 0 && (
+            <div className="relative w-full sm:w-72">
+              <input
+                type="search"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar por usuario, nombre, rol o área…"
+                aria-label="Buscar cuentas"
+                className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-1.5 text-sm text-slate-100 placeholder:text-slate-600 focus:border-brand-500 focus:outline-none"
+              />
+            </div>
+          )}
+        </div>
         {usuarios.length === 0 ? (
           <p className="text-sm text-slate-500">No hay cuentas todavía.</p>
+        ) : visibles.length === 0 ? (
+          <p className="text-sm text-slate-500">Ninguna cuenta coincide con «{busqueda.trim()}».</p>
         ) : (
           <div className="flex flex-col gap-2">
-            {usuarios.map((u) => (
+            {visibles.map((u) => (
               <UsuarioRow key={u.id} usuario={u} onError={setError} />
             ))}
           </div>

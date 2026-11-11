@@ -230,7 +230,7 @@ export default function FichajeKioscosAdmin({ marcas: marcasIniciales, ultimas, 
   return (
     <section className="flex flex-col gap-3">
       <div>
-        <h2 className="text-sm font-medium text-slate-300">Fichadas por kiosco (Fichaje)</h2>
+        <h2 className="text-sm font-medium text-slate-300">Ficheros (fichadas por kiosco)</h2>
         <p className="mt-1 text-xs text-slate-500">
           Cada fichada guarda con qué cuenta de celular se hizo. Como nombre de la ubicación se muestra el «nombre completo» de la cuenta (si no tiene,
           el usuario). Se registra desde que se activó esta función; las fichadas anteriores no tienen kiosco.

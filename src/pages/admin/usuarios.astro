@@ -52,11 +52,12 @@ try {
 }
 // Última señal de cada celular de quiosco; si la tabla todavía no existe, simplemente no se muestra.
 const latidosKioscos: KioscoLatido[] = await listKioscos().catch(() => []);
+// La primera es la que se abre por defecto. El id 'kioscos' queda igual para no romper links con #kioscos.
 const SECCIONES = [
+  { id: 'kioscos', nombre: 'Ficheros' },
   { id: 'usuarios', nombre: 'Usuarios' },
   { id: 'caras', nombre: 'Caras registradas' },
   { id: 'parecidos', nombre: 'Pares parecidos' },
-  { id: 'kioscos', nombre: 'Fichadas por kiosco' },
 ];
 const nombresKioscos: Record<string, string> = {};
 for (const p of perfiles ?? []) if (p.nombre_completo) nombresKioscos[p.username] = p.nombre_completo;
@@ -86,7 +87,11 @@ for (const p of perfiles ?? []) if (p.nombre_completo) nombresKioscos[p.username
       }
     </nav>
 
-    <div data-panel="usuarios" role="tabpanel">
+    <div data-panel="kioscos" role="tabpanel">
+      <FichajeKioscosAdmin client:load marcas={marcasFichaje} ultimas={ultimasFichaje} latidos={latidosKioscos} nombresKioscos={nombresKioscos} error={marcasError} />
+    </div>
+
+    <div data-panel="usuarios" role="tabpanel" hidden>
       <AdminUsuariosApp client:load usuarios={usuarios} />
     </div>
 
@@ -96,10 +101,6 @@ for (const p of perfiles ?? []) if (p.nombre_completo) nombresKioscos[p.username
 
     <div data-panel="parecidos" role="tabpanel" hidden>
       <FichajeParecidosAdmin client:load pares={paresParecidos} totalPersonas={personasFichaje.length} />
-    </div>
-
-    <div data-panel="kioscos" role="tabpanel" hidden>
-      <FichajeKioscosAdmin client:load marcas={marcasFichaje} ultimas={ultimasFichaje} latidos={latidosKioscos} nombresKioscos={nombresKioscos} error={marcasError} />
     </div>
   </main>
 </BaseLayout>
