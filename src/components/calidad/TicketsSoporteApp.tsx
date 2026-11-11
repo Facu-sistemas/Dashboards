@@ -105,10 +105,10 @@ function SyncButton() {
 }
 
 function TicketsSoporteInner({ hoy }: { hoy: string }) {
-  const [hy, hm, hd] = hoy.split('-').map(Number) as [number, number, number];
+  const [hy, hm] = hoy.split('-').map(Number) as [number, number];
   const [year, setYear] = useState(hy);
   const [month, setMonth] = useState(hm); // 0 = todo el año
-  const [day, setDay] = useState(hd); // 0 = todo el mes
+  const [day, setDay] = useState(0); // 0 = todo el mes
   const [quarter, setQuarter] = useState(0); // 0 = sin trimestre
   const [custDesde, setCustDesde] = useState('');
   const [custHasta, setCustHasta] = useState('');
