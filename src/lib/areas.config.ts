@@ -12,7 +12,7 @@ export interface TabConfig {
   slug: string;
   name: string;
   /** Pestaña restringida: solo la ven y abren quienes cumplan la regla (ver tab-acceso.ts). Sin esto, la ve todo el que tenga el área. */
-  acceso?: 'admin-rrhh';
+  acceso?: 'admin-rrhh' | 'registrar-caras';
   /** Subdivisión dentro del área: la barra de pestañas muestra una fila por grupo, con su nombre a la izquierda. */
   grupo?: string;
 }
@@ -216,7 +216,7 @@ export const AREAS: AreaConfig[] = [
     icon: ICONS.faceScan,
     tabs: [
       { slug: 'reconocer', name: 'Reconocer' },
-      { slug: 'registrar', name: 'Registrar' },
+      { slug: 'registrar', name: 'Registrar', acceso: 'registrar-caras' },
       { slug: 'aviso', name: 'Aviso de privacidad' },
     ],
   },

@@ -1,3 +1,4 @@
+import { puedeRegistrarCaras } from '@/lib/rrhh-permisos';
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { listCaras, listCarasResumen, crearCaras, borrarCarasDeEmpleado, empleadoTieneCaras } from '@/lib/supabase/fichaje-caras';
@@ -35,6 +36,7 @@ export const GET: APIRoute = async (context) => {
 export const POST: APIRoute = async (context) => {
   const denied = requireFichajeAccess(context);
   if (denied) return denied;
+  if (!puedeRegistrarCaras(context.locals.usuario)) return jsonResponse({ ok: false, error: 'No autorizado' }, { status: 403 });
   return handleApiRoute(async () => {
     let body: unknown;
     try {

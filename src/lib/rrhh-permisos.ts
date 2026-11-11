@@ -7,6 +7,15 @@ export const USUARIO_ADMIN_RRHH = 'rrhh';
 
 type UsuarioMin = { username: string; rol: string; areasPermitidas: string[] } | undefined;
 
+/**
+ * Quién puede registrar caras (Fichaje > Registrar): el dev y la cuenta `rrhh`. Los celulares de quiosco (fichero1, 2, 3…)
+ * solo reconocen y fichan. Tiene que pasar por acá toda ruta que registre caras o liste empleados para registrarlos.
+ */
+export function puedeRegistrarCaras(u: UsuarioMin): boolean {
+  if (!u) return false;
+  return u.rol === 'dev' || u.username.trim().toLowerCase() === USUARIO_ADMIN_RRHH;
+}
+
 export function puedeAdministrarRrhh(u: UsuarioMin): boolean {
   if (!u) return false;
   if (u.rol === 'dev') return true;

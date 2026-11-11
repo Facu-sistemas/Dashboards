@@ -41,7 +41,11 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
   /** Nombre de quien acaba de fichar sin internet (la fichada quedó guardada en el celular, pendiente de enviar). */
   const [guardado, setGuardado] = useState<string | null>(null);
   const [pendientes, setPendientes] = useState(0);
-  const [silencio, setSilencio] = useState(estaSilenciado);
+  // En el quiosco el sonido va siempre activo (no hay botón): si un celular había quedado silenciado, se levanta acá.
+  const [silencio, setSilencio] = useState(() => esDev && estaSilenciado());
+  useEffect(() => {
+    if (!esDev) silenciar(false);
+  }, [esDev]);
   const [audioListo, setAudioListo] = useState(false);
   /** true cuando el servidor sigue contestando mal después de varias recargas automáticas: se muestra el aviso en pantalla. */
   const [sinConexion, setSinConexion] = useState(false);
@@ -322,24 +326,29 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
         <button
           type="button"
           onClick={entrarPantallaCompleta}
-          className="rounded bg-brand-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-600"
+          className="w-full rounded bg-brand-500 px-3 py-3 text-base font-medium text-white hover:bg-brand-600"
         >
           Pantalla completa
         </button>
-        <button
-          type="button"
-          onClick={alternarSilencio}
-          className="rounded border border-slate-700 px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-800"
-        >
-          {silencio ? 'Sonido apagado' : 'Sonido activado'}
-        </button>
-        <button
-          type="button"
-          onClick={camaraActiva ? detener : iniciar}
-          className="ml-auto rounded border border-slate-700 px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-800"
-        >
-          {camaraActiva ? 'Apagar cámara' : 'Activar cámara'}
-        </button>
+        {/* Sonido y cámara los maneja solo el dev: en el quiosco el sonido va siempre activo y la cámara siempre abierta. */}
+        {esDev && (
+          <>
+            <button
+              type="button"
+              onClick={alternarSilencio}
+              className="rounded border border-slate-700 px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-800"
+            >
+              {silencio ? 'Sonido apagado' : 'Sonido activado'}
+            </button>
+            <button
+              type="button"
+              onClick={camaraActiva ? detener : iniciar}
+              className="ml-auto rounded border border-slate-700 px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-800"
+            >
+              {camaraActiva ? 'Apagar cámara' : 'Activar cámara'}
+            </button>
+          </>
+        )}
       </div>
 
       {/* El mismo <video> sirve para los dos modos: solo cambian las clases, así la cámara no se reinicia al entrar/salir. */}
