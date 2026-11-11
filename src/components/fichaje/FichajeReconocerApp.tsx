@@ -25,6 +25,8 @@ const RESULTADO_MS = 3000;
 /** Cuánto sigue el cartel "Hola, X" (y el botón) después de la última vez que se vio la cara: si la persona se mueve un instante, no se le va el botón. */
 const RETENCION_MS = 2000;
 // v2: la clave anterior pudo quedar guardada en "apagada" por un error que sacaba al quiosco de pantalla completa sin avisar.
+/** Sin tocar la pantalla este tiempo en la vista chica, el quiosco vuelve solo a pantalla completa. */
+const INACTIVIDAD_MS = 30_000;
 const PREF_PANTALLA_COMPLETA = 'fichaje-pantalla-completa-v2';
 /** Cada cuánto el celular avisa que sigue vivo (y de paso detecta si el servidor dejó de contestar bien). */
 const LATIDO_MS = 60_000;
@@ -51,6 +53,25 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
   const [sinConexion, setSinConexion] = useState(false);
   const [recargando, setRecargando] = useState(false);
   const { pantallaCompleta, contenedorRef, entrar: entrarPantallaCompleta, salir: salirPantallaCompleta, alTocar } = usePantallaCompleta(PREF_PANTALLA_COMPLETA, !esDev);
+
+  // Red de seguridad del quiosco: si alguien lo dejó en la vista chica (o salió con la ✕ y se olvidó), a los 30 segundos
+  // sin tocar la pantalla vuelve solo a pantalla completa. Cualquier toque reinicia la cuenta. No aplica al dev.
+  useEffect(() => {
+    if (esDev || pantallaCompleta) return;
+    let t = setTimeout(entrarPantallaCompleta, INACTIVIDAD_MS);
+    const reiniciar = () => {
+      clearTimeout(t);
+      t = setTimeout(entrarPantallaCompleta, INACTIVIDAD_MS);
+    };
+    document.addEventListener('pointerdown', reiniciar, true);
+    document.addEventListener('keydown', reiniciar, true);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener('pointerdown', reiniciar, true);
+      document.removeEventListener('keydown', reiniciar, true);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [esDev, pantallaCompleta]);
 
   const personas = useMemo(() => agruparPersonas(caras), [caras]);
   const personasRef = useRef(personas);
