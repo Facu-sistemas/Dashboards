@@ -101,12 +101,19 @@ const searchClass =
         <section class="mb-6 grid grid-cols-1 gap-3 md:grid-cols-2">
           <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
             <p class="text-xs text-slate-400">Colchones pendientes</p>
-            <p class="mt-1 text-2xl font-semibold text-sky-400">{fmt(Math.round(desp.colchonesPendientes))} unidades</p>
+            <p class="mt-1 text-2xl font-semibold text-sky-400">{fmt(Math.round(desp.colchonesPendientes))} unidades
+              {desp.colchonesPorAprobar > 0 && (
+                <span class="text-xs font-normal text-slate-500">(+{fmt(Math.round(desp.colchonesPorAprobar))} pendientes de aprobación)</span>
+              )}
+            </p>
           </div>
           <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
             <p class="text-xs text-slate-400">Sillones pendientes</p>
             <p class="mt-1 text-2xl font-semibold text-violet-400">
               {fmt(Math.round(desp.sillonesEqPendientes))} unidades equivalentes
+              {desp.sillonesEqPorAprobar > 0 && (
+                <span class="text-xs font-normal text-slate-500">(+{fmt(Math.round(desp.sillonesEqPorAprobar))} pendientes de aprobación)</span>
+              )}
             </p>
           </div>
         </section>

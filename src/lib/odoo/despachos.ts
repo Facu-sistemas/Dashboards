@@ -1,4 +1,4 @@
-import { searchCount, searchReadAll } from './client';
+import { readGroup, searchCount, searchReadAll } from './client';
 import { addDaysIso, lastMonthKeys, monthBounds } from '@/lib/date';
 import { getArgentinaTodayIso, COLCHONES_CATEG_IDS, LIVING_CATEG_IDS } from './oee';
 import type { OdooDomain } from './types';
@@ -33,6 +33,9 @@ export interface DespachosData {
   /** Totales pendientes de recolectar (suma de todos los pickings pendientes). */
   colchonesPendientes: number;
   sillonesEqPendientes: number;
+  /** Parte de los totales anteriores que corresponde a pedidos "Pendiente de aprobación" (todavía sin WH/PICK). */
+  colchonesPorAprobar: number;
+  sillonesEqPorAprobar: number;
   antiguedad: DespachosAntiguedadBucket[];
   despachados30d: number;
   despachadosMensual: { month: string; count: number }[];
@@ -83,11 +86,53 @@ const BUCKETS: { label: string; max: number }[] = [
   { label: 'Más de 90 días', max: Infinity },
 ];
 
+/**
+ * Colchones (unidades) y sillones (UE) por entregar según Ventas > Análisis de ventas
+ * (`sale.report`.qty_to_deliver), con el mismo filtro de Odoo: pedidos que no estén en
+ * borrador, enviados ni cancelados. Incluye los "Pendiente de aprobación", que todavía no
+ * tienen WH/PICK, por eso se informan aparte en `*PorAprobar`.
+ */
+async function getPendienteVentas() {
+  const rows = await readGroup({
+    model: 'sale.report',
+    domain: [
+      ['state', 'not in', ['draft', 'sent', 'cancel']],
+      ['categ_id', 'in', [...COLCHONES_CATEG_IDS, ...LIVING_CATEG_IDS]],
+    ],
+    fields: ['qty_to_deliver:sum'],
+    groupBy: ['product_id', 'state'],
+    lazy: false,
+  });
+  const products = await searchReadAll<ProductRow>({
+    model: 'product.product',
+    domain: [['id', 'in', [...new Set(rows.flatMap((r) => (r.product_id ? [(r.product_id as [number, string])[0]] : [])))]]],
+    fields: ['x_studio_equivalente_produccion', 'categ_id'],
+    context: { active_test: false },
+  });
+  const productById = new Map(products.map((p) => [p.id, p]));
+  const out = { colchones: 0, sillonesEq: 0, colchonesPorAprobar: 0, sillonesEqPorAprobar: 0 };
+  for (const r of rows) {
+    const prod = r.product_id ? productById.get((r.product_id as [number, string])[0]) : undefined;
+    if (!prod) continue;
+    const qty = Number(r.qty_to_deliver) || 0;
+    const porAprobar = r.state === 'pending_approval';
+    if (COLCHONES_CATEG_IDS.includes(prod.categ_id[0])) {
+      out.colchones += qty;
+      if (porAprobar) out.colchonesPorAprobar += qty;
+    } else if (LIVING_CATEG_IDS.includes(prod.categ_id[0])) {
+      const ue = qty * (prod.x_studio_equivalente_produccion || 0);
+      out.sillonesEq += ue;
+      if (porAprobar) out.sillonesEqPorAprobar += ue;
+    }
+  }
+  return out;
+}
+
 export async function getDespachosData(): Promise<DespachosData> {
   const hoy = getArgentinaTodayIso();
   const meses = lastMonthKeys(6);
 
-  const [rows, despachados30d, mensual] = await Promise.all([
+  const [rows, despachados30d, mensual, ventas] = await Promise.all([
     searchReadAll<PickingRow>({
       model: 'stock.picking',
       domain: [...OUTGOING, ['state', 'in', ['assigned', 'confirmed', 'waiting']]],
@@ -107,6 +152,7 @@ export async function getDespachosData(): Promise<DespachosData> {
         return { month, count };
       })
     ),
+    getPendienteVentas(),
   ]);
 
   // Colchones y sillones (UE) pendientes: demanda de los movimientos de los pickings pendientes.
@@ -172,8 +218,10 @@ export async function getDespachosData(): Promise<DespachosData> {
     pendientes,
     porEstado,
     atrasados: pendientes.filter((p) => p.diasAtraso > 0).length,
-    colchonesPendientes: pendientes.reduce((s, p) => s + p.colchones, 0),
-    sillonesEqPendientes: pendientes.reduce((s, p) => s + p.sillonesEq, 0),
+    colchonesPendientes: ventas.colchones,
+    sillonesEqPendientes: ventas.sillonesEq,
+    colchonesPorAprobar: ventas.colchonesPorAprobar,
+    sillonesEqPorAprobar: ventas.sillonesEqPorAprobar,
     antiguedad,
     despachados30d,
     despachadosMensual: mensual,
