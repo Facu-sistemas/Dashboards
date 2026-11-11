@@ -26,7 +26,7 @@ const RESULTADO_MS = 3000;
 const RETENCION_MS = 2000;
 // v2: la clave anterior pudo quedar guardada en "apagada" por un error que sacaba al quiosco de pantalla completa sin avisar.
 /** Sin tocar la pantalla este tiempo en la vista chica, el quiosco vuelve solo a pantalla completa. */
-const INACTIVIDAD_MS = 30_000;
+const INACTIVIDAD_MS = 10_000;
 const PREF_PANTALLA_COMPLETA = 'fichaje-pantalla-completa-v2';
 /** Cada cuánto el celular avisa que sigue vivo (y de paso detecta si el servidor dejó de contestar bien). */
 const LATIDO_MS = 60_000;
@@ -54,7 +54,7 @@ function FichajeReconocerInner({ esDev }: { esDev: boolean }) {
   const [recargando, setRecargando] = useState(false);
   const { pantallaCompleta, contenedorRef, entrar: entrarPantallaCompleta, salir: salirPantallaCompleta, alTocar } = usePantallaCompleta(PREF_PANTALLA_COMPLETA, !esDev);
 
-  // Red de seguridad del quiosco: si alguien lo dejó en la vista chica (o salió con la ✕ y se olvidó), a los 30 segundos
+  // Red de seguridad del quiosco: si alguien lo dejó en la vista chica (o salió con la ✕ y se olvidó), a los 10 segundos
   // sin tocar la pantalla vuelve solo a pantalla completa. Cualquier toque reinicia la cuenta. No aplica al dev.
   useEffect(() => {
     if (esDev || pantallaCompleta) return;
