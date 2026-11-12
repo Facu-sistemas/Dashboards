@@ -225,7 +225,7 @@ export default function FichajeKioscosAdmin({ marcas: marcasIniciales, jornadas,
   }
   const listaAdentro = [...ultimaDeHoy.values()].filter((m) => m.accion === 'entrada').sort((a, b) => a.empleadoNombre.localeCompare(b.empleadoNombre, 'es'));
   const listaAfuera = [...ultimaDeHoy.values()].filter((m) => m.accion === 'salida').sort((a, b) => a.empleadoNombre.localeCompare(b.empleadoNombre, 'es'));
-  const faltantes = calcularFaltantes(jornadas, new Set(ultimaDeHoy.keys()), new Date(ahora));
+  const { faltantes, diasReferencia, modo: modoFaltantes } = calcularFaltantes(jornadas, new Set(ultimaDeHoy.keys()), new Date(ahora));
   const fmtHora = (min: number) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(Math.round(min % 60)).padStart(2, '0')}`;
   const adentro = listaAdentro.length;
   const afuera = listaAfuera.length;
@@ -333,14 +333,21 @@ export default function FichajeKioscosAdmin({ marcas: marcasIniciales, jornadas,
                 </span>
               ))}
           </div>
-          {faltantes.length > 0 && (
+          {(
             <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
               <p className="mb-2 text-xs font-medium text-amber-200">
                 Faltan por fichar hoy · {faltantes.filter((f) => f.atraso > 0).length} ya pasaron su hora
                 <span className="ml-2 font-normal text-slate-500">
-                  Gente que suele venir un día como hoy (al menos la mitad de los últimos) y todavía no tiene ninguna fichada.
+                  Gente que suele venir {modoFaltantes === 'semana' ? 'un día como hoy' : 'en días hábiles'} (al menos la mitad de {diasReferencia} días de referencia) y todavía no tiene ninguna fichada.
                 </span>
               </p>
+              {faltantes.length === 0 && (
+                <p className="text-xs text-slate-400">
+                  {diasReferencia < 2
+                    ? 'Todavía no hay historial suficiente (hacen falta al menos 2 días con fichadas por kiosco).'
+                    : 'No falta nadie: todos los que suelen venir ya ficharon hoy.'}
+                </p>
+              )}
               <ul className="grid max-h-72 gap-x-4 gap-y-1 overflow-y-auto text-xs sm:grid-cols-2 lg:grid-cols-3">
                 {faltantes.map((f) => (
                   <li key={f.empleadoId} className="flex items-center justify-between gap-2 border-b border-slate-800/60 py-1">
