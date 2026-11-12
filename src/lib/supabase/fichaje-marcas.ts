@@ -99,3 +99,56 @@ export async function listUltimasPorEmpleado(): Promise<UltimasDePersona[]> {
   }
   return [...porEmpleado.values()].sort((a, b) => a.empleadoNombre.localeCompare(b.empleadoNombre, 'es'));
 }
+
+export interface JornadaPersona {
+  empleadoId: number;
+  empleadoNombre: string;
+  /** Día en Argentina, AAAA-MM-DD. */
+  dia: string;
+  /** Minutos desde la medianoche de la primera entrada del día (null si no hubo). */
+  entrada: number | null;
+  /** Minutos desde la medianoche de la última salida del día, posterior a la entrada (null si no hubo). */
+  salida: number | null;
+}
+
+const PARTES_AR = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Argentina/Buenos_Aires',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
+/**
+ * Por persona y día: hora de la primera entrada y de la última salida (hora Argentina) de los últimos `dias` días.
+ * Sirve para el ranking de quién entra/sale más temprano o más tarde en promedio.
+ */
+export async function listJornadas(dias = 90): Promise<JornadaPersona[]> {
+  const admin = getSupabaseAdminClient();
+  const desdeIso = new Date(Date.now() - dias * 86_400_000).toISOString();
+  const mapa = new Map<string, { empleadoId: number; empleadoNombre: string; dia: string; e: number | null; s: number | null }>();
+  for (let desde = 0; desde < 50_000; desde += PAGINA) {
+    const { data, error } = await admin
+      .from('fichaje_marcas')
+      .select('empleado_id, empleado_nombre, accion, marcado_en')
+      .gte('marcado_en', desdeIso)
+      .order('marcado_en', { ascending: true })
+      .range(desde, desde + PAGINA - 1);
+    if (error) throw new Error(error.message);
+    for (const r of data ?? []) {
+      const p = Object.fromEntries(PARTES_AR.formatToParts(new Date(r.marcado_en)).map((x) => [x.type, x.value]));
+      const dia = `${p.year}-${p.month}-${p.day}`;
+      const min = Number(p.hour) * 60 + Number(p.minute);
+      const clave = `${r.empleado_id}|${dia}`;
+      const j = mapa.get(clave) ?? { empleadoId: r.empleado_id, empleadoNombre: r.empleado_nombre, dia, e: null, s: null };
+      // Vienen de la más vieja a la más nueva: la primera entrada se queda, la última salida pisa a las anteriores.
+      if (r.accion === 'entrada' && j.e === null) j.e = min;
+      if (r.accion === 'salida' && (j.e === null || min >= j.e)) j.s = min;
+      mapa.set(clave, j);
+    }
+    if ((data?.length ?? 0) < PAGINA) break;
+  }
+  return [...mapa.values()].map((j) => ({ empleadoId: j.empleadoId, empleadoNombre: j.empleadoNombre, dia: j.dia, entrada: j.e, salida: j.s }));
+}
