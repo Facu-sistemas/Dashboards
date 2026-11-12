@@ -130,16 +130,12 @@ function encabezado(doc: jsPDF, hoy: string, ancho: number) {
   doc.setFont('helvetica', 'normal');
 }
 
-/** Personas de la línea por bloque: carpintero en Carpintería, costureras y tendido en Tapicería, estampado en Ensamble. */
+/** En la hoja impresa solo va el nombre de la costurera que cose para la línea (en el bloque de Tapicería); no se imprimen las personas de los puestos. */
 function genteDe(lp: LineaPlan, nombres: Map<string, string>): [string, string, string] {
   const a = lp.config.asignados;
-  const n = (slot: 'C1' | 'C2' | 'C3' | 'C' | 'T' | 'E') => (a[slot] ? nombres.get(a[slot]!) : undefined);
+  const n = (slot: 'C1' | 'C2' | 'C3') => (a[slot] ? nombres.get(a[slot]!) : undefined);
   const costura = [n('C1'), n('C2'), n('C3')].filter(Boolean).join(' / ');
-  return [
-    n('C') ? `Carpintería: ${n('C')}` : '',
-    [costura && `Costura: ${costura}`, n('T') && `Tapicería: ${n('T')}`].filter(Boolean).join('  ·  '),
-    n('E') ? `Ensamble: ${n('E')}` : '',
-  ];
+  return ['', costura, ''];
 }
 
 /** Devuelve false si no hay nada para imprimir (ninguna línea con unidades hoy). `nombres`: id de persona → nombre. */
