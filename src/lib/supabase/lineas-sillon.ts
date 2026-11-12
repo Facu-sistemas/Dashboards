@@ -1,6 +1,6 @@
 import { getSupabaseAdminClient } from './admin';
 import type { NivelesPersona } from '@/lib/lineas-sillon/polivalencia';
-import { ADELANTO_PARALELO, NUM_LINEAS, type Adelanto } from '@/lib/lineas-sillon/engine';
+import { ADELANTO_INICIAL, NUM_LINEAS, type Adelanto, type Sobrante, type UnidadSobrante } from '@/lib/lineas-sillon/engine';
 
 /**
  * Configuración editable del Planificador de Líneas de sillones. Tablas creadas a
@@ -10,7 +10,7 @@ import { ADELANTO_PARALELO, NUM_LINEAS, type Adelanto } from '@/lib/lineas-sillo
  *     linea integer primary key check (linea between 1 and 8),
  *     activa boolean not null default true,
  *     asignados jsonb not null default '{}',   -- { C1, C2, C3, C, T, E } → id de persona
- *     adelanto jsonb not null default '{}',    -- { tapiceria, ensamble } → unidades ya adelantadas
+ *     adelanto jsonb not null default '{}',    -- { sobrante: { fecha, tapiceria: [...], ensamble: [...] } } → sobrante de ayer corregido a mano (los números de adelanto viejos ya no se usan)
  *     actualizado_por text,
  *     updated_at timestamptz not null default now()
  *   );
@@ -115,7 +115,17 @@ export interface LineaConfig {
   linea: number;
   activa: boolean;
   asignados: Partial<Record<Slot, string | null>>;
+  /** Sin uso desde el escalonado por sobrante; se sigue leyendo porque está guardado. */
   adelanto: Adelanto;
+  /**
+   * Sobrante de ayer corregido a mano (lo que la estación de arriba ya dejó hecho para Tapicería y Ensamble). Vale solo para
+   * su `fecha`: al día siguiente vuelve a salir solo del plan anterior. null = nunca se corrigió. Vive dentro del jsonb `adelanto`.
+   */
+  sobrante: SobranteDia | null;
+}
+
+export interface SobranteDia extends Sobrante {
+  fecha: string;
 }
 
 export interface ManualSillon {
@@ -147,8 +157,20 @@ const lineaDefault = (linea: number): LineaConfig => ({
   linea,
   activa: linea !== NUM_LINEAS,
   asignados: {},
-  adelanto: { ...ADELANTO_PARALELO },
+  adelanto: { ...ADELANTO_INICIAL },
+  sobrante: null,
 });
+
+const esUnidad = (x: unknown): x is UnidadSobrante =>
+  typeof x === 'object' && x !== null && typeof (x as UnidadSobrante).producto === 'string' && typeof (x as UnidadSobrante).origen === 'string';
+
+/** Lee el sobrante a mano del jsonb `adelanto`; cualquier cosa con otra forma se ignora. */
+function leerSobrante(crudo: unknown): SobranteDia | null {
+  const s = crudo as Partial<SobranteDia> | null | undefined;
+  if (!s || typeof s.fecha !== 'string') return null;
+  const lista = (x: unknown) => (Array.isArray(x) ? x.filter(esUnidad).map((u) => ({ producto: u.producto, origen: u.origen })) : []);
+  return { fecha: s.fecha, tapiceria: lista(s.tapiceria), ensamble: lista(s.ensamble) };
+}
 
 export async function getConfigSillon(): Promise<ConfigSillon> {
   const admin = getSupabaseAdminClient();
@@ -177,7 +199,9 @@ export async function getConfigSillon(): Promise<ConfigSillon> {
     if (!l) continue;
     l.activa = r.activa as boolean;
     l.asignados = (r.asignados ?? {}) as LineaConfig['asignados'];
-    l.adelanto = { ...ADELANTO_PARALELO, ...((r.adelanto ?? {}) as Partial<Adelanto>) };
+    const guardado = (r.adelanto ?? {}) as Partial<Adelanto> & { sobrante?: unknown };
+    l.adelanto = { carpinteria: Number(guardado.carpinteria) || 0, tapiceria: Number(guardado.tapiceria) || 0, ensamble: Number(guardado.ensamble) || 0 };
+    l.sobrante = leerSobrante(guardado.sobrante);
   }
   return {
     disponible: true,
@@ -208,14 +232,28 @@ export async function getConfigSillon(): Promise<ConfigSillon> {
 
 const ahora = () => new Date().toISOString();
 
-export async function setLinea(
-  linea: number,
-  datos: { activa: boolean; asignados: LineaConfig['asignados']; adelanto: Adelanto },
-  usuario: string,
-): Promise<void> {
+/** Habilita o apaga la línea y guarda sus personas. La columna `adelanto` (donde vive el sobrante a mano) no se toca. */
+export async function setLinea(linea: number, datos: { activa: boolean; asignados: LineaConfig['asignados'] }, usuario: string): Promise<void> {
   const { error } = await getSupabaseAdminClient()
     .from('lineas_sillon_lineas')
-    .upsert({ linea, ...datos, actualizado_por: usuario, updated_at: ahora() });
+    .upsert({ linea, activa: datos.activa, asignados: datos.asignados, actualizado_por: usuario, updated_at: ahora() });
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * Guarda el sobrante de ayer corregido a mano para hoy, o lo borra (`sobrante = null`) para que vuelva a salir solo del
+ * plan anterior. Se escribe dentro del jsonb `adelanto` sin pisar lo demás que haya ahí.
+ */
+export async function setSobrante(linea: number, sobrante: Sobrante | null, usuario: string): Promise<void> {
+  const admin = getSupabaseAdminClient();
+  const { data, error: errLeer } = await admin.from('lineas_sillon_lineas').select('adelanto').eq('linea', linea).maybeSingle();
+  if (errLeer) throw new Error(errLeer.message);
+  const { sobrante: _viejo, pendientes: _legado, ...resto } = (data?.adelanto ?? {}) as Record<string, unknown>;
+  const adelanto = sobrante ? { ...resto, sobrante: { fecha: hoyAR(), tapiceria: sobrante.tapiceria, ensamble: sobrante.ensamble } } : resto;
+  const { error } = data
+    ? await admin.from('lineas_sillon_lineas').update({ adelanto, actualizado_por: usuario, updated_at: ahora() }).eq('linea', linea)
+    : // La línea todavía no tiene fila: se crea con su estado por defecto (la 8 arranca apagada).
+      await admin.from('lineas_sillon_lineas').insert({ linea, activa: lineaDefault(linea).activa, adelanto, actualizado_por: usuario, updated_at: ahora() });
   if (error) throw new Error(error.message);
 }
 

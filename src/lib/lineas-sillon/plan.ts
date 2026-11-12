@@ -9,7 +9,9 @@ import {
   type EstacionPlan,
   type ListaEstacion,
   type ProductoDato,
+  type Sobrante,
   type UnidadPlan,
+  type UnidadSobrante,
 } from './engine';
 import { DATOS_SEED } from './datos';
 import type { Nivel, ProcesoHoja } from './polivalencia';
@@ -25,8 +27,12 @@ export interface LineaPlan {
   unidades: number;
   /** Estaciones cuya lista se armó a mano (celdas elegidas o en blanco): no siguen a Odoo. */
   editadas: EstacionId[];
-  /** Tapicería y ensamble arrancan con lo que la estación de arriba terminó el día anterior (en vez de repetir la lista de carpintería). */
-  escalonada: boolean;
+  /** Sobrante de ayer con el que arrancan hoy Tapicería y Ensamble (lo que la estación de arriba ya les dejó hecho). */
+  sobrante: Sobrante;
+  /** true = el sobrante de hoy se corrigió a mano; false = salió solo del plan fijado anterior. */
+  sobranteAMano: boolean;
+  /** Lo que queda sin hacer al cierre de hoy en Tapicería y Ensamble: el sobrante de mañana. */
+  sobranteManana: Sobrante;
   /** Minutos de una estación para fabricar todo lo asignado (sirve para comparar carga entre líneas). */
   minutosTotales: number;
 }
@@ -84,23 +90,19 @@ const porFecha = (a: OrdenSillon, b: OrdenSillon) =>
   (a.prioridad || Infinity) - (b.prioridad || Infinity) ||
   a.id - b.id;
 
+const SOBRANTE_VACIO: Sobrante = { tapiceria: [], ensamble: [] };
+
 /**
- * Lo que `previo` (el plan del último día anterior) terminó en carpintería pasa a la tapicería de hoy, y lo que terminó en
- * tapicería pasa al ensamble. Solo si esa línea ya venía escalonada: en el modelo "las tres estaciones hacen lo mismo el mismo
- * día" todo se terminó entero ayer y no queda nada pendiente entre estaciones.
+ * Sobrante con el que una línea arranca hoy: lo que Carpintería ya terminó y Tapicería no llegó a hacer, y lo mismo de
+ * Tapicería a Ensamble. Sale solo del último plan fijado anterior (`previo`), que ya lo dejó calculado suponiendo que cada
+ * estación cumplió todo lo que tenía hasta el cierre; si ese día no fue así, se corrige a mano y lo corregido manda por hoy.
  */
-function arrastreDe(previo: PlanSillon | null, linea: number, productos: ProductoDato[]) {
-  const prev = previo?.lineas.find((l) => l.linea === linea);
-  if (!prev || prev.escalonada !== true) return null;
-  const aUnidades = (est: EstacionPlan | undefined): UnidadPlan[] =>
-    (est?.tramos ?? [])
-      .filter((t) => t.dia === 0 && !t.vacio && !t.manual)
-      .flatMap((t) => {
-        const dato = productos.find((p) => p.nombre === t.producto);
-        const minutos = dato?.minutos ?? t.finMin - t.iniMin;
-        return minutos > 0 ? [{ producto: t.producto, origen: t.origen, minutos, personas: dato?.personas ?? 5, manual: false }] : [];
-      });
-  return { tapiceria: aUnidades(prev.estaciones[0]), ensamble: aUnidades(prev.estaciones[1]) };
+function sobranteDe(c: LineaConfig, previo: PlanSillon | null, hoy: string): { sobrante: Sobrante; aMano: boolean } {
+  if (!c.activa) return { sobrante: SOBRANTE_VACIO, aMano: false };
+  if (c.sobrante?.fecha === hoy) return { sobrante: { tapiceria: c.sobrante.tapiceria, ensamble: c.sobrante.ensamble }, aMano: true };
+  // Los planes fijados antes del escalonado por sobrante no traen el campo: se arranca sin sobrante.
+  const anterior = previo?.lineas.find((l) => l.linea === c.linea)?.sobranteManana;
+  return { sobrante: anterior ?? SOBRANTE_VACIO, aMano: false };
 }
 
 export function armarPlan(ordenes: OrdenSillon[], config: ConfigSillon, hoy: string,
@@ -125,16 +127,16 @@ export function armarPlan(ordenes: OrdenSillon[], config: ConfigSillon, hoy: str
     }
   }
 
-  const arrastres = new Map<number, NonNullable<ReturnType<typeof arrastreDe>>>();
-  // Unidades de cada orden que ya están en tapicería o ensamble: no se vuelven a pedir a carpintería.
-  const arrastreRestante = new Map<string, number>();
+  const sobrantes = new Map<number, ReturnType<typeof sobranteDe>>();
+  // Las unidades del sobrante ya pasaron por Carpintería: en Odoo la orden sigue abierta, pero no se le vuelven a pedir.
+  // Se descuentan por orden (`linea|o|MO`) o, si el sobrante se cargó a mano y no tiene orden, por producto (`linea|p|PRODUCTO`).
+  const yaEnLinea = new Map<string, number>();
   for (const c of config.lineas) {
-    const a = c.activa ? arrastreDe(previo, c.linea, productos) : null;
-    if (!a) continue;
-    arrastres.set(c.linea, a);
-    for (const u of [...a.tapiceria, ...a.ensamble]) {
-      const k = `${c.linea}|${u.origen}`;
-      arrastreRestante.set(k, (arrastreRestante.get(k) ?? 0) + 1);
+    const s = sobranteDe(c, previo, hoy);
+    sobrantes.set(c.linea, s);
+    for (const u of [...s.sobrante.tapiceria, ...s.sobrante.ensamble]) {
+      const k = u.origen ? `${c.linea}|o|${u.origen}` : `${c.linea}|p|${u.producto}`;
+      yaEnLinea.set(k, (yaEnLinea.get(k) ?? 0) + 1);
     }
   }
 
@@ -185,24 +187,29 @@ export function armarPlan(ordenes: OrdenSillon[], config: ConfigSillon, hoy: str
       continue;
     }
     const lista = porLinea.get(linea)!;
-    const kArr = `${linea}|${o.nombre}`;
-    const yaAdelante = Math.min(n, arrastreRestante.get(kArr) ?? 0);
-    if (yaAdelante > 0) arrastreRestante.set(kArr, (arrastreRestante.get(kArr) ?? 0) - yaAdelante);
-    for (let i = 0; i < n - yaAdelante; i++) {
+    let aCarpinteria = n;
+    for (const k of [`${linea}|o|${o.nombre}`, `${linea}|p|${dato.nombre}`]) {
+      const quita = Math.min(aCarpinteria, yaEnLinea.get(k) ?? 0);
+      if (quita === 0) continue;
+      yaEnLinea.set(k, yaEnLinea.get(k)! - quita);
+      aCarpinteria -= quita;
+    }
+    for (let i = 0; i < aCarpinteria; i++) {
       lista.push({ producto: dato.nombre, origen: o.nombre, minutos: dato.minutos, personas: dato.personas ?? 5, manual: false });
     }
-    carga.set(linea, carga.get(linea)! + dato.minutos * (n - yaAdelante));
+    carga.set(linea, carga.get(linea)! + dato.minutos * aCarpinteria);
   }
 
   const lineas: LineaPlan[] = config.lineas.map((c) => {
     const unidades = c.activa ? porLinea.get(c.linea)! : [];
+    const { sobrante, aMano } = sobrantes.get(c.linea)!;
+    const deAyer = (lista: UnidadSobrante[]): UnidadPlan[] =>
+      lista.flatMap((s) => {
+        const dato = productos.find((p) => p.nombre === s.producto);
+        return dato?.minutos ? [{ producto: dato.nombre, origen: s.origen, minutos: dato.minutos, personas: dato.personas ?? 5, manual: false }] : [];
+      });
     const listas: Partial<Record<EstacionId, ListaEstacion>> = {};
     const editadas: EstacionId[] = [];
-    const arrastre = arrastres.get(c.linea);
-    if (arrastre) {
-      listas.tapiceria = arrastre.tapiceria;
-      listas.ensamble = arrastre.ensamble;
-    }
     for (const id of ['carpinteria', 'tapiceria', 'ensamble'] as const) {
       const celdas = c.activa ? config.ajustes[`${c.linea}|${id}`] : undefined;
       if (!celdas) continue;
@@ -212,14 +219,24 @@ export function armarPlan(ordenes: OrdenSillon[], config: ConfigSillon, hoy: str
         return dato?.minutos ? { producto: dato.nombre, origen: 'A mano', minutos: dato.minutos, personas: dato.personas ?? 5, manual: true } : null;
       });
     }
-    const estaciones = planearLinea(unidades, c.adelanto, listas);
+    const { estaciones, sobranteManana } = planearLinea(unidades, { tapiceria: deAyer(sobrante.tapiceria), ensamble: deAyer(sobrante.ensamble) }, listas);
     for (const t of estaciones[0]!.tramos) {
       if (t.dia !== 0 || t.vacio) continue;
       const k = `${c.linea}|${t.producto}`;
       const previo = hoyPorProducto.get(k);
       hoyPorProducto.set(k, { linea: c.linea, unidades: (previo?.unidades ?? 0) + 1 });
     }
-    return { linea: c.linea, config: c, estaciones, editadas, escalonada: !!arrastre || editadas.length > 0, unidades: unidades.length, minutosTotales: carga.get(c.linea) ?? 0 };
+    return {
+      linea: c.linea,
+      config: c,
+      estaciones,
+      editadas,
+      sobrante,
+      sobranteAMano: aMano,
+      sobranteManana,
+      unidades: unidades.length,
+      minutosTotales: carga.get(c.linea) ?? 0,
+    };
   });
 
   const coincidencias: PlanSillon['coincidencias'] = {};

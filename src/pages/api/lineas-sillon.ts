@@ -21,6 +21,7 @@ import {
   setAjuste,
   setAlias,
   setLinea,
+  setSobrante,
   setTiempo,
 } from '@/lib/supabase/lineas-sillon';
 import { armarPlan, catalogoDe, type PlanSillon } from '@/lib/lineas-sillon/plan';
@@ -45,7 +46,7 @@ function requireTestAccess(context: { locals: App.Locals }): Response | null {
   return null;
 }
 
-/** Plan de hoy con lo que la estación de arriba dejó hecho en el último día anterior fijado. */
+/** Plan de hoy: Odoo + el sobrante que dejó calculado el último plan fijado anterior (o el corregido a mano hoy). */
 async function planDeHoy(hoy: string, repartir: boolean, config?: Awaited<ReturnType<typeof getConfigSillon>>) {
   const [ordenes, cfg, anterior] = await Promise.all([getOrdenesSillon(), config ?? getConfigSillon(), getPlanFijadoAnterior<PlanSillon>(hoy)]);
   return armarPlan(ordenes, cfg, hoy, repartir, anterior?.plan ?? null);
@@ -83,11 +84,8 @@ export const GET: APIRoute = async (context) => {
   });
 };
 
-const adelantoSchema = z.object({
-  carpinteria: z.number().int().min(0).max(200),
-  tapiceria: z.number().int().min(0).max(200),
-  ensamble: z.number().int().min(0).max(200),
-});
+/** Unidad del sobrante de ayer: producto de DATOS y la orden de Odoo de la que viene ('' si se cargó a mano). */
+const sobranteSchema = z.array(z.object({ producto: z.string().max(200), origen: z.string().max(80) })).max(40);
 
 const bodySchema = z.discriminatedUnion('tipo', [
   z.object({
@@ -95,8 +93,16 @@ const bodySchema = z.discriminatedUnion('tipo', [
     linea: z.number().int().min(1).max(NUM_LINEAS),
     activa: z.boolean(),
     asignados: z.record(z.enum(SLOTS), z.string().uuid().nullable()),
-    adelanto: adelantoSchema,
   }),
+  // Sobrante de ayer corregido a mano (vale por hoy) y su vuelta al automático.
+  z.object({
+    tipo: z.literal('sobrante'),
+    linea: z.number().int().min(1).max(NUM_LINEAS),
+    tapiceria: sobranteSchema,
+    ensamble: sobranteSchema,
+    repartir: z.boolean(),
+  }),
+  z.object({ tipo: z.literal('sobrante-reset'), linea: z.number().int().min(1).max(NUM_LINEAS), repartir: z.boolean() }),
   z.object({
     tipo: z.literal('persona'),
     id: z.string().uuid().optional(),
@@ -203,8 +209,21 @@ export const POST: APIRoute = async (context) => {
 
     switch (d.tipo) {
       case 'linea':
-        await setLinea(d.linea, { activa: d.activa, asignados: d.asignados, adelanto: d.adelanto }, usuario);
+        await setLinea(d.linea, { activa: d.activa, asignados: d.asignados }, usuario);
         break;
+      case 'sobrante':
+      case 'sobrante-reset': {
+        if (d.tipo === 'sobrante') {
+          [...d.tapiceria, ...d.ensamble].forEach((u) => productoValido(u.producto));
+          await setSobrante(d.linea, { tapiceria: d.tapiceria, ensamble: d.ensamble }, usuario);
+        } else await setSobrante(d.linea, null, usuario);
+        // Si ya hay plan fijado hoy se rearma con el sobrante corregido, para que lo impreso coincida con la pantalla.
+        const hoy = hoyArgentina();
+        if (await getPlanFijado<PlanSillon>(hoy)) {
+          await fijarPlan(hoy, await planDeHoy(hoy, d.repartir), usuario);
+        }
+        break;
+      }
       case 'persona':
         d.productos.forEach(productoValido);
         await guardarPersona({ ...d, puesto: d.puesto as (typeof PUESTOS_PERSONA)[number] }, usuario);

@@ -19,7 +19,6 @@ interface EditorProps {
 
 function LineaEditor({ inicial, data, asignados, onAsignar, ocupadasEnOtras, onSaved }: EditorProps) {
   const [activa, setActiva] = useState(inicial.activa);
-  const [adelanto, setAdelanto] = useState(inicial.adelanto);
   const [estado, setEstado] = useState<'idle' | 'guardando' | 'ok' | string>('idle');
 
   const guardar = async () => {
@@ -30,7 +29,6 @@ function LineaEditor({ inicial, data, asignados, onAsignar, ocupadasEnOtras, onS
         linea: inicial.linea,
         activa,
         asignados: Object.fromEntries(SLOTS_UI.map((s) => [s.slot, asignados[s.slot] ?? null])),
-        adelanto,
       });
       setEstado('ok');
       onSaved();
@@ -65,21 +63,6 @@ function LineaEditor({ inicial, data, asignados, onAsignar, ocupadasEnOtras, onS
                   </option>
                 ))}
             </select>
-          </label>
-        ))}
-      </div>
-
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        {(['tapiceria', 'ensamble'] as const).map((e) => (
-          <label key={e} className="flex flex-col gap-1 text-[11px] text-slate-500">
-            Adelanto en {e === 'tapiceria' ? 'tapicería (tendido)' : 'ensamble (estampado)'} — unidades que ya vienen hechas
-            <input
-              type="number"
-              min={0}
-              className={inputCls}
-              value={adelanto[e]}
-              onChange={(ev) => setAdelanto((a) => ({ ...a, [e]: Math.max(0, Math.floor(Number(ev.target.value) || 0)) }))}
-            />
           </label>
         ))}
       </div>
@@ -120,10 +103,8 @@ export default function LineasSillonLineas({ data, onSaved }: { data: LineasSill
     <div className="space-y-3">
       <p className="text-xs text-slate-400">
         Habilitá o apagá cada línea (la 8 no siempre trabaja) y asigná las personas de cada puesto. Una persona elegida en una línea ya no se
-        ofrece en las demás, porque no puede trabajar en dos lugares a la vez; para pasarla a otra línea, sacala de la primera. El{' '}
-        <strong>adelanto</strong> es el trabajo que ya viene hecho de la estación de arriba: con un número alto (200, el valor inicial) las tres
-        estaciones arrancan a las 06:00 en paralelo, igual que la planilla; con 0, tapicería espera a que carpintería termine cada unidad; con
-        3, las tres primeras ya están listas para tapicería desde las 06:00.
+        ofrece en las demás, porque no puede trabajar en dos lugares a la vez; para pasarla a otra línea, sacala de la primera. El
+        sobrante de ayer de Tapicería y Ensamble se ve y se corrige en el Reporte de hoy, arriba de cada línea.
       </p>
       <div className="grid gap-4 lg:grid-cols-2">
         {data.config.lineas.map((l) => (

@@ -4,7 +4,7 @@ import QueryProvider from '@/components/QueryProvider';
 import { useApiQuery } from '@/components/dashboard/useApiQuery';
 import LastUpdated from '@/components/shared/LastUpdated';
 import type { LineaPlan } from '@/lib/lineas-sillon/plan';
-import { filasDeHoy, type EstacionId } from '@/lib/lineas-sillon/engine';
+import { filasDeHoy, type EstacionId, type Sobrante, type Tramo } from '@/lib/lineas-sillon/engine';
 import LineasSillonLineas from './LineasSillonLineas';
 import LineasSillonPersonas from './LineasSillonPersonas';
 import LineasSillonEquivalencias from './LineasSillonEquivalencias';
@@ -22,6 +22,8 @@ function CeldaEstacion({
   valor,
   hora,
   manana,
+  ayer,
+  aviso,
   editable,
   validos,
   onCambio,
@@ -29,6 +31,10 @@ function CeldaEstacion({
   valor: string;
   hora: string;
   manana: boolean;
+  /** Sobrante de ayer: la estación de arriba ya la dejó hecha. */
+  ayer: boolean;
+  /** Texto del aviso cuando la unidad figura antes de que la estación de arriba la termine. */
+  aviso: string;
   editable: boolean;
   validos: Set<string>;
   onCambio: (v: string | null) => void;
@@ -62,9 +68,121 @@ function CeldaEstacion({
       ) : (
         <span className="min-w-0 flex-1 truncate px-1 text-xs text-slate-200">{valor}</span>
       )}
+      {valor && ayer && (
+        <span className="shrink-0 rounded bg-amber-500/15 px-1 text-[10px] text-amber-300" title="Sobrante de ayer: la estación de arriba ya la dejó hecha">
+          de ayer
+        </span>
+      )}
+      {valor && aviso && !manana && (
+        <span className="shrink-0 cursor-help text-xs text-rose-400" title={aviso} aria-label={aviso}>
+          ⚠
+        </span>
+      )}
       <span className={`w-[4.5rem] shrink-0 text-right text-xs tabular-nums ${manana ? 'text-amber-500/70' : 'text-slate-400'}`} title={manana ? 'Termina mañana' : undefined}>
         {valor ? (manana ? 'mañana' : hora) : ''}
       </span>
+    </div>
+  );
+}
+
+const SIN_SOBRANTE: Sobrante = { tapiceria: [], ensamble: [] };
+const ESTACION_DE_ARRIBA: Record<EstacionId, string> = { carpinteria: '', tapiceria: 'Carpintería', ensamble: 'Tapicería' };
+
+const minutos = (m: number) => `${Math.max(1, Math.round(m))} min`;
+
+/** Explica el ⚠ de una unidad que la estación tendría que esperar porque la de arriba todavía no la entregó. */
+function textoAviso(t: Tramo | undefined, estacion: EstacionId): string {
+  if (!t || t.vacio || !t.esperaMin) return '';
+  return `${ESTACION_DE_ARRIBA[estacion]} recién la entrega ${t.llegaReloj}: acá se quedarían ${minutos(t.esperaMin)} sin pieza antes de empezarla. Con más sobrante de ayer no habría espera.`;
+}
+
+/**
+ * Sobrante de ayer de una línea: lo que Carpintería dejó hecho para Tapicería y Tapicería para Ensamble. Sale solo del plan
+ * anterior y acá se corrige a mano (quitar con ✕, agregar del desplegable) cuando el día no terminó como estaba planeado.
+ */
+function SobranteEditor({
+  lp,
+  validos,
+  editable,
+  onGuardar,
+  onReset,
+}: {
+  lp: LineaPlan;
+  validos: Set<string>;
+  editable: boolean;
+  onGuardar: (s: Sobrante) => void;
+  onReset: () => void;
+}) {
+  const sobrante = lp.sobrante ?? SIN_SOBRANTE; // los planes fijados antes de este cambio no traen el campo
+  const [nuevo, setNuevo] = useState<{ tapiceria: string; ensamble: string }>({ tapiceria: '', ensamble: '' });
+  const vacio = sobrante.tapiceria.length + sobrante.ensamble.length === 0;
+  if (!editable && vacio) return null;
+
+  const agregar = (e: keyof Sobrante, texto: string) => {
+    const producto = [...validos].find((n) => n.toLowerCase() === texto.trim().toLowerCase());
+    if (!producto) return;
+    setNuevo((n) => ({ ...n, [e]: '' }));
+    onGuardar({ ...sobrante, [e]: [...sobrante[e], { producto, origen: '' }] });
+  };
+
+  return (
+    <div className="border-b border-slate-800 bg-amber-500/[0.03] px-3 py-2 text-[11px] print:hidden">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="font-medium text-amber-300/90">Sobrante de ayer</span>
+        <span className="text-slate-500">
+          {lp.sobranteAMano ? 'corregido a mano' : vacio ? 'no quedó nada del plan anterior' : 'calculado del plan anterior'}
+        </span>
+        {editable && lp.sobranteAMano && (
+          <button
+            type="button"
+            onClick={onReset}
+            title="Descartar la corrección y volver al sobrante que sale del plan anterior"
+            className="rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] text-sky-300 hover:bg-sky-500/25"
+          >
+            ↺ automático
+          </button>
+        )}
+      </div>
+      <div className="mt-1.5 grid gap-x-4 gap-y-1.5 sm:grid-cols-2">
+        {(['tapiceria', 'ensamble'] as const).map((e) => (
+          <div key={e} className="flex flex-wrap items-center gap-1">
+            <span className="mr-1 text-slate-400" title={e === 'tapiceria' ? 'Carpintería ya lo terminó; Tapicería no' : 'Tapicería ya lo terminó; Ensamble no'}>
+              {e === 'tapiceria' ? 'En Tapicería:' : 'En Ensamble:'}
+            </span>
+            {sobrante[e].length === 0 && <span className="text-slate-600">nada</span>}
+            {sobrante[e].map((u, i) => (
+              <span key={i} className="inline-flex items-center gap-1 rounded bg-slate-950/70 px-1.5 py-0.5 text-slate-200" title={u.origen || 'Cargado a mano'}>
+                {u.producto}
+                {editable && (
+                  <button
+                    type="button"
+                    aria-label={`Quitar ${u.producto} del sobrante`}
+                    onClick={() => onGuardar({ ...sobrante, [e]: sobrante[e].filter((_, k) => k !== i) })}
+                    className="text-slate-500 hover:text-rose-400"
+                  >
+                    ✕
+                  </button>
+                )}
+              </span>
+            ))}
+            {editable && (
+              <input
+                list={ID_LISTA}
+                value={nuevo[e]}
+                placeholder="+ agregar"
+                aria-label={`Agregar al sobrante de ${e === 'tapiceria' ? 'Tapicería' : 'Ensamble'}`}
+                onChange={(ev) => {
+                  setNuevo((n) => ({ ...n, [e]: ev.target.value }));
+                  // Elegir del desplegable ya lo agrega; lo escrito a medias espera al Enter.
+                  if (validos.has(ev.target.value)) agregar(e, ev.target.value);
+                }}
+                onKeyDown={(ev) => ev.key === 'Enter' && agregar(e, nuevo[e])}
+                className="w-28 rounded border border-transparent bg-transparent px-1 py-0.5 text-slate-200 placeholder:text-slate-600 hover:border-slate-700 focus:w-56 focus:border-brand-500 focus:bg-slate-950 focus:outline-none"
+              />
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -74,19 +192,25 @@ function LineaCard({
   nombres,
   validos,
   editable,
+  sobranteEditable,
   onPdf,
   onIgnorar,
   onCeldas,
   onReset,
+  onSobrante,
+  onSobranteReset,
 }: {
   lp: LineaPlan;
   nombres: Map<string, string>;
   validos: Set<string>;
   editable: boolean;
+  sobranteEditable: boolean;
   onPdf: () => void;
   onIgnorar: (orden: string) => void;
   onCeldas: (estacion: EstacionId, celdas: (string | null)[]) => void;
   onReset: (estacion: EstacionId) => void;
+  onSobrante: (s: Sobrante) => void;
+  onSobranteReset: () => void;
 }) {
   const [carp] = lp.estaciones;
   const reales = filasDeHoy(lp.estaciones);
@@ -94,6 +218,7 @@ function LineaCard({
   const asignados = SLOTS_UI.map((s) => ({ ...s, nombre: lp.config.asignados[s.slot] ? nombres.get(lp.config.asignados[s.slot]!) : undefined }));
   const editadas = lp.editadas ?? []; // los planes fijados antes de este cambio no traen el campo
   const hayEditadas = editadas.length > 0;
+  const avisos = lp.estaciones.reduce((a, e) => a + (e.avisos ?? 0), 0);
 
   const cambiar = (j: number, fila: number, valor: string | null) => {
     const est = lp.estaciones[j]!;
@@ -113,6 +238,11 @@ function LineaCard({
             <span>
               {reales} hoy{carp!.pendientes > 0 ? ` · ${carp!.pendientes} para después` : ''}
             </span>
+            {avisos > 0 && (
+              <span className="cursor-help text-rose-400" title="Veces que una estación se quedaría sin pieza esperando a la de arriba: pasá el mouse por cada ⚠ para ver cuánto">
+                ⚠ {avisos}
+              </span>
+            )}
             {reales > 0 && (
               <button type="button" onClick={onPdf} className="text-brand-400 hover:underline print:hidden">
                 PDF
@@ -128,6 +258,8 @@ function LineaCard({
           ))}
         </div>
       </header>
+
+      <SobranteEditor lp={lp} validos={validos} editable={sobranteEditable} onGuardar={onSobrante} onReset={onSobranteReset} />
 
       <table className="w-full table-fixed text-xs">
         <thead>
@@ -177,6 +309,8 @@ function LineaCard({
                       valor={t && !t.vacio ? t.producto : ''}
                       hora={t?.finReloj ?? ''}
                       manana={!!t && t.dia > 0}
+                      ayer={!!t?.ayer}
+                      aviso={textoAviso(t, e.id)}
                       editable={editable}
                       validos={validos}
                       onCambio={(v) => cambiar(j, i, v)}
@@ -192,6 +326,14 @@ function LineaCard({
             <td className="px-3 py-1.5 text-slate-500">Efic.</td>
             {lp.estaciones.map((e) => (
               <td key={e.id} className={`px-1 py-1.5 text-right font-semibold tabular-nums ${tonoEficiencia(e.eficiencia)}`}>
+                {(e.esperaTotalMin ?? 0) >= 0.5 && (
+                  <span
+                    className="mr-2 cursor-help font-normal text-rose-400"
+                    title={`Esperando a ${ESTACION_DE_ARRIBA[e.id]}, esta estación terminaría unos ${minutos(e.esperaTotalMin!)} más tarde que el horario de la planilla.`}
+                  >
+                    ⚠ +{minutos(e.esperaTotalMin!)}
+                  </span>
+                )}
                 {porcentaje(e.eficiencia)}
               </td>
             ))}
@@ -270,6 +412,16 @@ function Reporte({
     setError('');
     try {
       await guardarSillon({ tipo: 'celdas-reset', linea, estacion, repartir });
+      onSaved();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  const guardarSobrante = async (linea: number, s: Sobrante | null) => {
+    setError('');
+    try {
+      await guardarSillon(s ? { tipo: 'sobrante', linea, tapiceria: s.tapiceria, ensamble: s.ensamble, repartir } : { tipo: 'sobrante-reset', linea, repartir });
       onSaved();
     } catch (e) {
       setError((e as Error).message);
@@ -467,7 +619,12 @@ function Reporte({
         </p>
       )}
       <p className={`text-xs text-slate-500 ${pasado ? 'hidden' : ''}`}>
-        Cada estación se puede armar por separado: elegí un producto del desplegable o dejá la celda vacía, y los horarios de esa columna se recalculan solos.
+        Las estaciones van escalonadas, como en la planilla: Carpintería hace lo planificado en Odoo, Tapicería arranca con su{' '}
+        <span className="text-amber-300/90">sobrante de ayer</span> y sigue con lo de Carpintería, y Ensamble arranca con el suyo y sigue con lo de
+        Tapicería. El sobrante se arrastra solo de un día al otro; si ayer no terminó como estaba planeado, corregilo arriba de la línea. Un{' '}
+        <span className="text-rose-400">⚠</span> marca la unidad que la estación tendría que esperar porque la de arriba todavía no la entregó (los
+        horarios son los de la planilla y no suman esa espera). Además, cada celda se puede
+        cambiar a mano: elegí un producto del desplegable o dejala vacía, y los horarios de esa columna se recalculan solos.
       </p>
       <div className="grid gap-4">
         {activas.map((lp) => (
@@ -477,6 +634,9 @@ function Reporte({
             nombres={nombres}
             validos={validos}
             editable={config.ajustesDisponible && !pasado}
+            sobranteEditable={config.disponible && !pasado}
+            onSobrante={(s) => void guardarSobrante(lp.linea, s)}
+            onSobranteReset={() => void guardarSobrante(lp.linea, null)}
             onPdf={() => pdf([lp], `linea-${lp.linea}-${plan.hoy}.pdf`)}
             onIgnorar={(o) => void ignorar(o, 1)}
             onCeldas={(est, lista) => void celdas(lp.linea, est, lista)}
