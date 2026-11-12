@@ -24,12 +24,10 @@ interface Fila {
   dias: number;
 }
 
-function Ranking({ titulo, icono, filas, color }: { titulo: string; icono: string; filas: Fila[]; color: string }) {
+function Ranking({ titulo, filas, color }: { titulo: string; filas: Fila[]; color: string }) {
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-900 p-3">
-      <h3 className={`mb-2 text-sm font-medium ${color}`}>
-        {icono} {titulo}
-      </h3>
+      <h3 className={`mb-2 text-sm font-medium ${color}`}>{titulo}</h3>
       {filas.length === 0 ? (
         <p className="py-4 text-center text-xs text-slate-500">Sin datos suficientes.</p>
       ) : (
@@ -124,10 +122,10 @@ export default function FichajePuntualidadAdmin({ jornadas, error }: Props) {
         </label>
       </div>
       <div className="grid gap-3 md:grid-cols-2">
-        <Ranking titulo="Entran más temprano" icono="🌅" color="text-emerald-400" filas={top(entradas, asc)} />
-        <Ranking titulo="Entran más tarde" icono="🐢" color="text-amber-300" filas={top(entradas, desc)} />
-        <Ranking titulo="Salen más temprano" icono="🏃" color="text-sky-400" filas={top(salidas, asc)} />
-        <Ranking titulo="Salen más tarde" icono="🌙" color="text-red-400" filas={top(salidas, desc)} />
+        <Ranking titulo="Entran más temprano" color="text-emerald-400" filas={top(entradas, asc)} />
+        <Ranking titulo="Entran más tarde" color="text-amber-300" filas={top(entradas, desc)} />
+        <Ranking titulo="Salen más temprano" color="text-sky-400" filas={top(salidas, asc)} />
+        <Ranking titulo="Salen más tarde" color="text-red-400" filas={top(salidas, desc)} />
       </div>
     </section>
   );
