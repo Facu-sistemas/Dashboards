@@ -163,6 +163,32 @@ function groupByEmployee<T extends { employee_id: [number, string] | false }>(ro
 }
 
 /**
+ * Quiénes no tienen que venir hoy: licencias aprobadas (vacaciones, enfermedad, etc.) que incluyen el día de hoy
+ * (hora Argentina, UTC-3) más los empleados marcados como «Ignorar» en RRHH (dueños, etc.).
+ * Devuelve empleadoId → motivo.
+ */
+export async function getAusentesHoy(): Promise<Record<number, string>> {
+  const today = getArgentinaTodayIso();
+  const manana = addDaysIso(today, 1);
+  const [leaves, estados] = await Promise.all([
+    searchReadAll<{ employee_id: [number, string] | false; holiday_status_id: [number, string] | false }>({
+      model: 'hr.leave',
+      domain: [
+        ['state', '=', 'validate'],
+        ['date_from', '<=', `${manana} 02:59:59`],
+        ['date_to', '>=', `${today} 03:00:00`],
+      ],
+      fields: ['employee_id', 'holiday_status_id'],
+    }),
+    getEstadosResumen(),
+  ]);
+  const out: Record<number, string> = {};
+  for (const [id, estado] of estados) if (estado === 'ignorar') out[id] = 'Ignorado en RRHH';
+  for (const l of leaves) if (l.employee_id) out[l.employee_id[0]] = l.holiday_status_id ? l.holiday_status_id[1] : 'Licencia';
+  return out;
+}
+
+/**
  * Vacaciones de todos los empleados activos: saldo (asignado - tomado,
  * calculado a mano en vez de confiar en `remaining_leaves` porque ese
  * campo mezcla Vacaciones con Días compensatorios y Banco de horas), más

@@ -7,6 +7,8 @@ interface Props {
   marcas: MarcaFichaje[];
   /** Primera entrada y última salida por persona y día (últimos 90 días), para saber quién suele venir. */
   jornadas: JornadaPersona[];
+  /** empleadoId → motivo, de quienes hoy no tienen que venir (licencias aprobadas en RRHH). */
+  ausentes: Record<number, string>;
   /** Por persona: dónde y cuándo fue su última entrada y su última salida. */
   ultimas: UltimasDePersona[];
   /** Última señal de vida de cada celular de quiosco. */
@@ -56,7 +58,7 @@ function Senal({ latido, limiteMs }: { latido: KioscoLatido; limiteMs: number })
  * Fichadas por kiosco (cuenta de celular): cuántas hizo cada uno hoy y cuándo fue su última actividad, más el listado
  * de las últimas marcas. Sirve para ver dónde ficha la gente y para notar un celular que dejó de responder en horario laboral.
  */
-export default function FichajeKioscosAdmin({ marcas: marcasIniciales, jornadas, ultimas, latidos, nombresKioscos, error }: Props) {
+export default function FichajeKioscosAdmin({ marcas: marcasIniciales, jornadas, ausentes, ultimas, latidos, nombresKioscos, error }: Props) {
   const [marcas, setMarcas] = useState<MarcaFichaje[]>(marcasIniciales);
   const [sonido, setSonido] = useState(true);
   const [ahora, setAhora] = useState(Date.now());
@@ -225,7 +227,9 @@ export default function FichajeKioscosAdmin({ marcas: marcasIniciales, jornadas,
   }
   const listaAdentro = [...ultimaDeHoy.values()].filter((m) => m.accion === 'entrada').sort((a, b) => a.empleadoNombre.localeCompare(b.empleadoNombre, 'es'));
   const listaAfuera = [...ultimaDeHoy.values()].filter((m) => m.accion === 'salida').sort((a, b) => a.empleadoNombre.localeCompare(b.empleadoNombre, 'es'));
-  const { faltantes, diasReferencia, modo: modoFaltantes } = calcularFaltantes(jornadas, new Set(ultimaDeHoy.keys()), new Date(ahora));
+  const { faltantes, enLicencia, diasReferencia, modo: modoFaltantes } = calcularFaltantes(jornadas, new Set(ultimaDeHoy.keys()), ausentes, new Date(ahora));
+  // Pasada la mitad de la jornada (244 min) los minutos de atraso ya no dicen nada: se muestra solo "no vino".
+  const MEDIA_JORNADA_MIN = 244;
   const fmtHora = (min: number) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(Math.round(min % 60)).padStart(2, '0')}`;
   const adentro = listaAdentro.length;
   const afuera = listaAfuera.length;
@@ -334,12 +338,14 @@ export default function FichajeKioscosAdmin({ marcas: marcasIniciales, jornadas,
               ))}
           </div>
           {(
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
-              <p className="mb-2 text-xs font-medium text-amber-200">
-                Faltan por fichar hoy · {faltantes.filter((f) => f.atraso > 0).length} ya pasaron su hora
-                <span className="ml-2 font-normal text-slate-500">
-                  Gente que suele venir {modoFaltantes === 'semana' ? 'un día como hoy' : 'en días hábiles'} (al menos la mitad de {diasReferencia} días de referencia) y todavía no tiene ninguna fichada.
-                </span>
+            <details className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+              <summary className="cursor-pointer text-xs font-medium text-amber-200">
+                Faltan por fichar hoy · {faltantes.length}
+                {enLicencia.length > 0 && <span className="ml-2 font-normal text-slate-500">({enLicencia.length} de licencia no se cuentan)</span>}
+              </summary>
+              <p className="mb-2 mt-2 text-xs text-slate-500">
+                Gente que suele venir {modoFaltantes === 'semana' ? 'un día como hoy' : 'en días hábiles'} (al menos la mitad de {diasReferencia} días de referencia),
+                todavía no tiene ninguna fichada hoy y no está de vacaciones ni licencia en RRHH.
               </p>
               {faltantes.length === 0 && (
                 <p className="text-xs text-slate-400">
@@ -354,12 +360,23 @@ export default function FichajeKioscosAdmin({ marcas: marcasIniciales, jornadas,
                     <span className={`truncate ${f.atraso > 0 ? 'text-slate-100' : 'text-slate-500'}`}>{f.empleadoNombre}</span>
                     <span className="shrink-0 font-mono text-slate-500" title={`Vino ${f.vino} de los últimos ${f.de} días como hoy`}>
                       suele {fmtHora(f.entradaTipica)}
-                      {f.atraso > 0 ? <span className="text-amber-300"> · +{Math.round(f.atraso)} min</span> : ''}
+                      {f.atraso > MEDIA_JORNADA_MIN ? (
+                        <span className="text-red-400"> · no vino</span>
+                      ) : f.atraso > 0 ? (
+                        <span className="text-amber-300"> · +{Math.round(f.atraso)} min</span>
+                      ) : (
+                        ''
+                      )}
                     </span>
                   </li>
                 ))}
               </ul>
-            </div>
+              {enLicencia.length > 0 && (
+                <p className="mt-2 text-xs text-slate-500">
+                  De licencia hoy: {enLicencia.map((l) => `${l.empleadoNombre} (${l.motivo})`).join(', ')}.
+                </p>
+              )}
+            </details>
           )}
           {verLista && (
             <div className="rounded-lg border border-slate-800 bg-slate-900 p-3">

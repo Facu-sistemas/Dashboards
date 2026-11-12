@@ -24,6 +24,8 @@ const diaSemana = (dia: string) => new Date(`${dia}T12:00:00Z`).getUTCDay();
  */
 export interface ResultadoFaltantes {
   faltantes: Faltante[];
+  /** Habituales que no se cuentan porque hoy están de licencia/vacaciones (nombre + motivo). */
+  enLicencia: { empleadoId: number; empleadoNombre: string; motivo: string }[];
   /** Cuántos días con actividad se usaron como referencia (0 = no hay historial suficiente). */
   diasReferencia: number;
   /** 'semana' = solo días iguales a hoy; 'habiles' = lunes a viernes juntos, por falta de historial. */
@@ -43,7 +45,12 @@ function diasConActividad(previas: JornadaPersona[]): Set<string> {
   return new Set([...personasPorDia.entries()].filter(([, s]) => s.size >= Math.max(2, maximo * 0.3)).map(([d]) => d));
 }
 
-export function calcularFaltantes(jornadas: JornadaPersona[], fichadosHoy: Set<number>, ahora = new Date()): ResultadoFaltantes {
+export function calcularFaltantes(
+  jornadas: JornadaPersona[],
+  fichadosHoy: Set<number>,
+  ausentes: Record<number, string>,
+  ahora = new Date(),
+): ResultadoFaltantes {
   const hoy = DIA_AR.format(ahora);
   const sem = diaSemana(hoy);
   const [hh, mm] = HORA_AR.format(ahora).split(':').map(Number);
@@ -58,7 +65,7 @@ export function calcularFaltantes(jornadas: JornadaPersona[], fichadosHoy: Set<n
     previas = jornadas.filter((j) => j.dia !== hoy && diaSemana(j.dia) >= 1 && diaSemana(j.dia) <= 5);
     diasActivos = diasConActividad(previas);
   }
-  if (diasActivos.size < 2) return { faltantes: [], diasReferencia: diasActivos.size, modo };
+  if (diasActivos.size < 2) return { faltantes: [], enLicencia: [], diasReferencia: diasActivos.size, modo };
 
   const porPersona = new Map<number, { nombre: string; dias: Set<string>; entradas: number[] }>();
   for (const j of previas) {
@@ -70,12 +77,17 @@ export function calcularFaltantes(jornadas: JornadaPersona[], fichadosHoy: Set<n
   }
 
   const faltantes: Faltante[] = [];
+  const enLicencia: ResultadoFaltantes['enLicencia'] = [];
   for (const [id, p] of porPersona) {
     if (fichadosHoy.has(id) || p.entradas.length === 0) continue;
     if (p.dias.size / diasActivos.size < 0.5) continue;
+    if (ausentes[id]) {
+      enLicencia.push({ empleadoId: id, empleadoNombre: p.nombre, motivo: ausentes[id]! });
+      continue;
+    }
     const tipica = p.entradas.reduce((a, b) => a + b, 0) / p.entradas.length;
     faltantes.push({ empleadoId: id, empleadoNombre: p.nombre, entradaTipica: tipica, vino: p.dias.size, de: diasActivos.size, atraso: minAhora - tipica });
   }
   // Primero los que ya deberían haber llegado, el que más se pasó arriba.
-  return { faltantes: faltantes.sort((a, b) => b.atraso - a.atraso), diasReferencia: diasActivos.size, modo };
+  return { faltantes: faltantes.sort((a, b) => b.atraso - a.atraso), enLicencia, diasReferencia: diasActivos.size, modo };
 }

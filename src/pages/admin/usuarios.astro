@@ -7,6 +7,7 @@ import FichajeCarasAdmin from '@/components/admin/FichajeCarasAdmin';
 import FichajeParecidosAdmin from '@/components/admin/FichajeParecidosAdmin';
 import { listCaras, listCarasResumen } from '@/lib/supabase/fichaje-caras';
 import FichajeKioscosAdmin from '@/components/admin/FichajeKioscosAdmin';
+import { getAusentesHoy } from '@/lib/odoo/rrhh-vacaciones';
 import FichajePuntualidadAdmin from '@/components/admin/FichajePuntualidadAdmin';
 import { listKioscos, type KioscoLatido } from '@/lib/supabase/fichaje-kioscos';
 import { listMarcasRecientes, listUltimasPorEmpleado, listJornadas, type JornadaPersona, type MarcaFichaje, type UltimasDePersona } from '@/lib/supabase/fichaje-marcas';
@@ -52,6 +53,8 @@ try {
 } catch (err) {
   marcasError = err instanceof Error ? err.message : String(err);
 }
+// Licencias/vacaciones de hoy desde RRHH, para no marcar como faltante a quien no tenía que venir. Si Odoo falla, la lista funciona igual.
+const ausentesHoy: Record<number, string> = await getAusentesHoy().catch(() => ({}));
 // Última señal de cada celular de quiosco; si la tabla todavía no existe, simplemente no se muestra.
 const latidosKioscos: KioscoLatido[] = await listKioscos().catch(() => []);
 // La primera es la que se abre por defecto. El id 'kioscos' queda igual para no romper links con #kioscos.
@@ -91,7 +94,7 @@ for (const p of perfiles ?? []) if (p.nombre_completo) nombresKioscos[p.username
     </nav>
 
     <div data-panel="kioscos" role="tabpanel">
-      <FichajeKioscosAdmin client:load marcas={marcasFichaje} jornadas={jornadasFichaje}ultimas={ultimasFichaje} latidos={latidosKioscos} nombresKioscos={nombresKioscos} error={marcasError} />
+      <FichajeKioscosAdmin client:load marcas={marcasFichaje} jornadas={jornadasFichaje} ausentes={ausentesHoy} ultimas={ultimasFichaje} latidos={latidosKioscos} nombresKioscos={nombresKioscos} error={marcasError} />
     </div>
 
     <div data-panel="puntualidad" role="tabpanel" hidden>
