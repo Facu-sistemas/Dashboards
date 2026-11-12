@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import type { KioscoLatido } from '@/lib/supabase/fichaje-kioscos';
-import type { MarcaFichaje, UltimasDePersona } from '@/lib/supabase/fichaje-marcas';
+import type { JornadaPersona, MarcaFichaje, UltimasDePersona } from '@/lib/supabase/fichaje-marcas';
+import { calcularFaltantes } from '@/lib/fichaje-faltantes';
 
 interface Props {
   marcas: MarcaFichaje[];
+  /** Primera entrada y última salida por persona y día (últimos 90 días), para saber quién suele venir. */
+  jornadas: JornadaPersona[];
   /** Por persona: dónde y cuándo fue su última entrada y su última salida. */
   ultimas: UltimasDePersona[];
   /** Última señal de vida de cada celular de quiosco. */
@@ -53,7 +56,7 @@ function Senal({ latido, limiteMs }: { latido: KioscoLatido; limiteMs: number })
  * Fichadas por kiosco (cuenta de celular): cuántas hizo cada uno hoy y cuándo fue su última actividad, más el listado
  * de las últimas marcas. Sirve para ver dónde ficha la gente y para notar un celular que dejó de responder en horario laboral.
  */
-export default function FichajeKioscosAdmin({ marcas: marcasIniciales, ultimas, latidos, nombresKioscos, error }: Props) {
+export default function FichajeKioscosAdmin({ marcas: marcasIniciales, jornadas, ultimas, latidos, nombresKioscos, error }: Props) {
   const [marcas, setMarcas] = useState<MarcaFichaje[]>(marcasIniciales);
   const [sonido, setSonido] = useState(true);
   const [ahora, setAhora] = useState(Date.now());
@@ -222,6 +225,8 @@ export default function FichajeKioscosAdmin({ marcas: marcasIniciales, ultimas, 
   }
   const listaAdentro = [...ultimaDeHoy.values()].filter((m) => m.accion === 'entrada').sort((a, b) => a.empleadoNombre.localeCompare(b.empleadoNombre, 'es'));
   const listaAfuera = [...ultimaDeHoy.values()].filter((m) => m.accion === 'salida').sort((a, b) => a.empleadoNombre.localeCompare(b.empleadoNombre, 'es'));
+  const faltantes = calcularFaltantes(jornadas, new Set(ultimaDeHoy.keys()), new Date(ahora));
+  const fmtHora = (min: number) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(Math.round(min % 60)).padStart(2, '0')}`;
   const adentro = listaAdentro.length;
   const afuera = listaAfuera.length;
   const listaVisible = verLista === 'adentro' ? listaAdentro : verLista === 'afuera' ? listaAfuera : [];
@@ -328,6 +333,27 @@ export default function FichajeKioscosAdmin({ marcas: marcasIniciales, ultimas, 
                 </span>
               ))}
           </div>
+          {faltantes.length > 0 && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+              <p className="mb-2 text-xs font-medium text-amber-200">
+                Faltan por fichar hoy · {faltantes.filter((f) => f.atraso > 0).length} ya pasaron su hora
+                <span className="ml-2 font-normal text-slate-500">
+                  Gente que suele venir un día como hoy (al menos la mitad de los últimos) y todavía no tiene ninguna fichada.
+                </span>
+              </p>
+              <ul className="grid max-h-72 gap-x-4 gap-y-1 overflow-y-auto text-xs sm:grid-cols-2 lg:grid-cols-3">
+                {faltantes.map((f) => (
+                  <li key={f.empleadoId} className="flex items-center justify-between gap-2 border-b border-slate-800/60 py-1">
+                    <span className={`truncate ${f.atraso > 0 ? 'text-slate-100' : 'text-slate-500'}`}>{f.empleadoNombre}</span>
+                    <span className="shrink-0 font-mono text-slate-500" title={`Vino ${f.vino} de los últimos ${f.de} días como hoy`}>
+                      suele {fmtHora(f.entradaTipica)}
+                      {f.atraso > 0 ? <span className="text-amber-300"> · +{Math.round(f.atraso)} min</span> : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {verLista && (
             <div className="rounded-lg border border-slate-800 bg-slate-900 p-3">
               <div className="mb-2 flex items-center justify-between">

@@ -91,7 +91,7 @@ for (const p of perfiles ?? []) if (p.nombre_completo) nombresKioscos[p.username
     </nav>
 
     <div data-panel="kioscos" role="tabpanel">
-      <FichajeKioscosAdmin client:load marcas={marcasFichaje} ultimas={ultimasFichaje} latidos={latidosKioscos} nombresKioscos={nombresKioscos} error={marcasError} />
+      <FichajeKioscosAdmin client:load marcas={marcasFichaje} jornadas={jornadasFichaje}ultimas={ultimasFichaje} latidos={latidosKioscos} nombresKioscos={nombresKioscos} error={marcasError} />
     </div>
 
     <div data-panel="puntualidad" role="tabpanel" hidden>
