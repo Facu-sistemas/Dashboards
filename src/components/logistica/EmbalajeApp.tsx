@@ -175,6 +175,22 @@ function Inner() {
   const totalOdoo = d?.totalOdoo ?? 0;
   const totalEscaneado = d?.totalEscaneado ?? 0;
 
+  // Escaneado por scanner: Odoo no distingue E1/E2, así que el corte se hace sobre los escaneos.
+  const claveFila = (barcode: string | null, producto: string | null) => (barcode ? barcode.toUpperCase() : `p:${producto ?? ''}`);
+  const porScanner = new Map<string, { e1: number; e2: number; sin: number }>();
+  for (const e of escaneos) {
+    const k = claveFila(e.barcode, e.producto);
+    const c = porScanner.get(k) ?? { e1: 0, e2: 0, sin: 0 };
+    if (e.scanner === 1) c.e1++;
+    else if (e.scanner === 2) c.e2++;
+    else c.sin++;
+    porScanner.set(k, c);
+  }
+  const deFila = (f: EmbalajeFila) => porScanner.get(claveFila(f.barcode, f.producto)) ?? { e1: 0, e2: 0, sin: 0 };
+  const totE1 = escaneos.filter((e) => e.scanner === 1).length;
+  const totE2 = escaneos.filter((e) => e.scanner === 2).length;
+  const totSin = escaneos.length - totE1 - totE2;
+
   return (
     <div className="space-y-6">
       <ConfirmacionEscaneo aviso={aviso} onCerrar={() => setAviso(null)} />
@@ -250,9 +266,12 @@ function Inner() {
 
       {d && (
         <>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className={`grid gap-4 sm:grid-cols-2 ${totSin > 0 ? 'lg:grid-cols-6' : 'lg:grid-cols-5'}`}>
             <Kpi label="Cerrado en Odoo" valor={n0.format(totalOdoo)} />
-            <Kpi label="Escaneado en embalaje" valor={n0.format(totalEscaneado)} />
+            <Kpi label="Escaneó E1" valor={n0.format(totE1)} />
+            <Kpi label="Escaneó E2" valor={n0.format(totE2)} />
+            {totSin > 0 && <Kpi label="Sin identificar" valor={n0.format(totSin)} color="text-status-yellow" />}
+            <Kpi label="Escaneado total" valor={n0.format(totalEscaneado)} />
             <Kpi
               label="Diferencia"
               valor={`${totalEscaneado - totalOdoo > 0 ? '+' : ''}${n0.format(totalEscaneado - totalOdoo)}`}
@@ -267,6 +286,9 @@ function Inner() {
                   <th className="px-4 py-3">Producto</th>
                   <th className="px-4 py-3">Código</th>
                   <th className="px-4 py-3 text-right">Odoo</th>
+                  <th className="px-4 py-3 text-right">E1</th>
+                  <th className="px-4 py-3 text-right">E2</th>
+                  {totSin > 0 && <th className="px-4 py-3 text-right">Sin id.</th>}
                   <th className="px-4 py-3 text-right">Escaneado</th>
                   <th className="px-4 py-3 text-right">Diferencia</th>
                   <th className="px-4 py-3">Último</th>
@@ -276,7 +298,7 @@ function Inner() {
               <tbody>
                 {filas.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
+                    <td colSpan={9} className="px-4 py-8 text-center text-slate-500">
                       Sin órdenes cerradas ni escaneos en este día.
                     </td>
                   </tr>
@@ -286,6 +308,9 @@ function Inner() {
                     <td className="px-4 py-3 text-slate-100">{f.producto}</td>
                     <td className="px-4 py-3 font-mono text-xs text-slate-400">{f.barcode ?? 'sin código'}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-slate-100">{n0.format(f.odoo)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-slate-300">{n0.format(deFila(f).e1)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-slate-300">{n0.format(deFila(f).e2)}</td>
+                    {totSin > 0 && <td className="px-4 py-3 text-right tabular-nums text-status-yellow">{n0.format(deFila(f).sin)}</td>}
                     <td className="px-4 py-3 text-right tabular-nums text-slate-100">{n0.format(f.escaneado)}</td>
                     <td
                       className={`px-4 py-3 text-right font-semibold tabular-nums ${f.diferencia === 0 ? 'text-status-green' : 'text-status-red'}`}
