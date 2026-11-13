@@ -4,6 +4,7 @@ import QueryProvider from '@/components/QueryProvider';
 import { useApiQuery } from '@/components/dashboard/useApiQuery';
 import { useChartTheme } from '@/components/shared/useChartTheme';
 import LastUpdated from '@/components/shared/LastUpdated';
+import Tip from '@/components/shared/Tip';
 import type { DiaProductividad, GrupoKey, ProductividadResult } from '@/lib/productividad-horas';
 
 type Vista = 'planta' | 'living' | 'colchones';
@@ -84,10 +85,15 @@ function regresion(pts: { x: number; y: number }[]): { a: number; b: number; r: 
   return { a: my - b * mx, b, r: sxy / Math.sqrt(sxx * syy) };
 }
 
-function Kpi({ titulo, valor, sub, tono }: { titulo: string; valor: string; sub?: string; tono?: 'ok' | 'mal' }) {
+const ORIGEN_PROD = 'Producción: órdenes de fabricación en estado «Hecho» de Odoo (Fabricación), por fecha de fin, en unidades equivalentes (campo x_studio_unidades_eq). Sillón → Living, Colchones → Colchones; los intermedios (PI) no cuentan.';
+const ORIGEN_HORAS = 'Horas: del fichador facial (Supabase, tabla fichaje_marcas). Por persona y día, de la primera entrada a la última salida; incluyen almuerzo y descansos. Cada persona suma al sector de su departamento en Odoo (Empleados).';
+
+function Kpi({ titulo, valor, sub, tono, tip }: { titulo: string; valor: string; sub?: string; tono?: 'ok' | 'mal'; tip: string }) {
   return (
     <div className="rounded-lg border border-slate-800 bg-slate-900 p-4">
-      <p className="text-xs uppercase tracking-wide text-slate-500">{titulo}</p>
+      <p className="text-xs uppercase tracking-wide text-slate-500">
+        <Tip text={tip} className="cursor-help border-b border-dotted border-slate-500">{titulo}</Tip>
+      </p>
       <p className={`mt-1 text-2xl font-semibold ${tono === 'ok' ? 'text-emerald-400' : tono === 'mal' ? 'text-red-400' : 'text-slate-100'}`}>{valor}</p>
       {sub && <p className="mt-1 text-xs text-slate-400">{sub}</p>}
     </div>
@@ -174,11 +180,26 @@ function ProductividadInner() {
       ) : (
         <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Kpi titulo="Unidades eq. por hora-hombre" valor={prodMedia !== null ? n2.format(prodMedia) : '—'} sub={`${n0.format(totUeq)} ueq ÷ ${n0.format(totHoras)} hs presentes · ${validos.length} días`} />
-            <Kpi titulo="Horas-hombre por unidad" valor={prodMedia ? n2.format(1 / prodMedia) : '—'} sub="Cuántas horas de gente presente cuesta cada unidad equivalente" />
-            <Kpi titulo="Dotación media" valor={`${n0.format(personasMedia)} personas`} sub={`${n1.format(totHoras / Math.max(1, validos.reduce((s, m) => s + m.personas, 0)))} hs promedio por jornada`} />
+            <Kpi tip={`Unidades equivalentes terminadas ÷ horas-hombre presentes, sumando todos los días válidos del período (no es un promedio de promedios).
+
+${ORIGEN_PROD}
+
+${ORIGEN_HORAS}`} titulo="Unidades eq. por hora-hombre" valor={prodMedia !== null ? n2.format(prodMedia) : '—'} sub={`${n0.format(totUeq)} ueq ÷ ${n0.format(totHoras)} hs presentes · ${validos.length} días`} />
+            <Kpi tip={`Es la inversa del indicador anterior: cuántas horas de gente presente cuesta cada unidad equivalente.
+
+${ORIGEN_PROD}
+
+${ORIGEN_HORAS}`} titulo="Horas-hombre por unidad" valor={prodMedia ? n2.format(1 / prodMedia) : '—'} sub="Cuántas horas de gente presente cuesta cada unidad equivalente" />
+            <Kpi tip={`Personas con jornada completa (entrada y salida) por día, en promedio, y horas promedio de cada jornada.
+
+${ORIGEN_HORAS}`} titulo="Dotación media" valor={`${n0.format(personasMedia)} personas`} sub={`${n1.format(totHoras / Math.max(1, validos.reduce((s, m) => s + m.personas, 0)))} hs promedio por jornada`} />
             {mejor && peor && (
               <Kpi
+                tip={`Los días con mayor y menor unidades por hora-hombre del período, y cuánto se alejan del promedio. Los días en curso o con muchas fichadas incompletas no participan.
+
+${ORIGEN_PROD}
+
+${ORIGEN_HORAS}`}
                 titulo="Mejor / peor día"
                 valor={`${n2.format(mejor.prod!)} / ${n2.format(peor.prod!)}`}
                 sub={`${mejor.etiqueta} (+${n0.format(((mejor.prod! / prodMedia!) - 1) * 100)}%) · ${peor.etiqueta} (${n0.format(((peor.prod! / prodMedia!) - 1) * 100)}%)`}
@@ -187,7 +208,11 @@ function ProductividadInner() {
           </div>
 
           <section className="rounded-lg border border-slate-800 bg-slate-900 p-4">
-            <h3 className="mb-1 text-sm font-medium text-slate-200">Producción y productividad por día</h3>
+            <h3 className="mb-1 text-sm font-medium text-slate-200">
+              <Tip text={`${ORIGEN_PROD}
+
+${ORIGEN_HORAS}`} className="cursor-help border-b border-dotted border-slate-500">Producción y productividad por día</Tip>
+            </h3>
             <p className="mb-3 text-xs text-slate-500">Barras: unidades equivalentes terminadas. Línea: unidades por hora-hombre presente.</p>
             <div className="overflow-x-auto">
               <div style={{ width: Math.max(chart.length * 70, 480), height: 280 }}>
@@ -209,7 +234,13 @@ function ProductividadInner() {
 
           <div className="grid gap-4 lg:grid-cols-2">
             <section className="rounded-lg border border-slate-800 bg-slate-900 p-4">
-              <h3 className="mb-1 text-sm font-medium text-slate-200">¿Más horas = más producción?</h3>
+              <h3 className="mb-1 text-sm font-medium text-slate-200">
+                <Tip text={`Regresión lineal simple entre las horas-hombre de cada día y las unidades terminadas ese día (línea punteada). Con pocos días es orientativa.
+
+${ORIGEN_PROD}
+
+${ORIGEN_HORAS}`} className="cursor-help border-b border-dotted border-slate-500">¿Más horas = más producción?</Tip>
+              </h3>
               <p className="mb-3 text-xs text-slate-500">Cada punto es un día: horas-hombre presentes contra unidades terminadas.</p>
               <div style={{ height: 260 }}>
                 <ResponsiveContainer width="100%" height="100%">
@@ -274,7 +305,7 @@ function ProductividadInner() {
                   <li>Se cruza por sector (departamento de Odoo), no por persona: no se puede saber qué hizo cada uno.</li>
                 </ul>
                 {(totIncompletas > 0 || data.fueraDeProduccion > 0) && (
-                  <p className="mt-2 text-amber-300/90">
+                  <p className="mt-2 text-status-yellow">
                     {totIncompletas > 0 && `${totIncompletas} jornadas con entrada sin salida (o fuera de 1–14 hs) no suman horas. `}
                     {data.fueraDeProduccion > 0 && `${data.fueraDeProduccion} personas con fichadas no están en un departamento de producción de Odoo.`}
                   </p>
@@ -287,7 +318,7 @@ function ProductividadInner() {
 
       <details className="rounded-lg border border-slate-800 bg-slate-900 p-4" open={maquinasSinOperador.length > 0}>
         <summary className="cursor-pointer text-sm font-medium text-slate-200">
-          Máquinas y operadores (Mantenimiento de Odoo)
+          <Tip text={'Equipos de Odoo › Mantenimiento: el operador es el campo «Responsable» de cada equipo (se excluyen las herramientas neumáticas NEU-). «Días presente» y «Hoy» salen de si ese empleado fichó entrada en el fichador facial (Supabase, fichaje_marcas). Se cuentan solo los días en que fichó bastante gente (día de trabajo).'} className="cursor-help border-b border-dotted border-slate-500">Máquinas y operadores (Mantenimiento de Odoo)</Tip>
           {data.diasDeTrabajo.length > 0 && maquinasSinOperador.length > 0 && (
             <span className="ml-2 rounded bg-red-500/15 px-2 py-0.5 text-xs font-normal text-red-300">{maquinasSinOperador.length} sin operador hoy</span>
           )}
@@ -313,7 +344,7 @@ function ProductividadInner() {
                     <span className="font-mono text-slate-500">{q.codigo}</span> {q.nombre}
                   </td>
                   <td className="py-1.5 pr-3 text-slate-300">{q.operador}</td>
-                  <td className={`py-1.5 pr-3 text-right ${data.diasDeTrabajo.length > 0 && q.diasPresente < data.diasDeTrabajo.length * 0.8 ? 'text-amber-300' : 'text-slate-400'}`}>
+                  <td className={`py-1.5 pr-3 text-right ${data.diasDeTrabajo.length > 0 && q.diasPresente < data.diasDeTrabajo.length * 0.8 ? 'text-status-yellow' : 'text-slate-400'}`}>
                     {q.diasPresente} / {data.diasDeTrabajo.length}
                   </td>
                   <td className="py-1.5 text-center">{q.hoyPresente === null ? <span className="text-slate-600">—</span> : q.hoyPresente ? <span className="text-emerald-400">✓</span> : <span className="text-red-400">✗</span>}</td>
@@ -329,12 +360,12 @@ function ProductividadInner() {
           <thead className="border-b border-slate-800 text-xs uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-3 py-2">Día</th>
-              <th className="px-3 py-2 text-right">Personas</th>
-              <th className="px-3 py-2 text-right">Horas-hombre</th>
-              <th className="px-3 py-2 text-right">Órdenes</th>
-              <th className="px-3 py-2 text-right">Unidades eq.</th>
-              <th className="px-3 py-2 text-right">ueq / hora</th>
-              <th className="px-3 py-2 text-right">vs. promedio</th>
+              <th className="px-3 py-2 text-right"><Tip text={"Personas del sector con jornada completa ese día (entrada y salida). El «+N?» son las que tienen entrada sin salida: no suman horas. Fuente: fichador facial."} className="cursor-help border-b border-dotted border-slate-600">Personas</Tip></th>
+              <th className="px-3 py-2 text-right"><Tip text={"Suma de las horas presentes (primera entrada → última salida) de esas personas. Fuente: fichador facial."} className="cursor-help border-b border-dotted border-slate-600">Horas-hombre</Tip></th>
+              <th className="px-3 py-2 text-right"><Tip text={"Órdenes de fabricación terminadas ese día con unidades equivalentes mayores a 0. Fuente: Odoo › Fabricación."} className="cursor-help border-b border-dotted border-slate-600">Órdenes</Tip></th>
+              <th className="px-3 py-2 text-right"><Tip text={"Suma de x_studio_unidades_eq de esas órdenes, por fecha de fin (hora Argentina). Fuente: Odoo › Fabricación."} className="cursor-help border-b border-dotted border-slate-600">Unidades eq.</Tip></th>
+              <th className="px-3 py-2 text-right"><Tip text={"Unidades equivalentes ÷ horas-hombre del día. Se muestra «—» si el día está en curso o tiene muchas fichadas incompletas."} className="cursor-help border-b border-dotted border-slate-600">ueq / hora</Tip></th>
+              <th className="px-3 py-2 text-right"><Tip text={"Diferencia del ueq/hora del día contra el promedio ponderado del período."} className="cursor-help border-b border-dotted border-slate-600">vs. promedio</Tip></th>
             </tr>
           </thead>
           <tbody>
@@ -346,12 +377,12 @@ function ProductividadInner() {
                   <tr onClick={() => setAbierto(abierta ? null : m.dia)} className="cursor-pointer border-b border-slate-800/60 hover:bg-slate-800/40">
                     <td className="px-3 py-2 text-slate-200">
                       {abierta ? '▾' : '▸'} {m.etiqueta}
-                      {m.enCurso && <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-300">en curso</span>}
-                      {m.poco && !m.enCurso && <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-300" title="Falta la salida de muchas jornadas: no entra en promedios ni gráficos">fichadas incompletas</span>}
+                      {m.enCurso && <span className="ml-2 rounded bg-status-yellow/15 px-1.5 py-0.5 text-[10px] text-status-yellow">en curso</span>}
+                      {m.poco && !m.enCurso && <span className="ml-2 rounded bg-status-yellow/15 px-1.5 py-0.5 text-[10px] text-status-yellow" title="Falta la salida de muchas jornadas: no entra en promedios ni gráficos">fichadas incompletas</span>}
                     </td>
                     <td className="px-3 py-2 text-right text-slate-300">
                       {m.personas}
-                      {m.incompletas > 0 && <span className="ml-1 text-xs text-amber-300" title="Entradas sin salida: no suman horas">+{m.incompletas}?</span>}
+                      {m.incompletas > 0 && <span className="ml-1 text-xs text-status-yellow" title="Entradas sin salida: no suman horas">+{m.incompletas}?</span>}
                     </td>
                     <td className="px-3 py-2 text-right text-slate-300">{n0.format(m.horas)}</td>
                     <td className="px-3 py-2 text-right text-slate-300">{m.ordenes}</td>
@@ -383,7 +414,7 @@ function ProductividadInner() {
                               {m.gente.map(([nombre, hs]) => (
                                 <li key={nombre} className="flex justify-between gap-3 border-b border-slate-800/50 py-1">
                                   <span className="truncate text-slate-300">{nombre}</span>
-                                  <span className={`shrink-0 font-mono ${hs < 6 ? 'text-amber-300' : 'text-slate-400'}`}>{n1.format(hs)} h</span>
+                                  <span className={`shrink-0 font-mono ${hs < 6 ? 'text-status-yellow' : 'text-slate-400'}`}>{n1.format(hs)} h</span>
                                 </li>
                               ))}
                             </ul>
