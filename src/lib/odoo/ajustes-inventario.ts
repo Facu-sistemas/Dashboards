@@ -129,7 +129,7 @@ export interface AjustesInventarioResult {
   /** 12 entradas YYYY-MM. */
   months: string[];
   mensual: AjusteMes[];
-  /** Neto por mes de todo el inventario, sin el filtro de categoría/producto: alimenta los gráficos de evolución. */
+  /** Neto por mes con el filtro de categoría/producto aplicado: alimenta los gráficos de evolución. */
   evolucion: { netoValor: number[]; netoCantidad: number[] };
   total: Omit<AjusteMes, 'mes'>;
   /** Productos por mes (clave YYYY-MM), ordenados por |neto $| desc y recortados. */
@@ -512,7 +512,7 @@ function agregar(raw: Raw, filtro: AjustesFiltro): AjustesInventarioResult {
     productos: [...opcionesProductos.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
   };
 
-  // Los gráficos de evolución no siguen el filtro de categoría/producto: siempre muestran todo el inventario.
+  // Los gráficos de evolución siguen el filtro de categoría/producto, igual que los cuadritos.
   const evolucion = { netoValor: Array<number>(12).fill(0), netoCantidad: Array<number>(12).fill(0) };
   for (const l of raw.buenas) {
     const mi = months.indexOf(l.create_date.slice(0, 7));

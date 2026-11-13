@@ -84,7 +84,7 @@ function DesvioChart({ data, desde, hasta }: { data: { mes: string; desvio: numb
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-900 p-4">
       <h3 className="text-sm font-medium text-slate-300">
-        <Tip text={"Toma: $ neto de los ajustes de inventario (Odoo stock.valuation.layer, is_inventory) de cada mes ÷ $ de materia prima consumida en producción ese mes. No sigue el filtro de categoría y producto: siempre es todo el inventario.\nObjetivo: hoja «Objetivos Inventario» del dashboard Equipo de gestión de Odoo (un valor por mes).\nCalcula: la barra es el desvío en valor absoluto (sobrante o faltante); verde si no pasa el objetivo, rojo si lo pasa. Las opacas son el período elegido."} className="cursor-help border-b border-dotted border-slate-500">
+        <Tip text={"Toma: $ neto de los ajustes de inventario (Odoo stock.valuation.layer, is_inventory) de cada mes ÷ $ de materia prima consumida en producción ese mes. Sigue el filtro de categoría y producto (el $ de materia prima de la base no cambia con el filtro).\nObjetivo: hoja «Objetivos Inventario» del dashboard Equipo de gestión de Odoo (un valor por mes).\nCalcula: la barra es el desvío en valor absoluto (sobrante o faltante); verde si no pasa el objetivo, rojo si lo pasa. Las opacas son el período elegido."} className="cursor-help border-b border-dotted border-slate-500">
           Desvío % s/ materia prima vs objetivo
         </Tip>
       </h3>
