@@ -58,8 +58,9 @@ function Senal({ latido, limiteMs }: { latido: KioscoLatido; limiteMs: number })
  * Fichadas por kiosco (cuenta de celular): cuántas hizo cada uno hoy y cuándo fue su última actividad, más el listado
  * de las últimas marcas. Sirve para ver dónde ficha la gente y para notar un celular que dejó de responder en horario laboral.
  */
-export default function FichajeKioscosAdmin({ marcas: marcasIniciales, jornadas, ausentes, ultimas, latidos, nombresKioscos, error }: Props) {
+export default function FichajeKioscosAdmin({ marcas: marcasIniciales, jornadas, ausentes, ultimas, latidos: latidosIniciales, nombresKioscos, error }: Props) {
   const [marcas, setMarcas] = useState<MarcaFichaje[]>(marcasIniciales);
+  const [latidos, setLatidos] = useState<KioscoLatido[]>(latidosIniciales);
   const [sonido, setSonido] = useState(true);
   const [ahora, setAhora] = useState(Date.now());
   const [ultimaConsulta, setUltimaConsulta] = useState<number | null>(null);
@@ -101,10 +102,12 @@ export default function FichajeKioscosAdmin({ marcas: marcasIniciales, jornadas,
       try {
         const res = await fetch('/api/admin/fichaje-marcas-recientes', { cache: 'no-store' });
         // handleApiRoute envuelve la respuesta: { ok, data: { ok, marcas } }.
-        const json = (await res.json()) as { ok: boolean; data?: { marcas?: MarcaFichaje[] } };
+        const json = (await res.json()) as { ok: boolean; data?: { marcas?: MarcaFichaje[]; latidos?: KioscoLatido[] } };
         const lista = json.data?.marcas;
         if (!vivo || !res.ok || !json.ok || !lista) return;
         setUltimaConsulta(Date.now());
+        // Las señales de vida de los celulares también se refrescan, si no pasan a "sin señal" aunque estén bien.
+        if (json.data?.latidos?.length) setLatidos(json.data.latidos);
         const nuevas = lista.filter((m) => !vistas.current.has(m.id));
         if (nuevas.length === 0) return;
         for (const m of nuevas) vistas.current.add(m.id);

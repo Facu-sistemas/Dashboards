@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { listMarcasRecientes } from '@/lib/supabase/fichaje-marcas';
+import { listKioscos } from '@/lib/supabase/fichaje-kioscos';
 import { handleApiRoute, jsonResponse } from '@/lib/api-helpers';
 
 export const prerender = false;
@@ -10,7 +11,7 @@ export const GET: APIRoute = async (context) => {
     return jsonResponse({ ok: false, error: 'No autorizado' }, { status: 403 });
   }
   return handleApiRoute(async () => {
-    const marcas = await listMarcasRecientes(300);
-    return { ok: true, marcas };
+    const [marcas, latidos] = await Promise.all([listMarcasRecientes(300), listKioscos().catch(() => [])]);
+    return { ok: true, marcas, latidos };
   });
 };
