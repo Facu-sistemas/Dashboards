@@ -1,6 +1,7 @@
 import { searchReadAll } from './odoo/client';
 import { getFronteraCompany } from './odoo/reference';
 import { getArgentinaTodayIso } from './odoo/oee';
+import { getFeriadosConNombre } from './odoo/business-calendar';
 import { listJornadas } from './supabase/fichaje-marcas';
 import { withTtlCache, cacheKey } from './cache';
 
@@ -51,6 +52,8 @@ export interface ProductividadResult {
   fueraDeProduccion: number;
   /** Máquinas (Mantenimiento de Odoo) con su operador asignado y si vino. */
   maquinas: MaquinaCobertura[];
+  /** Feriados del calendario laboral de Odoo dentro del período: fecha → nombre. */
+  feriados: Record<string, string>;
   /** Días en que la planta trabajó (fichó bastante gente): sirven de denominador para «días presente». */
   diasDeTrabajo: string[];
 }
@@ -119,7 +122,8 @@ export async function getProductividadHoras(diasAtras: number): Promise<Producti
     const desde = new Date(Date.parse(`${hoy}T00:00:00Z`) - diasAtras * 86_400_000).toISOString().slice(0, 10);
     const { companyId } = await getFronteraCompany();
 
-    const [empleados, equipos, ordenes, jornadas] = await Promise.all([
+    const [feriadosTodos, empleados, equipos, ordenes, jornadas] = await Promise.all([
+      getFeriadosConNombre().catch(() => ({}) as Record<string, string>),
       searchReadAll<EmpleadoRow>({ model: 'hr.employee', domain: [['active', '=', true]], fields: ['department_id'] }),
       // Herramientas neumáticas (NEU-) y equipos sin operador no interesan: son decenas de pistolas sin dueño fijo.
       searchReadAll<EquipoRow>({
@@ -235,6 +239,9 @@ export async function getProductividadHoras(diasAtras: number): Promise<Producti
       });
     }
 
-    return { desde, hasta: hoy, dias, dotacion, fueraDeProduccion: sinDepto.size, maquinas, diasDeTrabajo };
+    return { desde, hasta: hoy, dias, dotacion, fueraDeProduccion: sinDepto.size, maquinas,
+      diasDeTrabajo,
+      feriados: Object.fromEntries(Object.entries(feriadosTodos).filter(([d]) => d >= desde && d <= hoy)),
+    };
   });
 }

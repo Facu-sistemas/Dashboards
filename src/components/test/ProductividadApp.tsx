@@ -384,7 +384,7 @@ ${ORIGEN_HORAS}`} className="cursor-help border-b border-dotted border-slate-500
             Calendario de {mesLabel(mesSel)}
           </Tip>
         </h3>
-        <p className="mb-3 text-xs text-slate-500">Productividad de cada día contra el promedio del mes. Los días sin producción ni fichadas quedan en blanco.</p>
+        <p className="mb-3 text-xs text-slate-500">Productividad de cada día contra el promedio del mes. Los feriados salen del calendario laboral de Odoo; los días sin producción ni fichadas quedan en blanco.</p>
         <div className="grid grid-cols-7 gap-1.5 text-center text-[11px] uppercase tracking-wide text-slate-500">
           {['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'].map((d) => (
             <div key={d}>{d}</div>
@@ -396,20 +396,24 @@ ${ORIGEN_HORAS}`} className="cursor-help border-b border-dotted border-slate-500
             const m = c.m;
             const delta = m && m.prod !== null && !m.poco && !m.enCurso && prodMedia ? (m.prod / prodMedia - 1) * 100 : null;
             const tinte = delta === null ? 'bg-slate-800/40' : delta >= 5 ? 'bg-status-green/20' : delta <= -5 ? 'bg-status-red/20' : 'bg-slate-800/70';
+            const feriado = data.feriados[c.dia];
             const sel = abierto === c.dia;
             return (
               <button
                 key={c.dia}
                 type="button"
                 disabled={!m}
+                title={feriado ? `Feriado: ${feriado}` : undefined}
                 onClick={() => setAbierto(sel ? null : c.dia)}
-                className={`flex min-h-[78px] flex-col rounded-md border p-1.5 text-left transition-colors ${m ? `${tinte} cursor-pointer hover:border-slate-500` : 'cursor-default bg-transparent opacity-50'} ${sel ? 'border-brand-500' : m?.poco || m?.enCurso ? 'border-dashed border-status-yellow/60' : 'border-slate-800'}`}
+                className={`flex min-h-[78px] flex-col rounded-md border p-1.5 text-left transition-colors ${m ? `${tinte} cursor-pointer hover:border-slate-500` : feriado ? 'cursor-default bg-status-yellow/10' : 'cursor-default bg-transparent opacity-50'} ${sel ? 'border-brand-500' : m?.poco || m?.enCurso ? 'border-dashed border-status-yellow/60' : 'border-slate-800'}`}
               >
                 <span className="flex items-center justify-between text-[11px] text-slate-500">
                   {Number(c.dia.slice(8))}
+                  {feriado && <span className="truncate pl-1 text-status-yellow">feriado</span>}
                   {m?.enCurso && <span className="text-status-yellow">en curso</span>}
                   {m?.poco && !m.enCurso && <span className="text-status-yellow" title="Falta la salida de muchas jornadas: no entra en promedios ni gráficos">incompleto</span>}
                 </span>
+                {feriado && <span className="mt-0.5 text-[11px] leading-tight text-status-yellow">{feriado}</span>}
                 {m && (
                   <>
                     <span className="text-base font-semibold leading-tight text-slate-100">{m.prod !== null && !m.enCurso && !m.poco ? n2.format(m.prod) : '—'}</span>

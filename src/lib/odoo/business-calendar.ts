@@ -136,3 +136,25 @@ export async function getDiasHabiles(year: number): Promise<DiasHabiles> {
 
   return { diasTotal, diasTranscurridos };
 }
+
+/** Feriados del calendario laboral de la compañía con su nombre ("YYYY-MM-DD" → "Día de la Raza"), tal como están cargados en Odoo. */
+export async function getFeriadosConNombre(): Promise<Record<string, string>> {
+  return withTtlCache('ref:calendar:frontera:feriados-nombres', REFERENCE_TTL_MS, async () => {
+    const { companyId } = await getFronteraCompany();
+    const companyRows = await searchRead<{ resource_calendar_id: [number, string] | false }>({
+      model: 'res.company',
+      domain: [['id', '=', companyId]],
+      fields: ['resource_calendar_id'],
+      limit: 1,
+    });
+    const calendarId = companyRows[0]?.resource_calendar_id;
+    if (!calendarId) return {};
+    const leaves = await searchRead<{ name: string | false; date_from: string }>({
+      model: 'resource.calendar.leaves',
+      domain: [['calendar_id', '=', calendarId[0]], ['resource_id', '=', false]],
+      fields: ['name', 'date_from'],
+    });
+    // date_from llega como "YYYY-MM-DD 03:00:00" UTC = medianoche de Argentina: los primeros 10 caracteres ya son el día local.
+    return Object.fromEntries(leaves.map((l) => [l.date_from.slice(0, 10), l.name || 'Feriado']));
+  });
+}
