@@ -514,7 +514,7 @@ function agregar(raw: Raw, filtro: AjustesFiltro): AjustesInventarioResult {
 
   // Los gráficos de evolución siguen el filtro de categoría/producto, igual que los cuadritos.
   const evolucion = { netoValor: Array<number>(12).fill(0), netoCantidad: Array<number>(12).fill(0) };
-  for (const l of raw.buenas) {
+  for (const l of buenas) {
     const mi = months.indexOf(l.create_date.slice(0, 7));
     if (mi < 0) continue;
     evolucion.netoValor[mi]! += l.value;

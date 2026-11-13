@@ -1,4 +1,4 @@
-import { Fragment, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Bar, BarChart, Cell, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import QueryProvider from '@/components/QueryProvider';
 import { useApiQuery } from '@/components/dashboard/useApiQuery';
@@ -173,8 +173,25 @@ function Th({ tip, className = '', children }: { tip: string; className?: string
 function CategoriasMulti({ opciones, sel, onChange }: { opciones: string[]; sel: string[]; onChange: (next: string[]) => void }) {
   const label = sel.length === 0 ? 'Todas las categorías' : sel.length === 1 ? sel[0]! : `${sel.length} categorías`;
   const toggle = (c: string) => onChange(sel.includes(c) ? sel.filter((x) => x !== c) : [...sel, c]);
+  const ref = useRef<HTMLDetailsElement>(null);
+  // <details> no se cierra solo: lo cerramos al hacer clic afuera o con Esc.
+  useEffect(() => {
+    const cerrar = () => ref.current?.removeAttribute('open');
+    const onDown = (e: PointerEvent) => {
+      if (ref.current?.open && !ref.current.contains(e.target as Node)) cerrar();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') cerrar();
+    };
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, []);
   return (
-    <details className="relative shrink-0">
+    <details ref={ref} className="relative shrink-0">
       <summary
         aria-label="Categorías de producto"
         title={sel.length > 0 ? sel.join(', ') : 'Podés marcar varias categorías'}
