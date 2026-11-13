@@ -20,9 +20,9 @@ const selectClass =
 
 const ESTADO_LABEL: Record<string, string> = { confirm: 'Sin aprobar', validate1: 'Falta 2ª aprobación', validate: 'Aprobada' };
 
-function Kpi({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone?: string }) {
+function Kpi({ label, value, hint, tone, title }: { label: string; value: string; hint?: string; tone?: string; title?: string }) {
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900 p-4">
+    <div title={title} className="rounded-lg border border-slate-800 bg-slate-900 p-4">
       <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
       <p className={`mt-1 text-2xl font-semibold ${tone ?? 'text-slate-100'}`}>{value}</p>
       {hint && <p className="mt-0.5 text-xs text-slate-500">{hint}</p>}
@@ -146,7 +146,9 @@ function QuincenaInner({ hoy }: Props) {
 
   const hayFichadas = (data?.fichadasTotal ?? 0) > 0;
   const maxTipo = Math.max(1, ...(data?.porTipo ?? []).map((t) => t.horas));
-  const ausentismo = data && data.totales.horasEsperadas > 0 ? data.totales.tiempoPersonalHs / data.totales.horasEsperadas : null;
+  const tiempoPersonalPct = data && data.totales.horasEsperadas > 0 ? data.totales.tiempoPersonalHs / data.totales.horasEsperadas : null;
+  const ausentismo = data && data.totales.ausentismoBaseHs > 0 ? data.totales.ausentismoHs / data.totales.ausentismoBaseHs : null;
+  const pct1 = (v: number) => `${(v * 100).toFixed(1).replace('.', ',')}%`;
 
   function toggle(id: number) {
     setAbierto((prev) => {
@@ -297,25 +299,36 @@ function QuincenaInner({ hoy }: Props) {
         <div className="h-28 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
       ) : (
         data && (
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-6">
-            <Kpi label="Horas de jornada" value={hs(Math.round(data.totales.horasEsperadas))} hint={`${data.totales.empleados} empleados · ${data.diasHabiles} días hábiles`} />
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 xl:grid-cols-7">
+            <Kpi title="Suma de la jornada de todos los empleados en el período: días hábiles (lunes a viernes) × 8,80 hs, desde su ingreso si fue dentro del período." label="Horas de jornada" value={hs(Math.round(data.totales.horasEsperadas))} hint={`${data.totales.empleados} empleados · ${data.diasHabiles} días hábiles`} />
             <Kpi
+              title="Feriados del calendario laboral de Odoo que caen en día hábil. Se descuentan de las horas a trabajar."
               label="Feriados"
               value={hs(Math.round(data.totales.feriadosHs))}
               hint={data.feriados.length ? data.feriados.map((f) => formatFechaIso(f).slice(0, 5)).join(', ') : 'Sin feriados'}
             />
             <Kpi
+              title="Licencias aprobadas en Odoo dentro del período (vacaciones, enfermedad, trámites, banco de horas, etc.). No incluye las sin aprobar."
               label="Tiempo personal"
               value={hs(Math.round(data.totales.tiempoPersonalHs))}
-              hint={ausentismo === null ? undefined : `${(ausentismo * 100).toFixed(1).replace('.', ',')}% de la jornada`}
+              hint={tiempoPersonalPct === null ? undefined : `${pct1(tiempoPersonalPct)} de la jornada`}
             />
-            <Kpi label="Horas a trabajar" value={hs(Math.round(data.totales.horasATrabajar))} hint="Jornada − feriados − tiempo personal" tone="text-emerald-400" />
             <Kpi
+              title="Ausencias no programadas ÷ horas en las que se podía asistir (jornada − feriados − vacaciones). Cuenta enfermedad, accidente, permisos sin pagar y los días sin fichada ni licencia a partir de la primera fichada de cada persona. Trámites, banco de horas y demás permisos no cuentan."
+              label="Ausentismo"
+              value={ausentismo === null ? '—' : pct1(ausentismo)}
+              hint={`${hs(Math.round(data.totales.ausentismoHs))} de ${hs(Math.round(data.totales.ausentismoBaseHs))}`}
+              tone={ausentismo === null ? undefined : ausentismo > 0.05 ? 'text-rose-400' : ausentismo > 0.03 ? 'text-amber-400' : 'text-emerald-400'}
+            />
+            <Kpi title="Lo que efectivamente se espera trabajar: jornada − feriados − tiempo personal." label="Horas a trabajar" value={hs(Math.round(data.totales.horasATrabajar))} hint="Jornada − feriados − tiempo personal" tone="text-emerald-400" />
+            <Kpi
+              title="Horas de banco usadas (licencias de banco aprobadas) y acreditadas (asignaciones) dentro del período."
               label="Banco de horas"
               value={`−${formatDias(Math.round(data.totales.bancoUsado))} / +${formatDias(Math.round(data.totales.bancoAcreditado))}`}
               hint="Usado / acreditado en el período"
             />
             <Kpi
+              title="Empleados con alguna observación: banco que no cuadra, licencias superpuestas, exceso de horas, licencias sin aprobar o saldo negativo."
               label="Con diferencias"
               value={String(data.totales.conAlertas)}
               hint={`${data.totales.conErrores} con errores a corregir`}
@@ -360,14 +373,19 @@ function QuincenaInner({ hoy }: Props) {
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-900 text-xs uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-3 py-2 font-medium">Empleado</th>
-                <th className="px-3 py-2 text-right font-medium">Jornada</th>
-                <th className="px-3 py-2 text-right font-medium">Feriados</th>
-                <th className="px-3 py-2 font-medium">Tiempo personal</th>
-                <th className="px-3 py-2 text-right font-medium">A trabajar</th>
-                {hayFichadas && <th className="px-3 py-2 text-right font-medium">Fichadas</th>}
-                <th className="px-3 py-2 text-right font-medium">Banco (saldo)</th>
-                <th className="px-3 py-2 font-medium">Diferencias</th>
+                <th className="whitespace-nowrap px-3 py-2 font-medium" title="Nombre y departamento en Odoo.">Empleado</th>
+                <th className="whitespace-nowrap px-3 py-2 text-right font-medium" title="Días hábiles del período × 8,80 hs (desde el ingreso si fue dentro del período).">Jornada</th>
+                <th className="whitespace-nowrap px-3 py-2 text-right font-medium" title="Feriados del calendario laboral de Odoo que caen en día hábil, en horas.">Feriados</th>
+                <th className="whitespace-nowrap px-3 py-2 font-medium" title="Licencias aprobadas en Odoo en el período, con el detalle por tipo.">Tiempo personal</th>
+                <th className="whitespace-nowrap px-3 py-2 text-right font-medium" title="Jornada − feriados − tiempo personal.">A trabajar</th>
+                {hayFichadas && (
+                  <>
+                    <th className="whitespace-nowrap px-3 py-2 text-right font-medium" title="Horas de las fichadas propias (kiosco facial → hr.attendance de Odoo) en el período, y días distintos con fichada.">Fichadas</th>
+                    <th className="whitespace-nowrap px-3 py-2 text-right font-medium" title="Ausencias no programadas (enfermedad, accidente, sin pagar y días sin fichada ni licencia) sobre las horas en que podía asistir. Los días sin fichada solo cuentan desde la primera fichada de la persona en el período.">Ausentismo</th>
+                  </>
+                )}
+                <th className="whitespace-nowrap px-3 py-2 text-right font-medium" title="Saldo actual del banco de horas (campo del empleado en Odoo). Abajo: acreditado (+) y usado (−) en el período.">Banco (saldo)</th>
+                <th className="whitespace-nowrap px-3 py-2 font-medium" title="Observaciones que RRHH tiene que revisar antes de liquidar. Pasá el mouse por cada una para ver el detalle.">Diferencias</th>
               </tr>
             </thead>
             <tbody>
@@ -382,7 +400,7 @@ function QuincenaInner({ hoy }: Props) {
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums text-slate-300">{hs(r.horasEsperadas)}</td>
                       <td className="px-3 py-2 text-right tabular-nums text-slate-400">{r.feriadosHs ? hs(r.feriadosHs) : '—'}</td>
-                      <td className="px-3 py-2">
+                      <td className="max-w-[18rem] px-3 py-2">
                         {r.porTipo.length === 0 ? (
                           <span className="text-slate-600">—</span>
                         ) : (
@@ -393,7 +411,15 @@ function QuincenaInner({ hoy }: Props) {
                         )}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums text-slate-100">{hs(r.horasATrabajar)}</td>
-                      {hayFichadas && <td className="px-3 py-2 text-right tabular-nums text-slate-400">{r.fichadasHs ? hs(r.fichadasHs) : '—'}</td>}
+                      {hayFichadas && <td className="px-3 py-2 text-right tabular-nums text-slate-400">{r.fichadasHs ? <>{hs(r.fichadasHs)}<span className="block text-xs text-slate-500">{r.diasTrabajados} {r.diasTrabajados === 1 ? 'día' : 'días'}</span></> : '—'}</td>}
+                      {hayFichadas && (
+                        <td
+                          className={`px-3 py-2 text-right tabular-nums ${r.ausentismoHs > 0 ? 'text-amber-300' : 'text-slate-600'}`}
+                          title={r.ausentismoBaseHs > 0 ? `${hs(r.ausentismoHs)} ausentes de ${hs(r.ausentismoBaseHs)} en las que podía asistir` : 'Sin horas de jornada en el período'}
+                        >
+                          {r.ausentismoBaseHs > 0 && r.ausentismoHs > 0 ? pct1(r.ausentismoHs / r.ausentismoBaseHs) : '—'}
+                        </td>
+                      )}
                       <td className={`px-3 py-2 text-right tabular-nums ${r.bancoSaldo < 0 ? 'text-rose-300' : 'text-slate-300'}`}>
                         {hs(r.bancoSaldo)}
                         {(r.bancoAcreditado > 0 || r.bancoUsado > 0) && (
@@ -415,7 +441,7 @@ function QuincenaInner({ hoy }: Props) {
                     </tr>
                     {open && (
                       <tr className="bg-slate-900/40">
-                        <td colSpan={hayFichadas ? 8 : 7} className="px-3 py-3">
+                        <td colSpan={hayFichadas ? 9 : 7} className="px-3 py-3">
                           <Detalle row={r} />
                         </td>
                       </tr>

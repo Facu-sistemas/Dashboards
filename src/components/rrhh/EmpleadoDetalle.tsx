@@ -27,9 +27,7 @@ export default function EmpleadoDetalle({ row, today, colSpan }: Props) {
           <section>
             <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Contrato</h4>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Departamento" value={row.departamento ?? '—'} />
               <Field label="Puesto" value={row.puesto ?? '—'} />
-              <Field label="Fecha de ingreso" value={formatFechaIso(row.fechaIngreso)} />
               <Field label="Antigüedad" value={formatAntiguedad(row.fechaIngreso, today)} />
               <Field label="Categoría de convenio" value={row.categoriaConvenio ?? '—'} />
               <Field label="Jornada" value={row.jornada ? `${row.jornada}${row.horasSemanales ? ` (${row.horasSemanales} hs/sem)` : ''}` : '—'} />
@@ -58,7 +56,6 @@ export default function EmpleadoDetalle({ row, today, colSpan }: Props) {
                   <span className={row.bancoHorasSaldo < 0 ? 'text-red-400' : undefined}>{formatHoras(row.bancoHorasSaldo)}</span>
                 }
               />
-              <Field label="En licencia ahora" value={row.enLicenciaActualmente ? 'Sí' : 'No'} />
             </div>
           </section>
 

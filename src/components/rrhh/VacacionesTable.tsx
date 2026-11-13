@@ -40,13 +40,13 @@ export default function VacacionesTable({ rows, today }: Props) {
       <table className="w-full min-w-[760px] border-collapse text-sm">
         <thead>
           <tr className="border-b border-slate-800 text-left text-xs uppercase tracking-wide text-slate-500">
-            <th className="py-2 pr-3 font-medium">Empleado</th>
-            <th className="py-2 pr-4 font-medium">Departamento</th>
-            <th className="py-2 pr-4 font-medium">Ingreso</th>
-            <th className="py-2 pr-4 text-right font-medium">Asignados</th>
-            <th className="py-2 pr-4 text-right font-medium">Tomados</th>
-            <th className="py-2 pr-4 text-right font-medium">Saldo</th>
-            <th className="py-2 font-medium">Estado</th>
+            <th className="py-2 pr-3 font-medium" title="Empleados activos de Odoo. Clic en la fila para ver contrato, horas y el detalle de vacaciones.">Empleado</th>
+            <th className="py-2 pr-4 font-medium" title="Departamento del empleado en Odoo.">Departamento</th>
+            <th className="py-2 pr-4 font-medium" title="Fecha de ingreso cargada en Odoo; define la antigüedad.">Ingreso</th>
+            <th className="py-2 pr-4 text-right font-medium" title="Días de vacaciones asignados con asignaciones validadas en Odoo (suma de todas las vigentes).">Asignados</th>
+            <th className="py-2 pr-4 text-right font-medium" title="Días de licencias de vacaciones validadas en Odoo.">Tomados</th>
+            <th className="py-2 pr-4 text-right font-medium" title="Asignados − tomados. Rojo: saldo negativo. Amarillo: acumulación alta.">Saldo</th>
+            <th className="py-2 font-medium" title="Anomalía detectada en el saldo de vacaciones (negativo o acumulación alta).">Estado</th>
           </tr>
         </thead>
         <tbody>

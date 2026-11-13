@@ -131,7 +131,7 @@ export default function EmpleadoCard({ row, today, color, maxAbsBanco }: Props) 
       <div className="flex flex-wrap items-center gap-1.5">
         <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${color.chip}`}>{convenioDe(row)}</span>
         {row.horasSemanales ? (
-          <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] text-slate-400">{row.horasSemanales} hs/sem</span>
+          <span title="Horas semanales de su calendario laboral en Odoo." className="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] text-slate-400">{row.horasSemanales} hs/sem</span>
         ) : null}
         {row.enLicenciaActualmente && (
           <span className="rounded-full bg-brand-500/10 px-2 py-0.5 text-[11px] font-medium text-brand-400">de licencia</span>
@@ -145,7 +145,7 @@ export default function EmpleadoCard({ row, today, color, maxAbsBanco }: Props) 
         </p>
       ) : (
         <div>
-          <div className="mb-1.5 flex items-baseline justify-between">
+          <div className="mb-1.5 flex items-baseline justify-between" title="Saldo del banco de horas del empleado en Odoo. Positivo: a favor del empleado.">
             <span className="text-[11px] uppercase tracking-wide text-slate-500">Banco de horas</span>
             <span className={`text-lg font-semibold leading-none ${saldoColor}`}>
               {saldo > 0 ? '+' : ''}
@@ -157,15 +157,15 @@ export default function EmpleadoCard({ row, today, color, maxAbsBanco }: Props) 
       )}
 
       <dl className="grid grid-cols-3 gap-2 border-t border-slate-800 pt-3 text-center">
-        <div>
+        <div title="Horas cargadas en timesheets (Odoo) del día 1 del mes a hoy.">
           <dt className="text-[10px] uppercase tracking-wide text-slate-500">Hs del mes</dt>
           <dd className="mt-0.5 text-sm font-medium text-slate-200">{perfecto ? '—' : formatDias(row.horasCargadasMes)}</dd>
         </div>
-        <div>
+        <div title="Horas cargadas en timesheets (Odoo) desde siempre.">
           <dt className="text-[10px] uppercase tracking-wide text-slate-500">Hs totales</dt>
           <dd className="mt-0.5 text-sm font-medium text-slate-200">{perfecto ? '—' : formatDias(row.horasCargadasTotal)}</dd>
         </div>
-        <div>
+        <div title="Días de vacaciones asignados − tomados (Odoo).">
           <dt className="text-[10px] uppercase tracking-wide text-slate-500">Vac. saldo</dt>
           <dd className={`mt-0.5 text-sm font-medium ${vacColor}`}>{formatDias(row.vacacionesSaldo)} d</dd>
         </div>

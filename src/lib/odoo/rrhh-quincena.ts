@@ -21,6 +21,9 @@ const MAX_DIAS_RANGO = 93;
 /** Argentina no tiene horario de verano: los datetime de Odoo (UTC) están 3 horas adelantados. */
 const OFFSET_ARG_MS = 3 * 60 * 60 * 1000;
 
+/** Ausencias no programadas: lo que cuenta como ausentismo (las vacaciones, trámites, banco de horas y demás permisos no). */
+const TIPOS_AUSENTISMO = ['Baja por enfermedad', 'Accidente', 'Permisos sin pagar'];
+
 export type QuincenaAlertaTipo = 'banco-descuadre' | 'superpuestas' | 'exceso' | 'pendiente' | 'banco-negativo';
 export type QuincenaAlertaNivel = 'error' | 'aviso';
 
@@ -69,6 +72,10 @@ export interface QuincenaEmpleadoRow {
   diasTrabajados: number;
   /** Días sin fichada, sin feriado y sin licencia aprobada × 8,80 (RRHH lo revisa antes de liquidar). */
   injustificadasHs: number;
+  /** Horas de ausencia no programada: enfermedad, accidente, permisos sin pagar y días sin fichada ni justificación (estos últimos solo desde la primera fichada de la persona en el período). */
+  ausentismoHs: number;
+  /** Horas en las que se podía asistir: jornada − feriados − vacaciones. Es el denominador del ausentismo. */
+  ausentismoBaseHs: number;
   bancoSaldo: number;
   bancoAcreditado: number;
   bancoUsado: number;
@@ -92,6 +99,8 @@ export interface RrhhQuincenaResult {
     feriadosHs: number;
     tiempoPersonalHs: number;
     horasATrabajar: number;
+    ausentismoHs: number;
+    ausentismoBaseHs: number;
     bancoUsado: number;
     bancoAcreditado: number;
     conAlertas: number;
@@ -401,6 +410,23 @@ export async function getRrhhQuincena(desde: string, hasta: string): Promise<Rrh
     const diasTrabajados = diasFichados.get(e.id)?.size ?? 0;
     const diasSinJustificar = Math.max(0, Math.round(Math.max(0, horasEsperadas - feriadosHs - tiempoPersonalHs) / HORAS_DIA) - diasTrabajados);
 
+    const horasDeTipos = (nombres: string[]) => porTipo.filter((t) => nombres.includes(t.tipo)).reduce((s, t) => s + t.horas, 0);
+    const ausentismoBaseHs = Math.max(0, horasEsperadas - feriadosHs - horasDeTipos(['Vacaciones']));
+    // Días sin fichada ni feriado ni licencia aprobada, contados desde la primera fichada de la persona en el período
+    // (antes no se puede saber si faltó o todavía no usaba el kiosco) y sin pasar de hoy.
+    const fichados = diasFichados.get(e.id);
+    const primeraFichada = fichados && fichados.size > 0 ? [...fichados].sort()[0]! : null;
+    let diasSinFichar = 0;
+    if (primeraFichada) {
+      const tope = hasta < getArgentinaTodayIso() ? hasta : addDaysIso(getArgentinaTodayIso(), -1);
+      for (let d = primeraFichada > inicio ? primeraFichada : inicio; d <= tope; d = addDaysIso(d, 1)) {
+        if (esFinDeSemana(d) || feriados.has(d) || fichados!.has(d)) continue;
+        if ((licenciasPorEmpleado.get(e.id) ?? []).some((l) => l.state === 'validate' && l.request_date_from <= d && d <= l.request_date_to)) continue;
+        diasSinFichar += 1;
+      }
+    }
+    const ausentismoHs = Math.min(ausentismoBaseHs, horasDeTipos(TIPOS_AUSENTISMO) + diasSinFichar * HORAS_DIA);
+
     return {
       id: e.id,
       nombre: e.name,
@@ -420,6 +446,8 @@ export async function getRrhhQuincena(desde: string, hasta: string): Promise<Rrh
       fichadasHs: round2(fichadasHs.get(e.id) ?? 0),
       diasTrabajados,
       injustificadasHs: round2(diasSinJustificar * HORAS_DIA),
+      ausentismoHs: round2(ausentismoHs),
+      ausentismoBaseHs: round2(ausentismoBaseHs),
       bancoSaldo: round2(saldo),
       bancoAcreditado: round2(bancoAcreditado.get(e.id) ?? 0),
       bancoUsado: round2(bancoUsado),
@@ -458,6 +486,8 @@ export async function getRrhhQuincena(desde: string, hasta: string): Promise<Rrh
       feriadosHs: suma((r) => r.feriadosHs),
       tiempoPersonalHs: suma((r) => r.tiempoPersonalHs),
       horasATrabajar: suma((r) => r.horasATrabajar),
+      ausentismoHs: suma((r) => r.ausentismoHs),
+      ausentismoBaseHs: suma((r) => r.ausentismoBaseHs),
       bancoUsado: suma((r) => r.bancoUsado),
       bancoAcreditado: suma((r) => r.bancoAcreditado),
       conAlertas: rows.filter((r) => r.alertas.length > 0).length,

@@ -226,16 +226,14 @@ function CruceInner({ hoy }: Props) {
         <div className="h-28 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
       ) : (
         data && (
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <Kpi
               label="Coincidencia"
               value={pct === null ? '—' : `${(pct * 100).toFixed(1).replace('.', ',')}%`}
               hint={`${data.totales.coinciden} de ${data.totales.cruzados} empleados · meta ${Math.round(META_COINCIDENCIA * 100)}%`}
               tone={pctTone}
             />
-            <Kpi label="Con diferencias" value={String(data.totales.conDiferencias)} hint="Empleados cuyas incidencias no coinciden" tone={data.totales.conDiferencias > 0 ? 'text-rose-400' : 'text-emerald-400'} />
-            <Kpi label="Incidencias reloj" value={hs(Math.round(data.totales.relojIncidenciasHs))} hint="Licencias y ausencias cargadas en el reloj" />
-            <Kpi label="Incidencias Odoo" value={hs(Math.round(data.totales.odooIncidenciasHs))} hint={`Diferencia absoluta: ${hs(Math.round(data.totales.difAbsolutaHs))}`} />
+            <Kpi label="Con diferencias" value={String(data.totales.conDiferencias)} hint={`Empleados cuyas incidencias no coinciden · diferencia absoluta ${hs(Math.round(data.totales.difAbsolutaHs))}`} tone={data.totales.conDiferencias > 0 ? 'text-rose-400' : 'text-emerald-400'} />
             <Kpi
               label="Cruce de empleados"
               value={`${data.totales.cruzados}`}
@@ -289,12 +287,12 @@ function CruceInner({ hoy }: Props) {
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-900 text-xs uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-3 py-2 font-medium">Legajo</th>
-                <th className="px-3 py-2 font-medium">Empleado</th>
-                <th className="px-3 py-2 text-right font-medium">Reloj</th>
-                <th className="px-3 py-2 text-right font-medium">Odoo</th>
-                <th className="px-3 py-2 text-right font-medium">Diferencia</th>
-                <th className="px-3 py-2 font-medium">Dónde difiere</th>
+                <th className="px-3 py-2 font-medium" title="Número de legajo de la planilla del reloj (BASE RELOJ FICHADOR).">Legajo</th>
+                <th className="px-3 py-2 font-medium" title="Nombre y departamento. Se cruza con Odoo por legajo y, si no, por nombre.">Empleado</th>
+                <th className="px-3 py-2 text-right font-medium" title="Horas de incidencias (licencias y ausencias) cargadas en la planilla del reloj.">Reloj</th>
+                <th className="px-3 py-2 text-right font-medium" title="Horas de las mismas incidencias aprobadas en Odoo en el rango. Las licencias por día valen 8,80 hs.">Odoo</th>
+                <th className="px-3 py-2 text-right font-medium" title="Odoo − reloj. Positiva: Odoo tiene más horas de incidencia que el reloj.">Diferencia</th>
+                <th className="px-3 py-2 font-medium" title="Tipos de incidencia que no coinciden (reloj→Odoo) y alertas de la planilla. Pasá el mouse por cada alerta para el detalle.">Dónde difiere</th>
               </tr>
             </thead>
             <tbody>
