@@ -207,6 +207,7 @@ ${ORIGEN_HORAS}`}
             )}
           </div>
 
+          <div className="grid gap-4 lg:grid-cols-2">
           <section className="rounded-lg border border-slate-800 bg-slate-900 p-4">
             <h3 className="mb-1 text-sm font-medium text-slate-200">
               <Tip text={`${ORIGEN_PROD}
@@ -215,11 +216,11 @@ ${ORIGEN_HORAS}`} className="cursor-help border-b border-dotted border-slate-500
             </h3>
             <p className="mb-3 text-xs text-slate-500">Barras: unidades equivalentes terminadas. Línea: unidades por hora-hombre presente.</p>
             <div className="overflow-x-auto">
-              <div style={{ width: Math.max(chart.length * 70, 480), height: 280 }}>
+              <div style={{ minWidth: chart.length * 64, height: 280 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={chart} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={tema.grid} />
-                    <XAxis dataKey="dia" stroke={tema.axis} fontSize={12} />
+                    <XAxis dataKey="dia" stroke={tema.axis} fontSize={11} interval={0} />
                     <YAxis yAxisId="ueq" stroke={tema.axis} fontSize={12} width={50} />
                     <YAxis yAxisId="prod" orientation="right" stroke={tema.axisSecondary} fontSize={12} width={40} domain={[0, 'auto']} />
                     <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: tema.tooltipText }} />
@@ -232,7 +233,6 @@ ${ORIGEN_HORAS}`} className="cursor-help border-b border-dotted border-slate-500
             </div>
           </section>
 
-          <div className="grid gap-4 lg:grid-cols-2">
             <section className="rounded-lg border border-slate-800 bg-slate-900 p-4">
               <h3 className="mb-1 text-sm font-medium text-slate-200">
                 <Tip text={`Regresión lineal simple entre las horas-hombre de cada día y las unidades terminadas ese día (línea punteada). Con pocos días es orientativa.
@@ -270,6 +270,8 @@ ${ORIGEN_HORAS}`} className="cursor-help border-b border-dotted border-slate-500
                 </ResponsiveContainer>
               </div>
             </section>
+          </div>
+
 
             <section className="flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-900 p-4">
               <h3 className="text-sm font-medium text-slate-200">Lectura</h3>
@@ -312,7 +314,6 @@ ${ORIGEN_HORAS}`} className="cursor-help border-b border-dotted border-slate-500
                 )}
               </div>
             </section>
-          </div>
         </>
       )}
 
