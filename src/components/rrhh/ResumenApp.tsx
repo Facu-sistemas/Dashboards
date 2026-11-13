@@ -106,7 +106,7 @@ function ResumenInner() {
     // Para "reporte perfecto" las horas no cuentan: valen 0 y quedan al final al ordenar por cumplimiento.
     const perfecto = (r: (typeof filtered)[number]) => r.estadoResumen === 'reporte_perfecto';
     const banco = (r: (typeof filtered)[number]) => (perfecto(r) ? 0 : r.bancoHorasSaldo);
-    const horas30 = (r: (typeof filtered)[number]) => (perfecto(r) ? 0 : r.horasCargadas30d);
+    const horas30 = (r: (typeof filtered)[number]) => (perfecto(r) ? 0 : r.horasCargadasMes);
     const cump = (r: (typeof filtered)[number]) => (perfecto(r) ? Infinity : cumplimiento(r) ?? Infinity);
     const sorters: Record<Orden, (a: (typeof filtered)[number], b: (typeof filtered)[number]) => number> = {
       'banco-desc': (a, b) => banco(b) - banco(a),
@@ -209,7 +209,7 @@ function ResumenInner() {
       </div>
 
       <div className="-mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
-        <span>{data ? `${rows.length} de ${allRows.length} empleados` : ''} · El anillo mide horas cargadas en los últimos 30 días contra las que corresponden a su jornada.</span>
+        <span>{data ? `${rows.length} de ${allRows.length} empleados` : ''} · El anillo mide las horas cargadas en lo que va del mes contra las que corresponden a su jornada hasta hoy (días hábiles, sin descontar feriados).</span>
         <span className="flex items-center gap-1.5">
           <span className="relative inline-flex h-2.5 w-2.5">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />

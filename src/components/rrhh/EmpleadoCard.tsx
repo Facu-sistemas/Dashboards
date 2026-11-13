@@ -1,6 +1,6 @@
 import type { EmpleadoVacacionesRow } from '@/lib/odoo/rrhh-vacaciones';
 import { formatAntiguedad, formatDias, formatHoras } from './format';
-import { convenioDe, cumplimiento, cumplimientoColor, horasEsperadas30d, iniciales, type CONVENIO_PALETTE } from './resumen-utils';
+import { convenioDe, cumplimiento, cumplimientoColor, horasEsperadasMes, iniciales, type CONVENIO_PALETTE } from './resumen-utils';
 
 interface Props {
   row: EmpleadoVacacionesRow;
@@ -35,11 +35,11 @@ function CumplimientoRing({ row }: { row: EmpleadoVacacionesRow }) {
   }
   const { stroke, text } = cumplimientoColor(ratio);
   const filled = Math.min(ratio, 1) * RING_C;
-  const esperadas = horasEsperadas30d(row);
+  const esperadas = horasEsperadasMes(row);
   return (
     <div
       className="relative h-14 w-14 shrink-0"
-      title={`${formatHoras(row.horasCargadas30d)} cargadas de ${formatHoras(esperadas ?? 0)} esperadas (últimos 30 días)`}
+      title={`${formatHoras(row.horasCargadasMes)} cargadas de ${formatHoras(esperadas ?? 0)} esperadas en lo que va del mes (días hábiles, sin descontar feriados)`}
     >
       <svg viewBox="0 0 56 56" className="h-full w-full -rotate-90">
         <circle cx="28" cy="28" r={RING_R} fill="none" strokeWidth="5" className="stroke-slate-800" />
@@ -158,8 +158,8 @@ export default function EmpleadoCard({ row, today, color, maxAbsBanco }: Props) 
 
       <dl className="grid grid-cols-3 gap-2 border-t border-slate-800 pt-3 text-center">
         <div>
-          <dt className="text-[10px] uppercase tracking-wide text-slate-500">Hs 30 días</dt>
-          <dd className="mt-0.5 text-sm font-medium text-slate-200">{perfecto ? '—' : formatDias(row.horasCargadas30d)}</dd>
+          <dt className="text-[10px] uppercase tracking-wide text-slate-500">Hs del mes</dt>
+          <dd className="mt-0.5 text-sm font-medium text-slate-200">{perfecto ? '—' : formatDias(row.horasCargadasMes)}</dd>
         </div>
         <div>
           <dt className="text-[10px] uppercase tracking-wide text-slate-500">Hs totales</dt>

@@ -1,8 +1,5 @@
 import type { EmpleadoVacacionesRow } from '@/lib/odoo/rrhh-vacaciones';
 
-/** Semanas en la ventana de "horas cargadas" (30 días) — se usa para estimar las horas esperadas según la jornada. */
-const SEMANAS_VENTANA = 30 / 7;
-
 /**
  * Paleta por convenio. Cada entrada son clases Tailwind completas (no armadas
  * en runtime) para que el JIT las detecte, mismo criterio que ACCENT_CLASSES.
@@ -35,17 +32,16 @@ export function iniciales(nombre: string): string {
   return (parts[0]![0]! + parts[1]![0]!).toUpperCase();
 }
 
-/** Horas que debería haber cargado en 30 días según su jornada semanal; null si no hay jornada. */
-export function horasEsperadas30d(row: EmpleadoVacacionesRow): number | null {
-  if (!row.horasSemanales) return null;
-  return Math.round(row.horasSemanales * SEMANAS_VENTANA * 10) / 10;
+/** Horas que debería haber cargado en lo que va del mes según su jornada; null si no hay jornada. */
+export function horasEsperadasMes(row: EmpleadoVacacionesRow): number | null {
+  return row.horasEsperadasMes;
 }
 
 /** Cumplimiento 0..n (1 = 100%) de las horas cargadas contra las esperadas; null si no se puede calcular. */
 export function cumplimiento(row: EmpleadoVacacionesRow): number | null {
-  const esperadas = horasEsperadas30d(row);
+  const esperadas = horasEsperadasMes(row);
   if (!esperadas) return null;
-  return row.horasCargadas30d / esperadas;
+  return row.horasCargadasMes / esperadas;
 }
 
 export function cumplimientoColor(ratio: number): { stroke: string; text: string } {
@@ -58,7 +54,7 @@ export interface ConvenioResumen {
   nombre: string;
   empleados: number;
   bancoTotal: number;
-  horas30dPromedio: number;
+  horasMesPromedio: number;
 }
 
 export function resumirPorConvenio(rows: EmpleadoVacacionesRow[]): ConvenioResumen[] {
@@ -68,7 +64,7 @@ export function resumirPorConvenio(rows: EmpleadoVacacionesRow[]): ConvenioResum
     const acc = map.get(key) ?? { n: 0, banco: 0, horas: 0 };
     acc.n += 1;
     acc.banco += r.bancoHorasSaldo;
-    acc.horas += r.horasCargadas30d;
+    acc.horas += r.horasCargadasMes;
     map.set(key, acc);
   }
   return [...map.entries()]
@@ -76,7 +72,7 @@ export function resumirPorConvenio(rows: EmpleadoVacacionesRow[]): ConvenioResum
       nombre,
       empleados: a.n,
       bancoTotal: Math.round(a.banco * 10) / 10,
-      horas30dPromedio: Math.round((a.horas / a.n) * 10) / 10,
+      horasMesPromedio: Math.round((a.horas / a.n) * 10) / 10,
     }))
     .sort((a, b) => b.empleados - a.empleados);
 }

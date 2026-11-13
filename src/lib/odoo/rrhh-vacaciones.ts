@@ -21,7 +21,16 @@ const VACACIONES_TYPE_ID = 5;
  */
 const SALDO_ALTO_UMBRAL = 20;
 
-const HORAS_CARGADAS_DIAS = 30;
+
+/** Días hábiles (lun-vie) entre dos fechas ISO, ambas inclusive. No descuenta feriados. */
+function diasHabilesEntre(desdeIso: string, hastaIso: string): number {
+  let n = 0;
+  for (let d = desdeIso; d <= hastaIso; d = addDaysIso(d, 1)) {
+    const dow = new Date(`${d}T12:00:00Z`).getUTCDay();
+    if (dow !== 0 && dow !== 6) n += 1;
+  }
+  return n;
+}
 
 export type VacacionesAnomalia = 'negativo' | 'alto' | 'ok';
 
@@ -71,7 +80,10 @@ export interface EmpleadoVacacionesRow {
   licenciasTomadas: VacacionLicenciaRow[];
 
   bancoHorasSaldo: number;
-  horasCargadas30d: number;
+  /** Horas cargadas en el mes calendario en curso, del día 1 a hoy. */
+  horasCargadasMes: number;
+  /** Horas que le corresponden en ese tramo del mes según su jornada (días hábiles transcurridos); null sin jornada. */
+  horasEsperadasMes: number | null;
   horasCargadasTotal: number;
 
   contrato: ContratoInfo | null;
@@ -82,6 +94,8 @@ export interface RrhhVacacionesResult {
   totalEmpleados: number;
   totalAnomalias: number;
   rows: EmpleadoVacacionesRow[];
+  /** Mes de referencia del cumplimiento de horas: etiqueta ('2026-11') y días hábiles transcurridos. */
+  mes: { periodo: string; diasHabiles: number };
 }
 
 type EmployeeRow = {
@@ -198,7 +212,8 @@ export async function getAusentesHoy(): Promise<Record<number, string>> {
  */
 export async function getRrhhVacaciones(): Promise<RrhhVacacionesResult> {
   const today = getArgentinaTodayIso();
-  const desdeHoras = addDaysIso(today, -HORAS_CARGADAS_DIAS);
+  const desdeHoras = `${today.slice(0, 8)}01`;
+  const diasHabilesMes = diasHabilesEntre(desdeHoras, today);
 
   const [employees, allocations, leaves, contracts, hoursByEmployee30d, hoursByEmployeeTotal, hoursPerWeekByCalendar, caras, estadosResumen] =
     await Promise.all([
@@ -268,7 +283,7 @@ export async function getRrhhVacaciones(): Promise<RrhhVacacionesResult> {
   const contratoMap = new Map(
     contracts.filter((c): c is ContractRow & { employee_id: [number, string] } => Boolean(c.employee_id)).map((c) => [c.employee_id[0], c])
   );
-  const horas30dMap = sumByEmployee(hoursByEmployee30d, (g) => g.unit_amount);
+  const horasMesMap = sumByEmployee(hoursByEmployee30d, (g) => g.unit_amount);
   const horasTotalMap = sumByEmployee(hoursByEmployeeTotal, (g) => g.unit_amount);
 
   const rows: EmpleadoVacacionesRow[] = employees.map((e) => {
@@ -304,7 +319,10 @@ export async function getRrhhVacaciones(): Promise<RrhhVacacionesResult> {
         .sort((a, b) => b.dateFrom.localeCompare(a.dateFrom)),
 
       bancoHorasSaldo: Math.round((e.x_studio_saldo_banco_horas ?? 0) * 100) / 100,
-      horasCargadas30d: Math.round((horas30dMap.get(e.id) ?? 0) * 100) / 100,
+      horasCargadasMes: Math.round((horasMesMap.get(e.id) ?? 0) * 100) / 100,
+      horasEsperadasMes: e.resource_calendar_id && hoursPerWeekByCalendar.get(e.resource_calendar_id[0])
+        ? Math.round(((hoursPerWeekByCalendar.get(e.resource_calendar_id[0])! / 5) * diasHabilesMes) * 10) / 10
+        : null,
       horasCargadasTotal: Math.round((horasTotalMap.get(e.id) ?? 0) * 100) / 100,
 
       contrato: contrato
@@ -320,5 +338,6 @@ export async function getRrhhVacaciones(): Promise<RrhhVacacionesResult> {
     totalEmpleados: rows.length,
     totalAnomalias: rows.filter((r) => r.anomalia !== 'ok').length,
     rows,
+    mes: { periodo: today.slice(0, 7), diasHabiles: diasHabilesMes },
   };
 }

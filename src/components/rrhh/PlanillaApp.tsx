@@ -273,23 +273,23 @@ function PlanillaInner({ hoy }: Props) {
                 <th className="px-2 py-2 font-medium">ID</th>
                 <th className="px-2 py-2 font-medium">Nombre y apellido</th>
                 <th className="px-2 py-2 font-medium">Convenio</th>
-                <th className={th}>Total hs</th>
-                <th className={th}>Feriados</th>
-                <th className={th}>Extras</th>
-                <th className={th}>Hs normales</th>
+                <th className={th} title="Horas esperadas de la quincena según la jornada del empleado en Odoo (días hábiles × horas por día), con feriados incluidos.">Total hs</th>
+                <th className={th} title="Horas de feriados del calendario laboral de Odoo dentro de la quincena. Se restan de las horas normales.">Feriados</th>
+                <th className={th} title="Horas extras al 50% cargadas en la planilla de Google (no vienen de Odoo). Código 15 en EXPORTA.">Extras</th>
+                <th className={th} title="Total hs − feriados − incidencias − vacaciones − otras licencias − permisos sin goce. El banco de horas, compensatorios, tiempo personal pagado y horas extra de Odoo no se descuentan.">Hs normales</th>
                 {columnas.map((c) => (
-                  <th key={c.key} className={th}>
+                  <th key={c.key} className={th} title={`Horas de ausencia tipo «${c.label}» aprobadas en Odoo dentro de la quincena.${c.codigo === null ? ' Sin código en EXPORTA: hay que definirlo con RRHH.' : ' Código ' + c.codigo + ' en EXPORTA.'}`}>
                     {c.label}
                   </th>
                 ))}
-                <th className={th}>Otras lic.</th>
-                <th className={th}>Dif. horas</th>
-                <th className={th}>Presentismo</th>
-                <th className={th}>Viático</th>
-                <th className={th}>Sáb/Dom vac.</th>
-                <th className={th}>Días vac.</th>
-                <th className={th}>Anticipos</th>
-                <th className={th}>Guardería</th>
+                <th className={th} title="Horas de licencias de Odoo que la planilla no tiene como columna (ej. maternidad). Se descuentan de las horas normales.">Otras lic.</th>
+                <th className={th} title="Permisos sin pagar de Odoo (faltas injustificadas). Se descuentan de las horas normales y del presentismo.">Dif. horas</th>
+                <th className={th} title="SOIVA: 25, o 20 − 3 por día de enfermedad, accidente o sin goce (vacaciones no descuentan). Madereros: 10 con quita proporcional por faltas sin goce. Sale de las ausencias de Odoo; tardanzas y salidas anticipadas todavía no entran. Pasá el mouse por cada valor para ver el cálculo.">Presentismo</th>
+                <th className={th} title="Solo SOIVA: días de la quincena menos vacaciones y faltas sin goce (las carpetas médicas sí pagan). Código 40 en EXPORTA.">Viático</th>
+                <th className={th} title="Por cada bloque de 5 días hábiles de vacaciones aprobadas en Odoo suma sábado y domingo (+2 días).">Sáb/Dom vac.</th>
+                <th className={th} title="Horas de vacaciones de Odoo divididas por las horas de la jornada.">Días vac.</th>
+                <th className={th} title="Anticipos de la planilla de Google (no vienen de Odoo).">Anticipos</th>
+                <th className={th} title="Guardería de la planilla de Google (no viene de Odoo).">Guardería</th>
                 <th className="px-2 py-2 font-medium">Observaciones</th>
               </tr>
             </thead>
@@ -317,7 +317,7 @@ function PlanillaInner({ hoy }: Props) {
                       ))}
                       <td className={td}>{n2(r.otrasHs)}</td>
                       <td className={`${td} ${r.sinGoceHs > 0 ? 'text-amber-300' : ''}`}>{n2(r.sinGoceHs)}</td>
-                      <td className={td}>{r.presentismo === null ? '—' : formatDias(r.presentismo)}</td>
+                      <td className={td} title={`Presentismo: ${r.presentismoNota}`}>{r.presentismo === null ? '—' : formatDias(r.presentismo)}</td>
                       <td className={td}>{r.viaticoDias === null ? 'NO' : formatDias(r.viaticoDias)}</td>
                       <td className={td}>{n2(r.sabDomDias)}</td>
                       <td className={td}>{n2(r.diasVacaciones)}</td>
