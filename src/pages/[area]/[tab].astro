@@ -33,7 +33,7 @@ import PlanillaTab from '@/components/rrhh/PlanillaTab.astro';
 import AdministracionRrhhTab from '@/components/rrhh/AdministracionTab.astro';
 import { tabVisible } from '@/lib/tab-acceso';
 import CumpleanosTab from '@/components/test/CumpleanosTab.astro';
-import ProductividadTab from '@/components/test/ProductividadTab.astro';
+import ProductividadTab from '@/components/gerencia/ProductividadTab.astro';
 import FlujoTab from '@/components/test/FlujoTab.astro';
 import PermisosOdooTab from '@/components/test/PermisosOdooTab.astro';
 import EspumadoTab from '@/components/test/EspumadoTab.astro';
@@ -107,7 +107,7 @@ if (!area || !tabConfig || !tabVisible(tabConfig, Astro.locals.usuario) || !Astr
   {area.slug === 'test' && tabSlug === 'conversor' && <ConversorTab />}
   {area.slug === 'test' && tabSlug === 'barcode' && <BarcodeTab />}
   {area.slug === 'test' && tabSlug === 'cumpleanos' && <CumpleanosTab />}
-  {area.slug === 'test' && tabSlug === 'productividad' && <ProductividadTab />}
+  {area.slug === 'gerencia-general' && tabSlug === 'productividad' && <ProductividadTab />}
   {area.slug === 'test' && tabSlug === 'flujo' && <FlujoTab />}
   {area.slug === 'test' && tabSlug === 'permisos-odoo' && <PermisosOdooTab />}
   {area.slug === 'produccion' && tabSlug === 'espumado' && <EspumadoTab />}

@@ -112,6 +112,7 @@ export const AREAS: AreaConfig[] = [
       { slug: 'facturacion', name: 'Facturación' },
       { slug: 'calidad-cnc', name: 'Calidad (CNC)' },
       { slug: 'ajustes-inventario', name: 'Ajustes de inventario' },
+      { slug: 'productividad', name: 'Productividad (test)' },
     ],
   },
   {
@@ -242,7 +243,6 @@ export const AREAS: AreaConfig[] = [
       { slug: 'barcode', name: 'Barcode' },
       { slug: 'colchon', name: 'Colchón' },
       { slug: 'cumpleanos', name: 'Cumpleaños' },
-      { slug: 'productividad', name: 'Productividad' },
       { slug: 'flujo', name: 'Flujo' },
       { slug: 'permisos-odoo', name: 'Permisos Odoo' },
       { slug: 'diagrama-er', name: 'Diagrama ER' },
