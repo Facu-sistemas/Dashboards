@@ -104,6 +104,12 @@ html {
     radial-gradient(55rem 34rem at 100% -10%, rgb(var(--accent-teal) / 0.07), transparent 70%);
   background-repeat: no-repeat;
   background-attachment: fixed;
+  /*
+   * La cabecera del área se compacta al scrollear y el contenido sube unos píxeles. Con scroll anchoring el
+   * navegador compensa bajando el scroll esa misma cantidad, cae por debajo del umbral de vuelta, la cabecera
+   * se expande, y así en bucle (la pantalla "tiembla" en un píxel puntual). Sin anclaje el scroll no se mueve solo.
+   */
+  overflow-anchor: none;
 }
 :root[data-theme='light'] {
   background-image:
