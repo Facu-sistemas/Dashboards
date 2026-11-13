@@ -14,6 +14,8 @@ interface Props {
   diasTranscurridos: number[];
   diasTotal: number[];
   nMeses: number;
+  /** Meses (0-11) del período elegido en el selector; sin esto se grafican todos. */
+  idxs?: number[];
   format?: 'currency' | 'number';
 }
 
@@ -29,7 +31,7 @@ function fmtGap(v: number, format: 'currency' | 'number') {
  * (si sobró) o abajo (si faltó) de cada barra. `objetivo` ya viene prorrateado
  * a días hábiles transcurridos de cada mes individual (no acumulado).
  */
-export default function DesvioMensualChart({ title, real, objetivo, notaSinObjetivo, diasTranscurridos, diasTotal, nMeses, format = 'number' }: Props) {
+export default function DesvioMensualChart({ title, real, objetivo, notaSinObjetivo, diasTranscurridos, diasTotal, nMeses, idxs, format = 'number' }: Props) {
   const chartTheme = useChartTheme();
 
   if (!objetivo) {
@@ -52,7 +54,7 @@ export default function DesvioMensualChart({ title, real, objetivo, notaSinObjet
     const desv = objProrr > 0 ? (r / objProrr) * 100 - 100 : null;
     const gap = objProrr > 0 ? r - objProrr : null;
     return { mes, desv, gapLabel: gap === null ? '' : fmtGap(gap, format) };
-  });
+  }).filter((_, i) => !idxs || idxs.includes(i));
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-900 p-4">

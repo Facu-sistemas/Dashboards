@@ -9,6 +9,8 @@ interface Props {
   ue: number[];
   cantidad: number[];
   nMeses: number;
+  /** Meses (0-11) del período elegido en el selector; sin esto se grafican todos. */
+  idxs?: number[];
 }
 
 function fmtGap(v: number) {
@@ -24,7 +26,7 @@ function fmtGap(v: number) {
  * que el gráfico de barras agrupadas casi no se nota la diferencia; este
  * desvío la hace legible.
  */
-export default function UeVsCantidadDesvioChart({ title, ue, cantidad, nMeses }: Props) {
+export default function UeVsCantidadDesvioChart({ title, ue, cantidad, nMeses, idxs }: Props) {
   const chartTheme = useChartTheme();
 
   const data = MESES.slice(0, nMeses).map((mes, i) => {
@@ -33,7 +35,7 @@ export default function UeVsCantidadDesvioChart({ title, ue, cantidad, nMeses }:
     const desv = c > 0 ? (u / c) * 100 - 100 : null;
     const gap = c > 0 ? u - c : null;
     return { mes, desv, gapLabel: gap === null ? '' : fmtGap(gap) };
-  });
+  }).filter((_, i) => !idxs || idxs.includes(i));
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-900 p-4">

@@ -39,7 +39,7 @@ function CumplimientoRing({ row }: { row: EmpleadoVacacionesRow }) {
   return (
     <div
       className="relative h-14 w-14 shrink-0"
-      title={`${formatHoras(row.horasCargadasMes)} cargadas de ${formatHoras(esperadas ?? 0)} esperadas en lo que va del mes (días hábiles, sin descontar feriados)`}
+      title={`${formatHoras(row.horasCargadasMes)} cargadas de ${formatHoras(esperadas ?? 0)} esperadas en lo que va del mes (días hábiles, sin feriados)`}
     >
       <svg viewBox="0 0 56 56" className="h-full w-full -rotate-90">
         <circle cx="28" cy="28" r={RING_R} fill="none" strokeWidth="5" className="stroke-slate-800" />

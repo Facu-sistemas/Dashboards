@@ -1,5 +1,6 @@
 import { readGroup, searchRead, searchReadAll } from './client';
 import { addDaysIso } from '@/lib/date';
+import { getFeriadosConNombre } from './business-calendar';
 import { getArgentinaTodayIso } from './oee';
 import { listCarasResumen } from '@/lib/supabase/fichaje-caras';
 import { getEstadosResumen } from '@/lib/supabase/rrhh-resumen-estado';
@@ -22,12 +23,12 @@ const VACACIONES_TYPE_ID = 5;
 const SALDO_ALTO_UMBRAL = 20;
 
 
-/** Días hábiles (lun-vie) entre dos fechas ISO, ambas inclusive. No descuenta feriados. */
-function diasHabilesEntre(desdeIso: string, hastaIso: string): number {
+/** Días hábiles (lun-vie, sin los feriados dados) entre dos fechas ISO, ambas inclusive. */
+function diasHabilesEntre(desdeIso: string, hastaIso: string, feriados: Record<string, string> = {}): number {
   let n = 0;
   for (let d = desdeIso; d <= hastaIso; d = addDaysIso(d, 1)) {
     const dow = new Date(`${d}T12:00:00Z`).getUTCDay();
-    if (dow !== 0 && dow !== 6) n += 1;
+    if (dow !== 0 && dow !== 6 && !(d in feriados)) n += 1;
   }
   return n;
 }
@@ -82,7 +83,7 @@ export interface EmpleadoVacacionesRow {
   bancoHorasSaldo: number;
   /** Horas cargadas en el mes calendario en curso, del día 1 a hoy. */
   horasCargadasMes: number;
-  /** Horas que le corresponden en ese tramo del mes según su jornada (días hábiles transcurridos); null sin jornada. */
+  /** Horas que le corresponden en ese tramo del mes según su jornada (días hábiles transcurridos sin feriados); null sin jornada. */
   horasEsperadasMes: number | null;
   horasCargadasTotal: number;
 
@@ -213,7 +214,7 @@ export async function getAusentesHoy(): Promise<Record<number, string>> {
 export async function getRrhhVacaciones(): Promise<RrhhVacacionesResult> {
   const today = getArgentinaTodayIso();
   const desdeHoras = `${today.slice(0, 8)}01`;
-  const diasHabilesMes = diasHabilesEntre(desdeHoras, today);
+  const diasHabilesMes = diasHabilesEntre(desdeHoras, today, await getFeriadosConNombre());
 
   const [employees, allocations, leaves, contracts, hoursByEmployee30d, hoursByEmployeeTotal, hoursPerWeekByCalendar, caras, estadosResumen] =
     await Promise.all([

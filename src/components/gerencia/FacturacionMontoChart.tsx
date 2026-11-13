@@ -8,6 +8,8 @@ interface Props {
   title: string;
   real: number[];
   nMeses: number;
+  /** Meses (0-11) del período elegido en el selector; sin esto se grafican todos. */
+  idxs?: number[];
 }
 
 /**
@@ -16,9 +18,9 @@ interface Props {
  * objetivo por categoría en Odoo (ver el comentario grande de
  * facturacion-gerencia.ts): solo tiene sentido mostrar el real.
  */
-export default function FacturacionMontoChart({ title, real, nMeses }: Props) {
+export default function FacturacionMontoChart({ title, real, nMeses, idxs }: Props) {
   const chartTheme = useChartTheme();
-  const data = MESES.slice(0, nMeses).map((mes, i) => ({ mes, real: real[i] ?? 0 }));
+  const data = MESES.slice(0, nMeses).map((mes, i) => ({ mes, real: real[i] ?? 0 })).filter((_, i) => !idxs || idxs.includes(i));
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-900 p-4">

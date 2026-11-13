@@ -10,12 +10,14 @@ interface Props {
   /** Sin objetivo (la planilla lo carga en otra medida) — se grafica solo el real. */
   objetivo?: number[];
   nMeses: number;
+  /** Meses (0-11) del período elegido en el selector; sin esto se grafican todos. */
+  idxs?: number[];
   format?: 'currency' | 'number';
 }
 
-export default function VentasGerenciaChart({ title, real, objetivo, nMeses, format = 'number' }: Props) {
+export default function VentasGerenciaChart({ title, real, objetivo, nMeses, idxs, format = 'number' }: Props) {
   const chartTheme = useChartTheme();
-  const data = MESES.slice(0, nMeses).map((mes, i) => ({ mes, real: real[i] ?? 0, objetivo: objetivo?.[i] ?? 0 }));
+  const data = MESES.slice(0, nMeses).map((mes, i) => ({ mes, real: real[i] ?? 0, objetivo: objetivo?.[i] ?? 0 })).filter((_, i) => !idxs || idxs.includes(i));
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-900 p-4">

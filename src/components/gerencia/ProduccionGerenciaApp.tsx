@@ -156,21 +156,21 @@ function ProduccionGerenciaInner() {
               <div className="flex flex-col gap-4">
                 {[series.sillones, series.colchones].map((s) => (
                   <div key={s.label} className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                    <VentasGerenciaChart title={s.label} real={s.real} objetivo={s.objetivo} nMeses={nMeses} />
-                    <DesvioMensualChart title={s.label} real={s.real} objetivo={s.objetivo} notaSinObjetivo={s.nota} diasTranscurridos={data.diasTranscurridos} diasTotal={data.diasTotal} nMeses={nMeses} />
+                    <VentasGerenciaChart title={s.label} real={s.real} objetivo={s.objetivo} nMeses={nMeses} idxs={idxs} />
+                    <DesvioMensualChart title={s.label} real={s.real} objetivo={s.objetivo} notaSinObjetivo={s.nota} diasTranscurridos={data.diasTranscurridos} diasTotal={data.diasTotal} nMeses={nMeses} idxs={idxs} />
                   </div>
                 ))}
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                  <VentasGerenciaChart title="Total equivalente (sillones)" real={eqRealMonthly} objetivo={eqObjMonthly} nMeses={nMeses} />
-                  <DesvioMensualChart title="Total equivalente (sillones)" real={eqRealMonthly} objetivo={eqObjMonthly} diasTranscurridos={data.diasTranscurridos} diasTotal={data.diasTotal} nMeses={nMeses} />
+                  <VentasGerenciaChart title="Total equivalente (sillones)" real={eqRealMonthly} objetivo={eqObjMonthly} nMeses={nMeses} idxs={idxs} />
+                  <DesvioMensualChart title="Total equivalente (sillones)" real={eqRealMonthly} objetivo={eqObjMonthly} diasTranscurridos={data.diasTranscurridos} diasTotal={data.diasTotal} nMeses={nMeses} idxs={idxs} />
                 </div>
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                  <UeVsCantidadChart title="Sillones" ue={data.real.sillonesUE} cantidad={data.real.sillonesCant} nMeses={nMeses} />
-                  <UeVsCantidadDesvioChart title="Sillones" ue={data.real.sillonesUE} cantidad={data.real.sillonesCant} nMeses={nMeses} />
+                  <UeVsCantidadChart title="Sillones" ue={data.real.sillonesUE} cantidad={data.real.sillonesCant} nMeses={nMeses} idxs={idxs} />
+                  <UeVsCantidadDesvioChart title="Sillones" ue={data.real.sillonesUE} cantidad={data.real.sillonesCant} nMeses={nMeses} idxs={idxs} />
                 </div>
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                  <UeVsCantidadChart title="Colchones" ue={data.real.colchonesUE} cantidad={data.real.colchonesCant} nMeses={nMeses} />
-                  <UeVsCantidadDesvioChart title="Colchones" ue={data.real.colchonesUE} cantidad={data.real.colchonesCant} nMeses={nMeses} />
+                  <UeVsCantidadChart title="Colchones" ue={data.real.colchonesUE} cantidad={data.real.colchonesCant} nMeses={nMeses} idxs={idxs} />
+                  <UeVsCantidadDesvioChart title="Colchones" ue={data.real.colchonesUE} cantidad={data.real.colchonesCant} nMeses={nMeses} idxs={idxs} />
                 </div>
               </div>
             </>

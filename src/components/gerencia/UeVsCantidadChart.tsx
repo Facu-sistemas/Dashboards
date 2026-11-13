@@ -9,6 +9,8 @@ interface Props {
   ue: number[];
   cantidad: number[];
   nMeses: number;
+  /** Meses (0-11) del período elegido en el selector; sin esto se grafican todos. */
+  idxs?: number[];
 }
 
 /**
@@ -16,9 +18,9 @@ interface Props {
  * (VentasGerenciaChart): barras = unidad equivalente, línea punteada =
  * cantidad. No depende del toggle de medida, muestra siempre las dos.
  */
-export default function UeVsCantidadChart({ title, ue, cantidad, nMeses }: Props) {
+export default function UeVsCantidadChart({ title, ue, cantidad, nMeses, idxs }: Props) {
   const chartTheme = useChartTheme();
-  const data = MESES.slice(0, nMeses).map((mes, i) => ({ mes, ue: ue[i] ?? 0, cantidad: cantidad[i] ?? 0 }));
+  const data = MESES.slice(0, nMeses).map((mes, i) => ({ mes, ue: ue[i] ?? 0, cantidad: cantidad[i] ?? 0 })).filter((_, i) => !idxs || idxs.includes(i));
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-900 p-4">
