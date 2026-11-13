@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from 'recharts';
 import QueryProvider from '@/components/QueryProvider';
 import { useApiQuery } from '@/components/dashboard/useApiQuery';
@@ -19,6 +19,13 @@ const n1 = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
 const n2 = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const n0 = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
 const DIAS_SEMANA = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+
+const MES_FMT = new Intl.DateTimeFormat('es-AR', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+function mesLabel(ym: string): string {
+  if (!ym) return '—';
+  const [y, m] = ym.split('-').map(Number);
+  return MES_FMT.format(new Date(Date.UTC(y!, m! - 1, 1)));
+}
 
 function etiquetaDia(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number);
@@ -102,23 +109,36 @@ function Kpi({ titulo, valor, sub, tono, tip }: { titulo: string; valor: string;
 
 function ProductividadInner() {
   const [vista, setVista] = useState<Vista>('planta');
-  const [rango, setRango] = useState<7 | 14 | 0>(0);
+  const [mes, setMes] = useState<string | null>(null);
   const [conEspumado, setConEspumado] = useState(true);
   const [abierto, setAbierto] = useState<string | null>(null);
   const tema = useChartTheme();
 
-  const query = useApiQuery<ProductividadResult>(['productividad-horas'], '/api/productividad-horas?dias=60');
+  const query = useApiQuery<ProductividadResult>(['productividad-horas'], '/api/productividad-horas?dias=120');
   const data = query.data;
 
-  const filas = useMemo(() => {
-    if (!data) return [];
-    let dias = data.dias.map((d) => metricasDe(d, vista, conEspumado)).filter((m) => m.horas > 0 || m.ueq > 0);
-    if (rango > 0) {
-      const corte = new Date(Date.parse(`${data.hasta}T00:00:00Z`) - rango * 86_400_000).toISOString().slice(0, 10);
-      dias = dias.filter((m) => m.dia > corte);
+  const todas = useMemo(
+    () => (data ? data.dias.map((d) => metricasDe(d, vista, conEspumado)).filter((m) => m.horas > 0 || m.ueq > 0) : []),
+    [data, vista, conEspumado],
+  );
+  const meses = useMemo(() => [...new Set(todas.map((m) => m.dia.slice(0, 7)))].sort(), [todas]);
+  const mesSel = mes && meses.includes(mes) ? mes : (meses.at(-1) ?? '');
+  const filas = useMemo(() => todas.filter((m) => m.dia.startsWith(mesSel)), [todas, mesSel]);
+  const detalle = abierto ? (filas.find((m) => m.dia === abierto) ?? null) : null;
+  // Casilleros del calendario: huecos hasta el lunes de la primera semana y después todos los días del mes.
+  const celdasMes = useMemo(() => {
+    const celdas: ({ dia: string; m: Metricas | undefined } | null)[] = [];
+    if (!mesSel) return celdas;
+    const [y, mo] = mesSel.split('-').map(Number);
+    const primero = (new Date(Date.UTC(y!, mo! - 1, 1)).getUTCDay() + 6) % 7;
+    const dias = new Date(Date.UTC(y!, mo!, 0)).getUTCDate();
+    for (let i = 0; i < primero; i++) celdas.push(null);
+    for (let d = 1; d <= dias; d++) {
+      const dia = `${mesSel}-${String(d).padStart(2, '0')}`;
+      celdas.push({ dia, m: filas.find((x) => x.dia === dia) });
     }
-    return dias;
-  }, [data, vista, rango, conEspumado]);
+    return celdas;
+  }, [mesSel, filas]);
 
   const validos = filas.filter((m) => !m.enCurso && !m.poco && m.prod !== null);
   const totUeq = validos.reduce((s, m) => s + m.ueq, 0);
@@ -155,12 +175,14 @@ function ProductividadInner() {
               </button>
             ))}
           </div>
-          <div className="flex overflow-hidden rounded-md border border-slate-700 text-sm">
-            {([[7, '7 días'], [14, '14 días'], [0, 'Todo']] as const).map(([k, label]) => (
-              <button key={k} type="button" onClick={() => setRango(k)} className={`px-3 py-1.5 ${rango === k ? 'bg-slate-700 text-slate-100' : 'bg-slate-900 text-slate-400 hover:text-slate-200'}`}>
-                {label}
-              </button>
-            ))}
+          <div className="flex items-center overflow-hidden rounded-md border border-slate-700 text-sm">
+            <button type="button" disabled={meses.indexOf(mesSel) <= 0} onClick={() => setMes(meses[meses.indexOf(mesSel) - 1] ?? null)} className="px-3 py-1.5 text-slate-300 hover:bg-slate-800 disabled:opacity-30">
+              ‹
+            </button>
+            <span className="min-w-[9rem] px-2 text-center capitalize text-slate-100">{mesLabel(mesSel)}</span>
+            <button type="button" disabled={meses.indexOf(mesSel) >= meses.length - 1} onClick={() => setMes(meses[meses.indexOf(mesSel) + 1] ?? null)} className="px-3 py-1.5 text-slate-300 hover:bg-slate-800 disabled:opacity-30">
+              ›
+            </button>
           </div>
           {vista === 'colchones' && (
             <label className="flex items-center gap-2 text-xs text-slate-300">
@@ -356,79 +378,88 @@ ${ORIGEN_HORAS}`} className="cursor-help border-b border-dotted border-slate-500
         </div>
       </details>
 
-      <section className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-900">
-        <table className="w-full min-w-[640px] text-left text-sm">
-          <thead className="border-b border-slate-800 text-xs uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="px-3 py-2">Día</th>
-              <th className="px-3 py-2 text-right"><Tip text={"Personas del sector con jornada completa ese día (entrada y salida). El «+N?» son las que tienen entrada sin salida: no suman horas. Fuente: fichador facial."} className="cursor-help border-b border-dotted border-slate-600">Personas</Tip></th>
-              <th className="px-3 py-2 text-right"><Tip text={"Suma de las horas presentes (primera entrada → última salida) de esas personas. Fuente: fichador facial."} className="cursor-help border-b border-dotted border-slate-600">Horas-hombre</Tip></th>
-              <th className="px-3 py-2 text-right"><Tip text={"Órdenes de fabricación terminadas ese día con unidades equivalentes mayores a 0. Fuente: Odoo › Fabricación."} className="cursor-help border-b border-dotted border-slate-600">Órdenes</Tip></th>
-              <th className="px-3 py-2 text-right"><Tip text={"Suma de x_studio_unidades_eq de esas órdenes, por fecha de fin (hora Argentina). Fuente: Odoo › Fabricación."} className="cursor-help border-b border-dotted border-slate-600">Unidades eq.</Tip></th>
-              <th className="px-3 py-2 text-right"><Tip text={"Unidades equivalentes ÷ horas-hombre del día. Se muestra «—» si el día está en curso o tiene muchas fichadas incompletas."} className="cursor-help border-b border-dotted border-slate-600">ueq / hora</Tip></th>
-              <th className="px-3 py-2 text-right"><Tip text={"Diferencia del ueq/hora del día contra el promedio ponderado del período."} className="cursor-help border-b border-dotted border-slate-600">vs. promedio</Tip></th>
-            </tr>
-          </thead>
-          <tbody>
-            {[...filas].reverse().map((m) => {
-              const delta = m.prod !== null && !m.poco && prodMedia ? (m.prod / prodMedia - 1) * 100 : null;
-              const abierta = abierto === m.dia;
-              return (
-                <Fragment key={m.dia}>
-                  <tr onClick={() => setAbierto(abierta ? null : m.dia)} className="cursor-pointer border-b border-slate-800/60 hover:bg-slate-800/40">
-                    <td className="px-3 py-2 text-slate-200">
-                      {abierta ? '▾' : '▸'} {m.etiqueta}
-                      {m.enCurso && <span className="ml-2 rounded bg-status-yellow/15 px-1.5 py-0.5 text-[10px] text-status-yellow">en curso</span>}
-                      {m.poco && !m.enCurso && <span className="ml-2 rounded bg-status-yellow/15 px-1.5 py-0.5 text-[10px] text-status-yellow" title="Falta la salida de muchas jornadas: no entra en promedios ni gráficos">fichadas incompletas</span>}
-                    </td>
-                    <td className="px-3 py-2 text-right text-slate-300">
-                      {m.personas}
-                      {m.incompletas > 0 && <span className="ml-1 text-xs text-status-yellow" title="Entradas sin salida: no suman horas">+{m.incompletas}?</span>}
-                    </td>
-                    <td className="px-3 py-2 text-right text-slate-300">{n0.format(m.horas)}</td>
-                    <td className="px-3 py-2 text-right text-slate-300">{m.ordenes}</td>
-                    <td className="px-3 py-2 text-right text-slate-300">{n0.format(m.ueq)}</td>
-                    <td className="px-3 py-2 text-right font-medium text-slate-100">{m.prod !== null && !m.enCurso && !m.poco ? n2.format(m.prod) : '—'}</td>
-                    <td className={`px-3 py-2 text-right ${delta === null || m.enCurso || m.poco ? 'text-slate-500' : delta >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {delta === null || m.enCurso || m.poco ? '—' : `${delta >= 0 ? '+' : ''}${n0.format(delta)}%`}
-                    </td>
-                  </tr>
-                  {abierta && (
-                    <tr className="border-b border-slate-800/60 bg-slate-950/40">
-                      <td colSpan={7} className="px-3 py-3">
-                        <div className="grid gap-4 md:grid-cols-2">
-                          <div>
-                            <p className="mb-1 text-xs font-medium text-slate-400">Qué se terminó ({m.ordenes} órdenes)</p>
-                            <ul className="max-h-60 overflow-y-auto text-xs">
-                              {m.productos.length === 0 && <li className="text-slate-500">Nada terminado.</li>}
-                              {m.productos.map(([nombre, ueq]) => (
-                                <li key={nombre} className="flex justify-between gap-3 border-b border-slate-800/50 py-1">
-                                  <span className="truncate text-slate-300">{nombre}</span>
-                                  <span className="shrink-0 font-mono text-slate-400">{n1.format(ueq)} ueq</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                          <div>
-                            <p className="mb-1 text-xs font-medium text-slate-400">Quiénes estuvieron ({m.gente.length}) · horas presentes</p>
-                            <ul className="max-h-60 overflow-y-auto text-xs">
-                              {m.gente.map(([nombre, hs]) => (
-                                <li key={nombre} className="flex justify-between gap-3 border-b border-slate-800/50 py-1">
-                                  <span className="truncate text-slate-300">{nombre}</span>
-                                  <span className={`shrink-0 font-mono ${hs < 6 ? 'text-status-yellow' : 'text-slate-400'}`}>{n1.format(hs)} h</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              );
-            })}
-          </tbody>
-        </table>
+      <section className="rounded-lg border border-slate-800 bg-slate-900 p-4">
+        <h3 className="mb-1 text-sm font-medium text-slate-200">
+          <Tip text={`Cada casillero es un día. Número grande: unidades equivalentes por hora-hombre. Porcentaje: diferencia contra el promedio del mes. Abajo: unidades eq. y horas-hombre del día. Verde = por encima del promedio (+5% o más), rojo = por debajo (-5% o menos). Tocá un día para ver qué se terminó y quiénes estuvieron.\n\n${ORIGEN_PROD}\n\n${ORIGEN_HORAS}`} className="cursor-help border-b border-dotted border-slate-500">
+            Calendario de {mesLabel(mesSel)}
+          </Tip>
+        </h3>
+        <p className="mb-3 text-xs text-slate-500">Productividad de cada día contra el promedio del mes. Los días sin producción ni fichadas quedan en blanco.</p>
+        <div className="grid grid-cols-7 gap-1.5 text-center text-[11px] uppercase tracking-wide text-slate-500">
+          {['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'].map((d) => (
+            <div key={d}>{d}</div>
+          ))}
+        </div>
+        <div className="mt-1.5 grid grid-cols-7 gap-1.5">
+          {celdasMes.map((c, i) => {
+            if (c === null) return <div key={`v${i}`} />;
+            const m = c.m;
+            const delta = m && m.prod !== null && !m.poco && !m.enCurso && prodMedia ? (m.prod / prodMedia - 1) * 100 : null;
+            const tinte = delta === null ? 'bg-slate-800/40' : delta >= 5 ? 'bg-status-green/20' : delta <= -5 ? 'bg-status-red/20' : 'bg-slate-800/70';
+            const sel = abierto === c.dia;
+            return (
+              <button
+                key={c.dia}
+                type="button"
+                disabled={!m}
+                onClick={() => setAbierto(sel ? null : c.dia)}
+                className={`flex min-h-[78px] flex-col rounded-md border p-1.5 text-left transition-colors ${m ? `${tinte} cursor-pointer hover:border-slate-500` : 'cursor-default bg-transparent opacity-50'} ${sel ? 'border-brand-500' : m?.poco || m?.enCurso ? 'border-dashed border-status-yellow/60' : 'border-slate-800'}`}
+              >
+                <span className="flex items-center justify-between text-[11px] text-slate-500">
+                  {Number(c.dia.slice(8))}
+                  {m?.enCurso && <span className="text-status-yellow">en curso</span>}
+                  {m?.poco && !m.enCurso && <span className="text-status-yellow" title="Falta la salida de muchas jornadas: no entra en promedios ni gráficos">incompleto</span>}
+                </span>
+                {m && (
+                  <>
+                    <span className="text-base font-semibold leading-tight text-slate-100">{m.prod !== null && !m.enCurso && !m.poco ? n2.format(m.prod) : '—'}</span>
+                    {delta !== null && <span className={`text-[11px] ${delta >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{delta >= 0 ? '+' : ''}{n0.format(delta)}%</span>}
+                    <span className="mt-auto text-[10px] text-slate-500">{n0.format(m.ueq)} ueq · {n0.format(m.horas)} h</span>
+                  </>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {detalle && (
+          <div className="mt-4 rounded-md border border-slate-800 bg-slate-950/40 p-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="text-sm font-medium text-slate-200">
+                {detalle.etiqueta} · {detalle.personas} personas
+                {detalle.incompletas > 0 && <span className="ml-1 text-xs text-status-yellow" title="Entradas sin salida: no suman horas">(+{detalle.incompletas} sin salida)</span>} · {n0.format(detalle.horas)} hs · {detalle.ordenes} órdenes
+              </p>
+              <button type="button" onClick={() => setAbierto(null)} className="text-xs text-slate-500 hover:text-slate-200">
+                Cerrar ✕
+              </button>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <p className="mb-1 text-xs font-medium text-slate-400">Qué se terminó ({detalle.ordenes} órdenes)</p>
+                <ul className="max-h-60 overflow-y-auto text-xs">
+                  {detalle.productos.length === 0 && <li className="text-slate-500">Nada terminado.</li>}
+                  {detalle.productos.map(([nombre, ueq]) => (
+                    <li key={nombre} className="flex justify-between gap-3 border-b border-slate-800/50 py-1">
+                      <span className="truncate text-slate-300">{nombre}</span>
+                      <span className="shrink-0 font-mono text-slate-400">{n1.format(ueq)} ueq</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-medium text-slate-400">Quiénes estuvieron ({detalle.gente.length}) · horas presentes</p>
+                <ul className="max-h-60 overflow-y-auto text-xs">
+                  {detalle.gente.map(([nombre, hs]) => (
+                    <li key={nombre} className="flex justify-between gap-3 border-b border-slate-800/50 py-1">
+                      <span className="truncate text-slate-300">{nombre}</span>
+                      <span className={`shrink-0 font-mono ${hs < 6 ? 'text-status-yellow' : 'text-slate-400'}`}>{n1.format(hs)} h</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
       </section>
     </div>
   );

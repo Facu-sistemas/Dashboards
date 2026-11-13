@@ -9,6 +9,6 @@ export const GET: APIRoute = async (context) => {
   if (context.locals.usuario?.rol !== 'dev') {
     return jsonResponse({ ok: false, error: 'No autorizado' }, { status: 403 });
   }
-  const dias = Math.min(90, Math.max(7, Number(context.url.searchParams.get('dias')) || 30));
+  const dias = Math.min(180, Math.max(7, Number(context.url.searchParams.get('dias')) || 30));
   return handleApiRoute(() => getProductividadHoras(dias));
 };
