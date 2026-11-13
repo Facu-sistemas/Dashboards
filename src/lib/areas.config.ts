@@ -242,6 +242,7 @@ export const AREAS: AreaConfig[] = [
       { slug: 'barcode', name: 'Barcode' },
       { slug: 'colchon', name: 'Colchón' },
       { slug: 'cumpleanos', name: 'Cumpleaños' },
+      { slug: 'productividad', name: 'Productividad' },
       { slug: 'flujo', name: 'Flujo' },
       { slug: 'permisos-odoo', name: 'Permisos Odoo' },
       { slug: 'diagrama-er', name: 'Diagrama ER' },
