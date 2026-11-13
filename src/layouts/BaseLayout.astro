@@ -55,15 +55,15 @@ const manifest = ruta.startsWith('/fichaje')
       }
     </script>
   </head>
-  <body class={`min-h-screen bg-slate-950 text-slate-100 antialiased ${usuario ? 'pt-12 sm:pt-0' : ''}`}>
+  <body class={`min-h-screen bg-slate-950 text-slate-100 antialiased ${usuario ? 'pt-12 min-[1800px]:pt-0' : ''}`}>
     <div
       id="page-loading-bar"
       class="pointer-events-none fixed inset-x-0 top-0 z-[100] h-0.5 origin-left scale-x-0 bg-brand-500 transition-transform ease-out"
     >
     </div>
 
-    <!-- En celular va en su propia franja arriba (absolute, scrollea con la página) para no pisar el contenido; en desktop queda fija. -->
-    <div class="absolute right-4 top-1.5 z-40 flex items-center gap-2 sm:fixed sm:top-4">
+    <!-- Hasta 1800px de ancho va en su propia franja arriba (absolute, scrollea con la página) para no pisar el nombre del área ni las pestañas; en pantallas anchas queda fija. -->
+    <div class="absolute right-4 top-1.5 z-40 flex items-center gap-2 min-[1800px]:fixed min-[1800px]:top-4">
       {
         usuario && (
           <>

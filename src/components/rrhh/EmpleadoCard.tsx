@@ -109,7 +109,7 @@ export default function EmpleadoCard({ row, today, color, maxAbsBanco }: Props) 
   const vacColor = row.anomalia === 'negativo' ? 'text-rose-400' : row.anomalia === 'alto' ? 'text-amber-400' : 'text-slate-200';
 
   return (
-    <article className="flex flex-col gap-4 rounded-xl border border-slate-800 bg-slate-900 p-4 transition-colors hover:border-slate-700">
+    <article className="flex h-full min-w-0 flex-col gap-4 rounded-xl border border-slate-800 bg-slate-900 p-4 transition-colors hover:border-slate-700">
       <header className="flex items-center gap-3">
         <div
           className={`relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold ring-1 ${color.avatar}`}
@@ -128,15 +128,15 @@ export default function EmpleadoCard({ row, today, color, maxAbsBanco }: Props) 
         <CumplimientoRing row={row} />
       </header>
 
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${color.chip}`}>{convenioDe(row)}</span>
+      <div className="flex min-w-0 flex-nowrap items-center gap-1.5">
+        <span title={convenioDe(row)} className={`min-w-0 truncate rounded-full px-2 py-0.5 text-[11px] font-medium ${color.chip}`}>{convenioDe(row)}</span>
         {row.horasSemanales ? (
-          <span title="Horas semanales de su calendario laboral en Odoo." className="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] text-slate-400">{row.horasSemanales} hs/sem</span>
+          <span title="Horas semanales de su calendario laboral en Odoo." className="shrink-0 whitespace-nowrap rounded-full bg-slate-800 px-2 py-0.5 text-[11px] text-slate-400">{row.horasSemanales} hs/sem</span>
         ) : null}
         {row.enLicenciaActualmente && (
-          <span className="rounded-full bg-brand-500/10 px-2 py-0.5 text-[11px] font-medium text-brand-400">de licencia</span>
+          <span className="shrink-0 whitespace-nowrap rounded-full bg-brand-500/10 px-2 py-0.5 text-[11px] font-medium text-brand-400">de licencia</span>
         )}
-        {perfecto && <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-300">Reporte perfecto</span>}
+        {perfecto && <span className="shrink-0 whitespace-nowrap rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-300">Reporte perfecto</span>}
       </div>
 
       {perfecto ? (
@@ -156,7 +156,7 @@ export default function EmpleadoCard({ row, today, color, maxAbsBanco }: Props) 
         </div>
       )}
 
-      <dl className="grid grid-cols-3 gap-2 border-t border-slate-800 pt-3 text-center">
+      <dl className="mt-auto grid grid-cols-3 gap-2 border-t border-slate-800 pt-3 text-center">
         <div title="Horas cargadas en timesheets (Odoo) del día 1 del mes a hoy.">
           <dt className="text-[10px] uppercase tracking-wide text-slate-500">Hs del mes</dt>
           <dd className="mt-0.5 text-sm font-medium text-slate-200">{perfecto ? '—' : formatDias(row.horasCargadasMes)}</dd>
