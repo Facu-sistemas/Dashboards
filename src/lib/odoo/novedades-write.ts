@@ -60,13 +60,13 @@ async function getUid(): Promise<number> {
   return uid;
 }
 
-type Call = <T>(model: string, method: string, args: unknown[]) => Promise<T>;
+type Call = <T>(model: string, method: string, args: unknown[], kwargs?: Record<string, unknown>) => Promise<T>;
 
 async function conectar(): Promise<Call> {
   const config = getOdooConfig();
   const uid = await getUid();
-  return <T>(model: string, method: string, args: unknown[]) =>
-    rpc<T>(config.url, 'object', 'execute_kw', [config.db, uid, config.apiKey, model, method, args, { context: { lang: 'es_AR' } }]);
+  return <T>(model: string, method: string, args: unknown[], kwargs: Record<string, unknown> = {}) =>
+    rpc<T>(config.url, 'object', 'execute_kw', [config.db, uid, config.apiKey, model, method, args, { context: { lang: 'es_AR' }, ...kwargs }]);
 }
 
 /** Lo que devuelve cada operación: un texto listo para mostrar y un aviso si algo quedó a medias. */
@@ -380,6 +380,21 @@ export async function acreditarHorasExtra(input: AcreditarHorasInput): Promise<R
   };
 }
 
+/**
+ * Deja constancia en el chatter de la fichada: hr.attendance no tiene ningún campo de texto, así que la nota de RRHH y quién
+ * la cargó quedan como mensaje interno del registro. Si falla no se deshace la fichada: se avisa.
+ */
+async function dejarConstancia(call: Call, fichadaId: number, accion: string, aprobadoPor: string, nota?: string): Promise<string | null> {
+  // Odoo trata el texto plano como texto y lo escapa solo: no hay que escaparlo acá.
+  const cuerpo = `${accion} desde la web por ${aprobadoPor}.${nota?.trim() ? ` Nota: ${nota.trim()}` : ''}`;
+  try {
+    await call<unknown>('hr.attendance', 'message_post', [[fichadaId]], { body: cuerpo, message_type: 'comment', subtype_xmlid: 'mail.mt_note' });
+    return null;
+  } catch {
+    return `La fichada quedó bien (n.º ${fichadaId}) pero no se pudo dejar la nota en Odoo.`;
+  }
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 // 4. Sin salida / marca incompleta → corregir una fichada
 // ---------------------------------------------------------------------------------------------------------------------
@@ -392,6 +407,7 @@ export interface CorregirFichadaInput {
   entrada?: string;
   /** "HH:MM" hora argentina. */
   salida: string;
+  nota?: string;
   aprobadoPor: string;
 }
 
@@ -455,13 +471,74 @@ export async function corregirFichada(input: CorregirFichadaInput): Promise<Resu
 
   const [despues] = await call<{ check_in: string; check_out: string | false; worked_hours: number }[]>('hr.attendance', 'read', [[marca.id], ['check_in', 'check_out', 'worked_hours']]);
   const horas = redondear2(despues?.worked_hours ?? 0);
+  const avisoNota = await dejarConstancia(call, marca.id, 'Fichada corregida', aprobadoPor, input.nota);
   return {
     id: marca.id,
     empleado: empleado.name,
     fecha,
     horas,
     aprobada: true,
-    aviso: null,
+    aviso: avisoNota,
     resumen: `Fichada corregida en Odoo: ${empleado.name}, ${fechaCorta(fecha)}, ${tipo === 'marca-incompleta' ? input.entrada : 'entrada original'} a ${input.salida} (${horasComa(horas)} hs, fichada n.º ${marca.id}).`,
+  };
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// 5. Sin fichada → cargar la fichada del día (por si trabajó y no fichó)
+// ---------------------------------------------------------------------------------------------------------------------
+
+export interface CrearFichadaInput {
+  empleadoId: number;
+  fecha: string;
+  /** "HH:MM" hora argentina. */
+  entrada: string;
+  /** "HH:MM" hora argentina. */
+  salida: string;
+  nota?: string;
+  aprobadoPor: string;
+}
+
+/** Crea UNA fichada completa (entrada y salida) en un día que no tiene ninguna. Si ese día ya hay fichadas no hace nada. */
+export async function crearFichada(input: CrearFichadaInput): Promise<ResultadoEscritura> {
+  const { empleadoId, fecha, aprobadoPor } = input;
+
+  validarDiaCerrado(fecha);
+  if (!HHMM.test(input.entrada) || !HHMM.test(input.salida)) throw new ApiValidationError('La entrada y la salida tienen que ser HH:MM.');
+
+  const entradaUtc = localAUtc(fecha, input.entrada);
+  const salidaUtc = localAUtc(fecha, input.salida);
+  if (salidaUtc <= entradaUtc) throw new ApiValidationError('La salida tiene que ser posterior a la entrada.');
+  const horasPedidas = (Date.parse(`${salidaUtc.replace(' ', 'T')}Z`) - Date.parse(`${entradaUtc.replace(' ', 'T')}Z`)) / 3_600_000;
+  if (horasPedidas > MAX_JORNADA_FICHADA_HS) throw new ApiValidationError(`Entre la entrada y la salida hay más de ${MAX_JORNADA_FICHADA_HS} hs: revisá las horas.`);
+
+  const call = await conectar();
+  const empleado = await leerEmpleado(call, empleadoId);
+
+  const inicioDia = `${fecha} 03:00:00`;
+  const finDia = `${addDaysIso(fecha, 1)} 03:00:00`;
+  const existentes = await call<{ id: number }[]>('hr.attendance', 'search_read', [
+    [
+      ['employee_id', '=', empleadoId],
+      ['check_in', '>=', inicioDia],
+      ['check_in', '<', finDia],
+    ],
+    ['id'],
+  ]);
+  if (existentes.length > 0) throw new ApiValidationError('Ese día ya tiene fichadas: actualizá la pantalla (si hay que corregirlas, usá "Corregir fichada").');
+
+  // Se marca como manual para que se vea que no la tomó el quiosco.
+  const id = await call<number>('hr.attendance', 'create', [{ employee_id: empleadoId, check_in: entradaUtc, check_out: salidaUtc, in_mode: 'manual', out_mode: 'manual' }]);
+
+  const [despues] = await call<{ worked_hours: number }[]>('hr.attendance', 'read', [[id], ['worked_hours']]);
+  const horas = redondear2(despues?.worked_hours ?? 0);
+  const avisoNota = await dejarConstancia(call, id, 'Fichada cargada', aprobadoPor, input.nota);
+  return {
+    id,
+    empleado: empleado.name,
+    fecha,
+    horas,
+    aprobada: true,
+    aviso: avisoNota,
+    resumen: `Fichada cargada en Odoo: ${empleado.name}, ${fechaCorta(fecha)}, ${input.entrada} a ${input.salida} (${horasComa(horas)} hs, fichada n.º ${id}, cargada por ${aprobadoPor}).`,
   };
 }

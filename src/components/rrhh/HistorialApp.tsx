@@ -198,7 +198,7 @@ function Lista({ hoy, mes, setMes, onAbrir }: { hoy: string; mes: string; setMes
         </div>
         <label className="flex flex-col gap-1 text-slate-400">
           Departamento
-          <select value={departamento} onChange={(e) => setDepartamento(e.target.value)} className={`min-w-[12rem] ${selectClass}`}>
+          <select value={departamento} onChange={(e) => setDepartamento(e.target.value)} className={`w-44 max-w-full truncate ${selectClass}`}>
             <option value="">Todos</option>
             {departamentos.map((d) => (
               <option key={d} value={d}>

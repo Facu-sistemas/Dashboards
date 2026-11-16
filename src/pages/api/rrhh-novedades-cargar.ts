@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { acreditarHorasExtra, cargarAusenciaDiaCompleto, cargarAusenciaPorHoras, corregirFichada } from '@/lib/odoo/novedades-write';
+import { acreditarHorasExtra, cargarAusenciaDiaCompleto, cargarAusenciaPorHoras, corregirFichada, crearFichada } from '@/lib/odoo/novedades-write';
 import { puedeAdministrarRrhh } from '@/lib/rrhh-permisos';
 import { handleApiRoute, jsonResponse, ApiValidationError } from '@/lib/api-helpers';
 
@@ -19,6 +19,7 @@ const bodySchema = z.discriminatedUnion('accion', [
   z.object({ accion: z.literal('horas'), ...base, tipoId: z.number().int().positive(), horas: z.number().positive() }),
   z.object({ accion: z.literal('dia'), ...base, tipoId: z.number().int().positive() }),
   z.object({ accion: z.literal('banco'), ...base, horas: z.number().positive() }),
+  z.object({ accion: z.literal('crear-fichada'), ...base, entrada: hhmm, salida: hhmm }),
   z.object({ accion: z.literal('fichada'), ...base, tipo: z.enum(['sin-salida', 'marca-incompleta']), entrada: hhmm.optional(), salida: hhmm }),
 ]);
 
@@ -45,6 +46,8 @@ export const POST: APIRoute = async (context) => {
         return cargarAusenciaDiaCompleto({ ...datos, aprobadoPor });
       case 'banco':
         return acreditarHorasExtra({ ...datos, aprobadoPor });
+      case 'crear-fichada':
+        return crearFichada({ ...datos, aprobadoPor });
       case 'fichada':
         return corregirFichada({ ...datos, aprobadoPor });
     }

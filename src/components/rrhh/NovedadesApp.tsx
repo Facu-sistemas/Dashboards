@@ -22,13 +22,18 @@ interface Props {
 }
 
 /** Qué se hace en Odoo con cada tipo de novedad (siempre con el visto bueno de RRHH, desde la fila). */
-type Modo = 'cargar' | 'dia' | 'banco' | 'fichada' | 'descartar';
+type Modo = 'cargar' | 'dia' | 'banco' | 'fichada' | 'nueva-fichada' | 'descartar';
 const ACCION_POR_TIPO: Record<NovedadTipo, { modo: Exclude<Modo, 'descartar'>; boton: string }> = {
   'horas-faltantes': { modo: 'cargar', boton: 'Clasificar' },
   'sin-fichada': { modo: 'dia', boton: 'Cargar día' },
   'horas-extra': { modo: 'banco', boton: 'Acreditar al banco' },
   'marca-incompleta': { modo: 'fichada', boton: 'Corregir fichada' },
   'sin-salida': { modo: 'fichada', boton: 'Corregir fichada' },
+};
+
+/** Segunda acción posible en algunas novedades: un "sin fichada" puede ser que trabajó y no fichó, así que además de la ausencia se puede cargar la fichada. */
+const ACCION_EXTRA: Partial<Record<NovedadTipo, { modo: 'nueva-fichada'; boton: string }>> = {
+  'sin-fichada': { modo: 'nueva-fichada', boton: 'Cargar fichada' },
 };
 
 const horasComa = (v: number) => String(v).replace('.', ',');
@@ -40,36 +45,41 @@ const hs = (v: number) => `${formatDias(v)} hs`;
 const selectClass =
   'rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-slate-100 focus:border-brand-500 focus:outline-none';
 
-const TIPOS: { tipo: NovedadTipo; label: string; ayuda: string; badge: string }[] = [
+const TIPOS: { tipo: NovedadTipo; label: string; ayuda: string; badge: string; acento: string }[] = [
   {
     tipo: 'horas-faltantes',
     label: 'Horas faltantes',
     ayuda: 'Trabajó menos que la jornada y no hay una licencia aprobada que cubra la diferencia (se fue antes, llegó tarde…).',
     badge: 'bg-amber-950 text-amber-300',
+    acento: 'bg-amber-500',
   },
   {
     tipo: 'sin-fichada',
     label: 'Sin fichada',
     ayuda: 'No fichó en todo el día y no tiene una licencia aprobada que lo cubra.',
     badge: 'bg-rose-950 text-rose-300',
+    acento: 'bg-rose-500',
   },
   {
     tipo: 'marca-incompleta',
     label: 'Marca incompleta',
     ayuda: 'Solo hay una marca de un minuto (entrada y salida casi iguales): se olvidó de fichar al entrar o al salir.',
     badge: 'bg-orange-950 text-orange-300',
+    acento: 'bg-orange-500',
   },
   {
     tipo: 'sin-salida',
     label: 'Sin salida',
     ayuda: 'Fichó la entrada y no fichó la salida.',
     badge: 'bg-fuchsia-950 text-fuchsia-300',
+    acento: 'bg-fuchsia-500',
   },
   {
     tipo: 'horas-extra',
     label: 'Horas extra',
     ayuda: 'Trabajó más de una hora por encima de la jornada fichada (después de las 15:20 aprox.).',
     badge: 'bg-sky-950 text-sky-300',
+    acento: 'bg-sky-500',
   },
 ];
 
@@ -90,17 +100,22 @@ function fechaCorta(iso: string): string {
   return `${DIAS_SEMANA[dow]} ${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`;
 }
 
-function Kpi({ label, value, hint, tone, title, onClick, activo }: { label: string; value: string; hint?: string; tone?: string; title?: string; onClick?: () => void; activo?: boolean }) {
+function Kpi({ label, value, hint, acento, title, onClick, activo }: { label: string; value: string; hint?: string; acento: string; title?: string; onClick?: () => void; activo?: boolean }) {
+  // Un cero no llama la atención: la tarjeta se ve atenuada (sigue siendo clickeable).
+  const vacio = value === '0';
   const contenido = (
     <>
-      <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
-      <p className={`mt-1 text-2xl font-semibold ${tone ?? 'text-slate-100'}`}>{value}</p>
-      {hint && <p className="mt-0.5 text-xs text-slate-500">{hint}</p>}
+      <span className={`absolute inset-y-0 left-0 w-1 ${acento}`} aria-hidden />
+      <p className="flex min-h-[2rem] items-start text-[11px] font-semibold uppercase leading-tight tracking-wide text-slate-400">{label}</p>
+      <p className={`mt-1 text-3xl font-semibold leading-none tabular-nums ${vacio ? 'text-slate-500' : 'text-slate-100'}`}>{value}</p>
+      <p className="mt-1.5 min-h-[1rem] truncate text-xs text-slate-500">{hint ?? ''}</p>
     </>
   );
-  const base = `rounded-lg border bg-slate-900 p-4 text-left ${activo ? 'border-brand-500' : 'border-slate-800'}`;
+  const base = `relative overflow-hidden rounded-lg border p-3 pl-4 text-left transition ${
+    activo ? 'border-brand-500 bg-slate-800 shadow-sm ring-1 ring-brand-500' : 'border-slate-800 bg-slate-900'
+  } ${vacio && !activo ? 'opacity-60' : ''}`;
   return onClick ? (
-    <button type="button" title={title} onClick={onClick} className={`${base} hover:border-brand-500`}>
+    <button type="button" title={title} aria-pressed={activo} onClick={onClick} className={`${base} hover:border-brand-500 hover:opacity-100`}>
       {contenido}
     </button>
   ) : (
@@ -190,8 +205,9 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
       horas: horasComa(Math.min(r.horasAResolver, maxHoras)),
       nota: '',
       // En una marca incompleta la hora que se ve es la de la única marca: RRHH corrige la que falta.
-      entrada: r.tipo === 'sin-salida' ? (r.entrada ?? '') : '',
-      salida: '',
+      // Jornada habitual (6:00 a 14:18) como punto de partida para una fichada nueva; RRHH la ajusta.
+      entrada: nuevoModo === 'nueva-fichada' ? '06:00' : r.tipo === 'sin-salida' ? (r.entrada ?? '') : '',
+      salida: nuevoModo === 'nueva-fichada' ? '14:18' : '',
     });
     setErrorCarga(null);
   }
@@ -250,6 +266,12 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
       cuerpo = modo === 'cargar' ? { accion: 'horas', ...base, tipoId: form.tipoId, horas } : { accion: 'banco', ...base, horas };
     } else if (modo === 'dia') {
       cuerpo = { accion: 'dia', ...base, tipoId: form.tipoId };
+    } else if (modo === 'nueva-fichada') {
+      if (!form.entrada || !form.salida) {
+        setErrorCarga('Poné la hora de entrada y la de salida.');
+        return;
+      }
+      cuerpo = { accion: 'crear-fichada', ...base, entrada: form.entrada, salida: form.salida };
     } else {
       const marcaIncompleta = r.tipo === 'marca-incompleta';
       if (!form.salida || (marcaIncompleta && !form.entrada)) {
@@ -358,7 +380,7 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
           </label>
           <label className="flex flex-col gap-1">
             Departamento
-            <select value={departamento} onChange={(e) => setDepartamento(e.target.value)} className={`min-w-[12rem] ${selectClass}`}>
+            <select value={departamento} onChange={(e) => setDepartamento(e.target.value)} className={`w-44 max-w-full truncate ${selectClass}`}>
               <option value="">Todos</option>
               {departamentos.map((d) => (
                 <option key={d} value={d}>
@@ -376,6 +398,19 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
               placeholder="Nombre del empleado"
               className={`w-52 placeholder:text-slate-600 ${selectClass}`}
             />
+          </label>
+          <label className="flex flex-col gap-1">
+            Mostrar
+            <select value={tipo} onChange={(e) => setTipo(e.target.value as typeof tipo)} className={`w-44 max-w-full truncate ${selectClass}`}>
+              <option value="">Todos los empleados</option>
+              <option value="con">Solo con novedades</option>
+              {TIPOS.map((t) => (
+                <option key={t.tipo} value={t.tipo}>
+                  {t.label}
+                </option>
+              ))}
+              {diaActivo && <option value="sin">Sin novedades</option>}
+            </select>
           </label>
           {puedeCargar && (
             <label className="flex items-center gap-2 pb-1.5">
@@ -441,19 +476,21 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
         <div className="h-28 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
       ) : (
         data && (
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 2xl:grid-cols-8">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 2xl:grid-cols-8">
             <Kpi
               label="Todos"
+              acento="bg-slate-400"
               value={String(diaActivo ? kpi.novedades + sinNovedad.length : kpi.novedades)}
-              hint={diaActivo ? `empleados · ${fechaCorta(diaActivo)}` : 'novedades de todo el período'}
+              hint={diaActivo ? `empleados · ${fechaCorta(diaActivo)}` : 'todo el período'}
               title={diaActivo ? 'Todos los empleados del día elegido, con o sin novedad. Tocá para ver todos.' : 'Con "Todos" los días solo se listan las novedades (elegí un día para ver a todos los empleados).'}
               onClick={() => setTipo('')}
               activo={tipo === ''}
             />
             <Kpi
               label="Con novedad"
+              acento="bg-brand-500"
               value={String(kpi.novedades)}
-              hint={`${kpi.empleados} ${kpi.empleados === 1 ? 'empleado' : 'empleados'}${diaActivo ? '' : ' · todo el período'}`}
+              hint={`${kpi.empleados} ${kpi.empleados === 1 ? 'empleado' : 'empleados'}`}
               title="Solo los que tienen alguna anomalía en el día elegido (o en el período entero si elegís Todos)."
               onClick={() => setTipo('con')}
               activo={tipo === 'con'}
@@ -462,10 +499,11 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
               <Kpi
                 key={t.tipo}
                 label={t.label}
+                acento={t.acento}
                 value={String(kpi.porTipo[t.tipo])}
                 hint={
                   t.tipo === 'horas-faltantes'
-                    ? `${hs(kpi.faltantes)} entre faltantes y sin fichada`
+                    ? `${hs(kpi.faltantes)} a cubrir`
                     : t.tipo === 'horas-extra'
                       ? `${hs(kpi.extra)} de más`
                       : undefined
@@ -478,9 +516,10 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
             {diaActivo && (
               <Kpi
                 label="Sin novedad"
+                acento="bg-emerald-500"
                 value={historialDia.data ? String(sinNovedad.length) : '…'}
-                hint="jornada normal, con licencia o sin fichadas en el período"
-                title="Empleados del día sin ninguna anomalía. Tocá para filtrar."
+                hint="normal o con licencia"
+                title="Empleados del día sin ninguna anomalía: jornada normal, con licencia aprobada o sin fichadas en el período. Tocá para filtrar."
                 onClick={() => setTipo(tipo === 'sin' ? '' : 'sin')}
                 activo={tipo === 'sin'}
               />
@@ -594,6 +633,16 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
                             >
                               {abierta === r.clave && modo === ACCION_POR_TIPO[r.tipo].modo ? 'Cerrar' : ACCION_POR_TIPO[r.tipo].boton}
                             </button>
+                            {ACCION_EXTRA[r.tipo] && (
+                              <button
+                                type="button"
+                                onClick={() => (abierta === r.clave && modo === ACCION_EXTRA[r.tipo]!.modo ? setAbierta(null) : abrir(r, ACCION_EXTRA[r.tipo]!.modo))}
+                                title="Por si trabajó y no fichó: se carga la fichada (entrada y salida) en Odoo."
+                                className="rounded border border-slate-700 px-2 py-1 text-xs text-slate-200 hover:border-brand-500"
+                              >
+                                {abierta === r.clave && modo === ACCION_EXTRA[r.tipo]!.modo ? 'Cerrar' : ACCION_EXTRA[r.tipo]!.boton}
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => (abierta === r.clave && modo === 'descartar' ? setAbierta(null) : abrir(r, 'descartar'))}
@@ -666,11 +715,11 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
                               />
                             </label>
                           )}
-                          {modo === 'fichada' && (
+                          {(modo === 'fichada' || modo === 'nueva-fichada') && (
                             <>
                               <label className="flex flex-col gap-1">
                                 Entrada
-                                {r.tipo === 'sin-salida' ? (
+                                {modo === 'fichada' && r.tipo === 'sin-salida' ? (
                                   <span className="py-1.5 tabular-nums text-slate-100">{r.entrada ?? '—'}</span>
                                 ) : (
                                   <input type="time" value={form.entrada} onChange={(e) => setForm({ ...form, entrada: e.target.value })} className={selectClass} />
@@ -689,7 +738,7 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
                               value={form.nota}
                               maxLength={200}
                               onChange={(e) => setForm({ ...form, nota: e.target.value })}
-                              placeholder={modo === 'fichada' ? 'Ej.: se olvidó de fichar la salida' : 'Ej.: se retiró con permiso'}
+                              placeholder={modo === 'nueva-fichada' ? 'Ej.: trabajó y no pasó por el reloj' : modo === 'fichada' ? 'Ej.: se olvidó de fichar la salida' : 'Ej.: se retiró con permiso'}
                               className={`placeholder:text-slate-600 ${selectClass}`}
                             />
                           </label>
@@ -699,7 +748,7 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
                             onClick={() => aprobar(r)}
                             className="rounded bg-brand-500 px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40"
                           >
-                            {enviando ? 'Guardando…' : modo === 'fichada' ? 'Corregir en Odoo' : modo === 'banco' ? 'Acreditar en Odoo' : 'Aprobar y cargar en Odoo'}
+                            {enviando ? 'Guardando…' : modo === 'nueva-fichada' ? 'Cargar fichada en Odoo' : modo === 'fichada' ? 'Corregir en Odoo' : modo === 'banco' ? 'Acreditar en Odoo' : 'Aprobar y cargar en Odoo'}
                           </button>
                         </div>
                         <p className="mt-2 text-xs text-slate-500">
@@ -720,6 +769,12 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
                             <>
                               Se acreditan en Odoo, ya aprobadas, {form.horas || '—'} hs al banco de horas de {r.empleado} por el {fechaCorta(r.fecha)} (trabajó {hs(r.fichadoHs)}).
                               Saldo hoy: {hs(r.saldoBanco)}.
+                            </>
+                          )}
+                          {modo === 'nueva-fichada' && (
+                            <>
+                              Se crea en Odoo la fichada de {r.empleado} del {fechaCorta(r.fecha)} ({form.entrada || '—'} a {form.salida || '—'}), marcada como manual. Los horarios sugeridos son
+                              los de la jornada habitual: ajustalos a lo que realmente trabajó. Con la fichada cargada, la novedad se vuelve a evaluar sola.
                             </>
                           )}
                           {modo === 'fichada' && (
