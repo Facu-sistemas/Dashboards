@@ -216,12 +216,22 @@ function CategoriasMulti({ opciones, sel, onChange }: { opciones: string[]; sel:
 
 const pct = (v: number, base: number) => (base > 0 ? `${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2, signDisplay: 'exceptZero' }).format((v / base) * 100)}%` : '—');
 
-function PctCard({ label, text, valor, ok = null, sub }: { label: string; text: string; valor: number; ok?: boolean | null; sub?: string }) {
+function PctCard({ label, text, valor, ok = null, sub, filtro }: { label: string; text: string; valor: number; ok?: boolean | null; sub?: string; filtro?: { text: string; valor: number; label: string } }) {
   return (
     <div className="h-full rounded-lg border border-slate-800 bg-slate-900 p-4">
       <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
-      <p className={`mt-1 text-xl font-semibold ${semaforoClass(ok, signClass(valor))}`}>{text}</p>
-      {sub && <p className="mt-1 text-xs text-slate-500">{sub}</p>}
+      <div className="mt-1 flex flex-wrap items-end gap-x-8 gap-y-2">
+        <div>
+          <p className={`text-xl font-semibold ${semaforoClass(ok, signClass(valor))}`}>{text}</p>
+          <p className="text-xs text-slate-500">Total{sub ? ` · ${sub}` : ''}</p>
+        </div>
+        {filtro && (
+          <div>
+            <p className={`text-xl font-semibold ${signClass(filtro.valor)}`}>{filtro.text}</p>
+            <p className="max-w-[16rem] truncate text-xs text-slate-500" title={filtro.label}>Filtro · {filtro.label}</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -264,6 +274,9 @@ function AjustesInner() {
     .map((c) => ({ ...c, totalSel: c.netoValor.slice(desde, hasta + 1).reduce((a, v) => a + v, 0) }))
     .sort((a, b) => Math.abs(b.totalSel) - Math.abs(a.totalSel));
 
+  // Total de todo el inventario (sin filtro de categoría/producto) para el período elegido.
+  const totalNeto = data ? data.netoValorSinFiltro.slice(desde, hasta + 1).reduce((a, v) => a + v, 0) : 0;
+  const filtroLabel = productoTxt || categorias.join(', ');
   const esTrimestre = /^T\d$/.test(per);
   const catTrim = (data?.categorias ?? [])
     .map((c) => {
@@ -364,21 +377,22 @@ function AjustesInner() {
         <>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Tip
-              text={`Calcula: $ neto ajustado de ${periodo} ÷ $ de materia prima consumida en producción en el mismo período (${money.format(baseMp)}).
+              text={`Total: $ neto ajustado de todo el inventario en ${periodo} (${money.format(totalNeto)}, sin filtro) ÷ $ de materia prima consumida en producción en el mismo período (${money.format(baseMp)}).
+Filtro (solo si elegís categoría o producto): $ neto ajustado de lo filtrado (${money.format(sel!.netoValor)}) ÷ la misma base de materia prima. Es cuánto aporta lo filtrado al desvío total.
 Base: Odoo stock.valuation.layer de movimientos de consumo de órdenes de fabricación (raw_material_production_id), productos de Materia Prima.
 Objetivo: hoja «Objetivos Inventario» del dashboard Equipo de gestión de Odoo (promedio de los meses del período). Verde si el desvío, en valor absoluto, no lo pasa.
-La base no cambia con el filtro de categoría o producto.`}
+La base (materia prima consumida) no cambia con el filtro de categoría o producto; el objetivo se compara contra el Total.`}
               className="block h-full cursor-help"
             >
-              <PctCard label={`Desvío s/ materia prima producida · ${periodo}`} text={pct(sel!.netoValor, baseMp)} valor={sel!.netoValor} ok={cumple(pctNum(sel!.netoValor, baseMp), objetivoSel)} sub={objetivoSel === null ? undefined : `Objetivo: ${pctFmt.format(objetivoSel)}%`} />
+              <PctCard label={`Desvío s/ materia prima producida · ${periodo}`} text={pct(totalNeto, baseMp)} valor={totalNeto} ok={cumple(pctNum(totalNeto, baseMp), objetivoSel)} sub={objetivoSel === null ? undefined : `Objetivo: ${pctFmt.format(objetivoSel)}%`} filtro={hayFiltroProducto ? { text: pct(sel!.netoValor, baseMp), valor: sel!.netoValor, label: filtroLabel } : undefined} />
             </Tip>
             <Tip
-              text={`Calcula: $ neto ajustado de ${periodo} ÷ facturación total del mismo período (${money.format(baseFact)}).
-Base: la misma de Gerencia > Facturación (Odoo account.move.line de facturas y NC posteadas, sin IVA; las NC reales restan).
-No cambia con el filtro de categoría o producto.`}
+              text={`Total: $ neto ajustado de todo el inventario en ${periodo} (${money.format(totalNeto)}, sin filtro) ÷ facturación total del mismo período (${money.format(baseFact)}).
+Filtro (solo si elegís categoría o producto): $ neto de lo filtrado (${money.format(sel!.netoValor)}) ÷ la misma facturación.
+Base: la misma de Gerencia > Facturación (Odoo account.move.line de facturas y NC posteadas, sin IVA; las NC reales restan). No cambia con el filtro.`}
               className="block h-full cursor-help"
             >
-              <PctCard label={`Desvío s/ facturación · ${periodo}`} text={pct(sel!.netoValor, baseFact)} valor={sel!.netoValor} />
+              <PctCard label={`Desvío s/ facturación · ${periodo}`} text={pct(totalNeto, baseFact)} valor={totalNeto} filtro={hayFiltroProducto ? { text: pct(sel!.netoValor, baseFact), valor: sel!.netoValor, label: filtroLabel } : undefined} />
             </Tip>
           </div>
 

@@ -131,6 +131,8 @@ export interface AjustesInventarioResult {
   mensual: AjusteMes[];
   /** Neto por mes con el filtro de categoría/producto aplicado: alimenta los gráficos de evolución. */
   evolucion: { netoValor: number[]; netoCantidad: number[] };
+  /** $ neto por mes de TODO el inventario, sin el filtro de categoría/producto: es el "Total" de las tarjetas de desvío. */
+  netoValorSinFiltro: number[];
   total: Omit<AjusteMes, 'mes'>;
   /** Productos por mes (clave YYYY-MM), ordenados por |neto $| desc y recortados. */
   productosPorMes: Record<string, AjusteProducto[]>;
@@ -521,5 +523,11 @@ function agregar(raw: Raw, filtro: AjustesFiltro): AjustesInventarioResult {
     evolucion.netoCantidad[mi]! += l.quantity;
   }
 
-  return { year, months, mensual, evolucion, total, productosPorMes, productosOmitidos, categorias, anomalos, base, opciones };
+  const netoValorSinFiltro = Array<number>(12).fill(0);
+  for (const l of raw.buenas) {
+    const mi = months.indexOf(l.create_date.slice(0, 7));
+    if (mi >= 0) netoValorSinFiltro[mi]! += l.value;
+  }
+
+  return { year, months, mensual, evolucion, netoValorSinFiltro, total, productosPorMes, productosOmitidos, categorias, anomalos, base, opciones };
 }
