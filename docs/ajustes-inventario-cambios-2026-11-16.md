@@ -19,7 +19,7 @@ Solo lectura de Odoo (no se agregó ninguna escritura).
 - Si hay filtro de categoría/producto aparece al lado el número **Filtro**.
 - Servidor: `netoValorSinFiltro` (neto mensual de todo el inventario). Los gráficos de evolución siguen el filtro, por eso no sirven para el Total.
 
-## 3. Base del % con filtro (este commit)
+## 3. Base del % con filtro (commit `f8aba7c`)
 
 | Tarjeta | Total | Filtro |
 |---|---|---|
@@ -37,7 +37,7 @@ Solo lectura de Odoo (no se agregó ninguna escritura).
 
 ## Rollback
 
-- Todo lo de este documento: `git revert <este commit> 8a36bd9 ec4ce19` (en ese orden, o los que se necesiten).
-- Solo la base del filtro (volver a dividir por MP total): `git revert <este commit>`.
-- Solo las tarjetas Total/Filtro: `git revert 8a36bd9` (junto con este, que depende de él).
+- Todo lo de este documento: `git revert f8aba7c 8a36bd9 ec4ce19` (en ese orden, o los que se necesiten).
+- Solo la base del filtro (volver a dividir por MP total): `git revert f8aba7c`.
+- Solo las tarjetas Total/Filtro: `git revert 8a36bd9` (junto con f8aba7c, que depende de él).
 - Solo el trimestre por categoría: `git revert ec4ce19`.
