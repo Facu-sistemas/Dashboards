@@ -267,6 +267,7 @@ function AjustesInner() {
   const sel = data ? sumarMeses(data.mensual.slice(desde, hasta + 1)) : undefined;
   const enRango = (i: number) => i >= desde && i <= hasta;
   const baseMp = data ? data.base.materiaPrima.slice(desde, hasta + 1).reduce((a, v) => a + v, 0) : 0;
+  const baseMpFiltro = data ? data.materiaPrimaFiltrada.slice(desde, hasta + 1).reduce((a, v) => a + v, 0) : 0;
   const baseFact = data ? data.base.facturacion.slice(desde, hasta + 1).reduce((a, v) => a + v, 0) : 0;
   const objetivosSel = data ? data.base.objetivo.slice(desde, hasta + 1).filter((o): o is number => o !== null) : [];
   const objetivoSel = objetivosSel.length ? objetivosSel.reduce((a, v) => a + v, 0) / objetivosSel.length : null;
@@ -378,13 +379,13 @@ function AjustesInner() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Tip
               text={`Total: $ neto ajustado de todo el inventario en ${periodo} (${money.format(totalNeto)}, sin filtro) ÷ $ de materia prima consumida en producción en el mismo período (${money.format(baseMp)}).
-Filtro (solo si elegís categoría o producto): $ neto ajustado de lo filtrado (${money.format(sel!.netoValor)}) ÷ la misma base de materia prima. Es cuánto aporta lo filtrado al desvío total.
+Filtro (solo si elegís categoría o producto): $ neto ajustado de lo filtrado (${money.format(sel!.netoValor)}) ÷ la materia prima consumida en producción solo de lo filtrado (${money.format(baseMpFiltro)}). Si lo filtrado no es materia prima o no se consumió, no hay base y muestra —. Puede superar el 100% si el ajuste de ese material fue mayor a lo que se consumió de él en el período.
 Base: Odoo stock.valuation.layer de movimientos de consumo de órdenes de fabricación (raw_material_production_id), productos de Materia Prima.
 Objetivo: hoja «Objetivos Inventario» del dashboard Equipo de gestión de Odoo (promedio de los meses del período). Verde si el desvío, en valor absoluto, no lo pasa.
-La base (materia prima consumida) no cambia con el filtro de categoría o producto; el objetivo se compara contra el Total.`}
+El objetivo se compara contra el Total. La facturación (tarjeta de al lado) no se puede abrir por producto: ahí el filtro usa la facturación total.`}
               className="block h-full cursor-help"
             >
-              <PctCard label={`Desvío s/ materia prima producida · ${periodo}`} text={pct(totalNeto, baseMp)} valor={totalNeto} ok={cumple(pctNum(totalNeto, baseMp), objetivoSel)} sub={objetivoSel === null ? undefined : `Objetivo: ${pctFmt.format(objetivoSel)}%`} filtro={hayFiltroProducto ? { text: pct(sel!.netoValor, baseMp), valor: sel!.netoValor, label: filtroLabel } : undefined} />
+              <PctCard label={`Desvío s/ materia prima producida · ${periodo}`} text={pct(totalNeto, baseMp)} valor={totalNeto} ok={cumple(pctNum(totalNeto, baseMp), objetivoSel)} sub={objetivoSel === null ? undefined : `Objetivo: ${pctFmt.format(objetivoSel)}%`} filtro={hayFiltroProducto ? { text: pct(sel!.netoValor, baseMpFiltro), valor: sel!.netoValor, label: filtroLabel } : undefined} />
             </Tip>
             <Tip
               text={`Total: $ neto ajustado de todo el inventario en ${periodo} (${money.format(totalNeto)}, sin filtro) ÷ facturación total del mismo período (${money.format(baseFact)}).

@@ -133,6 +133,8 @@ export interface AjustesInventarioResult {
   evolucion: { netoValor: number[]; netoCantidad: number[] };
   /** $ neto por mes de TODO el inventario, sin el filtro de categoría/producto: es el "Total" de las tarjetas de desvío. */
   netoValorSinFiltro: number[];
+  /** $ de materia prima consumida por mes limitada a la categoría/producto filtrado (sin filtro = igual a base.materiaPrima). */
+  materiaPrimaFiltrada: number[];
   total: Omit<AjusteMes, 'mes'>;
   /** Productos por mes (clave YYYY-MM), ordenados por |neto $| desc y recortados. */
   productosPorMes: Record<string, AjusteProducto[]>;
@@ -177,6 +179,7 @@ interface Raw {
   info: Map<number, { categoria: string; uom: string }>;
   nombres: Map<number, string>;
   base: AjustesBase;
+  mpPorProducto: Map<number, MpProducto>;
 }
 
 type Acum = {
@@ -222,7 +225,7 @@ export function currentYear(): number {
 
 /** Lo pesado (Odoo) se cachea por año; el filtro se aplica en memoria sobre esos datos. */
 export async function getAjustesInventario(year: number, filtro: AjustesFiltro = {}): Promise<AjustesInventarioResult> {
-  const raw = await withTtlCache(`ajustes-inventario:v5:${year}`, CACHE_TTL_MS, () => cargar(year));
+  const raw = await withTtlCache(`ajustes-inventario:v6:${year}`, CACHE_TTL_MS, () => cargar(year));
   return agregar(raw, filtro);
 }
 
@@ -233,7 +236,7 @@ export async function getAjustesInventario(year: number, filtro: AjustesFiltro =
  * (misma key, mismo TTL) — no pega de nuevo a Odoo si ya se cargó el año.
  */
 export async function getAjusteMovimientos(year: number, mes: string, productId: number): Promise<AjusteMovimiento[]> {
-  const raw = await withTtlCache(`ajustes-inventario:v5:${year}`, CACHE_TTL_MS, () => cargar(year));
+  const raw = await withTtlCache(`ajustes-inventario:v6:${year}`, CACHE_TTL_MS, () => cargar(year));
   return raw.buenas
     .filter((l) => l.product_id[0] === productId && l.create_date.slice(0, 7) === mes)
     .map((l) => {
@@ -314,10 +317,46 @@ async function cargarBase(year: number, months: string[]): Promise<AjustesBase> 
   return { materiaPrima: months.map((m) => porMes.get(m) ?? 0), facturacion, objetivo };
 }
 
+type MpProducto = { categoria: string; valor: number[] };
+
+/** Misma base de materia prima consumida, pero abierta por producto (para el % cuando se filtra por categoría/producto). */
+async function cargarMpPorProducto(year: number, months: string[]): Promise<Map<number, MpProducto>> {
+  type Grupo = OdooReadGroupResult & { value: number; product_id: [number, string] | false; __range?: Record<string, { from: string | false }> };
+  const grupos = (await readGroup({
+    model: 'stock.valuation.layer',
+    domain: [
+      ['stock_move_id.raw_material_production_id', '!=', false],
+      ['product_id.categ_id', 'child_of', MATERIA_PRIMA_CATEG_ID],
+      ['create_date', '>=', `${year}-01-01 00:00:00`],
+      ['create_date', '<', `${year + 1}-01-01 00:00:00`],
+      ['value', '<', MAX_VALUE],
+      ['value', '>', -MAX_VALUE],
+    ],
+    fields: ['value'],
+    groupBy: ['create_date:month', 'product_id'],
+    lazy: false,
+  })) as Grupo[];
+  const out = new Map<number, MpProducto>();
+  for (const g of grupos) {
+    const desde = g.__range?.['create_date:month']?.from;
+    if (!desde || !g.product_id) continue;
+    const mi = months.indexOf(desde.slice(0, 7));
+    if (mi < 0) continue;
+    if (!out.has(g.product_id[0])) out.set(g.product_id[0], { categoria: 'Sin categoría', valor: Array<number>(12).fill(0) });
+    out.get(g.product_id[0])!.valor[mi]! += Math.abs(g.value);
+  }
+  const prods = await inChunks<{ id: number; categ_id: [number, string] | false }>('product.product', 'id', [...out.keys()], ['categ_id'], { context: { active_test: false } });
+  for (const p of prods) {
+    const e = out.get(p.id);
+    if (e && p.categ_id) e.categoria = p.categ_id[1];
+  }
+  return out;
+}
+
 async function cargar(year: number): Promise<Raw> {
   const months = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
 
-  const [layers, invLocs, base] = await Promise.all([
+  const [layers, invLocs, base, mpPorProducto] = await Promise.all([
     searchReadAll<SvlRow>({
       model: 'stock.valuation.layer',
       domain: [
@@ -331,6 +370,7 @@ async function cargar(year: number): Promise<Raw> {
     }),
     searchRead<{ id: number }>({ model: 'stock.location', domain: [['usage', '=', 'inventory']], fields: ['id'] }),
     cargarBase(year, months),
+    cargarMpPorProducto(year, months),
   ]);
   const invIds = new Set(invLocs.map((l) => l.id));
 
@@ -381,7 +421,7 @@ async function cargar(year: number): Promise<Raw> {
   const info = new Map(productos.map((p) => [p.id, { categoria: p.categ_id ? p.categ_id[1] : 'Sin categoría', uom: p.uom_id ? p.uom_id[1] : '' }]));
 
   const nombres = new Map(buenas.map((l) => [l.product_id[0], l.product_id[1]]));
-  return { year, months, buenas, anomalos, anomalMoves, historialPorMov, svlTotalPorMov, movsNoComparables, info, nombres, base };
+  return { year, months, buenas, anomalos, anomalMoves, historialPorMov, svlTotalPorMov, movsNoComparables, info, nombres, base, mpPorProducto };
 }
 
 function agregar(raw: Raw, filtro: AjustesFiltro): AjustesInventarioResult {
@@ -529,5 +569,12 @@ function agregar(raw: Raw, filtro: AjustesFiltro): AjustesInventarioResult {
     if (mi >= 0) netoValorSinFiltro[mi]! += l.value;
   }
 
-  return { year, months, mensual, evolucion, netoValorSinFiltro, total, productosPorMes, productosOmitidos, categorias, anomalos, base, opciones };
+  const materiaPrimaFiltrada = Array<number>(12).fill(0);
+  for (const [pid, mp] of raw.mpPorProducto) {
+    if (filtro.productId !== undefined && pid !== filtro.productId) continue;
+    if (filtro.categorias?.length && !filtro.categorias.includes(mp.categoria)) continue;
+    mp.valor.forEach((v, i) => (materiaPrimaFiltrada[i]! += v));
+  }
+
+  return { year, months, mensual, evolucion, netoValorSinFiltro, materiaPrimaFiltrada, total, productosPorMes, productosOmitidos, categorias, anomalos, base, opciones };
 }
