@@ -1,20 +1,25 @@
 ---
-import QuincenaApp from './QuincenaApp';
+import HorasApp from './HorasApp';
 import { getArgentinaTodayIso } from '@/lib/odoo/oee';
+import { puedeAdministrarRrhh } from '@/lib/rrhh-permisos';
 
 const hoy = getArgentinaTodayIso();
+// Cargar una novedad escribe en Odoo: solo dev y la cuenta rrhh (el endpoint lo vuelve a controlar).
+const puedeCargar = puedeAdministrarRrhh(Astro.locals.usuario);
 ---
 
 <div>
   <header class="mb-6">
     <h2 class="text-lg font-semibold text-slate-100">Horas</h2>
     <p class="mt-1 text-sm text-slate-400">
-      Por empleado: horas de jornada del período que elijas (desde un día hasta otro), feriados, tiempo personal (licencias aprobadas en Odoo)
-      y movimiento del banco de horas, para revisar que los números cierren antes de liquidar. Marca lo que no
-      coincide (banco de horas que no cuadra, licencias aprobadas que se pisan, licencias sin aprobar).
-      Tocá una fila para ver las licencias que la componen. Solo lectura.
+      Dos vistas del mismo período. <strong class="font-medium text-slate-300">Por día</strong>: lo que se salió de la jornada según las
+      fichadas de Odoo (horas faltantes, días sin fichada, marcas incompletas, salidas sin fichar y horas extra), para que RRHH decida qué fue
+      (banco de horas, enfermedad, trámite…); lo que ya tiene una licencia aprobada que lo cubre no aparece.{' '}
+      <strong class="font-medium text-slate-300">Por empleado</strong>: horas de jornada, feriados, tiempo personal y banco de horas de cada
+      empleado, para revisar que los números cierren antes de liquidar. En las horas faltantes, RRHH puede clasificar la novedad y cargarla
+      (aprobada) en Odoo; el resto es solo lectura.
     </p>
   </header>
 
-  <QuincenaApp client:load hoy={hoy} />
+  <HorasApp client:load hoy={hoy} puedeCargar={puedeCargar} />
 </div>

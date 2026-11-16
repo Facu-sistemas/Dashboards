@@ -44,5 +44,3 @@ export function ultimasQuincenas(hoyIso: string, cantidad: number): Quincena[] {
   return result;
 }
 
-/** Coincidencia mínima por empleado que fijó RRHH para dar por bueno el paralelo reloj vs Odoo. */
-export const META_COINCIDENCIA = 0.97;

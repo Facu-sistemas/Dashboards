@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import QueryProvider from '@/components/QueryProvider';
 import { useApiQuery } from '@/components/dashboard/useApiQuery';
 import LastUpdated from '@/components/shared/LastUpdated';
@@ -42,6 +42,17 @@ function PlanillaInner({ hoy }: Props) {
   const [soloAlertas, setSoloAlertas] = useState(false);
   const [todasLasColumnas, setTodasLasColumnas] = useState(false);
   const [abierto, setAbierto] = useState<Set<number>>(new Set());
+  const [vistaPrevia, setVistaPrevia] = useState(false);
+  const [hojaPrevia, setHojaPrevia] = useState<'planilla' | 'exporta'>('exporta');
+
+  useEffect(() => {
+    if (!vistaPrevia) return;
+    const alTeclear = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setVistaPrevia(false);
+    };
+    window.addEventListener('keydown', alTeclear);
+    return () => window.removeEventListener('keydown', alTeclear);
+  }, [vistaPrevia]);
 
   const rangoDias = desde && hasta ? Math.round((Date.parse(hasta) - Date.parse(desde)) / 86_400_000) + 1 : 0;
   const rangoError =
@@ -103,10 +114,10 @@ function PlanillaInner({ hoy }: Props) {
     });
   }
 
-  async function exportarExcel() {
-    if (!data) return;
-    const XLSX = await import('xlsx');
-    // Planilla completa (todos los empleados de la nómina, sin los filtros de pantalla) con todas las columnas de la planilla de cálculo.
+  // Las dos hojas del Excel, armadas una sola vez: la vista previa muestra exactamente lo que se va a descargar.
+  // Planilla completa (todos los empleados de la nómina, sin los filtros de pantalla) con todas las columnas de la planilla de cálculo.
+  const hojas = useMemo(() => {
+    if (!data) return null;
     const filas = allRows.map((r) => ({
       ID: r.legajo,
       'Nombre y apellido': r.nombre,
@@ -129,10 +140,17 @@ function PlanillaInner({ hoy }: Props) {
       Observaciones: r.alertas.map((a) => a.detalle).join(' | '),
     }));
     const exporta = data.exporta.map((e) => ({ LEGAJO: e.legajo, CODIGO: e.codigo, VALOR: e.valor }));
+    return { filas, exporta };
+  }, [data, allRows]);
+
+  async function descargarExcel() {
+    if (!data || !hojas) return;
+    const XLSX = await import('xlsx');
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filas), 'Planilla de cálculo');
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(exporta), 'EXPORTA');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hojas.filas), 'Planilla de cálculo');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hojas.exporta), 'EXPORTA');
     XLSX.writeFile(wb, `planilla-calculo-${data.desde}_${data.hasta}.xlsx`);
+    setVistaPrevia(false);
   }
 
   const th = 'whitespace-nowrap px-2 py-2 text-right font-medium';
@@ -191,12 +209,12 @@ function PlanillaInner({ hoy }: Props) {
           <LastUpdated dataUpdatedAt={query.dataUpdatedAt} />
           <button
             type="button"
-            onClick={exportarExcel}
+            onClick={() => setVistaPrevia(true)}
             disabled={!data}
-            title="Descarga la planilla de cálculo completa y la solapa EXPORTA (legajo, código, valor), sin aplicar los filtros de pantalla"
+            title="Muestra la planilla de cálculo completa y la solapa EXPORTA (legajo, código, valor), sin aplicar los filtros de pantalla, y desde ahí se descarga"
             className="rounded border border-slate-700 px-3 py-1.5 text-sm text-slate-200 hover:border-brand-500 disabled:opacity-40"
           >
-            Descargar Excel
+            Ver y descargar Excel
           </button>
         </div>
       </div>
@@ -385,7 +403,102 @@ function PlanillaInner({ hoy }: Props) {
           Período: {formatFechaIso(data.desde)} – {formatFechaIso(data.hasta)}. Solo lectura: no modifica la planilla de Google ni Odoo.
         </p>
       )}
+
+      {vistaPrevia && data && hojas && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setVistaPrevia(false)}
+          role="presentation"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Vista previa del Excel"
+            onClick={(e) => e.stopPropagation()}
+            className="flex max-h-[90vh] w-full max-w-6xl flex-col gap-4 rounded-lg border border-slate-700 bg-slate-900 p-5"
+          >
+            <div>
+              <h3 className="text-base font-semibold text-slate-100">Vista previa de lo que se va a descargar</h3>
+              <p className="mt-1 text-sm text-slate-400">
+                Período {formatFechaIso(data.desde)} – {formatFechaIso(data.hasta)}. El archivo lleva todos los empleados, sin los filtros de
+                pantalla, en dos hojas. Revisalas y descargá si está bien.
+              </p>
+            </div>
+
+            <div role="tablist" className="inline-flex w-fit rounded-lg border border-slate-800 bg-slate-950 p-1 text-sm">
+              {(
+                [
+                  ['exporta', `EXPORTA (${hojas.exporta.length} filas)`],
+                  ['planilla', `Planilla de cálculo (${hojas.filas.length} empleados)`],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={hojaPrevia === id}
+                  onClick={() => setHojaPrevia(id)}
+                  className={`rounded-md px-3 py-1.5 ${hojaPrevia === id ? 'bg-slate-800 text-slate-100' : 'text-slate-400 hover:text-slate-200'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-auto rounded border border-slate-800">
+              <HojaPrevia filas={hojaPrevia === 'exporta' ? hojas.exporta : hojas.filas} />
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setVistaPrevia(false)}
+                className="rounded border border-slate-700 px-3 py-1.5 text-sm text-slate-300 hover:border-slate-500"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={descargarExcel}
+                className="rounded bg-brand-500 px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
+              >
+                Descargar Excel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+/** Tabla genérica de una hoja del Excel: las columnas son las claves de la primera fila, igual que las arma xlsx. */
+function HojaPrevia({ filas }: { filas: Record<string, unknown>[] }) {
+  if (filas.length === 0) return <p className="p-6 text-center text-sm text-slate-500">Esta hoja no tiene filas.</p>;
+  const columnas = Object.keys(filas[0]!);
+  return (
+    <table className="w-full text-left text-xs">
+      <thead className="sticky top-0 bg-slate-900 uppercase tracking-wide text-slate-500">
+        <tr>
+          {columnas.map((c) => (
+            <th key={c} className="whitespace-nowrap px-2 py-2 font-medium">
+              {c}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {filas.map((f, i) => (
+          <tr key={i} className="border-t border-slate-800">
+            {columnas.map((c) => (
+              <td key={c} className="whitespace-nowrap px-2 py-1 tabular-nums text-slate-300">
+                {String(f[c] ?? '')}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 

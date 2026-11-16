@@ -9,6 +9,10 @@ import type { QuincenaAlerta, QuincenaEmpleadoRow, RrhhQuincenaResult } from '@/
 interface Props {
   /** Fecha de hoy (ISO) calculada en el servidor, para no depender de la zona horaria del navegador. */
   hoy: string;
+  /** Período elegido en la otra vista de Horas (si lo tocaron): se hereda para no tener que volver a elegirlo. */
+  rangoInicial?: { desde: string; hasta: string } | null;
+  /** Avisa cuando el usuario cambia el período, para compartirlo con la otra vista. */
+  onRango?: (rango: { desde: string; hasta: string }) => void;
 }
 
 const MAX_DIAS = 93;
@@ -98,14 +102,22 @@ function Detalle({ row }: { row: QuincenaEmpleadoRow }) {
   );
 }
 
-function QuincenaInner({ hoy }: Props) {
+function QuincenaInner({ hoy, rangoInicial, onRango }: Props) {
   // Arranca en la última quincena cerrada; después se puede elegir cualquier rango.
   const inicial = useMemo(() => {
     const qs = ultimasQuincenas(hoy, 2);
     return qs.find((q) => !q.enCurso) ?? qs[0]!;
   }, [hoy]);
-  const [desde, setDesde] = useState(inicial.desde);
-  const [hasta, setHasta] = useState(inicial.hasta);
+  const [desde, setDesdeState] = useState(rangoInicial?.desde ?? inicial.desde);
+  const [hasta, setHastaState] = useState(rangoInicial?.hasta ?? inicial.hasta);
+  const setDesde = (v: string) => {
+    setDesdeState(v);
+    onRango?.({ desde: v, hasta });
+  };
+  const setHasta = (v: string) => {
+    setHastaState(v);
+    onRango?.({ desde, hasta: v });
+  };
   const rangoDias = desde && hasta ? Math.round((Date.parse(hasta) - Date.parse(desde)) / 86_400_000) + 1 : 0;
   const rangoError =
     !desde || !hasta
@@ -458,10 +470,10 @@ function QuincenaInner({ hoy }: Props) {
 }
 
 /** Entry point mounted as an Astro client island (`client:load`), same pattern as the other tabs. */
-export default function QuincenaApp({ hoy }: Props) {
+export default function QuincenaApp(props: Props) {
   return (
     <QueryProvider>
-      <QuincenaInner hoy={hoy} />
+      <QuincenaInner {...props} />
     </QueryProvider>
   );
 }

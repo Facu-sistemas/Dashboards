@@ -28,7 +28,6 @@ import BarcodeTab from '@/components/test/BarcodeTab.astro';
 import VacacionesTab from '@/components/rrhh/VacacionesTab.astro';
 import ResumenRrhhTab from '@/components/rrhh/ResumenTab.astro';
 import QuincenaTab from '@/components/rrhh/QuincenaTab.astro';
-import CruceRelojTab from '@/components/rrhh/CruceRelojTab.astro';
 import PlanillaTab from '@/components/rrhh/PlanillaTab.astro';
 import AdministracionRrhhTab from '@/components/rrhh/AdministracionTab.astro';
 import { tabVisible } from '@/lib/tab-acceso';
@@ -123,7 +122,6 @@ if (!area || !tabConfig || !tabVisible(tabConfig, Astro.locals.usuario) || !Astr
   {area.slug === 'rrhh' && tabSlug === 'resumen' && <ResumenRrhhTab />}
   {area.slug === 'rrhh' && tabSlug === 'vacaciones' && <VacacionesTab />}
   {area.slug === 'rrhh' && tabSlug === 'horas' && <QuincenaTab />}
-  {area.slug === 'rrhh' && tabSlug === 'cruce-reloj' && <CruceRelojTab />}
   {area.slug === 'rrhh' && tabSlug === 'planilla' && <PlanillaTab />}
   {area.slug === 'rrhh' && tabSlug === 'administracion' && <AdministracionRrhhTab />}
   {area.slug === 'finanzas' && tabSlug === 'credito-cheques' && <CreditoChequesTab />}

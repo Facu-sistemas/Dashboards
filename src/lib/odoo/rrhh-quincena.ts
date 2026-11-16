@@ -4,14 +4,14 @@ import { getArgentinaTodayIso } from './oee';
 import { ApiValidationError } from '@/lib/api-helpers';
 
 /** `hr.leave.type` id de "Banco de horas" — fijo, mismo criterio que VACACIONES_TYPE_ID en rrhh-vacaciones.ts. */
-const BANCO_HORAS_TYPE_ID = 6;
+export const BANCO_HORAS_TYPE_ID = 6;
 
 /**
  * Horas que computa RRHH por día trabajado, igual para todos: se ficha de 6:00 a 14:18 (8,30 hs) pero se computa
  * hasta las 14:48 (8,80 hs) porque la media hora de descanso se paga. La liquidación está armada sobre 8,80 hs/día
  * (96,80 hs en una quincena de 11 días hábiles), por eso no se usa la jornada del calendario de Odoo (8,3).
  */
-const HORAS_DIA = 8.8;
+export const HORAS_DIA = 8.8;
 
 /** Diferencia que se tolera antes de marcar un descuadre (Odoo guarda horas con decimales largos). */
 const TOLERANCIA_HS = 0.1;
@@ -19,7 +19,7 @@ const TOLERANCIA_HS = 0.1;
 const MAX_DIAS_RANGO = 93;
 
 /** Argentina no tiene horario de verano: los datetime de Odoo (UTC) están 3 horas adelantados. */
-const OFFSET_ARG_MS = 3 * 60 * 60 * 1000;
+export const OFFSET_ARG_MS = 3 * 60 * 60 * 1000;
 
 /** Ausencias no programadas: lo que cuenta como ausentismo (las vacaciones, trámites, banco de horas y demás permisos no). */
 const TIPOS_AUSENTISMO = ['Baja por enfermedad', 'Accidente', 'Permisos sin pagar'];
@@ -146,7 +146,7 @@ type AttendanceRow = { employee_id: M2o; worked_hours: number; check_in: string 
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-function esFinDeSemana(iso: string): boolean {
+export function esFinDeSemana(iso: string): boolean {
   const [y, m, d] = iso.split('-').map(Number);
   const dow = new Date(Date.UTC(y!, m! - 1, d!)).getUTCDay();
   return dow === 0 || dow === 6;
@@ -162,7 +162,7 @@ function contarDiasHabiles(desde: string, hasta: string, excluir?: Set<string>):
 }
 
 /** Datetime de Odoo (UTC, "YYYY-MM-DD HH:mm:ss") -> fecha ISO en hora argentina. */
-function fechaArgentina(utc: string): string {
+export function fechaArgentina(utc: string): string {
   const ms = Date.parse(`${utc.replace(' ', 'T')}Z`) - OFFSET_ARG_MS;
   return new Date(ms).toISOString().slice(0, 10);
 }
