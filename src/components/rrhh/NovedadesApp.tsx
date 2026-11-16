@@ -6,6 +6,7 @@ import LastUpdated from '@/components/shared/LastUpdated';
 import { formatDias, formatFechaIso } from './format';
 import { ultimasQuincenas } from './quincena-utils';
 import type { NovedadRow, NovedadTipo, RrhhNovedadesResult } from '@/lib/odoo/rrhh-novedades';
+import type { EmpleadoResumen, EstadoDia, RrhhHistorialResult } from '@/lib/odoo/rrhh-historial';
 
 interface Props {
   /** Fecha de hoy (ISO) calculada en el servidor, para no depender de la zona horaria del navegador. */
@@ -16,6 +17,8 @@ interface Props {
   onRango?: (rango: { desde: string; hasta: string }) => void;
   /** Dev y cuenta rrhh: pueden clasificar una novedad y cargarla (aprobada) en Odoo. El servidor lo vuelve a controlar. */
   puedeCargar?: boolean;
+  /** Abre el historial de fichadas del empleado (clic en su nombre). */
+  onVerHistorial?: (empleadoId: number) => void;
 }
 
 /** Qué se hace en Odoo con cada tipo de novedad (siempre con el visto bueno de RRHH, desde la fila). */
@@ -70,6 +73,12 @@ const TIPOS: { tipo: NovedadTipo; label: string; ayuda: string; badge: string }[
   },
 ];
 
+/** Etiqueta de los empleados que figuran en la tabla sin novedad pendiente. */
+const BADGE_SIN: Partial<Record<EstadoDia, { label: string; clase: string; ayuda: string }>> & { ok: { label: string; clase: string; ayuda: string } } = {
+  ok: { label: 'Sin novedad', clase: 'bg-emerald-950 text-emerald-300', ayuda: 'Cumplió la jornada.' },
+  licencia: { label: 'Licencia', clase: 'bg-violet-950 text-violet-300', ayuda: 'Cubierto por una licencia aprobada en Odoo.' },
+  'sin-datos': { label: 'Sin fichadas', clase: 'bg-slate-800 text-slate-400', ayuda: 'No tiene fichadas en el período (no usa el kiosco todavía o es nuevo): no se puede evaluar.' },
+};
 const ESTADO_LABEL: Record<string, string> = { confirm: 'sin aprobar', validate1: 'falta 2ª aprobación', validate: 'aprobada' };
 
 const DIAS_SEMANA = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
@@ -124,7 +133,7 @@ function YaCargado({ row }: { row: NovedadRow }) {
   );
 }
 
-function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar }: Props) {
+function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistorial }: Props) {
   // Arranca en la quincena anterior y llega hasta hoy: así incluye lo que RRHH todavía puede estar cerrando y nunca queda en
   // un solo día (el primer día de una quincena el rango sería solo "hoy", que no se evalúa).
   const inicial = useMemo(() => ultimasQuincenas(hoy, 2)[1]!, [hoy]);
@@ -148,7 +157,8 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar }: Props) {
           ? `El rango no puede superar ${MAX_DIAS} días.`
           : null;
 
-  const [tipo, setTipo] = useState<NovedadTipo | ''>('');
+  // '' = todos los empleados del día; 'con' = solo los que tienen alguna novedad; 'sin' = solo los que no; o un tipo puntual.
+  const [tipo, setTipo] = useState<NovedadTipo | '' | 'con' | 'sin'>('');
   const [departamento, setDepartamento] = useState('');
   const [busqueda, setBusqueda] = useState('');
 
@@ -268,11 +278,6 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar }: Props) {
     }
   }
 
-  const departamentos = useMemo(
-    () => [...new Set(allRows.map((r) => r.departamento).filter((d): d is string => Boolean(d)))].sort((a, b) => a.localeCompare(b, 'es')),
-    [allRows]
-  );
-
   // Navegación por día: solo los días que tienen novedades, del más reciente al más viejo. Por defecto abre en el último día;
   // "Todos" muestra el período entero. Si el día elegido ya no está (cambió el período o se resolvió todo), vuelve al último.
   const [dia, setDia] = useState<string | null>(null);
@@ -298,15 +303,38 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar }: Props) {
     return { novedades: rowsDia.length, empleados: new Set(rowsDia.map((r) => r.empleadoId)).size, porTipo, faltantes: Math.round(faltantes * 10) / 10, extra: Math.round(extra * 10) / 10 };
   }, [rowsDia]);
 
+  // Con un día elegido se lista a TODOS los empleados, no solo a los que tienen novedades: los que no tienen ninguna salen de la
+  // vista por día del historial (con "Todos" los días serían miles de filas, ahí solo se ven las novedades).
+  const historialDia = useApiQuery<RrhhHistorialResult>(['rrhh-historial-dia', diaActivo], `/api/rrhh-historial?desde=${diaActivo}&hasta=${diaActivo}`, {
+    enabled: Boolean(diaActivo),
+  });
+  const sinNovedad = useMemo(() => {
+    if (!diaActivo) return [] as EmpleadoResumen[];
+    const conFila = new Set(rowsDia.map((r) => r.empleadoId));
+    // Fines de semana y feriados no se listan: no era un día de trabajo para ese empleado.
+    return (historialDia.data?.empleados ?? []).filter((e) => e.dia && !conFila.has(e.empleadoId) && e.dia.estado !== 'fin-de-semana' && e.dia.estado !== 'feriado');
+  }, [diaActivo, rowsDia, historialDia.data]);
+
   const rows = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
     return rowsDia.filter((r) => {
-      if (tipo && r.tipo !== tipo) return false;
+      if (tipo === 'sin') return false;
+      if (tipo && tipo !== 'con' && r.tipo !== tipo) return false;
       if (departamento && r.departamento !== departamento) return false;
       if (q && !r.empleado.toLowerCase().includes(q)) return false;
       return true;
     });
   }, [rowsDia, tipo, departamento, busqueda]);
+  const sinFiltradas = useMemo(() => {
+    if (tipo !== '' && tipo !== 'sin') return [] as EmpleadoResumen[];
+    const q = busqueda.trim().toLowerCase();
+    return sinNovedad.filter((e) => (!departamento || e.departamento === departamento) && (!q || e.empleado.toLowerCase().includes(q)));
+  }, [sinNovedad, tipo, departamento, busqueda]);
+
+  const departamentos = useMemo(
+    () => [...new Set([...allRows.map((r) => r.departamento), ...sinNovedad.map((e) => e.departamento)].filter((d): d is string => Boolean(d)))].sort((a, b) => a.localeCompare(b, 'es')),
+    [allRows, sinNovedad]
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -413,14 +441,22 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar }: Props) {
         <div className="h-28 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
       ) : (
         data && (
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 2xl:grid-cols-8">
             <Kpi
-              label="Novedades"
-              value={String(kpi.novedades)}
-              hint={`${kpi.empleados} ${kpi.empleados === 1 ? 'empleado' : 'empleados'}${diaActivo ? ` · ${fechaCorta(diaActivo)}` : ' · todo el período'}`}
-              title="Anomalías del día elegido (o del período entero si elegís Todos). Tocá para sacar el filtro por tipo."
+              label="Todos"
+              value={String(diaActivo ? kpi.novedades + sinNovedad.length : kpi.novedades)}
+              hint={diaActivo ? `empleados · ${fechaCorta(diaActivo)}` : 'novedades de todo el período'}
+              title={diaActivo ? 'Todos los empleados del día elegido, con o sin novedad. Tocá para ver todos.' : 'Con "Todos" los días solo se listan las novedades (elegí un día para ver a todos los empleados).'}
               onClick={() => setTipo('')}
               activo={tipo === ''}
+            />
+            <Kpi
+              label="Con novedad"
+              value={String(kpi.novedades)}
+              hint={`${kpi.empleados} ${kpi.empleados === 1 ? 'empleado' : 'empleados'}${diaActivo ? '' : ' · todo el período'}`}
+              title="Solo los que tienen alguna anomalía en el día elegido (o en el período entero si elegís Todos)."
+              onClick={() => setTipo('con')}
+              activo={tipo === 'con'}
             />
             {TIPOS.map((t) => (
               <Kpi
@@ -439,6 +475,16 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar }: Props) {
                 activo={tipo === t.tipo}
               />
             ))}
+            {diaActivo && (
+              <Kpi
+                label="Sin novedad"
+                value={historialDia.data ? String(sinNovedad.length) : '…'}
+                hint="jornada normal, con licencia o sin fichadas en el período"
+                title="Empleados del día sin ninguna anomalía. Tocá para filtrar."
+                onClick={() => setTipo(tipo === 'sin' ? '' : 'sin')}
+                activo={tipo === 'sin'}
+              />
+            )}
           </div>
         )
       )}
@@ -488,10 +534,10 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar }: Props) {
               </tr>
             </thead>
             <tbody>
-              {rows.length === 0 ? (
+              {rows.length === 0 && sinFiltradas.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-3 py-6 text-center text-slate-500">
-                    {allRows.length === 0
+                    {allRows.length === 0 && !diaActivo
                       ? data.evaluadoHasta < desde
                         ? 'Ese período todavía no tiene días cerrados para revisar (hoy no se evalúa).'
                         : 'No hay novedades en este período.'
@@ -504,7 +550,13 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar }: Props) {
                   <tr title={r.detalle} className={`border-t border-slate-800 align-top ${r.descartada ? 'opacity-50' : ''}`}>
                     <td className="whitespace-nowrap px-3 py-2 text-slate-300">{fechaCorta(r.fecha)}</td>
                     <td className="px-3 py-2">
-                      <p className="text-slate-100">{r.empleado}</p>
+                      {onVerHistorial ? (
+                        <button type="button" title="Ver todo su historial de fichadas" onClick={() => onVerHistorial(r.empleadoId)} className="text-left text-slate-100 hover:text-brand-400 hover:underline">
+                          {r.empleado}
+                        </button>
+                      ) : (
+                        <p className="text-slate-100">{r.empleado}</p>
+                      )}
                       {r.departamento && <p className="text-xs text-slate-500">{r.departamento}</p>}
                     </td>
                     <td className="px-3 py-2">
@@ -685,6 +737,51 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar }: Props) {
                   </Fragment>
                 ))
               )}
+              {sinFiltradas.map((e) => {
+                const d = e.dia!;
+                const info = BADGE_SIN[d.estado] ?? BADGE_SIN.ok;
+                return (
+                  <tr key={`sin-${e.empleadoId}`} className="border-t border-slate-800 align-top">
+                    <td className="whitespace-nowrap px-3 py-2 text-slate-300">{fechaCorta(d.fecha)}</td>
+                    <td className="px-3 py-2">
+                      {onVerHistorial ? (
+                        <button type="button" title="Ver todo su historial de fichadas" onClick={() => onVerHistorial(e.empleadoId)} className="text-left text-slate-100 hover:text-brand-400 hover:underline">
+                          {e.empleado}
+                        </button>
+                      ) : (
+                        <p className="text-slate-100">{e.empleado}</p>
+                      )}
+                      {e.departamento && <p className="text-xs text-slate-500">{e.departamento}</p>}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span title={info.ayuda} className={`inline-block whitespace-nowrap rounded px-1.5 py-0.5 text-xs ${info.clase}`}>
+                        {d.descartada ? 'Descartada' : info.label}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 tabular-nums text-slate-300">
+                      {d.entrada ? `${d.entrada} – ${d.salida ?? 'sin salida'}` : <span className="text-slate-600">—</span>}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums text-slate-300">{d.marcas.length > 0 ? hs(d.fichadoHs) : '—'}</td>
+                    <td className="px-3 py-2 text-right text-slate-600">—</td>
+                    <td className="px-3 py-2 text-xs">
+                      {d.licencias.length === 0 ? (
+                        <span className="text-slate-600">—</span>
+                      ) : (
+                        <ul className="flex flex-col gap-0.5">
+                          {d.licencias.map((l) => (
+                            <li key={l.id} className={l.estado === 'validate' ? 'text-slate-300' : 'text-amber-300'}>
+                              {l.tipo} {hs(l.horas)}
+                              <span className="text-slate-500"> · {ESTADO_LABEL[l.estado]}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </td>
+                    <td className={`px-3 py-2 text-right tabular-nums ${e.saldoBanco < 0 ? 'text-rose-300' : 'text-slate-400'}`}>{hs(e.saldoBanco)}</td>
+                    {puedeCargar && <td />}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

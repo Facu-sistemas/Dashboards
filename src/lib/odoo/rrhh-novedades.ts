@@ -88,7 +88,7 @@ export interface RrhhNovedadesResult {
   rows: NovedadRow[];
 }
 
-type M2o = [number, string] | false;
+export type M2o = [number, string] | false;
 
 type EmployeeRow = {
   id: number;
@@ -107,7 +107,7 @@ type AttendanceRow = {
   worked_hours: number;
 };
 
-type LeaveRow = {
+export type LeaveRow = {
   id: number;
   employee_id: M2o;
   holiday_status_id: M2o;
@@ -126,7 +126,7 @@ type AllocationRow = { employee_id: M2o; date_from: string };
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /** Datetime de Odoo (UTC) -> "HH:MM" en hora argentina. */
-function horaArgentina(utc: string): string {
+export function horaArgentina(utc: string): string {
   const ms = Date.parse(`${utc.replace(' ', 'T')}Z`) - OFFSET_ARG_MS;
   return new Date(ms).toISOString().slice(11, 16);
 }
@@ -139,7 +139,7 @@ function validarRango(desde: string, hasta: string) {
 }
 
 /** Horas de una licencia que caen en el día `d` (0 si no lo toca). Las de varios días cubren la jornada completa. */
-function horasDeLicenciaEnDia(l: LeaveRow, d: string): number {
+export function horasDeLicenciaEnDia(l: LeaveRow, d: string): number {
   if (d < l.request_date_from || d > l.request_date_to) return 0;
   if (l.request_unit_hours) return l.number_of_hours_display;
   if (l.request_date_from === l.request_date_to) return Math.min(HORAS_DIA, l.number_of_days * HORAS_DIA);
