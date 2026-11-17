@@ -89,7 +89,7 @@ async function enviar(envio: Envio, fecha: string): Promise<Aviso> {
   }
 }
 
-const AVISO_MS = 2500;
+const AVISO_MS = 1000;
 const AVISO_ERROR_MS = 5000;
 
 function Inner() {
