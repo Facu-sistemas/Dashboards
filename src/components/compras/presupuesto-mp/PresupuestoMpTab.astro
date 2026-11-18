@@ -1,0 +1,43 @@
+---
+import './presupuesto-mp.css';
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Presupuesto y cumplimiento MP</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Rendición de cuentas de Compras de materias primas: presupuesto aprobado, cumplimiento de los meses cerrados e inventario. Solo lectura.
+    </p>
+  </header>
+
+  <div id="pmp-root" class="pmp"><p class="text-sm text-slate-400">Cargando…</p></div>
+</div>
+
+<script>
+  import { montarPresupuestoMp } from './montar';
+
+  const root = document.getElementById('pmp-root');
+  if (root) {
+    fetch('/api/presupuesto-mp', { credentials: 'same-origin' })
+      .then((r) => r.json())
+      .then((j) => {
+        if (!j.ok) throw new Error(j.error || 'Error');
+        const { estado, puedeEditar, actualizadoPor, actualizadoEn } = j.data;
+        montarPresupuestoMp(root, estado, {
+          puedeEditar,
+          publicar: async (st: unknown) => {
+            const r = await fetch('/api/presupuesto-mp', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(st) });
+            const jj = await r.json().catch(() => ({}));
+            if (!r.ok || !jj.ok) throw new Error(jj.error || 'No se pudo publicar');
+          },
+        });
+        if (actualizadoPor && actualizadoEn) {
+          const f = new Date(actualizadoEn).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', dateStyle: 'short', timeStyle: 'short' });
+          root.querySelector('.vtag')?.append(` · subido por ${actualizadoPor} el ${f}`);
+        }
+      })
+      .catch(() => {
+        root.innerHTML = '<p class="text-sm text-red-400">No se pudo cargar el tablero. Probá de nuevo.</p>';
+      });
+  }
+</script>

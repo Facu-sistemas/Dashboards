@@ -57,8 +57,8 @@ import CostoDevolucionesTab from '@/components/calidad/CostoDevolucionesTab.astr
 import QuizBandasTab from '@/components/calidad/QuizBandasTab.astro';
 import CreditoChequesTab from '@/components/mejora-continua/CreditoChequesTab.astro';
 import DistribucionChequesTab from '@/components/mejora-continua/DistribucionChequesTab.astro';
-import ComprasMpTab from '@/components/compras/mp/ComprasMpTab.astro';
-import AlertaReposicionTab from '@/components/compras/mp/AlertaReposicionTab.astro';
+import PresupuestoMpTab from '@/components/compras/presupuesto-mp/PresupuestoMpTab.astro';
+import AlertaReposicionTab from '@/components/compras/alerta/AlertaReposicionTab.astro';
 import RentabilidadClientesTab from '@/components/rentabilidad/RentabilidadClientesTab.astro';
 import RentabilidadCategoriasTab from '@/components/rentabilidad/RentabilidadCategoriasTab.astro';
 import { getArea } from '@/lib/areas.config';
@@ -76,7 +76,7 @@ if (!area || !tabConfig || !tabVisible(tabConfig, Astro.locals.usuario) || !Astr
 <AreaLayout areaSlug={area.slug} tabSlug={tabSlug!}>
   {area.slug === 'compras' && tabSlug === 'rotacion-gasto' && <RotacionGastoTab />}
   {area.slug === 'compras' && tabSlug === 'alerta-reposicion' && <AlertaReposicionTab />}
-  {area.slug === 'compras' && tabSlug === 'compras-mp' && <ComprasMpTab />}
+  {area.slug === 'compras' && tabSlug === 'compras-mp' && <PresupuestoMpTab />}
   {area.slug === 'compras' && tabSlug === 'facturacion' && <FacturacionTab />}
   {area.slug === 'compras' && tabSlug === 'consumo-mp' && <RawMaterialConsumptionTab />}
   {area.slug === 'comercial' && tabSlug === 'tendencia-precios' && <TendenciaPreciosTab />}

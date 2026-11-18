@@ -10,14 +10,11 @@ Pestaña nueva en el área **Test** que muestra cómo están armadas las tablas 
 
 ## Qué muestra
 
-44 tablas en 11 grupos:
+28 tablas en 8 grupos:
 
 | Grupo | Tablas |
 |---|---|
 | Acceso y permisos | `auth.users`, `perfiles`, `permisos_modulo` |
-| Compras MP — corridas y resultados | `compras_corridas`, `raw_compras`, `calc_sku`, `calc_sku_mes`, `calc_desembolsos`, `calc_control_oc`, `oc_decisiones` |
-| Compras MP — versiones y cierres | `version_presupuesto`, `version_sku_mes`, `version_desembolso`, `cierre_mensual` |
-| Compras MP — configuración | `cfg_parametros`, `cfg_reglas`, `cfg_excepciones`, `cfg_plan`, `cfg_auditoria` |
 | Líneas de sillones | `lineas_sillon_lineas`, `_personas`, `_alias`, `_tiempos`, `_manuales`, `_planes`, `_ignoradas` |
 | Planificado línea | `linea_mesas`, `linea_tap_reglas` |
 | Fichaje y RRHH | `fichaje_caras`, `fichaje_marcas`, `rrhh_resumen_estado` |

@@ -78,7 +78,7 @@ export const AREAS: AreaConfig[] = [
     accent: 'brand',
     icon: ICONS.barChart,
     tabs: [
-      { slug: 'compras-mp', name: 'Compras MP' },
+      { slug: 'compras-mp', name: 'Presupuesto y cumplimiento MP' },
       { slug: 'facturacion', name: 'Facturación' },
       { slug: 'consumo-mp', name: 'Consumo MP vs Stock' },
       { slug: 'alerta-reposicion', name: 'Alerta de reposición' },

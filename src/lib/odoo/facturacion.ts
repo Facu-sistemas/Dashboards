@@ -24,7 +24,7 @@ const MATERIA_PRIMA_PARTNERS_TTL_MS = 60 * 60 * 1000;
  * the rest shouldn't appear. `account.move.line` here are bank/cash
  * settlement lines (from the saved Banco/Efectivo filters), not invoice
  * product lines, so there's no `categ_id` to filter on directly. Same
- * workaround as `src/lib/compras-mp/odoo/finanzas.ts`'s Desembolsos: find
+ * workaround as `src/lib/odoo/finanzas-mp.ts`'s Desembolsos: find
  * every partner with a confirmed MP purchase order line, normalize each to
  * its commercial (top-level) partner, and match `partner_id` against that
  * set. Cached for an hour — this doesn't change minute to minute and

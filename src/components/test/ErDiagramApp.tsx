@@ -36,9 +36,6 @@ const altura = (t: Tabla) => H_HEAD + t.cols.length * H_ROW + 6;
 
 const GRUPOS: Record<string, { nombre: string; color: string }> = {
   acceso: { nombre: 'Acceso y permisos', color: '#38bdf8' },
-  compras: { nombre: 'Compras MP — corridas y resultados', color: '#a78bfa' },
-  versiones: { nombre: 'Compras MP — versiones y cierres', color: '#c084fc' },
-  config: { nombre: 'Compras MP — configuración', color: '#f472b6' },
   sillon: { nombre: 'Líneas de sillones', color: '#34d399' },
   planificado: { nombre: 'Planificado línea', color: '#2dd4bf' },
   fichaje: { nombre: 'Fichaje y RRHH', color: '#fbbf24' },
@@ -62,134 +59,64 @@ const TABLAS: Tabla[] = [
   },
   { id: 'permisos_modulo', x: C3, y: 80, grupo: 'acceso', inferida: true, cols: [['user_id', 'uuid', 'PK'], ['area_slug', 'text', 'PK'], ['activo', 'boolean']] },
 
-  // --- Compras: corridas
   {
-    id: 'raw_compras', x: C1, y: 320, grupo: 'compras', inferida: true,
-    cols: [['id', 'uuid', 'PK'], ['corrida_id', 'uuid', 'FK'], ['fuente', 'text'], ['fecha_datos', 'date'], ['hash', 'text'], ['filas', 'int'], ['datos', 'jsonb']],
-  },
-  {
-    id: 'calc_sku', x: C1, y: 490, grupo: 'compras', inferida: true,
-    cols: [['corrida_id', 'uuid', 'FK'], ['product_id', 'int', 'ODOO'], ['sku', 'text'], ['categoria', 'text'], ['linea', 'text'], ['origen', 'text'], ['abc', 'text'], ['datos', 'jsonb']],
-  },
-  {
-    id: 'calc_sku_mes', x: C1, y: 700, grupo: 'compras', inferida: true,
-    cols: [['corrida_id', 'uuid', 'FK'], ['product_id', 'int', 'ODOO'], ['mes', 'text'], ['llegada_u / llegada_ars', 'numeric'], ['emitir_u / emitir_ars', 'numeric'], ['consumo_proy_u', 'numeric'], ['deficit_u / entrante_u', 'numeric']],
-  },
-  {
-    id: 'compras_corridas', x: C2, y: 560, grupo: 'compras', inferida: true,
-    cols: [['id', 'uuid', 'PK'], ['creada_en', 'timestamptz'], ['origen', 'text'], ['disparada_por', 'text'], ['fecha_datos', 'date'], ['estado', 'text'], ['error', 'text'], ['params', 'jsonb'], ['resumen', 'jsonb'], ['controles', 'jsonb']],
-  },
-  {
-    id: 'calc_desembolsos', x: C3, y: 320, grupo: 'compras', inferida: true,
-    cols: [['corrida_id', 'uuid', 'FK'], ['mes', 'text'], ['tipo', 'text'], ['concepto', 'text'], ['valor', 'numeric']],
-  },
-  {
-    id: 'calc_control_oc', x: C3, y: 470, grupo: 'compras', inferida: true,
-    cols: [['corrida_id', 'uuid', 'FK'], ['linea_id', 'int', 'ODOO'], ['oc_id', 'int', 'ODOO'], ['product_id', 'int', 'ODOO'], ['datos', 'jsonb']],
-  },
-  {
-    id: 'oc_decisiones', x: C3, y: 620, grupo: 'compras', inferida: true,
-    cols: [['id', 'uuid', 'PK'], ['oc_id', 'int', 'ODOO'], ['product_id', 'int', 'ODOO'], ['decision', 'text'], ['nueva_fecha', 'date'], ['comentario', 'text'], ['usuario', 'text'], ['creado_en', 'timestamptz']],
-  },
-
-  // --- Compras: versiones y cierres
-  {
-    id: 'version_presupuesto', x: C2, y: 920, grupo: 'versiones', inferida: true,
-    cols: [['id', 'uuid', 'PK'], ['nombre', 'text'], ['horizonte', 'text[]'], ['corrida_id', 'uuid', 'FK'], ['aprobada_por', 'text'], ['aprobada_en', 'timestamptz'], ['total_compra', 'numeric'], ['vigente', 'boolean'], ['params', 'jsonb']],
-  },
-  {
-    id: 'version_sku_mes', x: C1, y: 960, grupo: 'versiones', inferida: true,
-    cols: [['version_id', 'uuid', 'FK'], ['product_id', 'int', 'ODOO'], ['mes', 'text'], ['datos', 'jsonb']],
-  },
-  {
-    id: 'version_desembolso', x: C1, y: 1090, grupo: 'versiones', inferida: true,
-    cols: [['version_id', 'uuid', 'FK'], ['mes', 'text'], ['tipo', 'text'], ['concepto', 'text'], ['valor', 'numeric']],
-  },
-  {
-    id: 'cierre_mensual', x: C3, y: 920, grupo: 'versiones', inferida: true,
-    cols: [['id', 'uuid', 'PK'], ['mes', 'text'], ['revision', 'int'], ['indicadores', 'jsonb'], ['fecha_datos', 'date'], ['corrida_id', 'uuid', 'FK'], ['usuario', 'text'], ['creado_en', 'timestamptz']],
-  },
-
-  // --- Compras: configuración
-  { id: 'cfg_parametros', x: C4, y: 320, grupo: 'config', inferida: true, cols: [['clave', 'text', 'PK'], ['valor', 'jsonb'], ['actualizado_en', 'timestamptz'], ['actualizado_por', 'text']] },
-  { id: 'cfg_reglas', x: C4, y: 450, grupo: 'config', inferida: true, cols: [['tipo', 'text', 'PK'], ['clave', 'text', 'PK'], ['valor', 'jsonb'], ['actualizado_en', 'timestamptz'], ['actualizado_por', 'text']] },
-  {
-    id: 'cfg_excepciones', x: C4, y: 600, grupo: 'config', inferida: true,
-    cols: [['product_id', 'int', 'PK'], ['sku_nombre', 'text'], ['metodo', 'text'], ['critico', 'boolean'], ['costo', 'numeric'], ['consumo_mensual', 'numeric'], ['origen / respaldo', 'text'], ['comentario', 'text']],
-  },
-  { id: 'cfg_plan', x: C4, y: 800, grupo: 'config', inferida: true, cols: [['anio', 'int', 'PK'], ['mes', 'int', 'PK'], ['concepto', 'text', 'PK'], ['valor', 'numeric'], ['actualizado_por', 'text']] },
-  { id: 'cfg_auditoria', x: C4, y: 950, grupo: 'config', inferida: true, cols: [['id', 'bigint', 'PK'], ['usuario', 'text'], ['tabla', 'text'], ['clave', 'text'], ['anterior', 'jsonb'], ['nuevo', 'jsonb']] },
-
-  // --- Líneas de sillones
-  {
-    id: 'lineas_sillon_lineas', x: C1, y: 1210, grupo: 'sillon',
+    id: 'lineas_sillon_lineas', x: C1, y: 320, grupo: 'sillon',
     cols: [['linea', 'integer', 'PK'], ['activa', 'boolean'], ['asignados', 'jsonb'], ['adelanto', 'jsonb'], ['actualizado_por', 'text'], ['updated_at', 'timestamptz']],
   },
   {
-    id: 'lineas_sillon_personas', x: C2, y: 1210, grupo: 'sillon',
+    id: 'lineas_sillon_personas', x: C2, y: 320, grupo: 'sillon',
     cols: [['id', 'uuid', 'PK'], ['nombre', 'text'], ['puesto', 'text'], ['activa', 'boolean'], ['productos', 'text[]'], ['niveles', 'jsonb'], ['empleado_id', 'integer', 'ODOO'], ['updated_at', 'timestamptz']],
   },
-  { id: 'lineas_sillon_alias', x: C3, y: 1210, grupo: 'sillon', cols: [['odoo_base', 'text', 'PK'], ['producto', 'text'], ['actualizado_por', 'text'], ['updated_at', 'timestamptz']] },
-  { id: 'lineas_sillon_tiempos', x: C3, y: 1340, grupo: 'sillon', cols: [['producto', 'text', 'PK'], ['minutos', 'numeric'], ['actualizado_por', 'text'], ['updated_at', 'timestamptz']] },
+  { id: 'lineas_sillon_alias', x: C3, y: 320, grupo: 'sillon', cols: [['odoo_base', 'text', 'PK'], ['producto', 'text'], ['actualizado_por', 'text'], ['updated_at', 'timestamptz']] },
+  { id: 'lineas_sillon_tiempos', x: C3, y: 450, grupo: 'sillon', cols: [['producto', 'text', 'PK'], ['minutos', 'numeric'], ['actualizado_por', 'text'], ['updated_at', 'timestamptz']] },
   {
-    id: 'lineas_sillon_manuales', x: C1, y: 1410, grupo: 'sillon',
+    id: 'lineas_sillon_manuales', x: C1, y: 520, grupo: 'sillon',
     cols: [['id', 'uuid', 'PK'], ['linea', 'integer', 'FK'], ['producto', 'text'], ['cantidad', 'integer'], ['nota', 'text'], ['updated_at', 'timestamptz']],
   },
-  { id: 'lineas_sillon_planes', x: C2, y: 1440, grupo: 'sillon', cols: [['fecha', 'date', 'PK'], ['plan', 'jsonb'], ['creado_por', 'text'], ['creado_en', 'timestamptz']] },
-  { id: 'lineas_sillon_ignoradas', x: C3, y: 1490, grupo: 'sillon', cols: [['orden', 'text', 'ODOO'], ['unidades', 'integer'], ['actualizado_por', 'text'], ['updated_at', 'timestamptz']] },
+  { id: 'lineas_sillon_planes', x: C2, y: 550, grupo: 'sillon', cols: [['fecha', 'date', 'PK'], ['plan', 'jsonb'], ['creado_por', 'text'], ['creado_en', 'timestamptz']] },
+  { id: 'lineas_sillon_ignoradas', x: C3, y: 600, grupo: 'sillon', cols: [['orden', 'text', 'ODOO'], ['unidades', 'integer'], ['actualizado_por', 'text'], ['updated_at', 'timestamptz']] },
 
   // --- Planificado línea
-  { id: 'linea_mesas', x: C4, y: 1210, grupo: 'planificado', cols: [['codigo', 'text', 'PK'], ['activa', 'boolean'], ['actualizado_por', 'text'], ['updated_at', 'timestamptz']] },
-  { id: 'linea_tap_reglas', x: C4, y: 1350, grupo: 'planificado', cols: [['familia', 'text', 'PK'], ['modo', 'text'], ['mesas', 'text[]'], ['prioridad', 'integer'], ['updated_at', 'timestamptz']] },
+  { id: 'linea_mesas', x: C4, y: 320, grupo: 'planificado', cols: [['codigo', 'text', 'PK'], ['activa', 'boolean'], ['actualizado_por', 'text'], ['updated_at', 'timestamptz']] },
+  { id: 'linea_tap_reglas', x: C4, y: 460, grupo: 'planificado', cols: [['familia', 'text', 'PK'], ['modo', 'text'], ['mesas', 'text[]'], ['prioridad', 'integer'], ['updated_at', 'timestamptz']] },
 
   // --- Fichaje y RRHH
-  { id: 'fichaje_caras', x: C1, y: 1700, grupo: 'fichaje', inferida: true, cols: [['id', 'uuid', 'PK'], ['empleado_id', 'int', 'ODOO'], ['empleado_nombre', 'text'], ['descriptor', 'jsonb'], ['creado_en', 'timestamptz']] },
-  { id: 'fichaje_marcas', x: C2, y: 1700, grupo: 'fichaje', cols: [['id', 'uuid', 'PK'], ['empleado_id', 'int', 'ODOO'], ['empleado_nombre', 'text'], ['accion', 'text'], ['kiosco', 'text'], ['marcado_en', 'timestamptz']] },
-  { id: 'rrhh_resumen_estado', x: C3, y: 1700, grupo: 'fichaje', cols: [['empleado_id', 'integer', 'PK'], ['estado', 'text'], ['empleado_nombre', 'text'], ['actualizado_por', 'text'], ['actualizado_en', 'timestamptz']] },
+  { id: 'fichaje_caras', x: C1, y: 810, grupo: 'fichaje', inferida: true, cols: [['id', 'uuid', 'PK'], ['empleado_id', 'int', 'ODOO'], ['empleado_nombre', 'text'], ['descriptor', 'jsonb'], ['creado_en', 'timestamptz']] },
+  { id: 'fichaje_marcas', x: C2, y: 810, grupo: 'fichaje', cols: [['id', 'uuid', 'PK'], ['empleado_id', 'int', 'ODOO'], ['empleado_nombre', 'text'], ['accion', 'text'], ['kiosco', 'text'], ['marcado_en', 'timestamptz']] },
+  { id: 'rrhh_resumen_estado', x: C3, y: 810, grupo: 'fichaje', cols: [['empleado_id', 'integer', 'PK'], ['estado', 'text'], ['empleado_nombre', 'text'], ['actualizado_por', 'text'], ['actualizado_en', 'timestamptz']] },
 
   // --- Logística
-  { id: 'embalaje_escaneos', x: C4, y: 1700, grupo: 'logistica', cols: [['id', 'bigint', 'PK'], ['barcode', 'text', 'ODOO'], ['producto', 'text'], ['usuario', 'text'], ['anulado', 'boolean'], ['created_at', 'timestamptz']] },
+  { id: 'embalaje_escaneos', x: C4, y: 810, grupo: 'logistica', cols: [['id', 'bigint', 'PK'], ['barcode', 'text', 'ODOO'], ['producto', 'text'], ['usuario', 'text'], ['anulado', 'boolean'], ['created_at', 'timestamptz']] },
 
   // --- Optimizador vertical
   {
-    id: 'vertical_sobrantes', x: C1, y: 1920, grupo: 'vertical', inferida: true,
+    id: 'vertical_sobrantes', x: C1, y: 1030, grupo: 'vertical', inferida: true,
     cols: [['id', 'uuid', 'PK'], ['color_block', 'text'], ['ancho_block_cm', 'numeric'], ['largo_block_cm', 'numeric'], ['alto_disponible_cm', 'numeric'], ['origen_fecha', 'date'], ['origen_producto', 'text'], ['consumido', 'boolean'], ['consumido_fecha', 'date']],
   },
   {
-    id: 'vertical_cortes_sesiones', x: C2, y: 1920, grupo: 'vertical', inferida: true,
+    id: 'vertical_cortes_sesiones', x: C2, y: 1030, grupo: 'vertical', inferida: true,
     cols: [['fecha', 'date', 'PK'], ['color_block', 'text', 'PK'], ['bloques_cargados', 'jsonb'], ['sobrante_resultante_cm', 'numeric'], ['updated_by', 'uuid', 'FK'], ['updated_at', 'timestamptz']],
   },
 
   // --- Producción y calidad
   {
-    id: 'espumado_dia', x: C3, y: 1920, grupo: 'produccion',
+    id: 'espumado_dia', x: C3, y: 1030, grupo: 'produccion',
     cols: [['fecha', 'date', 'PK'], ['tipo', 'text', 'PK'], ['medida', 'text', 'PK'], ['stock_inicial', 'integer'], ['produccion', 'integer'], ['colchones', 'integer'], ['living', 'integer'], ['venta', 'integer'], ['no_conforme', 'integer'], ['updated_at', 'timestamptz']],
   },
-  { id: 'seguimiento_mo_umbrales', x: C4, y: 1920, grupo: 'produccion', cols: [['grupo', 'text', 'PK'], ['amarillo_desde', 'integer'], ['rojo_desde', 'integer'], ['updated_at', 'timestamptz']] },
-  { id: 'cnc_parametros', x: C1, y: 2190, grupo: 'produccion', cols: [['nota', 'text', 'PK'], ['cuenta', 'boolean'], ['flete', 'boolean'], ['horas', 'numeric'], ['pct', 'numeric'], ['updated_at', 'timestamptz']] },
-  { id: 'costo_devoluciones_tarifas', x: C2, y: 2190, grupo: 'produccion', cols: [['mes', 'text', 'PK'], ['costo_hora', 'numeric'], ['viajes', 'numeric'], ['fletes', 'jsonb'], ['updated_at', 'timestamptz']] },
-  { id: 'presupuesto_mp_linea', x: C3, y: 2190, grupo: 'produccion', cols: [['product_id', 'integer', 'ODOO'], ['linea', 'text'], ['actualizado_por', 'text'], ['updated_at', 'timestamptz']] },
+  { id: 'seguimiento_mo_umbrales', x: C4, y: 1030, grupo: 'produccion', cols: [['grupo', 'text', 'PK'], ['amarillo_desde', 'integer'], ['rojo_desde', 'integer'], ['updated_at', 'timestamptz']] },
+  { id: 'cnc_parametros', x: C1, y: 1300, grupo: 'produccion', cols: [['nota', 'text', 'PK'], ['cuenta', 'boolean'], ['flete', 'boolean'], ['horas', 'numeric'], ['pct', 'numeric'], ['updated_at', 'timestamptz']] },
+  { id: 'costo_devoluciones_tarifas', x: C2, y: 1300, grupo: 'produccion', cols: [['mes', 'text', 'PK'], ['costo_hora', 'numeric'], ['viajes', 'numeric'], ['fletes', 'jsonb'], ['updated_at', 'timestamptz']] },
+  { id: 'presupuesto_mp_linea', x: C3, y: 1300, grupo: 'produccion', cols: [['product_id', 'integer', 'ODOO'], ['linea', 'text'], ['actualizado_por', 'text'], ['updated_at', 'timestamptz']] },
 
   // --- Rentabilidad (propuesta)
-  { id: 'rentabilidad_configuracion', x: C1, y: 2400, grupo: 'rentabilidad', cols: [['id', 'integer', 'PK'], ['contribucion_objetivo', 'numeric'], ['umbral_verde', 'numeric'], ['umbral_amarillo', 'numeric']] },
-  { id: 'rentabilidad_contribucion_objetivos', x: C2, y: 2400, grupo: 'rentabilidad', cols: [['categoria', 'text', 'PK'], ['contribucion_objetivo', 'numeric'], ['umbral_verde', 'numeric'], ['umbral_amarillo', 'numeric']] },
-  { id: 'rentabilidad_parametros_costeo', x: C3, y: 2400, grupo: 'rentabilidad', cols: [['clave', 'text', 'PK'], ['valor', 'numeric'], ['descripcion', 'text'], ['actualizado_por', 'text']] },
+  { id: 'rentabilidad_configuracion', x: C1, y: 1510, grupo: 'rentabilidad', cols: [['id', 'integer', 'PK'], ['contribucion_objetivo', 'numeric'], ['umbral_verde', 'numeric'], ['umbral_amarillo', 'numeric']] },
+  { id: 'rentabilidad_contribucion_objetivos', x: C2, y: 1510, grupo: 'rentabilidad', cols: [['categoria', 'text', 'PK'], ['contribucion_objetivo', 'numeric'], ['umbral_verde', 'numeric'], ['umbral_amarillo', 'numeric']] },
+  { id: 'rentabilidad_parametros_costeo', x: C3, y: 1510, grupo: 'rentabilidad', cols: [['clave', 'text', 'PK'], ['valor', 'numeric'], ['descripcion', 'text'], ['actualizado_por', 'text']] },
 ];
 
 const RELACIONES: Relacion[] = [
   { de: 'auth.users', a: 'perfiles', texto: 'id', card: ['1', '1'] },
   { de: 'perfiles', a: 'permisos_modulo', texto: 'user_id' },
-  { de: 'compras_corridas', a: 'raw_compras', texto: 'corrida_id' },
-  { de: 'compras_corridas', a: 'calc_sku', texto: 'corrida_id' },
-  { de: 'compras_corridas', a: 'calc_sku_mes', texto: 'corrida_id' },
-  { de: 'compras_corridas', a: 'calc_desembolsos', texto: 'corrida_id' },
-  { de: 'compras_corridas', a: 'calc_control_oc', texto: 'corrida_id' },
-  { de: 'compras_corridas', a: 'version_presupuesto', texto: 'corrida_id' },
-  { de: 'compras_corridas', a: 'cierre_mensual', texto: 'corrida_id' },
-  { de: 'calc_sku', a: 'calc_sku_mes', texto: 'product_id', logica: true },
-  { de: 'calc_control_oc', a: 'oc_decisiones', texto: 'oc_id + product_id', logica: true },
-  { de: 'version_presupuesto', a: 'version_sku_mes', texto: 'version_id' },
-  { de: 'version_presupuesto', a: 'version_desembolso', texto: 'version_id' },
   { de: 'lineas_sillon_lineas', a: 'lineas_sillon_manuales', texto: 'linea', logica: true },
   { de: 'lineas_sillon_personas', a: 'lineas_sillon_lineas', texto: 'asignados (jsonb)', logica: true, card: ['N', 'N'] },
   { de: 'lineas_sillon_tiempos', a: 'lineas_sillon_alias', texto: 'producto', logica: true },
@@ -197,7 +124,6 @@ const RELACIONES: Relacion[] = [
   { de: 'vertical_sobrantes', a: 'vertical_cortes_sesiones', texto: 'color_block', logica: true, card: ['N', 'N'] },
 ];
 
-// Los grupos de abajo arrancan después de que termina "versiones" (que se corrió hacia abajo).
 const DESPLAZAR = new Set(['sillon', 'planificado', 'fichaje', 'logistica', 'vertical', 'produccion', 'rentabilidad']);
 for (const t of TABLAS) if (DESPLAZAR.has(t.grupo)) t.y += 120;
 

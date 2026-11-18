@@ -6,8 +6,7 @@ import { SESSION_STARTED_COOKIE } from './lib/auth-constants';
 // Reachable without a session — everything else redirects to /login.
 // Static assets (favicon, /_astro/* build output, etc.) are matched by
 // isStaticAsset below instead of listed here.
-// /api/compras-mp/cron no lleva sesión (lo llama un programador externo) pero exige el secreto CRON_SECRET en el endpoint.
-const PUBLIC_PATHS = new Set(['/login', '/404', '/api/auth/login', '/api/auth/logout', '/api/compras-mp/cron']);
+const PUBLIC_PATHS = new Set(['/login', '/404', '/api/auth/login', '/api/auth/logout']);
 
 function isStaticAsset(pathname: string): boolean {
   return /\.[a-zA-Z0-9]+$/.test(pathname);
