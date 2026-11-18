@@ -30,11 +30,25 @@ const esc = (s: string) =>
 const X_MM = 0.33; // narrowest bar, GS1 nominal
 const MAX_MM = 88;
 
-/** Code 128 barcode as inline SVG, sized in mm (bars stretch only horizontally so the module width stays at X_MM). */
-function barcodeHtml(text: string, heightMm: number): string {
+/** Texto con identificadores GS1 entre paréntesis, p. ej. "(01)…(3113)…(10)…". */
+const ES_GS1 = /^\(\d{2,4}\)/;
+
+/** El AI (01) lleva siempre 14 dígitos: si llega un EAN-13/EAN-8/UPC (8 a 13 dígitos) se completa con ceros a la izquierda. */
+function normalizarGs1(text: string): string {
+  return text.replace(/^\(01\)(\d{8,13})(?=\(|$)/, (_m, d: string) => `(01)${d.padStart(14, '0')}`);
+}
+
+/**
+ * Barcode as inline SVG, sized in mm (bars stretch only horizontally so the module width stays at X_MM).
+ * Si el texto trae identificadores GS1 entre paréntesis se genera un GS1-128 real (los paréntesis no se codifican, los dígitos van
+ * de a pares y se agrega FNC1): ~40 % más corto que meter el texto literal en un Code-128 y lo lee Odoo como GS1.
+ */
+function barcodeHtml(rawText: string, heightMm: number): string {
+  const gs1 = ES_GS1.test(rawText);
+  const text = gs1 ? normalizarGs1(rawText) : rawText;
   let svg: string;
   try {
-    svg = bwipjs.toSVG({ bcid: 'code128', text, scale: 1, height: 10, includetext: false, paddingwidth: 0, paddingheight: 0 });
+    svg = bwipjs.toSVG({ bcid: gs1 ? 'gs1-128' : 'code128', text, scale: 1, height: 10, includetext: false, paddingwidth: 0, paddingheight: 0 });
   } catch (e) {
     return `<div class="bc-err">Código inválido: ${esc(e instanceof Error ? e.message : String(e))}</div>`;
   }
