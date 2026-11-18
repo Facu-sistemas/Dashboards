@@ -25,6 +25,8 @@ export interface BaseInsumos {
   insumos: InsumoBase[];
   activos: number;
   archivadosConStock: number;
+  /** Momento en que se leyó de Odoo (la lectura se guarda unos minutos en memoria). */
+  leidoEn: string;
 }
 
 type Producto = {
@@ -107,6 +109,6 @@ export async function getBaseInsumos(): Promise<BaseInsumos> {
       }))
       .sort((a, b) => a.categoria.localeCompare(b.categoria, 'es') || a.nombre.localeCompare(b.nombre, 'es'));
 
-    return { insumos, activos: insumos.filter((i) => i.activo).length, archivadosConStock: insumos.filter((i) => !i.activo).length };
+    return { insumos, activos: insumos.filter((i) => i.activo).length, archivadosConStock: insumos.filter((i) => !i.activo).length, leidoEn: new Date().toISOString() };
   });
 }

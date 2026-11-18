@@ -154,3 +154,4 @@
 .pmp .expl{display:grid;gap:6px;color:var(--muted);font-size:13px}
 .pmp .expl p{margin:0;max-width:105ch}
 .pmp .expl b{color:var(--ink)}
+.pmp .btn.sm[aria-pressed="true"]{background:var(--accent);color:var(--panel)}

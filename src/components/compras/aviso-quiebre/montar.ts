@@ -13,6 +13,8 @@ export function montarAvisoQuiebre(root, ESTADO, opts = {}){
   const nf = (x, dec) => (x == null ? '–' : Number(x).toLocaleString('es-AR', {maximumFractionDigits: dec == null ? (Math.abs(x) < 10 ? 1 : 0) : dec}));
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const hoyD = new Date(); const HOY = hoyD.getFullYear() + '-' + String(hoyD.getMonth()+1).padStart(2,'0') + '-' + String(hoyD.getDate()).padStart(2,'0');
+  const EDAD = Math.max(0, Math.round((pd(HOY) - pd(V)) / 864e5));
+  const HORA = opts.vivo && opts.vivo.leidoEn ? new Date(opts.vivo.leidoEn).toLocaleTimeString('es-AR', {timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit'}) : '';
   const vivoDe = a => (VIVO ? VIVO[a.sku] || null : null);
   const fU = x => Number(x).toLocaleString('es-AR', {maximumFractionDigits: 0});
   const NVIVO = VIVO ? AL.filter(a => vivoDe(a)).length : 0;
@@ -24,10 +26,26 @@ export function montarAvisoQuiebre(root, ESTADO, opts = {}){
 
   root.innerHTML =
     '<div class="wrap">' +
-    '<p class="sub">Insumos de materia prima con posible quiebre de stock, con el plan de producción de la semana del <b>' + fd(V) + ' ' + pd(V).getFullYear() +
-      '</b>. El nivel y la fecha de quiebre son de esa foto; el stock y las órdenes de compra pendientes se leen de Odoo en vivo.</p>' +
-    '<p class="live" id="avq-live"></p>' +
-    '<p class="live" id="avq-sig"></p>' +
+    '<section class="que" aria-label="Qué estás viendo">' +
+      '<h2>Qué estás viendo</h2>' +
+      '<div class="dos">' +
+        '<div class="col"><span class="tag foto">Foto semanal</span><b>Plan de producción del ' + fd(V) + ' ' + pd(V).getFullYear() + '</b>' +
+          '<span class="edad' + (EDAD > 7 ? ' vieja' : '') + '">' + (EDAD <= 0 ? 'de hoy' : 'de hace ' + EDAD + (EDAD === 1 ? ' día' : ' días')) + '</span>' +
+          '<p>De acá salen el <b>nivel</b> (rojo, naranja, amarillo) y la <b>fecha de quiebre</b> de cada insumo. Es el plan de esa semana: <b>no se lee de Odoo</b> y no cambia hasta que Compras suba la versión nueva del plan.</p>' +
+          (EDAD > 7 ? '<p class="aviso-vieja">Esta foto tiene más de una semana: los niveles pueden estar desactualizados. Pedí la versión nueva del plan.</p>' : '') + '</div>' +
+        '<div class="col"><span class="tag">En vivo</span><b>' + (VIVO ? 'Odoo, leído hoy a las ' + HORA : 'Odoo no respondió') + '</b>' +
+          '<p>Lo que se lee de Odoo <b>hoy</b>: stock disponible, entrante, costo y órdenes de compra pendientes. Se refresca solo cada 5 minutos, o ahora con el botón.</p>' +
+          '<div class="filters"><button type="button" class="btn" id="avq-sync" title="Vuelve a leer Odoo ahora, sin esperar la actualización automática">Actualizar ahora</button></div></div>' +
+      '</div>' +
+      '<p class="live" id="avq-live"></p>' +
+      '<p class="live" id="avq-sig"></p>' +
+      '<details class="uso"><summary>Cómo se usa</summary><ol>' +
+        '<li><b>Empezá por los rojos</b> ("Va a faltar"): se quedan sin stock antes de que pueda llegar una compra nueva. Después los naranjas y por último los amarillos.</li>' +
+        '<li><b>Compará el stock de hoy con el de la foto.</b> En cada insumo, "stock hoy" es el de Odoo y entre paréntesis está el de la foto. Si subió, o aparece una orden nueva, la mercadería ya llegó o está llegando: el nivel puede estar más grave de lo que es. Las etiquetas "calculado en vivo" te lo marcan; no cambian el nivel, solo avisan.</li>' +
+        '<li><b>Mirá las órdenes de compra.</b> Las marcadas "vencida" son las que conviene reclamar al proveedor; las "ya no figuran pendientes" se recibieron o se cerraron desde la foto.</li>' +
+        '<li><b>Marcá "Visto"</b> cuando lo hayas revisado, así Compras sabe que el aviso llegó. Podés dejar una nota corta.</li>' +
+      '</ol></details>' +
+    '</section>' +
     '<div class="filters"><button type="button" class="btn" id="avq-eqopen"' + (opts.puedeEditar && opts.vivo && opts.vivo.equivalencias ? '' : ' hidden') + '>Equivalencias' + (opts.vivo && opts.vivo.equivalencias ? ' (' + opts.vivo.equivalencias.pendientes.length + ' pendientes)' : '') + '</button></div>' +
     '<section class="eqv" id="avq-eq" hidden aria-label="Equivalencias de insumos"></section>' +
     '<div id="avq-pub"></div>' +
@@ -72,6 +90,13 @@ export function montarAvisoQuiebre(root, ESTADO, opts = {}){
   } else {
     liveEl.innerHTML = 'No se pudo leer Odoo en este momento: se muestran los valores de la foto del ' + fd(V) + '.';
   }
+  const syncBtn = $('sync');
+  if (!opts.sincronizar) syncBtn.hidden = true;
+  else syncBtn.addEventListener('click', async () => {
+    syncBtn.disabled = true; syncBtn.textContent = 'Actualizando…';
+    try { await opts.sincronizar(); }
+    catch (e) { syncBtn.disabled = false; syncBtn.textContent = 'Actualizar ahora'; status('No se pudo actualizar desde Odoo. Probá de nuevo en un momento.'); }
+  });
   const nRep = AL.filter(a => repuesto(a)).length, nSen = AL.filter(a => senal(a)).length;
   if (VIVO) $('sig').innerHTML = '<span class="tag">calculado en vivo</span> <b>' + nRep + '</b> con stock repuesto desde la foto · <b>' + nSen + '</b> con cobertura menor al lead time.';
 

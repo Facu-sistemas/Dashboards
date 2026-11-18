@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { ApiValidationError, handleApiRoute, jsonResponse } from '@/lib/api-helpers';
 import { guardarEstadoAviso, leerEquivalenciasAviso, leerEstadoAviso, leerVistos } from '@/lib/supabase/aviso-quiebre';
 import { getAvisoQuiebreVivo } from '@/lib/odoo/aviso-quiebre-vivo';
+import { forzarSincronizacion } from '@/lib/odoo/forzar-sync';
 import snapshot from '@/data/aviso-quiebre.json';
 
 export const prerender = false;
@@ -15,9 +16,10 @@ const MAX_BYTES = 2_000_000;
 const NIVELES = ['rojo', 'naranja', 'amarillo'];
 
 // GET /api/aviso-quiebre — foto semanal (la última subida o la del código) + capa en vivo de Odoo + vistos.
-export const GET: APIRoute = async ({ locals }) => {
+export const GET: APIRoute = async ({ locals, url }) => {
   if (!verCompras(locals.usuario)) return jsonResponse({ ok: false, error: 'Sin permiso' }, { status: 403 });
   return handleApiRoute(async () => {
+    if (url.searchParams.get('forzar') === '1') forzarSincronizacion(['base-insumos', 'aviso-quiebre-ocs:']);
     const g = await leerEstadoAviso();
     const estado = (g ? g.datos : snapshot) as typeof snapshot;
     const eq = await leerEquivalenciasAviso();

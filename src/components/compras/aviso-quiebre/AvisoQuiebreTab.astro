@@ -17,27 +17,30 @@ import './aviso-quiebre.css';
   import { montarAvisoQuiebre } from './montar';
 
   const root = document.getElementById('avq-root');
+
+  async function cargar(forzar: boolean) {
+    const r = await fetch(forzar ? '/api/aviso-quiebre?forzar=1' : '/api/aviso-quiebre', { credentials: 'same-origin' });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || 'Error');
+    const d = j.data;
+    montarAvisoQuiebre(root, d.estado, {
+      vivo: d.vivo,
+      vistos: d.vistos,
+      vistosDisponibles: d.vistosDisponibles,
+      yo: d.yo,
+      puedeEditar: d.puedeEditar,
+      sincronizar: () => cargar(true),
+      publicar: async (st: unknown) => {
+        const r2 = await fetch('/api/aviso-quiebre', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(st) });
+        const jj = await r2.json().catch(() => ({}));
+        if (!r2.ok || !jj.ok) throw new Error(jj.error || 'No se pudo publicar');
+      },
+    });
+  }
+
   if (root) {
-    fetch('/api/aviso-quiebre', { credentials: 'same-origin' })
-      .then((r) => r.json())
-      .then((j) => {
-        if (!j.ok) throw new Error(j.error || 'Error');
-        const d = j.data;
-        montarAvisoQuiebre(root, d.estado, {
-          vivo: d.vivo,
-          vistos: d.vistos,
-          vistosDisponibles: d.vistosDisponibles,
-          yo: d.yo,
-          puedeEditar: d.puedeEditar,
-          publicar: async (st: unknown) => {
-            const r = await fetch('/api/aviso-quiebre', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(st) });
-            const jj = await r.json().catch(() => ({}));
-            if (!r.ok || !jj.ok) throw new Error(jj.error || 'No se pudo publicar');
-          },
-        });
-      })
-      .catch(() => {
-        root.innerHTML = '<p class="text-sm text-red-400">No se pudo cargar el aviso. Probá de nuevo.</p>';
-      });
+    cargar(false).catch(() => {
+      root.innerHTML = '<p class="text-sm text-red-400">No se pudo cargar el aviso. Probá de nuevo.</p>';
+    });
   }
 </script>

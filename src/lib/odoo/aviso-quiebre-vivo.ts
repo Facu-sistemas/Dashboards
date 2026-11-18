@@ -89,7 +89,7 @@ const aFechaAr = (s: string | false) => {
 };
 const r2 = (x: number) => Math.round(x * 100) / 100;
 
-async function ocsPendientes(ids: number[]): Promise<Map<number, OcViva[]>> {
+export async function ocsPendientes(ids: number[]): Promise<Map<number, OcViva[]>> {
   return withTtlCache('aviso-quiebre-ocs:' + ids.slice().sort((a, b) => a - b).join(','), 5 * 60 * 1000, async () => {
     const lineas: Linea[] = [];
     for (let i = 0; i < ids.length; i += 300) {
@@ -118,7 +118,7 @@ export async function getAvisoQuiebreVivo(
   entradas: EntradaAviso[],
   op: { equivalencias?: Map<string, number>; equivalenciasDisponibles?: boolean; paraEditar?: boolean } = {}
 ): Promise<AvisoVivo> {
-  const { insumos } = await getBaseInsumos();
+  const { insumos, leidoEn: leidoBase } = await getBaseInsumos();
   const porId = new Map(insumos.map((i) => [i.productId, i]));
   const porNombre = indexar(insumos);
   const eq = op.equivalencias ?? new Map<string, number>();
@@ -158,7 +158,7 @@ export async function getAvisoQuiebreVivo(
       sinEquivalente,
       pendientes: pendientesSku.length,
     },
-    leidoEn: new Date().toISOString(),
+    leidoEn: leidoBase,
   };
 
   if (op.paraEditar) {

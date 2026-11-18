@@ -1,5 +1,4 @@
 // @ts-nocheck
-import { parseParaFinanzas, kpiSnap, mergeHist, freezeClosed } from './libro';
 // Port del artifact "Presupuesto y cumplimiento MP" (docs/). Render vanilla sobre `root` con el estado que
 // entrega /api/presupuesto-mp. Solo lectura: no escribe en Odoo ni en ninguna base.
 export function montarPresupuestoMp(root, STATE, opts = {}){
@@ -471,6 +470,13 @@ function viewPanel(root){
       (M > 0 && noCompra(M) ? 'Mes en curso: ninguna compra nueva llega antes de fin de mes, así que el faltante es una alerta para gestionar con el proveedor o Producción (no se calcula %). ' : '') +
       'Un insumo puede estar en los dos motivos. El sobrecosto se calcula solo para los respaldos con precio cargado en Parámetros ("Costo del respaldo").';
     const det = document.getElementById('pn-urd');
+    const URGV = (STATE.vivo && STATE.vivo.urgencias) || {};
+    const huecoCelda = sku => { const u = URGV[sku]; if (!u) return '<td class="num">–</td>';
+      const tip = 'Hasta la ' + u.oc + ' (llega el ' + u.llega + ', en ' + f1s(u.semanas) + ' semanas) hacen falta ' + fU(u.necesidad) + ' u; hay ' + fU(u.stock) + ' u en stock y entran ' + fU(u.entra) + ' u con otras OC antes de esa fecha.' + (u.vencidasU > 0 ? ' No se cuentan ' + fU(u.vencidasU) + ' u de OC vencidas (no se sabe cuándo llegan).' : '') + ' El libro (16/11) pedía ' + fU(u.libroU) + ' u.';
+      return '<td class="num" title="' + esc(tip) + '"><span class="pill ' + (u.huecoU <= 0 ? 'p-ok' : 'p-warn') + '">' + (u.huecoU <= 0 ? 'cubierto' : fU(u.huecoU)) + '</span></td>'; };
+    const huecoResumen = LL => { const L2 = LL.filter(o => URGV[o.x.sku]); if (!L2.length) return '';
+      const hp = L2.reduce((a,o)=>a+URGV[o.x.sku].huecoPesos,0), lp = L2.reduce((a,o)=>a+URGV[o.x.sku].libroPesos,0);
+      return '<p class="hint pad"><span class="pill p-ok">en vivo</span> Con el stock y las órdenes de compra de Odoo de hoy, en ' + L2.length + ' de estos ' + LL.length + ' insumos el hueco hasta que llegue su compra grande es de <b>$ ' + fM(hp) + ' M</b>, contra $ ' + fM(lp) + ' M que decía el libro. Es una cuenta simple (consumo semanal del libro por las semanas que faltan, menos stock y OC que entran antes): no reemplaza el cálculo del modelo, sirve para ver si la urgencia ya se cubrió. Pasá el mouse por cada celda para ver de dónde sale.</p>'; };
     function showU(k){
       URG = k; const LL = (k === 'r' ? R : F).slice().sort((a,b)=>(k === 'r' ? b.r - a.r : b.f - a.f));
       const em = o => { if (k === 'f') return 'ya'; const lmb = Math.round(v(o.x,'Meses lead resp')), out = [];
@@ -481,10 +487,10 @@ function viewPanel(root){
         return 'Ninguna compra nueva llega a tiempo (' + x.ori + ', ' + f1s(v(x,'Lead sem')) + ' semanas de lead time): falta para la seguridad hasta ' + (lm >= 1 && lm < 4 && VG[lm] ? VG[lm].mes : 'después del horizonte') + '. Se gestiona con el proveedor o Producción.'; };
       const tot = LL.reduce((a,o)=>a+(k === 'r' ? o.r : o.f),0);
       det.innerHTML = '<div class="hd"><h2>' + (k === 'r' ? 'Respaldo por atraso de China' : 'Faltante: ninguna compra llega a tiempo') + ' · ' + LL.length + ' insumos · $ ' + fM(tot) + ' M</h2><button type="button" class="btn sm" id="pn-urx">Cerrar</button></div>' +
-        '<div class="tw"><table><thead><tr><th>Insumo</th><th>$ miles</th><th>Cantidad (u)</th><th class="l">Emitir</th>' + (k === 'r' ? '<th class="l">Respaldo</th>' : '<th class="l">Origen</th>') + '<th class="l">Quiebre</th></tr></thead><tbody>' +
-        LL.map(o => { const qm = v(o.x,'Quiebre mes'), sb = sobre(o); return '<tr><td title="' + esc(tip(o)) + '">' + esc(o.x.sku) + (sb > 0 ? ' <span class="pill p-warn">+$ ' + fM(sb) + ' M sobrecosto</span>' : '') + '</td><td class="num"><b>' + fK(k === 'r' ? o.r : o.f) + '</b></td><td class="num">' + (hasU ? fU(k === 'r' ? o.ru : o.fu) : '–') + '</td><td class="l">' + (hasU ? em(o) : '–') + '</td>' +
+        '<div class="tw"><table><thead><tr><th>Insumo</th><th>$ miles</th><th>Cantidad (u)</th><th title="Con el stock y las OC de Odoo de hoy: lo que sigue faltando hasta que llegue la compra grande">Hueco en vivo (u)</th><th class="l">Emitir</th>' + (k === 'r' ? '<th class="l">Respaldo</th>' : '<th class="l">Origen</th>') + '<th class="l">Quiebre</th></tr></thead><tbody>' +
+        LL.map(o => { const qm = v(o.x,'Quiebre mes'), sb = sobre(o); return '<tr><td title="' + esc(tip(o)) + '">' + esc(o.x.sku) + (sb > 0 ? ' <span class="pill p-warn">+$ ' + fM(sb) + ' M sobrecosto</span>' : '') + '</td><td class="num"><b>' + fK(k === 'r' ? o.r : o.f) + '</b></td><td class="num">' + (hasU ? fU(k === 'r' ? o.ru : o.fu) : '–') + '</td>' + huecoCelda(o.x.sku) + '<td class="l">' + (hasU ? em(o) : '–') + '</td>' +
           '<td class="l">' + esc(k === 'r' ? (o.x.r[C('Origen respaldo')] || 'Local') : o.x.ori) + '</td><td class="l">' + (qm > 0 ? '<span class="pill p-warn">' + esc(cap(VG[qm-1] ? VG[qm-1].mes : 'mes ' + qm)) + '</span>' : '') + '</td></tr>'; }).join('') +
-        '</tbody><tfoot><tr><td>Total</td><td class="num">' + fK(tot) + '</td><td></td><td></td><td></td><td></td></tr></tfoot></table></div>' +
+        '</tbody><tfoot><tr><td>Total</td><td class="num">' + fK(tot) + '</td><td></td><td></td><td></td><td></td><td></td></tr></tfoot></table></div>' + huecoResumen(LL) +
         '<p class="hint pad">Pasá el mouse por el insumo para ver qué pasa. Emitir = mes en que hay que emitir la orden ("ya" = este mes).</p>';
       det.hidden = false;
       document.getElementById('pn-urx').addEventListener('click', () => { URG = null; det.hidden = true; document.querySelectorAll('#pn-urg tr.sel').forEach(e => e.classList.remove('sel')); });
@@ -653,9 +659,9 @@ root.innerHTML =
   '<header class="top"><div><div class="eyebrow">Frontera Living · Materias primas</div>' +
   '<p class="sub">Rendición de cuentas ante la Gerencia, presupuesto aprobado y su cumplimiento. <span class="vtag">' + (STATE.vivo ? 'Inventario en vivo de Odoo · el resto, ' : '') + 'datos del libro: exportación ' + esc(STATE.meta.version) + (STATE.meta.actualizado ? ' · publicado ' + esc(STATE.meta.actualizado) : '') + '</span></p></div>' +
   '<div class="filters"><button type="button" class="btn" id="eqv-open"' + (opts.puedeEditar && STATE.vivo && STATE.vivo.equivalencias ? '' : ' hidden') + '>Equivalencias' + (STATE.vivo && STATE.vivo.equivalencias ? ' (' + STATE.vivo.equivalencias.pendientes.length + ' pendientes)' : '') + '</button>' +
-  '<button type="button" class="btn" id="upd-open"' + (opts.puedeEditar ? '' : ' hidden') + '>Actualizar desde el libro</button></div></header>' +
+  '<button type="button" class="btn" id="sync-btn" title="Vuelve a leer el stock y el costo directo de Odoo, sin esperar la actualización automática">Forzar sincronización</button></div></header>' +
   '<section class="upd" id="eqv" hidden aria-label="Equivalencias de SKU"></section>' +
-  '<section class="upd" id="upd" hidden aria-label="Actualizar desde el libro"></section>' +
+  '<p class="vtag" id="sync-msg" role="status">' + (STATE.vivo ? 'Última lectura de Odoo: ' + new Date(STATE.vivo.generado).toLocaleTimeString('es-AR', {timeZone:'America/Argentina/Buenos_Aires', hour:'2-digit', minute:'2-digit', second:'2-digit'}) + ' · se refresca sola cada 10 min' : 'No se pudo leer Odoo: se muestra la foto del libro') + '</p>' +
   '<div class="tabs" role="tablist">' +
     '<button type="button" role="tab" id="tab-panel" aria-selected="true" aria-controls="p-panel">Rendición de cuentas</button>' +
     '<button type="button" role="tab" id="tab-aprobado" aria-selected="false" aria-controls="p-aprobado">Presupuesto aprobado</button>' +
@@ -680,52 +686,15 @@ let t0 = (location.hash || '').slice(1); if (TABS.indexOf(t0) < 0) { try { t0 = 
 showTab(TABS.indexOf(t0) >= 0 ? t0 : 'panel');
 
 
-/* ---------- actualizar desde el libro (solo editores; el servidor lo vuelve a validar) ---------- */
-if (opts.puedeEditar){
-  let PENDING = null;
-  const upd = document.getElementById('upd');
-  function updForm(msg, err){
-    upd.innerHTML = '<p><b>Actualizar desde el libro</b></p>' +
-      '<div class="expl"><p><b>Qué archivo subir:</b> el libro <b>Presupuesto_Compras_MP</b> (versión 12 o posterior) en formato <b>.xlsx</b>. Si lo trabajás en Google Sheets, descargalo como Microsoft Excel (.xlsx).</p>' +
-      '<p><b>Qué se lee:</b> solamente la hoja oculta <b>"Para Finanzas"</b>. Tiene que tener las columnas SKU, Categoría, Origen, ABC, Costo presup, Aprob $ 1, Real u 1 y Vig $ 1 (y las demás del tablero) y una fila por SKU. El resto del libro no se toca ni se sube.</p>' +
-      '<p><b>Antes de subirlo:</b> abrilo en Excel o Google Sheets, dejá que calcule y guardalo. Si el archivo se guardó sin los valores calculados, se rechaza.</p>' +
-      '<p><b>Qué pasa al publicar:</b> los datos reemplazan a los actuales para todos los que ven esta pestaña. Los meses cerrados se congelan con el detalle por SKU, la fila de indicadores de esta versión se suma al historial y la prueba retrospectiva de julio a septiembre se conserva. No hay botón de deshacer: para volver atrás hay que subir el libro anterior.</p>' +
-      '<p class="hint">Antes de publicar vas a ver un resumen (exportación, corte, cantidad de SKUs y monto aprobado) para confirmar que es el libro correcto.</p></div>' +
-      '<div class="filters"><input type="file" id="upd-file" accept=".xlsx" aria-label="Libro .xlsx"><button type="button" class="btn" id="upd-cancel">Cerrar</button></div>' +
-      (msg ? '<p class="' + (err ? 'msg-err' : '') + '" role="status">' + msg + '</p>' : '');
-    document.getElementById('upd-cancel').addEventListener('click', () => { upd.hidden = true; PENDING = null; });
-    document.getElementById('upd-file').addEventListener('change', onFile);
-  }
-  async function onFile(e){
-    const f = e.target.files && e.target.files[0]; if (!f) return;
-    updForm('Leyendo ' + esc(f.name) + '…');
-    try {
-      const X = await import('xlsx');
-      const wb = X.read(await f.arrayBuffer(), {type:'array', sheets:['Para Finanzas']});
-      const ws = wb.Sheets['Para Finanzas'];
-      if (!ws) throw {message:'El archivo no tiene la hoja "Para Finanzas". Subí el libro Presupuesto_Compras_MP v8 o posterior.'};
-      const st = parseParaFinanzas(X.utils.sheet_to_json(ws, {header:1, raw:true, defval:null}));
-      const ci = n => st.cols.indexOf(n), s = n => st.rows.reduce((a,r)=>a+(r[ci(n)]||0),0);
-      const ap = [1,2,3,4].reduce((a,k)=>a+s('Aprob $ '+k),0) + (st.meta.fuera || 0), vg = [1,2,3,4].reduce((a,k)=>a+s('Vig $ '+k),0);
-      const d = new Date(); st.meta.actualizado = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-      st.retro = STATE.retro;
-      st.cerrados = freezeClosed(st, STATE.cerrados || []);
-      st.hist = mergeHist(STATE.hist || [], kpiSnap(st));
-      PENDING = st;
-      upd.innerHTML = '<p><b>Listo para publicar.</b> Exportación ' + esc(st.meta.version) + ' · corte ' + esc(st.meta.corte) + ' · ' + st.rows.length + ' SKUs.</p>' +
-        '<p>Aprobado: ' + esc(st.meta.aprobado) + ' · $ ' + fM(ap) + ' M. Meses cerrados guardados: ' + (st.cerrados.map(c=>esc(cap(c.mes))).join(', ') || 'ninguno') + '. Proyección vigente: $ ' + fM(vg) + ' M.</p>' +
-        '<div class="filters"><button type="button" class="btn primary" id="upd-pub">Publicar esta versión</button><button type="button" class="btn" id="upd-back">Elegir otro archivo</button></div>';
-      document.getElementById('upd-back').addEventListener('click', () => updForm());
-      document.getElementById('upd-pub').addEventListener('click', publish);
-    } catch (err) { updForm(esc(err && err.message ? err.message : 'No se pudo leer el archivo.'), true); }
-  }
-  async function publish(){
-    if (!PENDING) return;
-    const b = document.getElementById('upd-pub'); b.disabled = true; b.textContent = 'Publicando…';
-    try { await opts.publicar(PENDING); location.reload(); }
-    catch (err) { updForm(esc(err && err.message ? err.message : 'No se pudo publicar. Probá de nuevo.'), true); }
-  }
-  document.getElementById('upd-open').addEventListener('click', () => { upd.hidden = false; updForm(); });
+/* ---------- forzar sincronización con Odoo ---------- */
+{
+  const btn = document.getElementById('sync-btn'), msg = document.getElementById('sync-msg');
+  if (!opts.sincronizar) btn.hidden = true;
+  else btn.addEventListener('click', async () => {
+    btn.disabled = true; btn.textContent = 'Sincronizando…';
+    try { await opts.sincronizar(); }
+    catch (e) { btn.disabled = false; btn.textContent = 'Forzar sincronización'; msg.textContent = 'No se pudo sincronizar con Odoo. Probá de nuevo en un momento.'; msg.classList.add('msg-err'); }
+  });
 }
 
 /* ---------- equivalencias SKU del libro -> producto de Odoo (solo editores) ---------- */
@@ -738,10 +707,14 @@ if (opts.puedeEditar && STATE.vivo && STATE.vivo.equivalencias){
     if (!r.ok || !j.ok) throw new Error(j.error || 'No se pudo guardar');
     cambios = true;
   };
-  function dibujar(msg){
+  let vista = 'pend';
+  function dibujar(msg){ return vista === 'todos' ? dibujarTodos(msg) : dibujarPend(msg); }
+  const tabsEq = () => '<div class="filters" role="group" aria-label="Vista"><button type="button" class="btn sm" data-vista="pend" aria-pressed="' + (vista === 'pend') + '">Pendientes (' + EQ.pendientes.length + ')</button><button type="button" class="btn sm" data-vista="todos" aria-pressed="' + (vista === 'todos') + '">Revisar todos los cruces (' + EQ.cruces.length + ', ' + EQ.cruces.filter(c => c.dudoso).length + ' con costo distinto)</button></div>';
+  const cablearTabs = () => box.querySelectorAll('[data-vista]').forEach(b => b.addEventListener('click', () => { vista = b.dataset.vista; dibujar(); }));
+  function dibujarPend(msg){
     const pend = EQ.pendientes, conf = EQ.confirmadas;
     const op = c => '<option value="' + c.productId + '">' + esc(c.nombre) + ' · stock ' + fU(c.disponible) + ' · $ ' + Math.round(c.costo).toLocaleString('es-AR') + '</option>';
-    box.innerHTML = '<p><b>Equivalencias de SKU</b></p>' +
+    box.innerHTML = '<p><b>Equivalencias de SKU</b></p>' + tabsEq() +
       '<div class="expl"><p>Estos SKU del libro <b>no se encuentran en Odoo con el mismo nombre</b> (por ejemplo, porque el producto se renombró o se reemplazó por otro código). Mientras no se confirmen, se muestran con el stock del libro y no en vivo.</p>' +
       '<p>Para cada uno, elegí de la lista el producto de Odoo que corresponde y tocá <b>Confirmar</b>. Si ya no existe en Odoo, elegí <b>"Ya no existe / sin equivalente"</b>. Se muestran primero los de más consumo anual. Lo confirmado queda guardado y se aplica enseguida a todos.</p>' +
       '<p class="hint">Los candidatos se sugieren por parecido de nombre y pueden estar equivocados: fijate el stock y el costo antes de confirmar. Un SKU del libro que junta varios productos de Odoo (por ejemplo, un tipo de poliol) todavía no se puede cargar acá.</p></div>' +
@@ -766,6 +739,73 @@ if (opts.puedeEditar && STATE.vivo && STATE.vivo.equivalencias){
       catch (e) { dibujar({t: e.message || 'No se pudo deshacer', err:true}); }
     }));
     document.getElementById('eqv-fin').addEventListener('click', () => { if (cambios) location.reload(); else box.hidden = true; });
+    cablearTabs();
+  }
+
+  /* Revisar todos los cruces: cada SKU del libro con el producto de Odoo con el que cruzó (por nombre o por equivalencia), para corregir los que estén mal */
+  const fold = t => String(t).normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/^\[[^\]]*\]\s*/, '').replace(/[^A-Z0-9]+/g, ' ').trim();
+  const tok = t => new Set(fold(t).split(' ').filter(Boolean));
+  const parecido = (a, b) => { let i = 0; for (const x of a) if (b.has(x)) i++; return i / (a.size + b.size - i || 1); };
+  const VIA = {nombre:'por nombre', equivalencia:'por equivalencia', 'ya no existe':'ya no existe', 'sin cruce':'sin cruce'};
+  let filtroEq = '', dudososEq = false, editando = null;
+  function dibujarTodos(msg){
+    box.innerHTML = '<p><b>Equivalencias de SKU</b></p>' + tabsEq() +
+      '<div class="expl"><p>Acá ves <b>con qué producto de Odoo se cruzó cada SKU del libro</b>, tanto los que cruzaron solos por nombre como los que confirmaste. Si alguno está mal, tocá <b>Cambiar</b>, buscá el producto correcto y confirmá: eso pisa el cruce automático y se aplica enseguida a todos.</p>' +
+      '<p class="hint"><b>Costo distinto</b> marca los SKU cuyo costo en Odoo difiere más de 10 % del que tenía el libro: es la pista más común de un cruce equivocado. "Volver al automático" borra tu equivalencia y vuelve a cruzar por nombre.</p></div>' +
+      (EQ.disponible ? '' : '<p class="msg-err" role="status">Falta crear la tabla de equivalencias en Supabase (docs/presupuesto-mp-equivalencias.sql): por ahora no se puede guardar.</p>') +
+      (msg ? '<p class="' + (msg.err ? 'msg-err' : '') + '" role="status">' + esc(msg.t) + '</p>' : '') +
+      '<div class="filters"><input type="search" id="eqv-q" placeholder="Buscar SKU o producto de Odoo" aria-label="Buscar" value="' + esc(filtroEq) + '"><label><input type="checkbox" id="eqv-dud"' + (dudososChecked() ? ' checked' : '') + '> Solo con costo distinto</label></div>' +
+      '<div id="eqv-tabla"></div>' +
+      '<div class="filters"><button type="button" class="btn primary" id="eqv-fin">' + (cambios ? 'Cerrar y actualizar el tablero' : 'Cerrar') + '</button></div>';
+    cablearTabs();
+    document.getElementById('eqv-q').addEventListener('input', e => { filtroEq = e.target.value; pintarTabla(); });
+    document.getElementById('eqv-dud').addEventListener('change', e => { setDudosos(e.target.checked); pintarTabla(); });
+    document.getElementById('eqv-fin').addEventListener('click', () => { if (cambios) location.reload(); else box.hidden = true; });
+    pintarTabla();
+  }
+  function dudososChecked(){ return dudososEq; }
+  function setDudosos(v){ dudososEq = v; }
+  function opcionesProducto(sku, texto, actual){
+    const q = tok(texto || sku), cat = (EQ.cruces.find(c => c.sku === sku) || {}).categoria || '';
+    return EQ.productos.map(p => ({p, s: parecido(q, tok(p.nombre)) + (fold(p.categoria).endsWith(fold(cat)) && cat ? 0.05 : 0)})).filter(x => x.s > 0 || x.p.productId === actual).sort((a, b) => b.s - a.s).slice(0, 25).map(x => x.p);
+  }
+  function pintarTabla(){
+    const cont = document.getElementById('eqv-tabla'), q = fold(filtroEq);
+    let L = EQ.cruces.filter(c => (!dudososEq || c.dudoso) && (!q || fold(c.sku).includes(q) || fold(c.nombre || '').includes(q)));
+    L = L.slice().sort((a, b) => (b.dudoso - a.dudoso) || (a.via === 'sin cruce') - (b.via === 'sin cruce') || a.sku.localeCompare(b.sku, 'es'));
+    const total = L.length; L = L.slice(0, 60);
+    const money = n => n == null ? '–' : '$ ' + Math.round(n).toLocaleString('es-AR');
+    const filas = L.map(c => {
+      let h = '<tr><td class="l" style="white-space:normal;min-width:200px">' + esc(c.sku) + '</td><td class="l" style="white-space:normal;min-width:220px"><span class="pill ' + (c.via === 'nombre' ? 'p-ok' : (c.via === 'equivalencia' ? 'p-over' : 'p-none')) + '">' + VIA[c.via] + '</span> ' + (c.nombre ? esc(c.nombre) : '') + '</td>' +
+        '<td class="num' + (c.dudoso ? ' neg' : '') + '">' + money(c.costoLibro) + ' → ' + money(c.costoOdoo) + (c.dudoso ? ' <span class="pill p-warn">costo distinto</span>' : '') + '</td>' +
+        '<td class="num">' + fU(c.dispLibro) + ' → ' + (c.dispOdoo == null ? '–' : fU(c.dispOdoo)) + '</td><td><button type="button" class="btn sm" data-ed="' + esc(c.sku) + '">Cambiar</button></td></tr>';
+      if (editando === c.sku){
+        h += '<tr><td colspan="5" class="l" style="white-space:normal"><div class="filters"><input type="search" id="eqv-b" placeholder="Buscar producto de Odoo…" aria-label="Buscar producto de Odoo" style="width:260px"><select id="eqv-sel" aria-label="Producto de Odoo"></select>' +
+          '<button type="button" class="btn sm primary" id="eqv-ok">Confirmar</button><button type="button" class="btn sm" id="eqv-no">Ya no existe</button>' +
+          (c.via === 'equivalencia' || c.via === 'ya no existe' ? '<button type="button" class="btn sm" id="eqv-auto">Volver al automático</button>' : '') +
+          '<button type="button" class="btn sm" id="eqv-cancel">Cancelar</button></div></td></tr>';
+      }
+      return h;
+    }).join('');
+    cont.innerHTML = '<div class="tw"><table><thead><tr><th class="l">SKU del libro</th><th class="l">Cruzado con (Odoo)</th><th>Costo libro → Odoo</th><th>Stock libro → Odoo</th><th></th></tr></thead><tbody>' +
+      (filas || '<tr><td colspan="5" class="l">No hay SKU con ese filtro.</td></tr>') + '</tbody></table></div>' + (total > 60 ? '<p class="hint">Mostrando 60 de ' + total + ': afiná la búsqueda para ver el resto.</p>' : '');
+    cont.querySelectorAll('[data-ed]').forEach(b => b.addEventListener('click', () => { editando = b.dataset.ed; pintarTabla(); }));
+    if (editando){
+      const c = EQ.cruces.find(x => x.sku === editando), sel = document.getElementById('eqv-sel'), inp = document.getElementById('eqv-b');
+      if (!sel){ editando = null; return; }
+      const llenar = () => { const ops = opcionesProducto(editando, inp.value, c.productId); sel.innerHTML = '<option value="">Elegir…</option>' + ops.map(p => '<option value="' + p.productId + '"' + (p.productId === c.productId ? ' selected' : '') + '>' + esc(p.nombre) + ' · stock ' + fU(p.disponible) + ' · $ ' + Math.round(p.costo).toLocaleString('es-AR') + '</option>').join(''); };
+      llenar(); inp.addEventListener('input', llenar);
+      const hecho = async (id, t) => { try { await guardar(c.sku, id);
+          if (id === null){ location.reload(); return; }
+          const p = EQ.productos.find(x => x.productId === id);
+          c.via = id === 0 ? 'ya no existe' : 'equivalencia'; c.productId = id || null; c.nombre = p ? p.nombre : null; c.dispOdoo = p ? Math.max(0, p.disponible) : null; c.costoOdoo = p ? p.costo : null;
+          c.dudoso = !!p && c.costoLibro > 0 && Math.abs(p.costo - c.costoLibro) / c.costoLibro > 0.1; editando = null; dibujarTodos({t: t + ': ' + c.sku}); }
+        catch (e) { dibujarTodos({t: e.message || 'No se pudo guardar', err:true}); } };
+      document.getElementById('eqv-ok').addEventListener('click', () => { if (!sel.value) return dibujarTodos({t:'Elegí un producto de la lista.', err:true}); hecho(+sel.value, 'Guardado'); });
+      document.getElementById('eqv-no').addEventListener('click', () => hecho(0, 'Marcado como "ya no existe"'));
+      const au = document.getElementById('eqv-auto'); if (au) au.addEventListener('click', () => hecho(null, ''));
+      document.getElementById('eqv-cancel').addEventListener('click', () => { editando = null; pintarTabla(); });
+    }
   }
   document.getElementById('eqv-open').addEventListener('click', () => { box.hidden = false; dibujar(); box.scrollIntoView({block:'nearest'}); });
 }

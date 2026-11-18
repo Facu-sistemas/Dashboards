@@ -17,27 +17,18 @@ import './presupuesto-mp.css';
   import { montarPresupuestoMp } from './montar';
 
   const root = document.getElementById('pmp-root');
+
+  async function cargar(forzar: boolean) {
+    const r = await fetch(forzar ? '/api/presupuesto-mp?forzar=1' : '/api/presupuesto-mp', { credentials: 'same-origin' });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || 'Error');
+    const { estado, puedeEditar } = j.data;
+    montarPresupuestoMp(root, estado, { puedeEditar, sincronizar: () => cargar(true) });
+  }
+
   if (root) {
-    fetch('/api/presupuesto-mp', { credentials: 'same-origin' })
-      .then((r) => r.json())
-      .then((j) => {
-        if (!j.ok) throw new Error(j.error || 'Error');
-        const { estado, puedeEditar, actualizadoPor, actualizadoEn } = j.data;
-        montarPresupuestoMp(root, estado, {
-          puedeEditar,
-          publicar: async (st: unknown) => {
-            const r = await fetch('/api/presupuesto-mp', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(st) });
-            const jj = await r.json().catch(() => ({}));
-            if (!r.ok || !jj.ok) throw new Error(jj.error || 'No se pudo publicar');
-          },
-        });
-        if (actualizadoPor && actualizadoEn) {
-          const f = new Date(actualizadoEn).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', dateStyle: 'short', timeStyle: 'short' });
-          root.querySelector('.vtag')?.append(` · subido por ${actualizadoPor} el ${f}`);
-        }
-      })
-      .catch(() => {
-        root.innerHTML = '<p class="text-sm text-red-400">No se pudo cargar el tablero. Probá de nuevo.</p>';
-      });
+    cargar(false).catch(() => {
+      root.innerHTML = '<p class="text-sm text-red-400">No se pudo cargar el tablero. Probá de nuevo.</p>';
+    });
   }
 </script>

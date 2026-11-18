@@ -1,8 +1,9 @@
 import type { APIRoute } from 'astro';
-import { ApiValidationError, handleApiRoute, jsonResponse } from '@/lib/api-helpers';
-import { guardarEstadoPresupuestoMp, leerEstadoPresupuestoMp } from '@/lib/supabase/presupuesto-mp-estado';
+import { handleApiRoute } from '@/lib/api-helpers';
+import { leerEstadoPresupuestoMp } from '@/lib/supabase/presupuesto-mp-estado';
 import { conInventarioVivo, type EstadoMp } from '@/lib/odoo/presupuesto-mp-vivo';
 import { leerEquivalencias } from '@/lib/supabase/presupuesto-mp-equivalencias';
+import { forzarSincronizacion } from '@/lib/odoo/forzar-sync';
 import snapshot from '@/data/presupuesto-mp.json';
 
 export const prerender = false;
@@ -12,11 +13,10 @@ const verCompras = (u: UsuarioMin) => !!u && u.areasPermitidas.includes('compras
 // La web no tiene permisos finos de edición: sube el libro solo el perfil de Compras (marly) y el rol dev.
 const editarCompras = (u: UsuarioMin) => verCompras(u) && (u!.rol === 'dev' || u!.username.trim().toLowerCase() === 'marly');
 
-const MAX_BYTES = 4_000_000;
-
-// GET /api/presupuesto-mp — estado del tablero: la última versión subida desde el libro, o la foto incluida en el código.
-export const GET: APIRoute = async ({ locals }) =>
+// GET /api/presupuesto-mp[?forzar=1] — estado del tablero: la foto del libro con el inventario en vivo de Odoo. `forzar=1` descarta la caché de lecturas.
+export const GET: APIRoute = async ({ locals, url }) =>
   handleApiRoute(async () => {
+    if (url.searchParams.get('forzar') === '1') forzarSincronizacion(['base-insumos']);
     const g = await leerEstadoPresupuestoMp();
     const eq = await leerEquivalencias();
     const puedeEditar = editarCompras(locals.usuario);
@@ -28,26 +28,3 @@ export const GET: APIRoute = async ({ locals }) =>
       puedeEditar,
     };
   });
-
-// POST /api/presupuesto-mp — publica una versión nueva (ya leída del libro en el navegador). Solo editores.
-export const POST: APIRoute = async ({ locals, request }) => {
-  if (!editarCompras(locals.usuario)) return jsonResponse({ ok: false, error: 'No tenés permiso para publicar versiones' }, { status: 403 });
-  const texto = await request.text();
-  if (texto.length > MAX_BYTES) return jsonResponse({ ok: false, error: 'El archivo es demasiado grande' }, { status: 413 });
-  return handleApiRoute(async () => {
-    let st: any;
-    try {
-      st = JSON.parse(texto);
-    } catch {
-      throw new ApiValidationError('Datos inválidos');
-    }
-    const ok =
-      st && Array.isArray(st.cols) && Array.isArray(st.rows) && st.rows.length > 0 && st.meta && typeof st.meta === 'object' &&
-      Array.isArray(st.meta.aprob) && Array.isArray(st.meta.vig) &&
-      ['SKU', 'Categoría', 'Aprob $ 1', 'Real $ 1', 'Vig $ 1'].every((c) => st.cols.includes(c)) &&
-      st.rows.every((r: unknown) => Array.isArray(r) && r.length === st.cols.length);
-    if (!ok) throw new ApiValidationError('El libro no tiene el formato esperado');
-    await guardarEstadoPresupuestoMp(st, locals.usuario!.username);
-    return { guardado: true };
-  });
-};

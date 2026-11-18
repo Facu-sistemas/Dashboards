@@ -2,7 +2,7 @@ import { getSupabaseAdminClient } from './admin';
 
 /**
  * Última versión publicada del tablero "Presupuesto y cumplimiento MP" (una sola fila, id = 1). Tabla creada a mano en
- * Supabase con docs/presupuesto-mp-schema.sql. Si no existe o está vacía, el tablero usa la foto de src/data/presupuesto-mp.json.
+ * Supabase con docs/presupuesto-mp-schema.sql. Ya no hay pantalla para subir el libro: el tablero se cruza con Odoo. Si no existe o está vacía, el tablero usa la foto de src/data/presupuesto-mp.json.
  */
 export interface EstadoGuardado {
   datos: unknown;
@@ -17,11 +17,4 @@ export async function leerEstadoPresupuestoMp(): Promise<EstadoGuardado | null> 
     return null;
   }
   return data ? { datos: data.datos, actualizadoPor: data.actualizado_por, actualizadoEn: data.updated_at } : null;
-}
-
-export async function guardarEstadoPresupuestoMp(datos: unknown, usuario: string): Promise<void> {
-  const { error } = await getSupabaseAdminClient()
-    .from('presupuesto_mp_estado')
-    .upsert({ id: 1, datos, actualizado_por: usuario, updated_at: new Date().toISOString() }, { onConflict: 'id' });
-  if (error) throw new Error(error.message);
 }

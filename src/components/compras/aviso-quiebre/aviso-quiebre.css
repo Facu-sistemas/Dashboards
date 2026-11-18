@@ -86,3 +86,19 @@
   .avq .count{margin-left:0}
 }
 @media (prefers-reduced-motion:no-preference){.avq .btn{transition:background .15s,color .15s}}
+
+/* Encabezado "Qué estás viendo": separa lo que es foto semanal de lo que es en vivo */
+.avq .que{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:grid;gap:12px}
+.avq .que h2{font-size:15px;font-weight:600;margin:0}
+.avq .que .dos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+@media (max-width:760px){.avq .que .dos{grid-template-columns:1fr}}
+.avq .que .col{display:grid;gap:6px;align-content:start;border-left:3px solid var(--line);padding-left:12px}
+.avq .que .col p{margin:0;color:var(--muted);font-size:13px;max-width:62ch}
+.avq .que .col p b{color:var(--ink)}
+.avq .tag.foto{color:var(--muted);background:rgb(var(--slate-700) / .35)}
+.avq .edad{font-size:12px;color:var(--muted)}
+.avq .edad.vieja{color:var(--org);font-weight:600}
+.avq .aviso-vieja{color:var(--org)!important;font-weight:600}
+.avq .uso summary{cursor:pointer;font-weight:600;font-size:13px}
+.avq .uso ol{margin:8px 0 0;padding-left:20px;display:grid;gap:6px;max-width:95ch;color:var(--muted);font-size:13px}
+.avq .uso ol b{color:var(--ink)}
