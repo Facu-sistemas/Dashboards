@@ -17,6 +17,7 @@ import { addDaysIso } from '@/lib/date';
  *   create index on embalaje_escaneos (created_at);
  *   alter table embalaje_escaneos add column anulado_at timestamptz;  -- cuándo se anuló (Borrar / −1)
  *   alter table embalaje_escaneos add column scanner smallint;  -- 1 | 2: cuál de los dos scanners lo leyó (prefijo ZZ1 / ZZ2)
+ *   alter table embalaje_escaneos add column client_id text unique;  -- anti-duplicados al subir escaneos hechos sin internet
  *   alter table embalaje_escaneos enable row level security;  -- default-deny, acceso solo vía /api
  *   grant select, insert, update, delete on public.embalaje_escaneos to service_role;
  *
@@ -121,17 +122,29 @@ export async function getEscaneosDia(fecha: string, desdeHora = '00:00'): Promis
   return { disponible: true, porProducto: [...acc.values()], lista, anulados };
 }
 
-export async function registrarEscaneo(barcode: string, producto: string, usuario: string, scanner?: number): Promise<void> {
+export interface ExtraEscaneo {
+  /** ISO: cuándo se leyó de verdad (escaneos hechos sin internet o cargados a mano en un pallet). */
+  createdAt?: string;
+  /** Id único del cliente: si ya existe, el escaneo ya estaba guardado y no se vuelve a contar. */
+  clientId?: string;
+}
+
+export async function registrarEscaneo(barcode: string, producto: string, usuario: string, scanner?: number, extra: ExtraEscaneo = {}): Promise<void> {
   const db = getSupabaseAdminClient();
-  const { error } = await db.from(TABLA).insert({ barcode, producto, usuario, ...(scanner ? { scanner } : {}) });
-  if (!error) return;
-  // Si todavía no existe la columna `scanner`, el escaneo se guarda igual (sin saber cuál scanner fue).
-  if (scanner && /scanner/i.test(error.message)) {
-    const { error: e2 } = await db.from(TABLA).insert({ barcode, producto, usuario });
-    if (!e2) return;
-    throw new Error(e2.message);
+  const fila: Record<string, unknown> = { barcode, producto, usuario };
+  if (scanner) fila.scanner = scanner;
+  if (extra.createdAt) fila.created_at = extra.createdAt;
+  if (extra.clientId) fila.client_id = extra.clientId;
+  for (;;) {
+    const { error } = await db.from(TABLA).insert(fila);
+    if (!error) return;
+    // Violación de unicidad de client_id: ese escaneo ya se había guardado (reintento tras perder la respuesta).
+    if (error.code === '23505') return;
+    // Si todavía no existe la columna `scanner` o `client_id`, el escaneo se guarda igual, sin ese dato.
+    const falta = ['client_id', 'scanner'].find((c) => c in fila && new RegExp(c, 'i').test(error.message));
+    if (!falta) throw new Error(error.message);
+    delete fila[falta];
   }
-  throw new Error(error.message);
 }
 
 /** Lo que se borró: sirve para avisar de qué scanner era. */
@@ -198,7 +211,14 @@ export async function getPalletsDia(fecha: string): Promise<PalletRegistro[]> {
   }));
 }
 
-export async function iniciarPallet(scanner: number, usuario: string): Promise<void> {
+export async function getPallet(id: number): Promise<PalletRegistro | null> {
+  const { data, error } = await getSupabaseAdminClient().from('embalaje_pallets').select('*').eq('id', id).limit(1);
+  if (error || !data?.length) return null;
+  const r = data[0]!;
+  return { id: Number(r.id), scanner: Number(r.scanner), inicio: r.inicio as string, fin: (r.fin as string | null) ?? null };
+}
+
+export async function iniciarPallet(scanner: number, usuario: string, cuando?: string): Promise<void> {
   const db = getSupabaseAdminClient();
   // Un pallet que quedó abierto de un día anterior se cierra solo al empezar el día: la numeración arranca de 1.
   const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date());
@@ -207,14 +227,14 @@ export async function iniciarPallet(scanner: number, usuario: string): Promise<v
   const { data, error } = await db.from('embalaje_pallets').select('id').eq('scanner', scanner).is('fin', null).limit(1);
   if (error) throw new Error('Falta crear la tabla embalaje_pallets en Supabase. Avisá a sistemas.');
   if (data?.length) throw new Error(`El E${scanner} ya tiene un pallet en curso.`);
-  const { error: e2 } = await db.from('embalaje_pallets').insert({ scanner, usuario });
+  const { error: e2 } = await db.from('embalaje_pallets').insert({ scanner, usuario, ...(cuando ? { inicio: cuando } : {}) });
   if (e2) throw new Error(e2.message);
 }
 
-export async function terminarPallet(scanner: number): Promise<void> {
+export async function terminarPallet(scanner: number, cuando?: string): Promise<void> {
   const { data, error } = await getSupabaseAdminClient()
     .from('embalaje_pallets')
-    .update({ fin: new Date().toISOString() })
+    .update({ fin: cuando ?? new Date().toISOString() })
     .eq('scanner', scanner)
     .is('fin', null)
     .select('id');

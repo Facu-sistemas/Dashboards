@@ -4,6 +4,7 @@ import QueryProvider from '@/components/QueryProvider';
 import { useApiQuery } from '@/components/dashboard/useApiQuery';
 import LastUpdated from '@/components/shared/LastUpdated';
 import type { ApiEnvelope } from '@/components/dashboard/types';
+import { describir, guardarCola, guardarRechazados, leerCola, leerRechazados, nuevoCid, type EnvioCola, type ItemCola, type ItemRechazado } from './embalaje-cola';
 
 interface EmbalajeFila {
   barcode: string | null;
@@ -41,6 +42,8 @@ interface Aviso {
   pallet?: { numero: number; cantidad: number } | null;
   /** El escaneo se contó pero hay algo para avisar. */
   advertencia?: string;
+  /** Quedó guardado en esta PC (sin internet) y se sube solo cuando vuelva la conexión. */
+  offline?: boolean;
 }
 
 const REFRESH_MS = 10 * 1000;
@@ -62,30 +65,50 @@ function separarScanner(crudo: string): { codigo: string; scanner?: 1 | 2 } {
   return m ? { codigo: m[2]!.trim(), scanner: m[1] === '1' ? 1 : 2 } : { codigo: limpio };
 }
 
-type Envio =
-  | { accion: 'escanear' | 'deshacer'; codigo: string; scanner?: 1 | 2 }
-  | { accion: 'anular'; id: number }
-  | { accion: 'pallet-iniciar' | 'pallet-terminar'; scanner: 1 | 2 };
+type Envio = EnvioCola;
 
-async function enviar(envio: Envio, fecha: string): Promise<Aviso> {
+type Resultado = { tipo: 'ok'; aviso: Aviso } | { tipo: 'rechazo'; texto: string } | { tipo: 'offline' };
+
+const TIMEOUT_MS = 10_000;
+
+/**
+ * Manda una acción al servidor. "offline" = no se pudo saber si llegó (sin red, tiempo agotado, respuesta que no es
+ * del servidor o error 5xx): se encola y se reintenta. "rechazo" = el servidor la entendió y dijo que no (código
+ * inexistente, etc.): reintentar no sirve. `diferido` manda la hora real de la acción (cuando sale de la cola).
+ */
+async function enviar(item: ItemCola, diferido: boolean): Promise<Resultado> {
+  const { envio } = item;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   try {
     const res = await fetch('/api/embalaje-escaneos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ ...envio, fecha }),
+      body: JSON.stringify({ ...envio, fecha: item.fecha, cid: item.cid, ...(diferido ? { ts: item.ts } : {}) }),
+      signal: ctrl.signal,
     });
-    const body = (await res.json()) as ApiEnvelope<{ producto: string; barcode?: string; scanner?: number | null }>;
-    if (!res.ok || !body.ok || !body.data) return { ok: false, texto: body.error ?? 'No se pudo registrar el escaneo.' };
+    type Cuerpo = ApiEnvelope<{ producto: string; barcode?: string; scanner?: number | null }>;
+    const body = await res.json().then(
+      (j: unknown) => j as Cuerpo,
+      () => null,
+    );
+    if (!body || res.status >= 500) return { tipo: 'offline' };
+    if (!res.ok || !body.ok || !body.data) return { tipo: 'rechazo', texto: body.error ?? 'No se pudo registrar el escaneo.' };
     return {
-      ok: true,
-      accion: envio.accion,
-      producto: body.data.producto,
-      barcode: body.data.barcode,
-      scanner: body.data.scanner ?? null,
-      texto: `${envio.accion === 'escanear' ? '+1' : envio.accion === 'deshacer' ? '−1' : 'Borrado:'} ${body.data.producto}`.trim(),
+      tipo: 'ok',
+      aviso: {
+        ok: true,
+        accion: envio.accion,
+        producto: body.data.producto,
+        barcode: body.data.barcode,
+        scanner: body.data.scanner ?? null,
+        texto: `${envio.accion === 'escanear' ? '+1' : envio.accion === 'deshacer' ? '−1' : 'Borrado:'} ${body.data.producto}`.trim(),
+      },
     };
   } catch {
-    return { ok: false, texto: 'Sin conexión con el servidor. Reintentá el escaneo.' };
+    return { tipo: 'offline' };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -97,6 +120,10 @@ function Inner() {
   const [codigo, setCodigo] = useState('');
   const [aviso, setAviso] = useState<Aviso | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const [cola, setCola] = useState<ItemCola[]>([]);
+  const [rechazados, setRechazados] = useState<ItemRechazado[]>([]);
+  const [ajuste, setAjuste] = useState<{ modo: 'mas' | 'menos'; fila: EmbalajeFila } | null>(null);
+  const subiendo = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const qc = useQueryClient();
 
@@ -112,6 +139,55 @@ function Inner() {
     const id = setInterval(() => void refetch(), REFRESH_MS);
     return () => clearInterval(id);
   }, [refetch]);
+
+  // Sube lo que quedó guardado sin internet, en orden. Si vuelve a fallar la red, corta y reintenta más tarde.
+  const subirCola = async () => {
+    if (subiendo.current) return;
+    subiendo.current = true;
+    try {
+      let subio = false;
+      for (;;) {
+        const it = leerCola()[0];
+        if (!it) break;
+        const r = await enviar(it, true);
+        if (r.tipo === 'offline') break;
+        guardarCola(leerCola().filter((x) => x.cid !== it.cid));
+        if (r.tipo === 'rechazo' && !it.envio.accion.startsWith('pallet')) {
+          const nuevos = [...leerRechazados(), { cid: it.cid, ts: it.ts, envio: it.envio, motivo: r.texto }];
+          guardarRechazados(nuevos);
+          setRechazados(nuevos);
+        }
+        subio = true;
+      }
+      setCola(leerCola());
+      if (subio) await qc.invalidateQueries({ queryKey: ['embalaje'] });
+    } finally {
+      subiendo.current = false;
+    }
+  };
+
+  // Al abrir la pantalla: recupera lo pendiente que quedó guardado y lo intenta subir. También al volver la red y cada 8 s.
+  useEffect(() => {
+    setCola(leerCola());
+    setRechazados(leerRechazados());
+    void subirCola();
+    const alVolver = () => void subirCola();
+    window.addEventListener('online', alVolver);
+    const id = setInterval(() => {
+      if (leerCola().length) void subirCola();
+    }, 8000);
+    return () => {
+      window.removeEventListener('online', alVolver);
+      clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const encolar = (item: ItemCola) => {
+    const nueva = [...leerCola(), item];
+    guardarCola(nueva);
+    setCola(nueva);
+  };
 
   // El scanner "tipea" en el campo: lo mantenemos siempre enfocado.
   useEffect(() => {
@@ -135,15 +211,56 @@ function Inner() {
 
   const ejecutar = async (envio: Envio) => {
     if (enviando) return;
+    const item: ItemCola = { cid: nuevoCid(), ts: Date.now(), fecha, envio };
+    const esPallet = envio.accion === 'pallet-iniciar' || envio.accion === 'pallet-terminar';
+
+    // Sin internet: queda guardado en esta PC y se sube solo. Se muestra en ámbar para que no se confunda con un +1 ya contado.
+    const guardarSinInternet = () => {
+      encolar(item);
+      void subirCola();
+      const pendientes = leerCola().length;
+      if (esPallet || envio.accion === 'anular') {
+        setAviso({ ok: false, texto: `Sin internet: la acción quedó guardada en esta PC y se sube sola (${pendientes} pendiente${pendientes === 1 ? '' : 's'}).` });
+        return;
+      }
+      const cod = 'codigo' in envio ? envio.codigo : '';
+      const fila = qc.getQueryData<EmbalajeResult>(['embalaje', fecha])?.filas.find((f) => f.barcode?.toUpperCase() === cod.toUpperCase());
+      setAviso({
+        ok: true,
+        offline: true,
+        accion: envio.accion,
+        producto: fila?.producto ?? cod,
+        scanner: 'scanner' in envio ? (envio.scanner ?? null) : null,
+        texto: cod,
+        advertencia: `SIN INTERNET: guardado en esta PC (${pendientes} pendiente${pendientes === 1 ? '' : 's'})`,
+      });
+    };
+
+    // Si ya hay cosas pendientes, esta va detrás para no desordenar (pallets y horarios dependen del orden).
+    if (leerCola().length > 0) {
+      guardarSinInternet();
+      return;
+    }
     setEnviando(true);
-    const res = await enviar(envio, fecha);
+    const r = await enviar(item, false);
+    if (r.tipo === 'offline') {
+      guardarSinInternet();
+      setEnviando(false);
+      return;
+    }
     await qc.invalidateQueries({ queryKey: ['embalaje', fecha] });
+    if (r.tipo === 'rechazo') {
+      setAviso({ ok: false, texto: r.texto });
+      setEnviando(false);
+      return;
+    }
+    const res = r.aviso;
     // Con los datos ya refrescados: cuántos van de ese producto, para confirmar de un vistazo.
-    if (res.ok && (envio.accion === 'pallet-iniciar' || envio.accion === 'pallet-terminar')) {
+    if (esPallet) {
       setEnviando(false);
       return; // sin pantalla grande: el botón cambia solo
     }
-    if (res.ok && res.producto) {
+    if (res.producto) {
       const datos = qc.getQueryData<EmbalajeResult>(['embalaje', fecha]);
       const abierto = datos?.pallets.find((p) => p.scanner === res.scanner && !p.fin);
       res.pallet = abierto ? { numero: abierto.numero, cantidad: abierto.cantidad } : null;
@@ -194,6 +311,19 @@ function Inner() {
   return (
     <div className="space-y-6">
       <ConfirmacionEscaneo aviso={aviso} onCerrar={() => setAviso(null)} />
+      {ajuste && d && (
+        <AjusteManual
+          modo={ajuste.modo}
+          fila={ajuste.fila}
+          escaneos={escaneos}
+          pallets={d.pallets}
+          onCerrar={() => setAjuste(null)}
+          onElegir={(envio) => {
+            setAjuste(null);
+            void ejecutar(envio);
+          }}
+        />
+      )}
 
       <p className="text-right text-[11px] text-slate-500" title={`Se consulta Odoo y los escaneos cada ${REFRESH_MS / 1000} s`}>
         {query.dataUpdatedAt ? `actualizado hace ${Math.max(0, Math.round((ahora - query.dataUpdatedAt) / 1000))} s · se refresca cada ${REFRESH_MS / 1000} s` : 'esperando…'}
@@ -215,6 +345,62 @@ function Inner() {
         <div className="grid gap-6 lg:grid-cols-2">
           <EscaneosPorScanner scanner={1} pallets={d.pallets} titulo="Escaneó E1" escaneos={escaneos.filter((e) => e.scanner === 1)} esHoy={esHoy} enviando={enviando} onBorrar={(id) => void ejecutar({ accion: 'anular', id })} onPallet={(a) => void ejecutar({ accion: a, scanner: 1 })} />
           <EscaneosPorScanner scanner={2} pallets={d.pallets} titulo="Escaneó E2" escaneos={escaneos.filter((e) => e.scanner === 2)} esHoy={esHoy} enviando={enviando} onBorrar={(id) => void ejecutar({ accion: 'anular', id })} onPallet={(a) => void ejecutar({ accion: a, scanner: 2 })} />
+        </div>
+      )}
+
+      {(cola.length > 0 || rechazados.length > 0) && (
+        <div className="space-y-2 rounded-lg border border-status-yellow/60 bg-slate-900 p-3 text-sm">
+          {cola.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="font-semibold text-status-yellow">
+                ⚠ {cola.length} acción{cola.length === 1 ? '' : 'es'} sin subir (sin internet). Quedan guardadas en esta PC y se suben solas al volver la conexión. No cierres ni borres los datos del navegador.
+              </p>
+              <button
+                type="button"
+                tabIndex={-1}
+                onMouseDown={(ev) => ev.preventDefault()}
+                onClick={() => void subirCola()}
+                className="rounded border border-status-yellow/60 px-3 py-1 text-xs font-semibold text-status-yellow hover:bg-slate-800"
+              >
+                Reintentar ahora
+              </button>
+            </div>
+          )}
+          {cola.length > 0 && (
+            <ul className="max-h-32 overflow-y-auto text-xs text-slate-400">
+              {cola.map((c) => (
+                <li key={c.cid}>
+                  {hora.format(new Date(c.ts))} · {describir(c.envio)}
+                </li>
+              ))}
+            </ul>
+          )}
+          {rechazados.length > 0 && (
+            <div className="border-t border-slate-800 pt-2">
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-semibold text-status-red">El servidor rechazó {rechazados.length} al subirlas (no se contaron):</p>
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onMouseDown={(ev) => ev.preventDefault()}
+                  onClick={() => {
+                    guardarRechazados([]);
+                    setRechazados([]);
+                  }}
+                  className="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
+                >
+                  Descartar avisos
+                </button>
+              </div>
+              <ul className="mt-1 max-h-32 overflow-y-auto text-xs text-slate-400">
+                {rechazados.map((r) => (
+                  <li key={r.cid}>
+                    {hora.format(new Date(r.ts))} · {describir(r.envio)} — {r.motivo}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 
@@ -318,18 +504,30 @@ function Inner() {
                       {f.diferencia === 0 ? 'OK' : `${f.diferencia > 0 ? '+' : ''}${n0.format(f.diferencia)}`}
                     </td>
                     <td className="px-4 py-3 text-slate-400">{f.ultimoEscaneo ? hora.format(new Date(f.ultimoEscaneo)) : '—'}</td>
-                    <td className="px-4 py-3 text-right">
-                      {esHoy && f.barcode && f.escaneado > 0 && (
-                        <button
-                          type="button"
-                          tabIndex={-1}
-                          onMouseDown={(ev) => ev.preventDefault()}
-                          onClick={() => void accionar('deshacer', f.barcode!)}
-                          disabled={enviando}
-                          className="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50"
-                        >
-                          −1
-                        </button>
+                    <td className="whitespace-nowrap px-4 py-3 text-right">
+                      {esHoy && f.barcode && (
+                        <span className="inline-flex gap-1">
+                          <button
+                            type="button"
+                            tabIndex={-1}
+                            onMouseDown={(ev) => ev.preventDefault()}
+                            onClick={() => setAjuste({ modo: 'mas', fila: f })}
+                            disabled={enviando}
+                            className="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50"
+                          >
+                            +1
+                          </button>
+                            <button
+                              type="button"
+                              tabIndex={-1}
+                              onMouseDown={(ev) => ev.preventDefault()}
+                              onClick={() => setAjuste({ modo: 'menos', fila: f })}
+                              disabled={enviando}
+                              className="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50"
+                            >
+                              −1
+                            </button>
+                        </span>
                       )}
                     </td>
                   </tr>
@@ -546,7 +744,7 @@ function ConfirmacionEscaneo({ aviso, onCerrar }: { aviso: Aviso | null; onCerra
           {aviso.accion !== 'escanear' && !aviso.scanner && (
             <p className="rounded-lg bg-black/25 px-8 py-3 text-4xl font-black">Escaneo sin E1 / E2 identificado</p>
           )}
-          {aviso.accion === 'escanear' && (
+          {aviso.accion === 'escanear' && !aviso.offline && (
             <p className="font-bold" style={{ fontSize: 'clamp(2rem, 5vw, 6rem)' }}>
               {aviso.pallet ? `Van ${n0.format(aviso.pallet.cantidad)} del Pallet ${aviso.pallet.numero}` : 'Sin pallet iniciado'}
             </p>
@@ -559,6 +757,122 @@ function ConfirmacionEscaneo({ aviso, onCerrar }: { aviso: Aviso | null; onCerra
           <p className="max-w-5xl text-4xl font-bold leading-tight">{aviso.texto}</p>
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * +1 / −1 a mano desde la tabla: pregunta de qué embaladora y de qué pallet. El +1 se carga dentro del pallet elegido;
+ * el −1 borra el último escaneo de ese producto en la embaladora y pallet elegidos.
+ */
+function AjusteManual({
+  modo,
+  fila,
+  escaneos,
+  pallets,
+  onElegir,
+  onCerrar,
+}: {
+  modo: 'mas' | 'menos';
+  fila: EmbalajeFila;
+  escaneos: EscaneoFila[];
+  pallets: EmbalajeResult['pallets'];
+  onElegir: (envio: Envio) => void;
+  onCerrar: () => void;
+}) {
+  const [scanner, setScanner] = useState<1 | 2 | null>(null);
+  useEffect(() => {
+    const alTeclear = (e: KeyboardEvent) => e.key === 'Escape' && onCerrar();
+    window.addEventListener('keydown', alTeclear);
+    return () => window.removeEventListener('keydown', alTeclear);
+  }, [onCerrar]);
+
+  const boton = 'rounded-lg border border-slate-600 bg-slate-950 px-4 py-3 text-left text-base font-semibold text-slate-100 hover:border-status-green hover:bg-slate-800';
+  const barcode = fila.barcode!;
+  const esDelProducto = (e: EscaneoFila) => e.barcode.toUpperCase() === barcode.toUpperCase();
+
+  // −1: grupos (embaladora + pallet) que tienen este producto; el borrado va sobre el más reciente de cada grupo.
+  const grupos = new Map<string, { scanner: number | null; pallet: number | null; id: number; cantidad: number }>();
+  if (modo === 'menos') {
+    for (const e of escaneos.filter(esDelProducto)) {
+      const k = `${e.scanner ?? 0}|${e.pallet ?? 0}`;
+      const g = grupos.get(k);
+      if (g) g.cantidad++;
+      else grupos.set(k, { scanner: e.scanner, pallet: e.pallet, id: e.id, cantidad: 1 }); // `escaneos` viene del más nuevo al más viejo
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4" onClick={onCerrar}>
+      <div role="dialog" aria-modal="true" className="max-h-[90vh] w-full max-w-lg space-y-4 overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-5" onClick={(ev) => ev.stopPropagation()}>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{modo === 'mas' ? 'Sumar 1 a mano' : 'Restar 1'}</p>
+          <p className="text-lg font-semibold text-slate-100">{fila.producto}</p>
+        </div>
+
+        {modo === 'menos' ? (
+          <div className="space-y-2">
+            <p className="text-sm text-slate-300">{grupos.size ? '¿De cuál embaladora y pallet querés sacar 1?' : 'Este producto no tiene escaneos para restar.'}</p>
+            {[...grupos.values()].map((g) => (
+              <button key={`${g.scanner}-${g.pallet}`} type="button" className={`${boton} w-full`} onClick={() => onElegir({ accion: 'anular', id: g.id })}>
+                {g.scanner ? `E${g.scanner}` : 'Sin identificar'} · {g.pallet ? `Pallet ${g.pallet}` : 'Sin pallet'}
+                <span className="ml-2 text-sm font-normal text-slate-400">({g.cantidad} de este producto)</span>
+              </button>
+            ))}
+          </div>
+        ) : scanner === null ? (
+          <div className="space-y-2">
+            <p className="text-sm text-slate-300">¿De qué embaladora?</p>
+            <div className="grid grid-cols-2 gap-3">
+              {([1, 2] as const).map((n) => (
+                <button key={n} type="button" className={`${boton} text-center text-2xl`} onClick={() => setScanner(n)}>
+                  E{n}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {(() => {
+              // Solo los pallets donde ya hay de este producto; si todavía no hay de este producto en ninguno, todos los de esa embaladora.
+              const delScanner = pallets.filter((p) => p.scanner === scanner);
+              const cuantos = (p: (typeof pallets)[number]) => escaneos.filter((e) => esDelProducto(e) && e.scanner === p.scanner && e.pallet === p.numero).length;
+              const conProducto = delScanner.filter((p) => cuantos(p) > 0);
+              const lista = [...(conProducto.length ? conProducto : delScanner)].reverse(); // el más reciente primero
+              return (
+                <>
+                  <p className="text-sm text-slate-300">
+                    {conProducto.length ? `Pallets de la E${scanner} donde ya hay de este producto:` : delScanner.length ? `La E${scanner} todavía no tiene de este producto. ¿En qué pallet?` : ''}
+                  </p>
+                  {lista.map((p) => (
+                    <button key={p.id} type="button" className={`${boton} w-full`} onClick={() => onElegir({ accion: 'escanear', codigo: barcode, scanner, palletId: p.id })}>
+                      Pallet {p.numero}
+                      <span className="ml-2 text-sm font-normal text-slate-400">
+                        {conProducto.length ? `${cuantos(p)} de este producto · ` : ''}
+                        {n0.format(p.cantidad)} en total · {p.fin ? 'terminado' : 'en curso'}
+                      </span>
+                    </button>
+                  ))}
+                </>
+              );
+            })()}
+            {!pallets.some((p) => p.scanner === scanner) && (
+              <button type="button" className={`${boton} w-full`} onClick={() => onElegir({ accion: 'escanear', codigo: barcode, scanner })}>
+                Sin pallet (la E{scanner} no armó ninguno hoy)
+              </button>
+            )}
+            <button type="button" className="text-sm text-slate-400 underline" onClick={() => setScanner(null)}>
+              ← Cambiar embaladora
+            </button>
+          </div>
+        )}
+
+        <div className="flex justify-end">
+          <button type="button" onClick={onCerrar} className="rounded border border-slate-700 px-4 py-1.5 text-sm text-slate-300 hover:bg-slate-800">
+            Cancelar
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
