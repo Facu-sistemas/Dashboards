@@ -1,0 +1,43 @@
+---
+import './aviso-quiebre.css';
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Aviso de quiebre de insumos</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Insumos de materia prima que pueden quedarse sin stock, por nivel de urgencia, con el stock y las órdenes de compra de Odoo en vivo. Solo lectura.
+    </p>
+  </header>
+
+  <div id="avq-root" class="avq"><p class="text-sm text-slate-400">Cargando…</p></div>
+</div>
+
+<script>
+  import { montarAvisoQuiebre } from './montar';
+
+  const root = document.getElementById('avq-root');
+  if (root) {
+    fetch('/api/aviso-quiebre', { credentials: 'same-origin' })
+      .then((r) => r.json())
+      .then((j) => {
+        if (!j.ok) throw new Error(j.error || 'Error');
+        const d = j.data;
+        montarAvisoQuiebre(root, d.estado, {
+          vivo: d.vivo,
+          vistos: d.vistos,
+          vistosDisponibles: d.vistosDisponibles,
+          yo: d.yo,
+          puedeEditar: d.puedeEditar,
+          publicar: async (st: unknown) => {
+            const r = await fetch('/api/aviso-quiebre', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(st) });
+            const jj = await r.json().catch(() => ({}));
+            if (!r.ok || !jj.ok) throw new Error(jj.error || 'No se pudo publicar');
+          },
+        });
+      })
+      .catch(() => {
+        root.innerHTML = '<p class="text-sm text-red-400">No se pudo cargar el aviso. Probá de nuevo.</p>';
+      });
+  }
+</script>

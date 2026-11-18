@@ -1,6 +1,8 @@
 import type { APIRoute } from 'astro';
 import { ApiValidationError, handleApiRoute, jsonResponse } from '@/lib/api-helpers';
 import { guardarEstadoPresupuestoMp, leerEstadoPresupuestoMp } from '@/lib/supabase/presupuesto-mp-estado';
+import { conInventarioVivo, type EstadoMp } from '@/lib/odoo/presupuesto-mp-vivo';
+import { leerEquivalencias } from '@/lib/supabase/presupuesto-mp-equivalencias';
 import snapshot from '@/data/presupuesto-mp.json';
 
 export const prerender = false;
@@ -16,12 +18,14 @@ const MAX_BYTES = 4_000_000;
 export const GET: APIRoute = async ({ locals }) =>
   handleApiRoute(async () => {
     const g = await leerEstadoPresupuestoMp();
+    const eq = await leerEquivalencias();
+    const puedeEditar = editarCompras(locals.usuario);
     return {
-      estado: g ? g.datos : snapshot,
+      estado: await conInventarioVivo((g ? g.datos : snapshot) as EstadoMp, { equivalencias: eq.mapa, equivalenciasDisponibles: eq.disponible, paraEditar: puedeEditar }),
       origen: g ? 'publicado' : 'foto',
       actualizadoPor: g?.actualizadoPor ?? null,
       actualizadoEn: g?.actualizadoEn ?? null,
-      puedeEditar: editarCompras(locals.usuario),
+      puedeEditar,
     };
   });
 

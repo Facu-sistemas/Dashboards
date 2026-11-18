@@ -276,7 +276,8 @@ function viewPanel(root){
 
   /* ----- inventario ----- */
   const fv = String(STATE.meta.version || ''), fvd = /^\d{4}-\d{2}-\d{2}/.test(fv) ? fv.slice(8,10) + '/' + fv.slice(5,7) + '/' + fv.slice(0,4) : fv;
-  h += '<h2 class="blk">Inventario</h2><p class="foto">Foto al ' + esc(fvd) + ' (exportación de Odoo) · stock disponible, sin lo reservado para fabricación · la rotación usa los últimos 5 cierres de mes.</p>';
+  const VV = STATE.vivo, vh = VV ? new Date(VV.generado).toLocaleString('es-AR', {timeZone:'America/Argentina/Buenos_Aires', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}) : '';
+  h += '<h2 class="blk">Inventario</h2><p class="foto">' + (VV ? 'Stock y costo en vivo de Odoo (' + esc(vh) + ', se refresca cada 10 min) en ' + VV.cruzados + ' de ' + VV.total + ' SKUs; los otros ' + (VV.total - VV.cruzados) + ' quedan con el valor del libro (exportación del ' + esc(fvd) + '). Los umbrales de la política y el consumo proyectado son los del libro' : 'Foto al ' + esc(fvd) + ' (exportación de Odoo)') + ' · stock disponible, sin lo reservado para fabricación · la rotación usa los últimos 5 cierres de mes.</p>';
   if (!has){
     h += '<section class="empty"><b>Faltan los datos de inventario.</b><p>Esta versión del tablero se publicó desde un libro anterior a la v11. Subí el libro v11 o posterior con "Actualizar desde el libro".</p></section>';
   } else {
@@ -650,8 +651,10 @@ function viewRetro(root){
 root.innerHTML =
   '<div class="wrap">' +
   '<header class="top"><div><div class="eyebrow">Frontera Living · Materias primas</div>' +
-  '<p class="sub">Rendición de cuentas ante la Gerencia, presupuesto aprobado y su cumplimiento. <span class="vtag">Datos del libro: exportación ' + esc(STATE.meta.version) + (STATE.meta.actualizado ? ' · publicado ' + esc(STATE.meta.actualizado) : '') + '</span></p></div>' +
-  '<button type="button" class="btn" id="upd-open"' + (opts.puedeEditar ? '' : ' hidden') + '>Actualizar desde el libro</button></header>' +
+  '<p class="sub">Rendición de cuentas ante la Gerencia, presupuesto aprobado y su cumplimiento. <span class="vtag">' + (STATE.vivo ? 'Inventario en vivo de Odoo · el resto, ' : '') + 'datos del libro: exportación ' + esc(STATE.meta.version) + (STATE.meta.actualizado ? ' · publicado ' + esc(STATE.meta.actualizado) : '') + '</span></p></div>' +
+  '<div class="filters"><button type="button" class="btn" id="eqv-open"' + (opts.puedeEditar && STATE.vivo && STATE.vivo.equivalencias ? '' : ' hidden') + '>Equivalencias' + (STATE.vivo && STATE.vivo.equivalencias ? ' (' + STATE.vivo.equivalencias.pendientes.length + ' pendientes)' : '') + '</button>' +
+  '<button type="button" class="btn" id="upd-open"' + (opts.puedeEditar ? '' : ' hidden') + '>Actualizar desde el libro</button></div></header>' +
+  '<section class="upd" id="eqv" hidden aria-label="Equivalencias de SKU"></section>' +
   '<section class="upd" id="upd" hidden aria-label="Actualizar desde el libro"></section>' +
   '<div class="tabs" role="tablist">' +
     '<button type="button" role="tab" id="tab-panel" aria-selected="true" aria-controls="p-panel">Rendición de cuentas</button>' +
@@ -723,5 +726,47 @@ if (opts.puedeEditar){
     catch (err) { updForm(esc(err && err.message ? err.message : 'No se pudo publicar. Probá de nuevo.'), true); }
   }
   document.getElementById('upd-open').addEventListener('click', () => { upd.hidden = false; updForm(); });
+}
+
+/* ---------- equivalencias SKU del libro -> producto de Odoo (solo editores) ---------- */
+if (opts.puedeEditar && STATE.vivo && STATE.vivo.equivalencias){
+  const EQ = STATE.vivo.equivalencias, box = document.getElementById('eqv');
+  let cambios = false;
+  const guardar = async (sku, productId) => {
+    const r = await fetch('/api/presupuesto-mp-equivalencias', {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body: JSON.stringify({sku, productId})});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) throw new Error(j.error || 'No se pudo guardar');
+    cambios = true;
+  };
+  function dibujar(msg){
+    const pend = EQ.pendientes, conf = EQ.confirmadas;
+    const op = c => '<option value="' + c.productId + '">' + esc(c.nombre) + ' · stock ' + fU(c.disponible) + ' · $ ' + Math.round(c.costo).toLocaleString('es-AR') + '</option>';
+    box.innerHTML = '<p><b>Equivalencias de SKU</b></p>' +
+      '<div class="expl"><p>Estos SKU del libro <b>no se encuentran en Odoo con el mismo nombre</b> (por ejemplo, porque el producto se renombró o se reemplazó por otro código). Mientras no se confirmen, se muestran con el stock del libro y no en vivo.</p>' +
+      '<p>Para cada uno, elegí de la lista el producto de Odoo que corresponde y tocá <b>Confirmar</b>. Si ya no existe en Odoo, elegí <b>"Ya no existe / sin equivalente"</b>. Se muestran primero los de más consumo anual. Lo confirmado queda guardado y se aplica enseguida a todos.</p>' +
+      '<p class="hint">Los candidatos se sugieren por parecido de nombre y pueden estar equivocados: fijate el stock y el costo antes de confirmar. Un SKU del libro que junta varios productos de Odoo (por ejemplo, un tipo de poliol) todavía no se puede cargar acá.</p></div>' +
+      (EQ.disponible ? '' : '<p class="msg-err" role="status">Falta crear la tabla de equivalencias en Supabase (docs/presupuesto-mp-equivalencias.sql): por ahora no se puede guardar.</p>') +
+      (msg ? '<p class="' + (msg.err ? 'msg-err' : '') + '" role="status">' + esc(msg.t) + '</p>' : '') +
+      '<div class="tw"><table><thead><tr><th class="l">SKU del libro</th><th class="l">Categoría</th><th>Consumo anual $M</th><th class="l">Producto de Odoo</th><th></th></tr></thead><tbody>' +
+      (pend.length ? pend.map((p, i) => '<tr><td class="l" style="white-space:normal;min-width:220px">' + esc(p.sku) + '</td><td class="l">' + esc(p.categoria) + '</td><td class="num">' + fM(p.consumoAnual) + '</td><td class="l"><select data-i="' + i + '" aria-label="Producto de Odoo para ' + esc(p.sku) + '"><option value="">Elegir…</option>' + p.candidatos.map(op).join('') + '<option value="0">Ya no existe / sin equivalente</option></select></td><td><button type="button" class="btn sm" data-ok="' + i + '">Confirmar</button></td></tr>').join('') : '<tr><td colspan="5" class="l">No quedan SKU pendientes.</td></tr>') +
+      '</tbody></table></div>' +
+      (conf.length ? '<details><summary class="hint">Ya confirmados (' + conf.length + ')</summary><div class="tw"><table><tbody>' + conf.map((c, i) => '<tr><td class="l">' + esc(c.sku) + '</td><td class="l">' + (c.productId === 0 ? 'Ya no existe en Odoo' : esc(c.nombre || ('producto ' + c.productId))) + '</td><td><button type="button" class="btn sm" data-undo="' + i + '">Deshacer</button></td></tr>').join('') + '</tbody></table></div></details>' : '') +
+      '<div class="filters"><button type="button" class="btn primary" id="eqv-fin">' + (cambios ? 'Cerrar y actualizar el tablero' : 'Cerrar') + '</button></div>';
+    box.querySelectorAll('[data-ok]').forEach(b => b.addEventListener('click', async () => {
+      const i = +b.dataset.ok, sel = box.querySelector('select[data-i="' + i + '"]'), v = sel.value, p = pend[i];
+      if (v === '') return dibujar({t:'Elegí un producto para ' + p.sku + ' (o "Ya no existe").', err:true});
+      b.disabled = true; b.textContent = 'Guardando…';
+      try { await guardar(p.sku, +v); const c = p.candidatos.find(x => x.productId === +v);
+        EQ.pendientes = pend.filter((_, k) => k !== i); EQ.confirmadas = conf.concat([{sku:p.sku, productId:+v, nombre: c ? c.nombre : null}]); dibujar({t:'Guardado: ' + p.sku}); }
+      catch (e) { dibujar({t: e.message || 'No se pudo guardar', err:true}); }
+    }));
+    box.querySelectorAll('[data-undo]').forEach(b => b.addEventListener('click', async () => {
+      const c = conf[+b.dataset.undo]; b.disabled = true;
+      try { await guardar(c.sku, null); EQ.confirmadas = conf.filter(x => x !== c); location.reload(); }
+      catch (e) { dibujar({t: e.message || 'No se pudo deshacer', err:true}); }
+    }));
+    document.getElementById('eqv-fin').addEventListener('click', () => { if (cambios) location.reload(); else box.hidden = true; });
+  }
+  document.getElementById('eqv-open').addEventListener('click', () => { box.hidden = false; dibujar(); box.scrollIntoView({block:'nearest'}); });
 }
 }
