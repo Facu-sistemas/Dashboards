@@ -406,7 +406,7 @@ function Detalle({ hoy, empleadoId, mes, setMes, onVolver }: { hoy: string; empl
                 {sel.fecha.split('-').reverse().join('/')} · {ESTILO_DIA[sel.estado].label}
                 {sel.descartada && <span className="ml-2 text-xs text-slate-500">(descartada por RRHH)</span>}
               </p>
-              {sel.horasAResolver > 0 && <p className="mt-1 text-slate-300">{sel.estado === 'horas-extra' ? 'Sobran' : 'Faltan'} {hs(sel.horasAResolver)}.</p>}
+              {sel.horasAResolver > 0 && <p className="mt-1 text-slate-300">{sel.estado === 'horas-extra' ? 'Sobran' : 'Faltan'} {hs(sel.horasAResolver)}{sel.estado === 'horas-extra' && Math.round((sel.fichadoHs - 8.3) * 60) !== Math.round(sel.horasAResolver * 60) ? ` (exacto: ${Math.round((sel.fichadoHs - 8.3) * 60)} min)` : ''}.</p>}
               <div className="mt-2 grid gap-4 sm:grid-cols-2">
                 <div>
                   <p className="text-xs uppercase tracking-wide text-slate-500">Fichadas</p>

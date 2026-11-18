@@ -25,10 +25,23 @@ export const JORNADA_FICHADA_HS = 8.3;
 /** Diferencia que se tolera antes de marcar horas faltantes (15 min: fichar un rato más tarde o antes es normal). */
 export const TOLERANCIA_FALTANTE_HS = 0.25;
 /**
- * Las horas de más se marcan recién pasada una hora sobre la jornada fichada (≈ después de las 15:20). Se probó con 0,5 hs
+ * Las horas de más se marcan desde una hora sobre la jornada fichada (≈ 15:20), ya redondeadas al cuarto de hora: quien
+ * sobra 59 min cuenta como 1 hora (la pantalla muestra el tiempo exacto entre paréntesis). Se probó con 0,5 hs
  * y llenaba la bandeja de gente que simplemente sale a las 14:40.
  */
 export const TOLERANCIA_EXTRA_HS = 1;
+
+/** Horas decimales a "1 h 5 min". */
+export function minutosTxt(hs: number): string {
+  const m = Math.round(hs * 60);
+  return m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}` : `${m} min`;
+}
+
+/** Horas extra del día redondeadas al cuarto de hora más cercano; 0 si no llegan al mínimo para marcarse. */
+export function extraRedondeadaHs(fichadoHs: number): number {
+  const redondeada = Math.round((fichadoHs - JORNADA_FICHADA_HS) * 4) / 4;
+  return redondeada >= TOLERANCIA_EXTRA_HS ? redondeada : 0;
+}
 /** Una marca más corta que esto (entrada y salida casi en el mismo minuto) no es trabajo real: es un fichaje olvidado. */
 export const MARCA_MINIMA_HS = 0.25;
 
@@ -346,8 +359,8 @@ export async function getRrhhNovedades(desde: string, hasta: string): Promise<Rr
           horasAResolver: round2(faltan),
           detalle: `Trabajó de ${entrada} a ${salida} (${fichadoHs} hs) y le faltan ${round2(faltan)} hs para completar la jornada.`,
         });
-      } else if (cubiertoHs === 0 && !acreditado.has(`${e.id}|${d}`) && fichadoHs - JORNADA_FICHADA_HS > TOLERANCIA_EXTRA_HS) {
-        const sobran = fichadoHs - JORNADA_FICHADA_HS;
+      } else if (cubiertoHs === 0 && !acreditado.has(`${e.id}|${d}`) && extraRedondeadaHs(fichadoHs) > 0) {
+        const sobran = extraRedondeadaHs(fichadoHs);
         detectadas.push({
           ...base,
           clave: `${e.id}|${d}|horas-extra`,
@@ -356,7 +369,7 @@ export async function getRrhhNovedades(desde: string, hasta: string): Promise<Rr
           salida,
           fichadoHs,
           horasAResolver: round2(sobran),
-          detalle: `Trabajó de ${entrada} a ${salida} (${fichadoHs} hs): ${round2(sobran)} hs más que la jornada.`,
+          detalle: `Trabajó de ${entrada} a ${salida} (${fichadoHs} hs): ${round2(sobran)} hs más que la jornada (tiempo exacto: ${minutosTxt(fichadoHs - JORNADA_FICHADA_HS)}).`,
         });
       }
     }

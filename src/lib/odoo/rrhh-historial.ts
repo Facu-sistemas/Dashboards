@@ -9,7 +9,7 @@ import {
   horasDeLicenciaEnDia,
   JORNADA_FICHADA_HS,
   MARCA_MINIMA_HS,
-  TOLERANCIA_EXTRA_HS,
+  extraRedondeadaHs,
   TOLERANCIA_FALTANTE_HS,
   type LeaveRow,
   type M2o,
@@ -248,9 +248,9 @@ export async function getRrhhHistorial(desde: string, hasta: string, empleadoId?
         if (faltan > TOLERANCIA_FALTANTE_HS) {
           tipo = 'horas-faltantes';
           dia.horasAResolver = round2(faltan);
-        } else if (cubiertoHs === 0 && !acreditado.has(`${e.id}|${d}`) && fichadoHs - JORNADA_FICHADA_HS > TOLERANCIA_EXTRA_HS) {
+        } else if (cubiertoHs === 0 && !acreditado.has(`${e.id}|${d}`) && extraRedondeadaHs(fichadoHs) > 0) {
           tipo = 'horas-extra';
-          dia.horasAResolver = round2(fichadoHs - JORNADA_FICHADA_HS);
+          dia.horasAResolver = extraRedondeadaHs(fichadoHs);
         }
       }
 
