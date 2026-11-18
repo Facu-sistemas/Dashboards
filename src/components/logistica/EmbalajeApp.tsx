@@ -122,7 +122,7 @@ function Inner() {
   const [enviando, setEnviando] = useState(false);
   const [cola, setCola] = useState<ItemCola[]>([]);
   const [rechazados, setRechazados] = useState<ItemRechazado[]>([]);
-  const [ajuste, setAjuste] = useState<{ modo: 'mas' | 'menos'; fila: EmbalajeFila } | null>(null);
+  const [ajuste, setAjuste] = useState<{ fila: EmbalajeFila } | null>(null);
   const subiendo = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const qc = useQueryClient();
@@ -283,6 +283,26 @@ function Inner() {
   }, [codigo]);
 
   const d = query.data;
+
+  // −1 de la tabla: borra el último escaneo de ese producto. Solo pregunta si hay más de un lugar donde puede estar
+  // (distinta embaladora o pallet); si está en uno solo, no hay nada que elegir.
+  const restar = (f: EmbalajeFila) => {
+    if (!f.barcode) return;
+    const lugares = new Map<string, number>();
+    for (const e of d?.escaneos ?? []) {
+      if (e.barcode.toUpperCase() !== f.barcode.toUpperCase()) continue;
+      const k = `${e.scanner ?? 0}|${e.pallet ?? 0}`;
+      if (!lugares.has(k)) lugares.set(k, e.id); // la lista viene del más nuevo al más viejo
+    }
+    if (lugares.size === 1) void ejecutar({ accion: 'anular', id: [...lugares.values()][0]! });
+    else setAjuste({ fila: f });
+  };
+
+  // "Agregar" en un escaneo de la lista: suma 1 del mismo producto, en la misma embaladora y el mismo pallet.
+  const agregarComo = (e: EscaneoFila) => {
+    const p = e.pallet && e.scanner ? d?.pallets.find((x) => x.scanner === e.scanner && x.numero === e.pallet) : undefined;
+    void ejecutar({ accion: 'escanear', codigo: e.barcode, ...(e.scanner === 1 || e.scanner === 2 ? { scanner: e.scanner } : {}), ...(p ? { palletId: p.id } : {}) });
+  };
   const esHoy = fecha === hoyArgentina();
 
   const filas = d?.filas ?? [];
@@ -313,10 +333,8 @@ function Inner() {
       <ConfirmacionEscaneo aviso={aviso} onCerrar={() => setAviso(null)} />
       {ajuste && d && (
         <AjusteManual
-          modo={ajuste.modo}
           fila={ajuste.fila}
           escaneos={escaneos}
-          pallets={d.pallets}
           onCerrar={() => setAjuste(null)}
           onElegir={(envio) => {
             setAjuste(null);
@@ -343,8 +361,8 @@ function Inner() {
 
       {d && (
         <div className="grid gap-6 lg:grid-cols-2">
-          <EscaneosPorScanner scanner={1} pallets={d.pallets} titulo="Escaneó E1" escaneos={escaneos.filter((e) => e.scanner === 1)} esHoy={esHoy} enviando={enviando} onBorrar={(id) => void ejecutar({ accion: 'anular', id })} onPallet={(a) => void ejecutar({ accion: a, scanner: 1 })} />
-          <EscaneosPorScanner scanner={2} pallets={d.pallets} titulo="Escaneó E2" escaneos={escaneos.filter((e) => e.scanner === 2)} esHoy={esHoy} enviando={enviando} onBorrar={(id) => void ejecutar({ accion: 'anular', id })} onPallet={(a) => void ejecutar({ accion: a, scanner: 2 })} />
+          <EscaneosPorScanner scanner={1} pallets={d.pallets} titulo="Escaneó E1" escaneos={escaneos.filter((e) => e.scanner === 1)} esHoy={esHoy} enviando={enviando} onBorrar={(id) => void ejecutar({ accion: 'anular', id })} onAgregar={agregarComo} onPallet={(a) => void ejecutar({ accion: a, scanner: 1 })} />
+          <EscaneosPorScanner scanner={2} pallets={d.pallets} titulo="Escaneó E2" escaneos={escaneos.filter((e) => e.scanner === 2)} esHoy={esHoy} enviando={enviando} onBorrar={(id) => void ejecutar({ accion: 'anular', id })} onAgregar={agregarComo} onPallet={(a) => void ejecutar({ accion: a, scanner: 2 })} />
         </div>
       )}
 
@@ -507,21 +525,11 @@ function Inner() {
                     <td className="whitespace-nowrap px-4 py-3 text-right">
                       {esHoy && f.barcode && (
                         <span className="inline-flex gap-1">
-                          <button
-                            type="button"
-                            tabIndex={-1}
-                            onMouseDown={(ev) => ev.preventDefault()}
-                            onClick={() => setAjuste({ modo: 'mas', fila: f })}
-                            disabled={enviando}
-                            className="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50"
-                          >
-                            +1
-                          </button>
                             <button
                               type="button"
                               tabIndex={-1}
                               onMouseDown={(ev) => ev.preventDefault()}
-                              onClick={() => setAjuste({ modo: 'menos', fila: f })}
+                              onClick={() => restar(f)}
                               disabled={enviando}
                               className="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50"
                             >
@@ -621,7 +629,7 @@ function Inner() {
               <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-slate-100 hover:bg-slate-800/40">
                 Sin identificar ({n0.format(escaneos.filter((e) => e.scanner !== 1 && e.scanner !== 2).length)})
               </summary>
-              <EscaneosPorScanner titulo="Sin identificar" escaneos={escaneos.filter((e) => e.scanner !== 1 && e.scanner !== 2)} esHoy={esHoy} enviando={enviando} onBorrar={(id) => void ejecutar({ accion: 'anular', id })} sinCabecera />
+              <EscaneosPorScanner titulo="Sin identificar" escaneos={escaneos.filter((e) => e.scanner !== 1 && e.scanner !== 2)} esHoy={esHoy} enviando={enviando} onBorrar={(id) => void ejecutar({ accion: 'anular', id })} onAgregar={agregarComo} sinCabecera />
             </details>
           )}
         </div>
@@ -641,6 +649,7 @@ function EscaneosPorScanner({
   esHoy,
   enviando,
   onBorrar,
+  onAgregar,
   scanner,
   pallets = [],
   onPallet,
@@ -651,6 +660,7 @@ function EscaneosPorScanner({
   esHoy: boolean;
   enviando: boolean;
   onBorrar: (id: number) => void;
+  onAgregar?: (e: EscaneoFila) => void;
   scanner?: 1 | 2;
   pallets?: EmbalajeResult['pallets'];
   onPallet?: (accion: 'pallet-iniciar' | 'pallet-terminar') => void;
@@ -696,7 +706,16 @@ function EscaneosPorScanner({
                 <div className="flex items-center gap-3 border-b border-slate-800/60 px-4 py-2 text-sm">
                   <span className="w-14 shrink-0 tabular-nums text-slate-400">{hora.format(new Date(e.creado))}</span>
                   <span className="min-w-0 flex-1 truncate text-slate-100">{e.producto ?? e.barcode}</span>
-                  <span className="hidden font-mono text-xs text-slate-500 sm:inline">{e.barcode}</span>
+                  {esHoy && onAgregar && (
+                    <button
+                      type="button"
+                      onClick={() => onAgregar(e)}
+                      disabled={enviando}
+                      className="rounded border border-status-green/60 px-2 py-1 text-xs font-semibold text-status-green hover:bg-slate-800 disabled:opacity-50"
+                    >
+                      Agregar
+                    </button>
+                  )}
                   {esHoy && (
                     <button
                       type="button"
@@ -761,26 +780,18 @@ function ConfirmacionEscaneo({ aviso, onCerrar }: { aviso: Aviso | null; onCerra
   );
 }
 
-/**
- * +1 / −1 a mano desde la tabla: pregunta de qué embaladora y de qué pallet. El +1 se carga dentro del pallet elegido;
- * el −1 borra el último escaneo de ese producto en la embaladora y pallet elegidos.
- */
+/** −1 de la tabla cuando el producto está en más de un lugar: se elige de qué embaladora y pallet sacar 1. */
 function AjusteManual({
-  modo,
   fila,
   escaneos,
-  pallets,
   onElegir,
   onCerrar,
 }: {
-  modo: 'mas' | 'menos';
   fila: EmbalajeFila;
   escaneos: EscaneoFila[];
-  pallets: EmbalajeResult['pallets'];
   onElegir: (envio: Envio) => void;
   onCerrar: () => void;
 }) {
-  const [scanner, setScanner] = useState<1 | 2 | null>(null);
   useEffect(() => {
     const alTeclear = (e: KeyboardEvent) => e.key === 'Escape' && onCerrar();
     window.addEventListener('keydown', alTeclear);
@@ -789,84 +800,30 @@ function AjusteManual({
 
   const boton = 'rounded-lg border border-slate-600 bg-slate-950 px-4 py-3 text-left text-base font-semibold text-slate-100 hover:border-status-green hover:bg-slate-800';
   const barcode = fila.barcode!;
-  const esDelProducto = (e: EscaneoFila) => e.barcode.toUpperCase() === barcode.toUpperCase();
-
-  // −1: grupos (embaladora + pallet) que tienen este producto; el borrado va sobre el más reciente de cada grupo.
   const grupos = new Map<string, { scanner: number | null; pallet: number | null; id: number; cantidad: number }>();
-  if (modo === 'menos') {
-    for (const e of escaneos.filter(esDelProducto)) {
-      const k = `${e.scanner ?? 0}|${e.pallet ?? 0}`;
-      const g = grupos.get(k);
-      if (g) g.cantidad++;
-      else grupos.set(k, { scanner: e.scanner, pallet: e.pallet, id: e.id, cantidad: 1 }); // `escaneos` viene del más nuevo al más viejo
-    }
+  for (const e of escaneos.filter((x) => x.barcode.toUpperCase() === barcode.toUpperCase())) {
+    const k = `${e.scanner ?? 0}|${e.pallet ?? 0}`;
+    const g = grupos.get(k);
+    if (g) g.cantidad++;
+    else grupos.set(k, { scanner: e.scanner, pallet: e.pallet, id: e.id, cantidad: 1 }); // `escaneos` viene del más nuevo al más viejo
   }
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4" onClick={onCerrar}>
       <div role="dialog" aria-modal="true" className="max-h-[90vh] w-full max-w-lg space-y-4 overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-5" onClick={(ev) => ev.stopPropagation()}>
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{modo === 'mas' ? 'Sumar 1 a mano' : 'Restar 1'}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Restar 1</p>
           <p className="text-lg font-semibold text-slate-100">{fila.producto}</p>
         </div>
-
-        {modo === 'menos' ? (
-          <div className="space-y-2">
-            <p className="text-sm text-slate-300">{grupos.size ? '¿De cuál embaladora y pallet querés sacar 1?' : 'Este producto no tiene escaneos para restar.'}</p>
-            {[...grupos.values()].map((g) => (
-              <button key={`${g.scanner}-${g.pallet}`} type="button" className={`${boton} w-full`} onClick={() => onElegir({ accion: 'anular', id: g.id })}>
-                {g.scanner ? `E${g.scanner}` : 'Sin identificar'} · {g.pallet ? `Pallet ${g.pallet}` : 'Sin pallet'}
-                <span className="ml-2 text-sm font-normal text-slate-400">({g.cantidad} de este producto)</span>
-              </button>
-            ))}
-          </div>
-        ) : scanner === null ? (
-          <div className="space-y-2">
-            <p className="text-sm text-slate-300">¿De qué embaladora?</p>
-            <div className="grid grid-cols-2 gap-3">
-              {([1, 2] as const).map((n) => (
-                <button key={n} type="button" className={`${boton} text-center text-2xl`} onClick={() => setScanner(n)}>
-                  E{n}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {(() => {
-              // Solo los pallets donde ya hay de este producto; si todavía no hay de este producto en ninguno, todos los de esa embaladora.
-              const delScanner = pallets.filter((p) => p.scanner === scanner);
-              const cuantos = (p: (typeof pallets)[number]) => escaneos.filter((e) => esDelProducto(e) && e.scanner === p.scanner && e.pallet === p.numero).length;
-              const conProducto = delScanner.filter((p) => cuantos(p) > 0);
-              const lista = [...(conProducto.length ? conProducto : delScanner)].reverse(); // el más reciente primero
-              return (
-                <>
-                  <p className="text-sm text-slate-300">
-                    {conProducto.length ? `Pallets de la E${scanner} donde ya hay de este producto:` : delScanner.length ? `La E${scanner} todavía no tiene de este producto. ¿En qué pallet?` : ''}
-                  </p>
-                  {lista.map((p) => (
-                    <button key={p.id} type="button" className={`${boton} w-full`} onClick={() => onElegir({ accion: 'escanear', codigo: barcode, scanner, palletId: p.id })}>
-                      Pallet {p.numero}
-                      <span className="ml-2 text-sm font-normal text-slate-400">
-                        {conProducto.length ? `${cuantos(p)} de este producto · ` : ''}
-                        {n0.format(p.cantidad)} en total · {p.fin ? 'terminado' : 'en curso'}
-                      </span>
-                    </button>
-                  ))}
-                </>
-              );
-            })()}
-            {!pallets.some((p) => p.scanner === scanner) && (
-              <button type="button" className={`${boton} w-full`} onClick={() => onElegir({ accion: 'escanear', codigo: barcode, scanner })}>
-                Sin pallet (la E{scanner} no armó ninguno hoy)
-              </button>
-            )}
-            <button type="button" className="text-sm text-slate-400 underline" onClick={() => setScanner(null)}>
-              ← Cambiar embaladora
+        <div className="space-y-2">
+          <p className="text-sm text-slate-300">{grupos.size ? '¿De cuál embaladora y pallet querés sacar 1?' : 'Este producto no tiene escaneos para restar.'}</p>
+          {[...grupos.values()].map((g) => (
+            <button key={`${g.scanner}-${g.pallet}`} type="button" className={`${boton} w-full`} onClick={() => onElegir({ accion: 'anular', id: g.id })}>
+              {g.scanner ? `E${g.scanner}` : 'Sin identificar'} · {g.pallet ? `Pallet ${g.pallet}` : 'Sin pallet'}
+              <span className="ml-2 text-sm font-normal text-slate-400">({g.cantidad} de este producto)</span>
             </button>
-          </div>
-        )}
-
+          ))}
+        </div>
         <div className="flex justify-end">
           <button type="button" onClick={onCerrar} className="rounded border border-slate-700 px-4 py-1.5 text-sm text-slate-300 hover:bg-slate-800">
             Cancelar
