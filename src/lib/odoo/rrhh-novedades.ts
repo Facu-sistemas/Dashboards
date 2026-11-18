@@ -25,11 +25,11 @@ export const JORNADA_FICHADA_HS = 8.3;
 /** Diferencia que se tolera antes de marcar horas faltantes (15 min: fichar un rato más tarde o antes es normal). */
 export const TOLERANCIA_FALTANTE_HS = 0.25;
 /**
- * Las horas de más se marcan desde una hora sobre la jornada fichada (≈ 15:20), ya redondeadas al cuarto de hora: quien
- * sobra 59 min cuenta como 1 hora (la pantalla muestra el tiempo exacto entre paréntesis). Se probó con 0,5 hs
- * y llenaba la bandeja de gente que simplemente sale a las 14:40.
+ * Las horas de más se marcan desde 30 min sobre la jornada fichada (se cuentan desde las 14:18 si entró a las 6:00; a las 14:48 ya hay 30 min), ya redondeadas al cuarto de hora: quien
+ * sobra 29 min cuenta como 30 (la pantalla muestra el tiempo exacto entre paréntesis). Lo pidió RRHH (Juan): umbral de 30 min
+ * (antes era 1 h).
  */
-export const TOLERANCIA_EXTRA_HS = 1;
+export const TOLERANCIA_EXTRA_HS = 0.5;
 
 /** Horas decimales a "1 h 5 min". */
 export function minutosTxt(hs: number): string {

@@ -642,7 +642,7 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
       {data && (
         <p className="text-xs text-slate-500">
           Se revisan los días hábiles hasta el {formatFechaIso(data.evaluadoHasta)} (hoy no, porque todavía puede estar trabajando). Jornada fichada de{' '}
-          {formatDias(data.jornadaHs)} hs: se tolera 15 min de diferencia, y las horas extra se redondean al cuarto de hora desde 1 hora de más (el tiempo exacto va entre paréntesis). Lo que ya está cubierto por una licencia aprobada en Odoo (por ejemplo un
+          {formatDias(data.jornadaHs)} hs: se tolera 15 min de diferencia, y las horas extra se redondean al cuarto de hora desde 30 min de más (el tiempo exacto va entre paréntesis). Lo que ya está cubierto por una licencia aprobada en Odoo (por ejemplo un
           banco de horas ya cargado) no aparece.{puedeCargar ? ' Cada novedad tiene su acción: cargar la ausencia, acreditar las horas extra al banco o corregir la fichada, todo en Odoo; o descartarla.' : ' Solo lectura.'}
         </p>
       )}
