@@ -3,6 +3,8 @@ import { addDaysIso } from '@/lib/date';
 import { getArgentinaTodayIso } from './oee';
 import { ApiValidationError } from '@/lib/api-helpers';
 import { BANCO_HORAS_TYPE_ID, esFinDeSemana, fechaArgentina, HORAS_DIA, OFFSET_ARG_MS } from './rrhh-quincena';
+import { cargarBaseFichaje } from './rrhh-fichaje-base';
+import { getEstadosResumen } from '@/lib/supabase/rrhh-resumen-estado';
 import { listNovedadesDescartadas, type NovedadDescartada } from '@/lib/supabase/rrhh-novedades-descartadas';
 
 /**
@@ -152,7 +154,7 @@ export async function getRrhhNovedades(desde: string, hasta: string): Promise<Rr
   const hoy = getArgentinaTodayIso();
   const evaluadoHasta = hasta < hoy ? hasta : addDaysIso(hoy, -1);
 
-  const [employees, attendance, leaves, globalLeaves, acreditaciones] = await Promise.all([
+  const [employees, attendance, leaves, globalLeaves, acreditaciones, baseFichaje, estadosResumen] = await Promise.all([
     searchReadAll<EmployeeRow>({
       model: 'hr.employee',
       domain: [['active', '=', true]],
@@ -207,6 +209,8 @@ export async function getRrhhNovedades(desde: string, hasta: string): Promise<Rr
       ],
       fields: ['employee_id', 'date_from'],
     }),
+    cargarBaseFichaje(),
+    getEstadosResumen(),
   ]);
 
   const acreditado = new Set<string>();
@@ -243,13 +247,13 @@ export async function getRrhhNovedades(desde: string, hasta: string): Promise<Rr
   const detectadas: Omit<NovedadRow, 'descartada'>[] = [];
 
   for (const e of employees) {
-    const porDia = fichadas.get(e.id);
-    // Sin ninguna fichada en el rango no se puede saber si faltó o si todavía no usaba el kiosco.
-    if (!porDia || porDia.size === 0) continue;
-    const primeraFichada = [...porDia.keys()].sort()[0]!;
+    // Los que RRHH marcó en Administración ("ignorar" o "reporte perfecto") no se controlan: no generan novedades.
+    if (estadosResumen.has(e.id)) continue;
+    const porDia = fichadas.get(e.id) ?? new Map<string, AttendanceRow[]>();
+    // Quien nunca usó el kiosco no se evalúa, salvo que figure en la nómina de la Planilla con un convenio que ficha (ver rrhh-fichaje-base.ts).
+    const inicio = baseFichaje.inicioEvaluacion(e, desde);
+    if (!inicio) continue;
     const feriados = (e.resource_calendar_id ? feriadosPorCalendario.get(e.resource_calendar_id[0]) : undefined) ?? new Set<string>();
-    const ingreso = e.x_studio_fecha_ingreso || null;
-    const inicio = [desde, primeraFichada, ingreso ?? ''].reduce((max, v) => (v > max ? v : max));
     const licencias = licenciasPorEmpleado.get(e.id) ?? [];
 
     for (let d = inicio; d <= evaluadoHasta; d = addDaysIso(d, 1)) {

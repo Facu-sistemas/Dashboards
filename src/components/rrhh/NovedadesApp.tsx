@@ -202,7 +202,7 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
     setForm({
       // Banco de horas para lo que falta; Permisos sin pagar para un día sin fichada (la falta injustificada que cuenta en el ausentismo).
       tipoId: nuevoModo === 'dia' ? 4 : 6,
-      horas: horasComa(Math.min(r.horasAResolver, maxHoras)),
+      horas: r.horasAResolver > 0 ? horasComa(Math.min(r.horasAResolver, maxHoras)) : '',
       nota: '',
       // En una marca incompleta la hora que se ve es la de la única marca: RRHH corrige la que falta.
       // Jornada habitual (6:00 a 14:18) como punto de partida para una fichada nueva; RRHH la ajusta.
@@ -356,6 +356,110 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
   const departamentos = useMemo(
     () => [...new Set([...allRows.map((r) => r.departamento), ...sinNovedad.map((e) => e.departamento)].filter((d): d is string => Boolean(d)))].sort((a, b) => a.localeCompare(b, 'es')),
     [allRows, sinNovedad]
+  );
+
+  /** Formulario de carga en Odoo (el mismo para las filas con novedad y para las acciones manuales de las filas sin novedad). */
+  const formularioCarga = (r: NovedadRow) => (
+                    <tr className="bg-slate-950/60">
+                      <td colSpan={9} className="px-3 py-3">
+                        <div className="flex flex-wrap items-end gap-4 text-sm text-slate-300">
+                          {(modo === 'cargar' || modo === 'dia') && (
+                            <label className="flex flex-col gap-1">
+                              Qué fue
+                              <select value={form.tipoId} onChange={(e) => setForm({ ...form, tipoId: Number(e.target.value) })} className={`min-w-[12rem] ${selectClass}`}>
+                                {(modo === 'cargar' ? TIPOS_AUSENCIA_CARGABLES : TIPOS_AUSENCIA_DIA_COMPLETO).map((t) => (
+                                  <option key={t.id} value={t.id}>
+                                    {t.nombre}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          )}
+                          {(modo === 'cargar' || modo === 'banco') && (
+                            <label className="flex flex-col gap-1">
+                              {modo === 'banco' ? 'Horas a acreditar' : 'Horas'}
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={form.horas}
+                                onChange={(e) => setForm({ ...form, horas: e.target.value })}
+                                className={`w-24 ${selectClass}`}
+                              />
+                            </label>
+                          )}
+                          {(modo === 'fichada' || modo === 'nueva-fichada') && (
+                            <>
+                              <label className="flex flex-col gap-1">
+                                Entrada
+                                {modo === 'fichada' && r.tipo === 'sin-salida' ? (
+                                  <span className="py-1.5 tabular-nums text-slate-100">{r.entrada ?? '—'}</span>
+                                ) : (
+                                  <input type="time" value={form.entrada} onChange={(e) => setForm({ ...form, entrada: e.target.value })} className={selectClass} />
+                                )}
+                              </label>
+                              <label className="flex flex-col gap-1">
+                                Salida
+                                <input type="time" value={form.salida} onChange={(e) => setForm({ ...form, salida: e.target.value })} className={selectClass} />
+                              </label>
+                            </>
+                          )}
+                          <label className="flex min-w-[14rem] flex-1 flex-col gap-1">
+                            Nota (opcional)
+                            <input
+                              type="text"
+                              value={form.nota}
+                              maxLength={200}
+                              onChange={(e) => setForm({ ...form, nota: e.target.value })}
+                              placeholder={modo === 'nueva-fichada' ? 'Ej.: trabajó y no pasó por el reloj' : modo === 'fichada' ? 'Ej.: se olvidó de fichar la salida' : 'Ej.: se retiró con permiso'}
+                              className={`placeholder:text-slate-600 ${selectClass}`}
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            disabled={enviando}
+                            onClick={() => aprobar(r)}
+                            className="rounded bg-brand-500 px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40"
+                          >
+                            {enviando ? 'Guardando…' : modo === 'nueva-fichada' ? 'Cargar fichada en Odoo' : modo === 'fichada' ? 'Corregir en Odoo' : modo === 'banco' ? 'Acreditar en Odoo' : 'Aprobar y cargar en Odoo'}
+                          </button>
+                        </div>
+                        <p className="mt-2 text-xs text-slate-500">
+                          {modo === 'cargar' && (
+                            <>
+                              Se crea en Odoo, ya aprobada, una ausencia de {TIPOS_AUSENCIA_CARGABLES.find((t) => t.id === form.tipoId)?.nombre.toLowerCase()} de{' '}
+                              {form.horas || '—'} hs para {r.empleado} el {fechaCorta(r.fecha)}. Faltan {hs(r.horasAResolver)} según las fichadas.
+                              {form.tipoId === 6 && ` Descuenta del banco de horas (saldo hoy: ${hs(r.saldoBanco)}).`}
+                            </>
+                          )}
+                          {modo === 'dia' && (
+                            <>
+                              Se crea en Odoo, ya aprobada, una ausencia de día completo ({TIPOS_AUSENCIA_DIA_COMPLETO.find((t) => t.id === form.tipoId)?.nombre.toLowerCase()}) para{' '}
+                              {r.empleado} el {fechaCorta(r.fecha)}. Si Odoo no deja cargarla (por ejemplo falta saldo de vacaciones), te lo avisa.
+                            </>
+                          )}
+                          {modo === 'banco' && (
+                            <>
+                              Se acreditan en Odoo, ya aprobadas, {form.horas || '—'} hs al banco de horas de {r.empleado} por el {fechaCorta(r.fecha)} (trabajó {hs(r.fichadoHs)}).
+                              Saldo hoy: {hs(r.saldoBanco)}.
+                            </>
+                          )}
+                          {modo === 'nueva-fichada' && (
+                            <>
+                              Se crea en Odoo la fichada de {r.empleado} del {fechaCorta(r.fecha)} ({form.entrada || '—'} a {form.salida || '—'}), marcada como manual. Los horarios sugeridos son
+                              los de la jornada habitual: ajustalos a lo que realmente trabajó. Con la fichada cargada, la novedad se vuelve a evaluar sola.
+                            </>
+                          )}
+                          {modo === 'fichada' && (
+                            <>
+                              Se corrige en Odoo la fichada de {r.empleado} del {fechaCorta(r.fecha)}
+                              {r.tipo === 'sin-salida' ? ` (entró a las ${r.entrada})` : ` (la única marca es de las ${r.entrada})`}; queda marcada como manual.
+                            </>
+                          )}{' '}
+                          No se puede borrar desde la web: si te equivocás, corregilo en Odoo.
+                        </p>
+                        {errorCarga && <p className="mt-2 text-sm text-rose-300">{errorCarga}</p>}
+                      </td>
+                    </tr>
   );
 
   return (
@@ -687,116 +791,37 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
                       </td>
                     </tr>
                   )}
-                  {puedeCargar && abierta === r.clave && modo !== 'descartar' && (
-                    <tr className="bg-slate-950/60">
-                      <td colSpan={9} className="px-3 py-3">
-                        <div className="flex flex-wrap items-end gap-4 text-sm text-slate-300">
-                          {(modo === 'cargar' || modo === 'dia') && (
-                            <label className="flex flex-col gap-1">
-                              Qué fue
-                              <select value={form.tipoId} onChange={(e) => setForm({ ...form, tipoId: Number(e.target.value) })} className={`min-w-[12rem] ${selectClass}`}>
-                                {(modo === 'cargar' ? TIPOS_AUSENCIA_CARGABLES : TIPOS_AUSENCIA_DIA_COMPLETO).map((t) => (
-                                  <option key={t.id} value={t.id}>
-                                    {t.nombre}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                          )}
-                          {(modo === 'cargar' || modo === 'banco') && (
-                            <label className="flex flex-col gap-1">
-                              {modo === 'banco' ? 'Horas a acreditar' : 'Horas'}
-                              <input
-                                type="text"
-                                inputMode="decimal"
-                                value={form.horas}
-                                onChange={(e) => setForm({ ...form, horas: e.target.value })}
-                                className={`w-24 ${selectClass}`}
-                              />
-                            </label>
-                          )}
-                          {(modo === 'fichada' || modo === 'nueva-fichada') && (
-                            <>
-                              <label className="flex flex-col gap-1">
-                                Entrada
-                                {modo === 'fichada' && r.tipo === 'sin-salida' ? (
-                                  <span className="py-1.5 tabular-nums text-slate-100">{r.entrada ?? '—'}</span>
-                                ) : (
-                                  <input type="time" value={form.entrada} onChange={(e) => setForm({ ...form, entrada: e.target.value })} className={selectClass} />
-                                )}
-                              </label>
-                              <label className="flex flex-col gap-1">
-                                Salida
-                                <input type="time" value={form.salida} onChange={(e) => setForm({ ...form, salida: e.target.value })} className={selectClass} />
-                              </label>
-                            </>
-                          )}
-                          <label className="flex min-w-[14rem] flex-1 flex-col gap-1">
-                            Nota (opcional)
-                            <input
-                              type="text"
-                              value={form.nota}
-                              maxLength={200}
-                              onChange={(e) => setForm({ ...form, nota: e.target.value })}
-                              placeholder={modo === 'nueva-fichada' ? 'Ej.: trabajó y no pasó por el reloj' : modo === 'fichada' ? 'Ej.: se olvidó de fichar la salida' : 'Ej.: se retiró con permiso'}
-                              className={`placeholder:text-slate-600 ${selectClass}`}
-                            />
-                          </label>
-                          <button
-                            type="button"
-                            disabled={enviando}
-                            onClick={() => aprobar(r)}
-                            className="rounded bg-brand-500 px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40"
-                          >
-                            {enviando ? 'Guardando…' : modo === 'nueva-fichada' ? 'Cargar fichada en Odoo' : modo === 'fichada' ? 'Corregir en Odoo' : modo === 'banco' ? 'Acreditar en Odoo' : 'Aprobar y cargar en Odoo'}
-                          </button>
-                        </div>
-                        <p className="mt-2 text-xs text-slate-500">
-                          {modo === 'cargar' && (
-                            <>
-                              Se crea en Odoo, ya aprobada, una ausencia de {TIPOS_AUSENCIA_CARGABLES.find((t) => t.id === form.tipoId)?.nombre.toLowerCase()} de{' '}
-                              {form.horas || '—'} hs para {r.empleado} el {fechaCorta(r.fecha)}. Faltan {hs(r.horasAResolver)} según las fichadas.
-                              {form.tipoId === 6 && ` Descuenta del banco de horas (saldo hoy: ${hs(r.saldoBanco)}).`}
-                            </>
-                          )}
-                          {modo === 'dia' && (
-                            <>
-                              Se crea en Odoo, ya aprobada, una ausencia de día completo ({TIPOS_AUSENCIA_DIA_COMPLETO.find((t) => t.id === form.tipoId)?.nombre.toLowerCase()}) para{' '}
-                              {r.empleado} el {fechaCorta(r.fecha)}. Si Odoo no deja cargarla (por ejemplo falta saldo de vacaciones), te lo avisa.
-                            </>
-                          )}
-                          {modo === 'banco' && (
-                            <>
-                              Se acreditan en Odoo, ya aprobadas, {form.horas || '—'} hs al banco de horas de {r.empleado} por el {fechaCorta(r.fecha)} (trabajó {hs(r.fichadoHs)}).
-                              Saldo hoy: {hs(r.saldoBanco)}.
-                            </>
-                          )}
-                          {modo === 'nueva-fichada' && (
-                            <>
-                              Se crea en Odoo la fichada de {r.empleado} del {fechaCorta(r.fecha)} ({form.entrada || '—'} a {form.salida || '—'}), marcada como manual. Los horarios sugeridos son
-                              los de la jornada habitual: ajustalos a lo que realmente trabajó. Con la fichada cargada, la novedad se vuelve a evaluar sola.
-                            </>
-                          )}
-                          {modo === 'fichada' && (
-                            <>
-                              Se corrige en Odoo la fichada de {r.empleado} del {fechaCorta(r.fecha)}
-                              {r.tipo === 'sin-salida' ? ` (entró a las ${r.entrada})` : ` (la única marca es de las ${r.entrada})`}; queda marcada como manual.
-                            </>
-                          )}{' '}
-                          No se puede borrar desde la web: si te equivocás, corregilo en Odoo.
-                        </p>
-                        {errorCarga && <p className="mt-2 text-sm text-rose-300">{errorCarga}</p>}
-                      </td>
-                    </tr>
-                  )}
+                  {puedeCargar && abierta === r.clave && modo !== 'descartar' && formularioCarga(r)}
                   </Fragment>
                 ))
               )}
               {sinFiltradas.map((e) => {
                 const d = e.dia!;
                 const info = BADGE_SIN[d.estado] ?? BADGE_SIN.ok;
+                // Fila "armada" para reusar el formulario de carga: RRHH puede acreditar horas al banco aunque no haya novedad
+                // (por ejemplo, trabajó justo una hora de más y no pasa la tolerancia).
+                const manual: NovedadRow = {
+                  clave: `${e.empleadoId}|${d.fecha}|manual`,
+                  empleadoId: e.empleadoId,
+                  empleado: e.empleado,
+                  legajo: e.legajo,
+                  departamento: e.departamento,
+                  fecha: d.fecha,
+                  tipo: 'horas-extra',
+                  entrada: d.entrada,
+                  salida: d.salida,
+                  fichadoHs: d.fichadoHs,
+                  horasAResolver: Math.max(0, Math.round((d.fichadoHs - data.jornadaHs) * 100) / 100),
+                  cubiertoHs: 0,
+                  pendienteHs: 0,
+                  licencias: d.licencias,
+                  saldoBanco: e.saldoBanco,
+                  detalle: '',
+                  descartada: null,
+                };
                 return (
-                  <tr key={`sin-${e.empleadoId}`} className="border-t border-slate-800 align-top">
+                  <Fragment key={`sin-${e.empleadoId}`}>
+                  <tr className="border-t border-slate-800 align-top">
                     <td className="whitespace-nowrap px-3 py-2 text-slate-300">{fechaCorta(d.fecha)}</td>
                     <td className="px-3 py-2">
                       {onVerHistorial ? (
@@ -833,8 +858,21 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
                       )}
                     </td>
                     <td className={`px-3 py-2 text-right tabular-nums ${e.saldoBanco < 0 ? 'text-rose-300' : 'text-slate-400'}`}>{hs(e.saldoBanco)}</td>
-                    {puedeCargar && <td />}
+                    {puedeCargar && (
+                      <td className="whitespace-nowrap px-3 py-2 text-right">
+                        <button
+                          type="button"
+                          onClick={() => (abierta === manual.clave && modo === 'banco' ? setAbierta(null) : abrir(manual, 'banco'))}
+                          title="Acreditar horas al banco de horas de este empleado por este día, aunque no figure como novedad."
+                          className="rounded border border-slate-700 px-2 py-1 text-xs text-slate-200 hover:border-brand-500"
+                        >
+                          {abierta === manual.clave && modo === 'banco' ? 'Cerrar' : 'Acreditar al banco'}
+                        </button>
+                      </td>
+                    )}
                   </tr>
+                  {puedeCargar && abierta === manual.clave && modo === 'banco' && formularioCarga(manual)}
+                  </Fragment>
                 );
               })}
             </tbody>

@@ -16,6 +16,8 @@ import {
   type NovedadLicenciaDia,
   type NovedadTipo,
 } from './rrhh-novedades';
+import { cargarBaseFichaje } from './rrhh-fichaje-base';
+import { getEstadosResumen } from '@/lib/supabase/rrhh-resumen-estado';
 import { listNovedadesDescartadas } from '@/lib/supabase/rrhh-novedades-descartadas';
 
 /**
@@ -110,7 +112,7 @@ export async function getRrhhHistorial(desde: string, hasta: string, empleadoId?
   const evaluadoHasta = hasta < hoy ? hasta : addDaysIso(hoy, -1);
   const soloEmpleado: OdooDomainLeaf[] = empleadoId ? [['employee_id', '=', empleadoId]] : [];
 
-  const [employees, attendance, leaves, globalLeaves, acreditaciones, descartes] = await Promise.all([
+  const [employees, attendance, leaves, globalLeaves, acreditaciones, descartes, baseFichaje, estadosResumen] = await Promise.all([
     searchReadAll<EmployeeRow>({
       model: 'hr.employee',
       domain: [['active', '=', true]],
@@ -139,6 +141,8 @@ export async function getRrhhHistorial(desde: string, hasta: string, empleadoId?
       fields: ['employee_id', 'date_from'],
     }),
     listNovedadesDescartadas(desde, hasta),
+    cargarBaseFichaje(),
+    getEstadosResumen(),
   ]);
 
   const acreditado = new Set<string>();
@@ -170,12 +174,14 @@ export async function getRrhhHistorial(desde: string, hasta: string, empleadoId?
   let detalle: RrhhHistorialResult['detalle'] = null;
 
   for (const e of employees) {
+    // Administración: "ignorar" = no aparece en ningún lado; "reporte perfecto" = aparece pero sus horas no se controlan (nunca tiene novedad).
+    const estadoAdmin = estadosResumen.get(e.id);
+    if (estadoAdmin === 'ignorar') continue;
     const porDia = fichadas.get(e.id) ?? new Map<string, AttendanceRow[]>();
     const feriados = (e.resource_calendar_id ? feriadosPorCalendario.get(e.resource_calendar_id[0]) : undefined) ?? new Set<string>();
     const licencias = licenciasPorEmpleado.get(e.id) ?? [];
-    // Antes de su primera fichada del período (o de su ingreso) no se puede decir que faltó: puede que todavía no usara el kiosco.
-    const primera = [...porDia.keys()].sort()[0];
-    const inicio = primera ? [desde, primera, e.x_studio_fecha_ingreso || ''].reduce((m, v) => (v > m ? v : m)) : null;
+    // Antes de su primera fichada (o de su ingreso) no se puede decir que faltó: puede que todavía no usara el kiosco (ver rrhh-fichaje-base.ts).
+    const inicio = baseFichaje.inicioEvaluacion(e, desde);
 
     const resumen: EmpleadoResumen = {
       empleadoId: e.id,
@@ -248,6 +254,10 @@ export async function getRrhhHistorial(desde: string, hasta: string, empleadoId?
         }
       }
 
+      if (tipo && estadoAdmin === 'reporte_perfecto') {
+        tipo = null;
+        dia.horasAResolver = 0;
+      }
       if (tipo) {
         dia.estado = tipo;
         dia.descartada = descartes.map.has(`${e.id}|${d}|${tipo}`);
