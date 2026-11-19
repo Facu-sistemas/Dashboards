@@ -50,6 +50,8 @@ export interface ProductoSinResolver {
 
 export interface PlanSillon {
   hoy: string;
+  /** Plan fijado y bloqueado: no se rearma ni se sincroniza con Odoo hasta que se desbloquee. */
+  bloqueado?: boolean;
   lineas: LineaPlan[];
   sinResolver: ProductoSinResolver[];
   sinLinea: { ordenes: number; unidades: number };

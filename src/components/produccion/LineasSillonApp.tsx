@@ -361,7 +361,9 @@ function Reporte({
   const pasado = fecha < hoy;
   // Un día anterior se consulta tal como quedó fijado ese día: no se toca Odoo ni se edita.
   const historico = useApiQuery<{ fijado: LineasSillonResponse['fijado'] }>(['lineas-sillon-dia', fecha], `/api/lineas-sillon?fecha=${fecha}`, { enabled: pasado });
-  const [vista, setVista] = useState<'fijado' | 'vivo'>(fijado ? 'fijado' : 'vivo');
+  // Bloqueado: el plan queda congelado y no se mueve con Odoo. Desbloqueado: se ve en vivo, sincronizado con Odoo.
+  const bloqueado = fijado?.plan.bloqueado === true;
+  const [vista, setVista] = useState<'fijado' | 'vivo'>(bloqueado ? 'fijado' : 'vivo');
   const [error, setError] = useState('');
   const [fijando, setFijando] = useState(false);
   const mostrandoFijado = pasado || (vista === 'fijado' && fijado !== null);
@@ -439,14 +441,14 @@ function Reporte({
     }
   };
 
-  const fijar = async () => {
-    if (fijado && !window.confirm('Ya hay un plan fijado hoy. ¿Reemplazarlo por el plan actual?')) return;
+  const alternarBloqueo = async () => {
+    if (!bloqueado && fijado && !window.confirm('Se bloquea el plan actual de Odoo y reemplaza al fijado de hoy. ¿Seguir?')) return;
     setFijando(true);
     setError('');
     try {
-      await guardarSillon({ tipo: 'fijar-plan', repartir });
+      await guardarSillon(bloqueado ? { tipo: 'desbloquear' } : { tipo: 'bloquear', repartir });
       onSaved();
-      setVista('fijado');
+      setVista(bloqueado ? 'vivo' : 'fijado');
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -522,11 +524,12 @@ function Reporte({
         </div>
         <button
           type="button"
-          onClick={() => void fijar()}
+          onClick={() => void alternarBloqueo()}
           disabled={fijando}
-          className="rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-slate-500 disabled:opacity-50"
+          title={bloqueado ? 'Vuelve a sincronizar con Odoo' : 'Congela el plan: lo que se cierre en Odoo no lo mueve'}
+          className={`rounded border px-3 py-1.5 text-xs disabled:opacity-50 ${bloqueado ? 'border-amber-500/40 bg-amber-500/10 text-amber-300 hover:border-amber-400' : 'border-slate-700 text-slate-300 hover:border-slate-500'}`}
         >
-          {fijando ? 'Fijando…' : 'Fijar el plan actual como el del día'}
+          {fijando ? 'Un momento…' : bloqueado ? '🔒 Desbloquear' : 'Bloquear plan'}
         </button>
         <button
           type="button"
@@ -551,7 +554,13 @@ function Reporte({
           Descargar PDF (todas las líneas)
         </button>
       )}
-      {!mostrandoFijado && fijado && (
+      {bloqueado && !pasado && (
+        <p className="text-xs text-amber-300">
+          Plan bloqueado: no se mueve con lo que se cierre en Odoo y no se edita. Tocá Desbloquear para sincronizar de nuevo (el sobrante de ayer y
+          los ajustes se respetan).
+        </p>
+      )}
+      {!mostrandoFijado && fijado && !bloqueado && (
         <p className="text-xs text-amber-300">
           Estás viendo el plan en vivo: lo que ya se fabricó desde las {horaCorta(fijado.creadoEn)} no aparece y los horarios se recalculan.
         </p>
@@ -633,8 +642,8 @@ function Reporte({
             lp={lp}
             nombres={nombres}
             validos={validos}
-            editable={config.ajustesDisponible && !pasado}
-            sobranteEditable={config.disponible && !pasado}
+            editable={config.ajustesDisponible && !pasado && !bloqueado}
+            sobranteEditable={config.disponible && !pasado && !bloqueado}
             onSobrante={(s) => void guardarSobrante(lp.linea, s)}
             onSobranteReset={() => void guardarSobrante(lp.linea, null)}
             onPdf={() => pdf([lp], `linea-${lp.linea}-${plan.hoy}.pdf`)}

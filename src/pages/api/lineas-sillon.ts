@@ -52,6 +52,13 @@ async function planDeHoy(hoy: string, repartir: boolean, config?: Awaited<Return
   return armarPlan(ordenes, cfg, hoy, repartir, anterior?.plan ?? null);
 }
 
+/** Si ya hay plan fijado hoy se rearma con los cambios de configuración, salvo que esté bloqueado (queda tal cual hasta desbloquear). */
+async function rearmarFijado(repartir: boolean, usuario: string) {
+  const hoy = hoyArgentina();
+  const fijado = await getPlanFijado<PlanSillon>(hoy);
+  if (fijado && !fijado.plan.bloqueado) await fijarPlan(hoy, await planDeHoy(hoy, repartir), usuario);
+}
+
 const hoyArgentina = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date());
 const horaArgentina = () =>
   Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', hour12: false }).format(new Date()));
@@ -127,6 +134,8 @@ const bodySchema = z.discriminatedUnion('tipo', [
   }),
   z.object({ tipo: z.literal('manual-borrar'), id: z.string().uuid() }),
   z.object({ tipo: z.literal('fijar-plan'), repartir: z.boolean() }),
+  z.object({ tipo: z.literal('bloquear'), repartir: z.boolean() }),
+  z.object({ tipo: z.literal('desbloquear') }),
   // Lista de una estación armada a mano (una entrada por fila; null = en blanco) y su vuelta al automático.
   z.object({
     tipo: z.literal('celdas'),
@@ -217,11 +226,7 @@ export const POST: APIRoute = async (context) => {
           [...d.tapiceria, ...d.ensamble].forEach((u) => productoValido(u.producto));
           await setSobrante(d.linea, { tapiceria: d.tapiceria, ensamble: d.ensamble }, usuario);
         } else await setSobrante(d.linea, null, usuario);
-        // Si ya hay plan fijado hoy se rearma con el sobrante corregido, para que lo impreso coincida con la pantalla.
-        const hoy = hoyArgentina();
-        if (await getPlanFijado<PlanSillon>(hoy)) {
-          await fijarPlan(hoy, await planDeHoy(hoy, d.repartir), usuario);
-        }
+        await rearmarFijado(d.repartir, usuario);
         break;
       }
       case 'persona':
@@ -255,11 +260,7 @@ export const POST: APIRoute = async (context) => {
       case 'ignorar-limpiar': {
         if (d.tipo === 'ignorar') await ajustarIgnoradas(d.orden, d.delta, usuario);
         else await limpiarIgnoradas();
-        // Si ya hay plan fijado hoy, se rearma sin lo ignorado para que la hoja impresa también se corra.
-        const hoy = hoyArgentina();
-        if (await getPlanFijado<PlanSillon>(hoy)) {
-          await fijarPlan(hoy, await planDeHoy(hoy, d.repartir), usuario);
-        }
+        await rearmarFijado(d.repartir, usuario);
         break;
       }
       case 'celdas':
@@ -268,16 +269,24 @@ export const POST: APIRoute = async (context) => {
           d.celdas.forEach((c) => c !== null && productoValido(c));
           await setAjuste(d.linea, d.estacion, d.celdas, usuario);
         } else await borrarAjuste(d.linea, d.estacion);
-        // Si ya hay plan fijado hoy se rearma con el ajuste, para que lo impreso coincida con la pantalla.
-        const hoy = hoyArgentina();
-        if (await getPlanFijado<PlanSillon>(hoy)) {
-          await fijarPlan(hoy, await planDeHoy(hoy, d.repartir), usuario);
-        }
+        await rearmarFijado(d.repartir, usuario);
         break;
       }
       case 'fijar-plan': {
         const hoy = hoyArgentina();
         await fijarPlan(hoy, await planDeHoy(hoy, d.repartir), usuario);
+        break;
+      }
+      // Bloquear: congela el plan que se está viendo; Odoo ya no lo mueve. Desbloquear: se vuelve al plan en vivo (la foto se conserva).
+      case 'bloquear': {
+        const hoy = hoyArgentina();
+        await fijarPlan(hoy, { ...(await planDeHoy(hoy, d.repartir)), bloqueado: true }, usuario);
+        break;
+      }
+      case 'desbloquear': {
+        const hoy = hoyArgentina();
+        const fijado = await getPlanFijado<PlanSillon>(hoy);
+        if (fijado) await fijarPlan(hoy, { ...fijado.plan, bloqueado: false }, fijado.creadoPor);
         break;
       }
     }
