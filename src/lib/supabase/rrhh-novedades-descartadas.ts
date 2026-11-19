@@ -66,6 +66,22 @@ export async function descartarNovedad(n: { clave: string; empleadoId: number; f
   if (error) throw new Error(error.message);
 }
 
+/** Descarte masivo: un solo upsert con todas las novedades y el mismo motivo. */
+export async function descartarNovedades(
+  items: { clave: string; empleadoId: number; fecha: string; tipo: string }[],
+  usuario: string,
+  motivo?: string
+): Promise<void> {
+  if (items.length === 0) return;
+  const admin = getSupabaseAdminClient();
+  const en = new Date().toISOString();
+  const { error } = await admin.from('rrhh_novedades_descartadas').upsert(
+    items.map((n) => ({ clave: n.clave, empleado_id: n.empleadoId, fecha: n.fecha, tipo: n.tipo, motivo: motivo?.trim() || null, descartado_por: usuario, descartado_en: en })),
+    { onConflict: 'clave' }
+  );
+  if (error) throw new Error(error.message);
+}
+
 export async function restaurarNovedad(clave: string): Promise<void> {
   const admin = getSupabaseAdminClient();
   const { error } = await admin.from('rrhh_novedades_descartadas').delete().eq('clave', clave);

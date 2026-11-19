@@ -44,6 +44,12 @@ export function extraRedondeadaHs(fichadoHs: number): number {
 }
 /** Una marca más corta que esto (entrada y salida casi en el mismo minuto) no es trabajo real: es un fichaje olvidado. */
 export const MARCA_MINIMA_HS = 0.25;
+/**
+ * Una fichada que dura más que esto no es una jornada: el quiosco alterna entrada/salida, así que si alguien se olvida de fichar al
+ * irse, su fichada del día siguiente cierra ese registro (ej. 05:57 de un día a 05:57 del otro = 24 hs). Se lee como "entrada sin
+ * salida" ese día y "entrada" el siguiente.
+ */
+export const JORNADA_MAXIMA_HS = 16;
 
 const MAX_DIAS_RANGO = 93;
 
@@ -239,14 +245,32 @@ export async function getRrhhNovedades(desde: string, hasta: string): Promise<Rr
 
   // empleado -> día -> fichadas
   const fichadas = new Map<number, Map<string, AttendanceRow[]>>();
-  for (const a of attendance) {
-    if (!a.employee_id) continue;
-    const porDia = fichadas.get(a.employee_id[0]) ?? new Map<string, AttendanceRow[]>();
-    const dia = fechaArgentina(a.check_in);
+  /** "empleado|día" de las entradas que quedaron abiertas y cuya salida real fue absorbida por la fichada del día siguiente. */
+  const partidas = new Map<string, number>();
+  const agregar = (empleadoId: number, dia: string, a: AttendanceRow) => {
+    const porDia = fichadas.get(empleadoId) ?? new Map<string, AttendanceRow[]>();
     const lista = porDia.get(dia) ?? [];
     lista.push(a);
     porDia.set(dia, lista);
-    fichadas.set(a.employee_id[0], porDia);
+    fichadas.set(empleadoId, porDia);
+  };
+  for (const a of attendance) {
+    if (!a.employee_id) continue;
+    const empId = a.employee_id[0];
+    const dia = fechaArgentina(a.check_in);
+    if (a.check_out && a.worked_hours > JORNADA_MAXIMA_HS) {
+      // Ese día queda como entrada sin salida; la "salida" fue en realidad la entrada del día en que se cerró.
+      partidas.set(`${empId}|${dia}`, a.worked_hours);
+      agregar(empId, dia, { ...a, check_out: false, worked_hours: 0 });
+      const diaCierre = fechaArgentina(a.check_out);
+      if (diaCierre !== dia) {
+        const yaTiene = (fichadas.get(empId)?.get(diaCierre)?.length ?? 0) > 0;
+        const posteriores = attendance.some((o) => o.employee_id && o.employee_id[0] === empId && fechaArgentina(o.check_in) === diaCierre);
+        if (!yaTiene && !posteriores) agregar(empId, diaCierre, { ...a, check_in: a.check_out, check_out: false, worked_hours: 0 });
+      }
+      continue;
+    }
+    agregar(empId, dia, a);
   }
 
   const licenciasPorEmpleado = new Map<number, LeaveRow[]>();
@@ -328,7 +352,9 @@ export async function getRrhhNovedades(desde: string, hasta: string): Promise<Rr
           salida,
           fichadoHs,
           horasAResolver: 0,
-          detalle: `Fichó la entrada a las ${entrada} y no fichó la salida: hay que corregir el horario real.`,
+          detalle: partidas.has(`${e.id}|${d}`)
+            ? `Fichó la entrada a las ${entrada} y no fichó la salida: la fichada del día siguiente cerró ese registro (duraba ${round2(partidas.get(`${e.id}|${d}`)!)} hs). Hay que cargar la salida real.`
+            : `Fichó la entrada a las ${entrada} y no fichó la salida: hay que corregir el horario real.`,
         });
         continue;
       }

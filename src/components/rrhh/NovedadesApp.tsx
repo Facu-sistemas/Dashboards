@@ -344,16 +344,79 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
     return (historialDia.data?.empleados ?? []).filter((e) => e.dia && !conFila.has(e.empleadoId) && e.dia.estado !== 'fin-de-semana' && e.dia.estado !== 'feriado');
   }, [diaActivo, rowsDia, historialDia.data]);
 
+  // Orden opcional de la tabla: por hora de entrada, de salida o por horas a resolver. Tocar el encabezado alterna ↑ / ↓ / sin orden.
+  const [orden, setOrden] = useState<{ col: 'entrada' | 'salida' | 'resolver'; desc: boolean } | null>(null);
+  function ordenarPor(col: 'entrada' | 'salida' | 'resolver') {
+    setOrden((o) => (!o || o.col !== col ? { col, desc: false } : o.desc ? null : { col, desc: true }));
+  }
+
   const rows = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
-    return rowsDia.filter((r) => {
+    const filtradas = rowsDia.filter((r) => {
       if (tipo === 'sin') return false;
       if (tipo && tipo !== 'con' && r.tipo !== tipo) return false;
       if (departamento && r.departamento !== departamento) return false;
       if (q && !r.empleado.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [rowsDia, tipo, departamento, busqueda]);
+    if (!orden) return filtradas;
+    // Las filas sin ese dato (ej. sin salida) van siempre al final, sea cual sea el sentido.
+    const valor = (r: NovedadRow): string | number | null =>
+      orden.col === 'entrada' ? r.entrada : orden.col === 'salida' ? r.salida : r.tipo === 'sin-salida' ? null : r.horasAResolver;
+    return [...filtradas].sort((a, b) => {
+      const va = valor(a);
+      const vb = valor(b);
+      if (va === null && vb === null) return 0;
+      if (va === null) return 1;
+      if (vb === null) return -1;
+      const c = va < vb ? -1 : va > vb ? 1 : 0;
+      return orden.desc ? -c : c;
+    });
+  }, [rowsDia, tipo, departamento, busqueda, orden]);
+
+  // Selección múltiple para descartar en masa (solo las novedades visibles que no estén ya descartadas).
+  const [seleccion, setSeleccion] = useState<Set<string>>(new Set());
+  const [motivoMasivo, setMotivoMasivo] = useState('');
+  const seleccionables = useMemo(() => rows.filter((r) => !r.descartada), [rows]);
+  const seleccionadas = useMemo(() => seleccionables.filter((r) => seleccion.has(r.clave)), [seleccionables, seleccion]);
+  const todasMarcadas = seleccionables.length > 0 && seleccionadas.length === seleccionables.length;
+  function alternarSeleccion(clave: string) {
+    setSeleccion((s) => {
+      const n = new Set(s);
+      if (n.has(clave)) n.delete(clave);
+      else n.add(clave);
+      return n;
+    });
+  }
+  function alternarTodas() {
+    setSeleccion(todasMarcadas ? new Set() : new Set(seleccionables.map((r) => r.clave)));
+  }
+
+  async function descartarSeleccionadas() {
+    if (seleccionadas.length === 0) return;
+    setEnviando(true);
+    setErrorCarga(null);
+    try {
+      const res = await fetch('/api/rrhh-novedades-descartar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: seleccionadas.map((r) => ({ empleadoId: r.empleadoId, fecha: r.fecha, tipo: r.tipo })),
+          motivo: motivoMasivo.trim() || undefined,
+        }),
+      });
+      const json = (await res.json()) as { ok: boolean; error?: string };
+      if (!json.ok) throw new Error(json.error ?? 'No se pudieron descartar las novedades.');
+      setResultado({ ok: true, texto: `Descartadas ${seleccionadas.length} novedades. Podés verlas de nuevo con "Ver descartadas".` });
+      setSeleccion(new Set());
+      setMotivoMasivo('');
+      await query.refetch();
+    } catch (err) {
+      setResultado({ ok: false, texto: err instanceof Error ? err.message : 'No se pudieron descartar las novedades.' });
+    } finally {
+      setEnviando(false);
+    }
+  }
   const sinFiltradas = useMemo(() => {
     if (tipo !== '' && tipo !== 'sin') return [] as EmpleadoResumen[];
     const q = busqueda.trim().toLowerCase();
@@ -368,7 +431,7 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
   /** Formulario de carga en Odoo (el mismo para las filas con novedad y para las acciones manuales de las filas sin novedad). */
   const formularioCarga = (r: NovedadRow) => (
                     <tr className="bg-slate-950/60">
-                      <td colSpan={9} className="px-3 py-3">
+                      <td colSpan={10} className="px-3 py-3">
                         <div className="flex flex-wrap items-end gap-4 text-sm text-slate-300">
                           {(modo === 'cargar' || modo === 'dia') && (
                             <label className="flex flex-col gap-1">
@@ -667,17 +730,65 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
         </p>
       )}
 
+      {puedeCargar && data && seleccionadas.length > 0 && (
+        <div className="flex flex-wrap items-end gap-3 rounded-lg border border-rose-900 bg-rose-950/30 p-3 text-sm text-slate-300">
+          <span className="pb-1.5">
+            <strong className="text-slate-100">{seleccionadas.length}</strong> {seleccionadas.length === 1 ? 'seleccionada' : 'seleccionadas'}
+          </span>
+          <label className="flex min-w-[14rem] flex-1 flex-col gap-1">
+            Motivo para todas (opcional)
+            <input
+              type="text"
+              value={motivoMasivo}
+              maxLength={200}
+              onChange={(e) => setMotivoMasivo(e.target.value)}
+              placeholder="Ej.: horas extra que no se acreditan"
+              className={`placeholder:text-slate-600 ${selectClass}`}
+            />
+          </label>
+          <button
+            type="button"
+            disabled={enviando}
+            onClick={descartarSeleccionadas}
+            title="No se carga nada en Odoo: solo se ocultan. Se pueden restaurar."
+            className="rounded border border-rose-700 px-3 py-1.5 text-sm font-medium text-rose-200 hover:bg-rose-950 disabled:opacity-40"
+          >
+            {enviando ? 'Guardando…' : `Descartar ${seleccionadas.length}`}
+          </button>
+          <button type="button" onClick={() => setSeleccion(new Set())} className="pb-1.5 text-xs text-slate-400 underline">
+            Quitar selección
+          </button>
+        </div>
+      )}
+
       {data && (
         <div className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-900">
           <table className="w-full text-left text-sm">
             <thead className="text-xs uppercase tracking-wide text-slate-500">
               <tr className="border-b border-slate-800">
+                {puedeCargar && (
+                  <th className="w-8 px-3 py-2">
+                    <input type="checkbox" aria-label="Seleccionar todas las visibles" title="Seleccionar todas las visibles" checked={todasMarcadas} onChange={alternarTodas} disabled={seleccionables.length === 0} />
+                  </th>
+                )}
                 <th className="px-3 py-2 font-medium">Día</th>
                 <th className="px-3 py-2 font-medium">Empleado</th>
                 <th className="px-3 py-2 font-medium">Qué pasó</th>
-                <th className="px-3 py-2 font-medium">Fichadas</th>
+                <th className="whitespace-nowrap px-3 py-2 font-medium">
+                  Fichadas{' '}
+                  <button type="button" onClick={() => ordenarPor('entrada')} title="Ordenar por hora de entrada (llegadas tarde)" className={`rounded px-1 normal-case ${orden?.col === 'entrada' ? 'bg-slate-800 text-brand-400' : 'hover:text-slate-200'}`}>
+                    Entrada{orden?.col === 'entrada' ? (orden.desc ? ' ↓' : ' ↑') : ''}
+                  </button>
+                  <button type="button" onClick={() => ordenarPor('salida')} title="Ordenar por hora de salida" className={`rounded px-1 normal-case ${orden?.col === 'salida' ? 'bg-slate-800 text-brand-400' : 'hover:text-slate-200'}`}>
+                    Salida{orden?.col === 'salida' ? (orden.desc ? ' ↓' : ' ↑') : ''}
+                  </button>
+                </th>
                 <th className="px-3 py-2 text-right font-medium">Fichado</th>
-                <th className="px-3 py-2 text-right font-medium">A resolver</th>
+                <th className="px-3 py-2 text-right font-medium">
+                  <button type="button" onClick={() => ordenarPor('resolver')} title="Ordenar por horas a resolver (horas extra, faltantes)" className={`rounded px-1 uppercase ${orden?.col === 'resolver' ? 'bg-slate-800 text-brand-400' : 'hover:text-slate-200'}`}>
+                    A resolver{orden?.col === 'resolver' ? (orden.desc ? ' ↓' : ' ↑') : ''}
+                  </button>
+                </th>
                 <th className="px-3 py-2 font-medium">Ya cargado en Odoo</th>
                 <th className="px-3 py-2 text-right font-medium">Banco hoy</th>
                 {puedeCargar && <th className="px-3 py-2 text-right font-medium">Acción</th>}
@@ -686,7 +797,7 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
             <tbody>
               {rows.length === 0 && sinFiltradas.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-3 py-6 text-center text-slate-500">
+                  <td colSpan={10} className="px-3 py-6 text-center text-slate-500">
                     {allRows.length === 0 && !diaActivo
                       ? data.evaluadoHasta < desde
                         ? 'Ese período todavía no tiene días cerrados para revisar (hoy no se evalúa).'
@@ -697,7 +808,12 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
               ) : (
                 rows.map((r) => (
                   <Fragment key={r.clave}>
-                  <tr title={r.detalle} className={`border-t border-slate-800 align-top ${r.descartada ? 'opacity-50' : ''}`}>
+                  <tr title={r.detalle} className={`border-t border-slate-800 align-top ${r.descartada ? 'opacity-50' : ''} ${seleccion.has(r.clave) ? 'bg-rose-950/20' : ''}`}>
+                    {puedeCargar && (
+                      <td className="px-3 py-2">
+                        {!r.descartada && <input type="checkbox" aria-label={`Seleccionar ${r.empleado}, ${fechaCorta(r.fecha)}`} checked={seleccion.has(r.clave)} onChange={() => alternarSeleccion(r.clave)} />}
+                      </td>
+                    )}
                     <td className="whitespace-nowrap px-3 py-2 text-slate-300">{fechaCorta(r.fecha)}</td>
                     <td className="px-3 py-2">
                       {onVerHistorial ? (
@@ -772,7 +888,7 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
                   </tr>
                   {puedeCargar && abierta === r.clave && modo === 'descartar' && (
                     <tr className="bg-slate-950/60">
-                      <td colSpan={9} className="px-3 py-3">
+                      <td colSpan={10} className="px-3 py-3">
                         <div className="flex flex-wrap items-end gap-4 text-sm text-slate-300">
                           <label className="flex min-w-[16rem] flex-1 flex-col gap-1">
                             Motivo (opcional)
@@ -832,6 +948,7 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
                 return (
                   <Fragment key={`sin-${e.empleadoId}`}>
                   <tr className="border-t border-slate-800 align-top">
+                    {puedeCargar && <td className="px-3 py-2" />}
                     <td className="whitespace-nowrap px-3 py-2 text-slate-300">{fechaCorta(d.fecha)}</td>
                     <td className="px-3 py-2">
                       {onVerHistorial ? (

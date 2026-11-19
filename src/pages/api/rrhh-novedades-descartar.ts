@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { descartarNovedad, restaurarNovedad } from '@/lib/supabase/rrhh-novedades-descartadas';
+import { descartarNovedad, descartarNovedades, restaurarNovedad } from '@/lib/supabase/rrhh-novedades-descartadas';
 import { puedeAdministrarRrhh } from '@/lib/rrhh-permisos';
 import { handleApiRoute, jsonResponse, ApiValidationError } from '@/lib/api-helpers';
 
@@ -8,10 +8,17 @@ export const prerender = false;
 
 const TIPOS = ['horas-faltantes', 'sin-salida', 'marca-incompleta', 'sin-fichada', 'horas-extra'] as const;
 
-const descartarSchema = z.object({
+const itemSchema = z.object({
   empleadoId: z.number().int().positive(),
   fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   tipo: z.enum(TIPOS),
+});
+
+const descartarSchema = itemSchema.extend({ motivo: z.string().trim().max(200).optional() });
+
+// Descarte masivo: varias novedades con el mismo motivo.
+const descartarVariasSchema = z.object({
+  items: z.array(itemSchema).min(1).max(300),
   motivo: z.string().trim().max(200).optional(),
 });
 
@@ -35,7 +42,22 @@ export const POST: APIRoute = async (context) => {
   const usuario = context.locals.usuario;
   if (!puedeAdministrarRrhh(usuario)) return noAutorizado();
   return handleApiRoute(async () => {
-    const parsed = descartarSchema.safeParse(await leerBody(context.request));
+    const body = await leerBody(context.request);
+    if (body && typeof body === 'object' && 'items' in body) {
+      const varias = descartarVariasSchema.safeParse(body);
+      if (!varias.success) throw new ApiValidationError(varias.error.issues.map((i) => i.message).join('; '));
+      const items = varias.data.items.map((i) => ({ ...i, clave: `${i.empleadoId}|${i.fecha}|${i.tipo}` }));
+      try {
+        await descartarNovedades(items, usuario!.username, varias.data.motivo);
+      } catch (err) {
+        console.error('[rrhh-novedades-descartar]', err);
+        throw new ApiValidationError(
+          `No se pudo guardar (${err instanceof Error ? err.message : 'error desconocido'}). ¿Se corrió el SQL de la tabla rrhh_novedades_descartadas en Supabase?`
+        );
+      }
+      return { cantidad: items.length };
+    }
+    const parsed = descartarSchema.safeParse(body);
     if (!parsed.success) throw new ApiValidationError(parsed.error.issues.map((i) => i.message).join('; '));
     const { empleadoId, fecha, tipo, motivo } = parsed.data;
     const clave = `${empleadoId}|${fecha}|${tipo}`;

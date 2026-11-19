@@ -444,7 +444,9 @@ export async function corregirFichada(input: CorregirFichadaInput): Promise<Resu
     ['check_in', 'check_out', 'worked_hours'],
   ]);
 
-  const candidatas = tipo === 'sin-salida' ? marcas.filter((m) => !m.check_out) : marcas.filter((m) => m.check_out && m.worked_hours < MARCA_MINIMA_HS);
+  // En "sin salida" también entra la fichada "partida": duraba más que una jornada porque la del día siguiente la cerró (ver rrhh-novedades.ts).
+  const candidatas =
+    tipo === 'sin-salida' ? marcas.filter((m) => !m.check_out || m.worked_hours > MAX_JORNADA_FICHADA_HS) : marcas.filter((m) => m.check_out && m.worked_hours < MARCA_MINIMA_HS);
   if (candidatas.length === 0) {
     throw new ApiValidationError('No se encontró la fichada a corregir: puede que ya la hayan corregido. Actualizá la pantalla.');
   }
@@ -467,7 +469,32 @@ export async function corregirFichada(input: CorregirFichadaInput): Promise<Resu
     valores.check_in = entradaUtc;
     valores.in_mode = 'manual';
   }
+  const cierreOriginal = marca.check_out && marca.worked_hours > MAX_JORNADA_FICHADA_HS ? marca.check_out : null;
+  // Si la salida real estaba absorbida por la fichada del día siguiente, esa fichada es la entrada de ese día: hay que dejarla
+  // como entrada. Solo se puede si ese día no tiene otras fichadas (Odoo no deja solapar ni abrir dos).
+  let entradaSiguiente: string | null = null;
+  if (cierreOriginal) {
+    const diaCierre = new Date(Date.parse(`${cierreOriginal.replace(' ', 'T')}Z`) - 3 * 3_600_000).toISOString().slice(0, 10);
+    const otras = await call<{ id: number }[]>('hr.attendance', 'search_read', [
+      [
+        ['employee_id', '=', empleadoId],
+        ['check_in', '>=', `${diaCierre} 03:00:00`],
+        ['check_in', '<', `${addDaysIso(diaCierre, 1)} 03:00:00`],
+        ['id', '!=', marca.id],
+      ],
+      ['id'],
+    ]);
+    if (otras.length === 0) entradaSiguiente = cierreOriginal;
+  }
   await call<boolean>('hr.attendance', 'write', [[marca.id], valores]);
+  let avisoSiguiente: string | null = null;
+  if (cierreOriginal) {
+    if (entradaSiguiente) {
+      await call<number>('hr.attendance', 'create', [{ employee_id: empleadoId, check_in: entradaSiguiente, in_mode: 'manual' }]);
+    } else {
+      avisoSiguiente = 'La fichada del día siguiente cerraba este registro, pero ese día ya tiene otras fichadas: revisalas en Odoo.';
+    }
+  }
 
   const [despues] = await call<{ check_in: string; check_out: string | false; worked_hours: number }[]>('hr.attendance', 'read', [[marca.id], ['check_in', 'check_out', 'worked_hours']]);
   const horas = redondear2(despues?.worked_hours ?? 0);
@@ -478,8 +505,8 @@ export async function corregirFichada(input: CorregirFichadaInput): Promise<Resu
     fecha,
     horas,
     aprobada: true,
-    aviso: avisoNota,
-    resumen: `Fichada corregida en Odoo: ${empleado.name}, ${fechaCorta(fecha)}, ${tipo === 'marca-incompleta' ? input.entrada : 'entrada original'} a ${input.salida} (${horasComa(horas)} hs, fichada n.º ${marca.id}).`,
+    aviso: [avisoNota, avisoSiguiente].filter(Boolean).join(' ') || null,
+    resumen: `Fichada corregida en Odoo${entradaSiguiente ? ' (la entrada del día siguiente quedó cargada)' : ''}: ${empleado.name}, ${fechaCorta(fecha)}, ${tipo === 'marca-incompleta' ? input.entrada : 'entrada original'} a ${input.salida} (${horasComa(horas)} hs, fichada n.º ${marca.id}).`,
   };
 }
 
