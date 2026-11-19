@@ -8,12 +8,28 @@ interface Props {
   color: (typeof CONVENIO_PALETTE)[number];
   /** Mayor |saldo| entre todos los empleados — escala común para que las barras sean comparables entre tarjetas. */
   maxAbsBanco: number;
+  /** Días hábiles (lun–vie sin feriados) del 1 del mes a hoy, ambos inclusive. */
+  diasHabilesMes?: number;
+}
+
+/** Detalle del cumplimiento para el hover: horas cargadas vs esperadas y de dónde sale la cuenta (días hábiles × horas por día). */
+function detalleMes(row: EmpleadoVacacionesRow, diasHabiles: number | undefined): string {
+  const esperadas = horasEsperadasMes(row);
+  const base = `${formatHoras(row.horasCargadasMes)} fichadas de ${formatHoras(esperadas ?? 0)} esperadas en lo que va del mes`;
+  if (!diasHabiles || !row.horasSemanales) return `${base} (días hábiles, sin feriados)`;
+  const porDia = row.horasSemanales / 5;
+  const diasEquiv = porDia > 0 ? row.horasCargadasMes / porDia : 0;
+  const completo = row.horasEsperadasMesCompleto;
+  const resumen = completo
+    ? `Anillo: ${formatHoras(row.horasCargadasMes)} de ${formatHoras(completo)} del mes completo (${Math.round((row.horasCargadasMes / completo) * 100)}%). Color: ${Math.round((row.horasCargadasMes / (esperadas || 1)) * 100)}% de lo que correspondía hasta ayer.\n`
+    : '';
+  return `${resumen}${base}.\nVan ${diasHabiles} días hábiles del mes (sin feriados, hasta ayer) × ${formatHoras(porDia)} por día (${row.horasSemanales} hs/sem ÷ 5) = ${formatHoras(esperadas ?? 0)}.\nLas horas fichadas equivalen a ${formatDias(Math.round(diasEquiv * 10) / 10)} días de jornada.`;
 }
 
 const RING_R = 22;
 const RING_C = 2 * Math.PI * RING_R;
 
-function CumplimientoRing({ row }: { row: EmpleadoVacacionesRow }) {
+function CumplimientoRing({ row, diasHabiles }: { row: EmpleadoVacacionesRow; diasHabiles?: number }) {
   // Reporte perfecto: sus horas no se controlan (a fin de mes siempre cierran bien), así que no hay anillo de cumplimiento.
   if (row.estadoResumen === 'reporte_perfecto') {
     return (
@@ -33,14 +49,13 @@ function CumplimientoRing({ row }: { row: EmpleadoVacacionesRow }) {
       </div>
     );
   }
+  // El color dice si va al día (horas fichadas vs. las que correspondían hasta ayer); el anillo y el % muestran el avance sobre el mes completo.
   const { stroke, text } = cumplimientoColor(ratio);
-  const filled = Math.min(ratio, 1) * RING_C;
-  const esperadas = horasEsperadasMes(row);
+  const completo = row.horasEsperadasMesCompleto;
+  const avance = completo ? row.horasCargadasMes / completo : ratio;
+  const filled = Math.min(avance, 1) * RING_C;
   return (
-    <div
-      className="relative h-14 w-14 shrink-0"
-      title={`${formatHoras(row.horasCargadasMes)} cargadas de ${formatHoras(esperadas ?? 0)} esperadas en lo que va del mes (días hábiles, sin feriados)`}
-    >
+    <div className="relative h-14 w-14 shrink-0" title={detalleMes(row, diasHabiles)}>
       <svg viewBox="0 0 56 56" className="h-full w-full -rotate-90">
         <circle cx="28" cy="28" r={RING_R} fill="none" strokeWidth="5" className="stroke-slate-800" />
         <circle
@@ -55,7 +70,7 @@ function CumplimientoRing({ row }: { row: EmpleadoVacacionesRow }) {
         />
       </svg>
       <span className={`absolute inset-0 flex items-center justify-center text-xs font-semibold ${text}`}>
-        {Math.round(ratio * 100)}%
+        {Math.round(avance * 100)}%
       </span>
     </div>
   );
@@ -102,14 +117,19 @@ function EstadoFichaje({ row }: { row: EmpleadoVacacionesRow }) {
   );
 }
 
-export default function EmpleadoCard({ row, today, color, maxAbsBanco }: Props) {
+export default function EmpleadoCard({ row, today, color, maxAbsBanco, diasHabilesMes }: Props) {
   const perfecto = row.estadoResumen === 'reporte_perfecto';
   const saldo = row.bancoHorasSaldo;
   const saldoColor = saldo > 0 ? 'text-emerald-400' : saldo < 0 ? 'text-rose-400' : 'text-slate-300';
   const vacColor = row.anomalia === 'negativo' ? 'text-rose-400' : row.anomalia === 'alto' ? 'text-amber-400' : 'text-slate-200';
 
   return (
-    <article className="flex h-full min-w-0 flex-col gap-4 rounded-xl border border-slate-800 bg-slate-900 p-4 transition-colors hover:border-slate-700">
+    // Toda la tarjeta lleva al calendario de fichadas de esa persona (Horas > Historial de fichadas).
+    <a
+      href={`/rrhh/horas?historial=${row.id}`}
+      aria-label={`Ver el calendario de fichadas de ${row.nombre}`}
+      className="flex h-full min-w-0 cursor-pointer flex-col gap-4 rounded-xl border border-slate-800 bg-slate-900 p-4 transition-colors hover:border-brand-500/60"
+    >
       <header className="flex items-center gap-3">
         <div
           className={`relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold ring-1 ${color.avatar}`}
@@ -125,7 +145,7 @@ export default function EmpleadoCard({ row, today, color, maxAbsBanco }: Props) 
             {row.puesto ?? row.departamento ?? '—'} · {formatAntiguedad(row.fechaIngreso, today)}
           </p>
         </div>
-        <CumplimientoRing row={row} />
+        <CumplimientoRing row={row} diasHabiles={diasHabilesMes} />
       </header>
 
       <div className="flex min-w-0 flex-nowrap items-center gap-1.5">
@@ -157,19 +177,19 @@ export default function EmpleadoCard({ row, today, color, maxAbsBanco }: Props) 
       )}
 
       <dl className="mt-auto grid grid-cols-3 gap-2 border-t border-slate-800 pt-3 text-center">
-        <div title="Horas cargadas en timesheets (Odoo) del día 1 del mes a hoy.">
+        <div title={`Horas fichadas en el kiosco (Odoo) del día 1 del mes a ayer; las licencias no se descuentan de lo esperado.${perfecto ? '' : `\n${detalleMes(row, diasHabilesMes)}`}`}>
           <dt className="text-[10px] uppercase tracking-wide text-slate-500">Hs del mes</dt>
           <dd className="mt-0.5 text-sm font-medium text-slate-200">{perfecto ? '—' : formatDias(row.horasCargadasMes)}</dd>
         </div>
-        <div title="Horas cargadas en timesheets (Odoo) desde siempre.">
+        <div title="Horas fichadas en el kiosco (Odoo) desde siempre, hasta ayer.">
           <dt className="text-[10px] uppercase tracking-wide text-slate-500">Hs totales</dt>
           <dd className="mt-0.5 text-sm font-medium text-slate-200">{perfecto ? '—' : formatDias(row.horasCargadasTotal)}</dd>
         </div>
-        <div title="Días de vacaciones asignados − tomados (Odoo).">
+        <div title="Días de vacaciones vigentes (las vencidas no cuentan) menos los tomados y los ya pedidos (Odoo).">
           <dt className="text-[10px] uppercase tracking-wide text-slate-500">Vac. saldo</dt>
           <dd className={`mt-0.5 text-sm font-medium ${vacColor}`}>{formatDias(row.vacacionesSaldo)} d</dd>
         </div>
       </dl>
-    </article>
+    </a>
   );
 }

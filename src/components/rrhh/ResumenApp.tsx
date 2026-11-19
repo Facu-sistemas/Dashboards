@@ -209,7 +209,7 @@ function ResumenInner() {
       </div>
 
       <div className="-mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
-        <span>{data ? `${rows.length} de ${allRows.length} empleados` : ''} · El anillo mide las horas cargadas en lo que va del mes contra las que corresponden a su jornada hasta hoy (días hábiles, sin feriados).</span>
+        <span>{data ? `${rows.length} de ${allRows.length} empleados` : ''} · El anillo muestra las horas fichadas sobre las del mes completo (días hábiles, sin feriados). El color dice si va al día: verde si fichó lo que le correspondía hasta ayer, amarillo o rojo si debe horas.</span>
         <span className="flex items-center gap-1.5">
           <span className="relative inline-flex h-2.5 w-2.5">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
@@ -242,7 +242,7 @@ function ResumenInner() {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {rows.map((r) => (
-            <EmpleadoCard key={r.id} row={r} today={data?.generatedAt ?? ''} color={colors.get(convenioDe(r))!} maxAbsBanco={maxAbsBanco} />
+            <EmpleadoCard key={r.id} row={r} today={data?.generatedAt ?? ''} color={colors.get(convenioDe(r))!} maxAbsBanco={maxAbsBanco} diasHabilesMes={data?.mes.diasHabiles} />
           ))}
         </div>
       )}

@@ -48,8 +48,8 @@ export default function EmpleadoDetalle({ row, today, colSpan }: Props) {
           <section>
             <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Horas cargadas</h4>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Mes en curso (timesheet)" value={formatHoras(row.horasCargadasMes)} />
-              <Field label="Total histórico (timesheet)" value={formatHoras(row.horasCargadasTotal)} />
+              <Field label="Mes en curso (fichadas)" value={formatHoras(row.horasCargadasMes)} />
+              <Field label="Total histórico (fichadas)" value={formatHoras(row.horasCargadasTotal)} />
               <Field
                 label="Saldo banco de horas"
                 value={

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import HistorialApp from './HistorialApp';
 import NovedadesApp from './NovedadesApp';
 import QuincenaApp from './QuincenaApp';
@@ -32,6 +32,22 @@ export default function HorasApp({ hoy, puedeCargar }: Props) {
     setHistorialDe((h) => ({ id, n: h.n + 1 }));
     setVista('historial');
   };
+
+  // Llegada desde la tarjeta del Resumen (/rrhh/horas?historial=ID): abre directo el calendario de esa persona.
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      const id = Number(url.searchParams.get('historial'));
+      if (Number.isInteger(id) && id > 0) {
+        verHistorial(id);
+        url.searchParams.delete('historial');
+        window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+      }
+    } catch {
+      // sin acceso a la URL: queda en la vista por defecto
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="flex flex-col gap-6">

@@ -85,6 +85,8 @@ export interface EmpleadoVacacionesRow {
   horasCargadasMes: number;
   /** Horas que le corresponden en ese tramo del mes según su jornada (días hábiles transcurridos sin feriados); null sin jornada. */
   horasEsperadasMes: number | null;
+  /** Horas que le corresponden en el mes entero (todos los días hábiles, sin feriados); null sin jornada. */
+  horasEsperadasMesCompleto: number | null;
   horasCargadasTotal: number;
 
   contrato: ContratoInfo | null;
@@ -96,7 +98,7 @@ export interface RrhhVacacionesResult {
   totalAnomalias: number;
   rows: EmpleadoVacacionesRow[];
   /** Mes de referencia del cumplimiento de horas: etiqueta ('2026-11') y días hábiles transcurridos. */
-  mes: { periodo: string; diasHabiles: number };
+  mes: { periodo: string; diasHabiles: number; diasHabilesTotal: number };
 }
 
 type EmployeeRow = {
@@ -137,7 +139,10 @@ type ContractRow = {
   state: string;
 };
 
-type HoursGroupRow = OdooReadGroupResult & { employee_id: [number, string] | false; unit_amount: number };
+type HoursGroupRow = OdooReadGroupResult & { employee_id: [number, string] | false; worked_hours: number };
+
+/** Una fichada más larga que esto no es una jornada (mismo umbral que la bandeja de novedades). */
+const JORNADA_MAXIMA_HS = 16;
 
 /**
  * Saldo de vacaciones como lo calcula Odoo: las asignaciones VENCIDAS (date_to ya pasó) o que todavía no empezaron no suman, y cada
@@ -244,7 +249,12 @@ export async function getAusentesHoy(): Promise<Record<number, string>> {
 export async function getRrhhVacaciones(): Promise<RrhhVacacionesResult> {
   const today = getArgentinaTodayIso();
   const desdeHoras = `${today.slice(0, 8)}01`;
-  const diasHabilesMes = diasHabilesEntre(desdeHoras, today, await getFeriadosConNombre());
+  // Hasta ayer: hoy todavía puede estar trabajando, así que no se le exige ni se le cuenta (mismo criterio que la bandeja de novedades).
+  const feriadosMes = await getFeriadosConNombre();
+  const diasHabilesMes = diasHabilesEntre(desdeHoras, addDaysIso(today, -1), feriadosMes);
+  // Mes completo: hasta el último día del mes (para mostrar el avance sobre el total).
+  const finDeMes = new Date(Date.UTC(Number(today.slice(0, 4)), Number(today.slice(5, 7)), 0)).toISOString().slice(0, 10);
+  const diasHabilesMesCompleto = diasHabilesEntre(desdeHoras, finDeMes, feriadosMes);
 
   const [employees, allocations, leaves, contracts, hoursByEmployee30d, hoursByEmployeeTotal, hoursPerWeekByCalendar, caras, estadosResumen] =
     await Promise.all([
@@ -286,19 +296,25 @@ export async function getRrhhVacaciones(): Promise<RrhhVacacionesResult> {
         model: 'hr.contract',
         fields: ['employee_id', 'wage', 'date_start', 'date_end', 'state'],
       }),
+      // Horas FICHADAS (hr.attendance cerradas) del 1 del mes hasta ayer. Las fichadas de más de 16 hs son una salida olvidada
+      // (la cerró la fichada del día siguiente) y no son horas reales: no suman. El día local arranca a las 03:00 UTC.
       readGroup({
-        model: 'account.analytic.line',
+        model: 'hr.attendance',
         domain: [
-          ['employee_id', '!=', false],
-          ['date', '>=', desdeHoras],
+          ['check_in', '>=', `${desdeHoras} 03:00:00`],
+          ['check_in', '<', `${today} 03:00:00`],
+          ['worked_hours', '<=', JORNADA_MAXIMA_HS],
         ],
-        fields: ['unit_amount'],
+        fields: ['worked_hours'],
         groupBy: ['employee_id'],
       }) as Promise<HoursGroupRow[]>,
       readGroup({
-        model: 'account.analytic.line',
-        domain: [['employee_id', '!=', false]],
-        fields: ['unit_amount'],
+        model: 'hr.attendance',
+        domain: [
+          ['check_in', '<', `${today} 03:00:00`],
+          ['worked_hours', '<=', JORNADA_MAXIMA_HS],
+        ],
+        fields: ['worked_hours'],
         groupBy: ['employee_id'],
       }) as Promise<HoursGroupRow[]>,
       getHorasPorSemana(),
@@ -314,8 +330,8 @@ export async function getRrhhVacaciones(): Promise<RrhhVacacionesResult> {
   const contratoMap = new Map(
     contracts.filter((c): c is ContractRow & { employee_id: [number, string] } => Boolean(c.employee_id)).map((c) => [c.employee_id[0], c])
   );
-  const horasMesMap = sumByEmployee(hoursByEmployee30d, (g) => g.unit_amount);
-  const horasTotalMap = sumByEmployee(hoursByEmployeeTotal, (g) => g.unit_amount);
+  const horasMesMap = sumByEmployee(hoursByEmployee30d, (g) => g.worked_hours);
+  const horasTotalMap = sumByEmployee(hoursByEmployeeTotal, (g) => g.worked_hours);
 
   const rows: EmpleadoVacacionesRow[] = employees.map((e) => {
     const { asignado, saldo } = saldoVigente(asignacionesMap.get(e.id) ?? [], todasLicenciasMap.get(e.id) ?? [], today);
@@ -353,6 +369,9 @@ export async function getRrhhVacaciones(): Promise<RrhhVacacionesResult> {
       horasEsperadasMes: e.resource_calendar_id && hoursPerWeekByCalendar.get(e.resource_calendar_id[0])
         ? Math.round(((hoursPerWeekByCalendar.get(e.resource_calendar_id[0])! / 5) * diasHabilesMes) * 10) / 10
         : null,
+      horasEsperadasMesCompleto: e.resource_calendar_id && hoursPerWeekByCalendar.get(e.resource_calendar_id[0])
+        ? Math.round(((hoursPerWeekByCalendar.get(e.resource_calendar_id[0])! / 5) * diasHabilesMesCompleto) * 10) / 10
+        : null,
       horasCargadasTotal: Math.round((horasTotalMap.get(e.id) ?? 0) * 100) / 100,
 
       contrato: contrato
@@ -368,6 +387,6 @@ export async function getRrhhVacaciones(): Promise<RrhhVacacionesResult> {
     totalEmpleados: rows.length,
     totalAnomalias: rows.filter((r) => r.anomalia !== 'ok').length,
     rows,
-    mes: { periodo: today.slice(0, 7), diasHabiles: diasHabilesMes },
+    mes: { periodo: today.slice(0, 7), diasHabiles: diasHabilesMes, diasHabilesTotal: diasHabilesMesCompleto },
   };
 }
