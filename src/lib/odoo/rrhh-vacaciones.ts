@@ -126,6 +126,7 @@ type LeaveRow = {
   number_of_days: number;
   date_from: string;
   date_to: string;
+  state: string;
 };
 
 type ContractRow = {
@@ -137,6 +138,35 @@ type ContractRow = {
 };
 
 type HoursGroupRow = OdooReadGroupResult & { employee_id: [number, string] | false; unit_amount: number };
+
+/**
+ * Saldo de vacaciones como lo calcula Odoo: las asignaciones VENCIDAS (date_to ya pasó) o que todavía no empezaron no suman, y cada
+ * licencia (aprobada o pedida pendiente de aprobar) descuenta primero de la asignación que vence antes y cubre esa fecha. Lo que no
+ * alcanza a cubrir ninguna asignación se resta del saldo vigente (puede dar negativo). Sumar todas las asignaciones sin mirar fechas
+ * mostraba, por ejemplo, 20 días cuando tenía 10 vigentes y 5 ya pedidos.
+ */
+function saldoVigente(allocs: AllocationRow[], leaves: LeaveRow[], hoy: string): { asignado: number; saldo: number } {
+  const piezas = allocs
+    .map((a) => ({ desde: a.date_from ? a.date_from.slice(0, 10) : '0000-00-00', hasta: a.date_to ? a.date_to.slice(0, 10) : '9999-99-99', resto: a.number_of_days, total: a.number_of_days }))
+    .sort((a, b) => a.hasta.localeCompare(b.hasta) || a.desde.localeCompare(b.desde));
+  let sinCubrir = 0;
+  for (const l of [...leaves].sort((a, b) => a.date_from.localeCompare(b.date_from))) {
+    const dia = l.date_from.slice(0, 10);
+    let falta = l.number_of_days;
+    for (const p of piezas) {
+      if (falta <= 0) break;
+      if (p.desde > dia || p.hasta < dia || p.resto <= 0) continue;
+      const usa = Math.min(p.resto, falta);
+      p.resto -= usa;
+      falta -= usa;
+    }
+    sinCubrir += Math.max(0, falta);
+  }
+  const vigentes = piezas.filter((p) => p.desde <= hoy && p.hasta >= hoy);
+  const asignado = vigentes.reduce((s, p) => s + p.total, 0);
+  const saldo = vigentes.reduce((s, p) => s + p.resto, 0) - sinCubrir;
+  return { asignado: Math.round(asignado * 100) / 100, saldo: Math.round(saldo * 100) / 100 };
+}
 
 function anomaliaDe(saldo: number): VacacionesAnomalia {
   if (saldo < 0) return 'negativo';
@@ -247,9 +277,9 @@ export async function getRrhhVacaciones(): Promise<RrhhVacacionesResult> {
         model: 'hr.leave',
         domain: [
           ['holiday_status_id', '=', VACACIONES_TYPE_ID],
-          ['state', '=', 'validate'],
+          ['state', 'in', ['confirm', 'validate1', 'validate']],
         ],
-        fields: ['employee_id', 'number_of_days', 'date_from', 'date_to'],
+        fields: ['employee_id', 'number_of_days', 'date_from', 'date_to', 'state'],
         order: 'date_from desc',
       }),
       searchReadAll<ContractRow>({
@@ -277,10 +307,10 @@ export async function getRrhhVacaciones(): Promise<RrhhVacacionesResult> {
     ]);
 
   const biometricosIds = new Set(caras.map((c) => c.empleadoId));
-  const asignadoMap = sumByEmployee(allocations, (a) => a.number_of_days);
-  const tomadoMap = sumByEmployee(leaves, (l) => l.number_of_days);
   const asignacionesMap = groupByEmployee(allocations);
-  const licenciasMap = groupByEmployee(leaves);
+  const todasLicenciasMap = groupByEmployee(leaves);
+  // En el detalle solo se listan las aprobadas; las pendientes sí descuentan del saldo.
+  const licenciasMap = groupByEmployee(leaves.filter((l) => l.state === 'validate'));
   const contratoMap = new Map(
     contracts.filter((c): c is ContractRow & { employee_id: [number, string] } => Boolean(c.employee_id)).map((c) => [c.employee_id[0], c])
   );
@@ -288,9 +318,8 @@ export async function getRrhhVacaciones(): Promise<RrhhVacacionesResult> {
   const horasTotalMap = sumByEmployee(hoursByEmployeeTotal, (g) => g.unit_amount);
 
   const rows: EmpleadoVacacionesRow[] = employees.map((e) => {
-    const asignado = Math.round((asignadoMap.get(e.id) ?? 0) * 100) / 100;
-    const tomado = Math.round((tomadoMap.get(e.id) ?? 0) * 100) / 100;
-    const saldo = Math.round((asignado - tomado) * 100) / 100;
+    const { asignado, saldo } = saldoVigente(asignacionesMap.get(e.id) ?? [], todasLicenciasMap.get(e.id) ?? [], today);
+    const tomado = Math.round((asignado - saldo) * 100) / 100;
     const contrato = contratoMap.get(e.id);
 
     return {
