@@ -1,5 +1,6 @@
 ---
 import BarcodeCode128 from './BarcodeCode128';
+import QrGenerador from './QrGenerador';
 ---
 
 <div>
@@ -11,4 +12,15 @@ import BarcodeCode128 from './BarcodeCode128';
   </header>
 
   <BarcodeCode128 client:only="react" />
+
+  <hr class="my-8 border-slate-800" />
+
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Código QR</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      Escribí un texto o enlace y generá su código QR. Todo se procesa en tu navegador.
+    </p>
+  </header>
+
+  <QrGenerador client:only="react" />
 </div>
