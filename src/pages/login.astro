@@ -60,23 +60,6 @@ const sessionExpired = Astro.url.searchParams.get('expired') === '1';
           <!-- patas -->
           <path class="ln" d="M92 288 L98 322 H112 L116 288" pathLength="1" style="--d:2s"></path>
           <path class="ln" d="M484 288 L488 322 H502 L508 288" pathLength="1" style="--d:2s"></path>
-
-          <!-- cota horizontal -->
-          <g class="dim" style="--d:3s">
-            <line x1="68" y1="362" x2="532" y2="362"></line>
-            <line x1="68" y1="352" x2="68" y2="372"></line>
-            <line x1="532" y1="352" x2="532" y2="372"></line>
-            <rect x="263" y="350" width="74" height="24" fill="var(--bp-bg)" stroke="none"></rect>
-            <text x="300" y="367" text-anchor="middle" id="dim-w">0 mm</text>
-          </g>
-          <!-- cota vertical -->
-          <g class="dim" style="--d:3.3s">
-            <line x1="580" y1="90" x2="580" y2="322"></line>
-            <line x1="570" y1="90" x2="590" y2="90"></line>
-            <line x1="570" y1="322" x2="590" y2="322"></line>
-            <rect x="552" y="195" width="56" height="24" fill="var(--bp-bg)" stroke="none"></rect>
-            <text x="580" y="212" text-anchor="middle" id="dim-h">0 mm</text>
-          </g>
         </svg>
       </div>
 
@@ -186,29 +169,8 @@ const sessionExpired = Astro.url.searchParams.get('expired') === '1';
   </script>
 
   <script>
-    // Cotas que cuentan hasta la medida, reloj, y leve parallax del plano.
+    // Reloj y leve parallax del plano.
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-    function countUp(id: string, to: number, delay: number, dur = 1400) {
-      const el = document.getElementById(id);
-      if (!el) return;
-      const fmt = (n: number) => `${Math.round(n).toLocaleString('es-AR')} mm`;
-      if (reduce) {
-        el.textContent = fmt(to);
-        return;
-      }
-      setTimeout(() => {
-        const t0 = performance.now();
-        const tick = (now: number) => {
-          const k = Math.min((now - t0) / dur, 1);
-          el.textContent = fmt(to * (1 - Math.pow(1 - k, 3)));
-          if (k < 1) requestAnimationFrame(tick);
-        };
-        requestAnimationFrame(tick);
-      }, delay);
-    }
-    countUp('dim-w', 2200, 3000);
-    countUp('dim-h', 950, 3300);
 
     const reloj = document.getElementById('reloj');
     const fecha = document.getElementById('fecha');

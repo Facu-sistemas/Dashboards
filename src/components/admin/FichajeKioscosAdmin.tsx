@@ -174,18 +174,22 @@ export default function FichajeKioscosAdmin({ marcas: marcasIniciales, jornadas,
   }
 
   const hoy = FORMATO_DIA.format(new Date());
-  const porKiosco = new Map<string, { total: number; hoy: number; ultima: string }>();
+  const porKiosco = new Map<string, { total: number; hoy: number; entradas: number; salidas: number; ultima: string }>();
   for (const m of marcas) {
-    const k = porKiosco.get(m.kiosco) ?? { total: 0, hoy: 0, ultima: m.marcadoEn };
+    const k = porKiosco.get(m.kiosco) ?? { total: 0, hoy: 0, entradas: 0, salidas: 0, ultima: m.marcadoEn };
     k.total += 1;
-    if (FORMATO_DIA.format(new Date(m.marcadoEn)) === hoy) k.hoy += 1;
+    if (FORMATO_DIA.format(new Date(m.marcadoEn)) === hoy) {
+      k.hoy += 1;
+      if (m.accion === 'entrada') k.entradas += 1;
+      else k.salidas += 1;
+    }
     if (m.marcadoEn > k.ultima) k.ultima = m.marcadoEn;
     porKiosco.set(m.kiosco, k);
   }
   const latidoDe = new Map(latidos.map((l) => [l.kiosco, l]));
   // Un celular sin señal por más de 3 minutos se da por caído (manda una cada 60 s mientras la página está abierta).
   const SIN_SENAL_MS = 3 * 60_000;
-  for (const l of latidos) if (!porKiosco.has(l.kiosco)) porKiosco.set(l.kiosco, { total: 0, hoy: 0, ultima: '' });
+  for (const l of latidos) if (!porKiosco.has(l.kiosco)) porKiosco.set(l.kiosco, { total: 0, hoy: 0, entradas: 0, salidas: 0, ultima: '' });
   const kioscos = [...porKiosco.entries()].sort((a, b) => b[1].ultima.localeCompare(a[1].ultima));
   const nombre = (username: string) => nombresKioscos[username] || username;
 
@@ -280,6 +284,9 @@ export default function FichajeKioscosAdmin({ marcas: marcasIniciales, jornadas,
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-slate-100">{nombre(username)}</p>
                     {nombre(username) !== username && <p className="truncate text-[11px] text-slate-500">{username}</p>}
+                    <p className="mt-1 text-xs text-slate-400" title="Fichadas de hoy: entradas y salidas por separado (el número grande es el total)">
+                      <strong className="text-slate-200">{k.entradas}</strong> entradas · <strong className="text-slate-200">{k.salidas}</strong> salidas
+                    </p>
                     <p className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-400">
                       <span className={`h-2 w-2 rounded-full ${estado.color}`} />
                       {k.ultima ? `${estado.label} · ${hace(k.ultima)}` : 'Sin fichadas todavía'}

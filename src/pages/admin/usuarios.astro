@@ -6,6 +6,7 @@ import type { UsuarioConPermisos } from '@/components/admin/AdminUsuariosApp';
 import FichajeCarasAdmin from '@/components/admin/FichajeCarasAdmin';
 import FichajeParecidosAdmin from '@/components/admin/FichajeParecidosAdmin';
 import { listCaras, listCarasResumen } from '@/lib/supabase/fichaje-caras';
+import RecargarPaginasAdmin from '@/components/admin/RecargarPaginasAdmin';
 import FichajeKioscosAdmin from '@/components/admin/FichajeKioscosAdmin';
 import { getAusentesHoy } from '@/lib/odoo/rrhh-vacaciones';
 import FichajePuntualidadAdmin from '@/components/admin/FichajePuntualidadAdmin';
@@ -77,6 +78,8 @@ for (const p of perfiles ?? []) if (p.nombre_completo) nombresKioscos[p.username
       <h1 class="text-2xl font-semibold text-slate-100">Administración</h1>
       <p class="mt-1 text-sm text-slate-400">Cuentas, permisos y datos del fichaje facial.</p>
     </header>
+
+    <RecargarPaginasAdmin client:load />
 
     <nav class="mb-6 flex flex-wrap gap-1 border-b border-slate-800" role="tablist" aria-label="Secciones de administración">
       {

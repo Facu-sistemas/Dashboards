@@ -162,6 +162,49 @@ const manifest = ruta.startsWith('/fichaje')
 
     <slot />
     <ScrollToTop />
+    {
+      usuario && (
+        <script is:inline>
+          {`
+          // Recarga remota: el dev la pide desde Admin; acá se consulta la marca cada ~45 s (y al volver a la pestaña).
+          (function () {
+            var base = null;
+            var aviso = null;
+            function recargaConAviso() {
+              if (aviso) return;
+              var seg = 10;
+              aviso = document.createElement('div');
+              aviso.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:200;display:flex;gap:12px;align-items:center;padding:10px 16px;border-radius:12px;background:#0f172a;color:#f1f5f9;border:1px solid #fb923c;box-shadow:0 8px 30px rgba(0,0,0,.4);font:500 13px Manrope,system-ui,sans-serif';
+              var txt = document.createElement('span');
+              function btn(t, f) { var b = document.createElement('button'); b.textContent = t; b.style.cssText = 'padding:4px 10px;border-radius:8px;border:1px solid #475569;background:transparent;color:inherit;cursor:pointer;font:inherit'; b.onclick = f; return b; }
+              var timer;
+              function pintar() { txt.textContent = 'Hay una versión nueva. Se recarga en ' + seg + ' s'; }
+              aviso.appendChild(txt);
+              aviso.appendChild(btn('Ahora', function () { location.reload(); }));
+              aviso.appendChild(btn('Cancelar', function () { clearInterval(timer); aviso.remove(); aviso = null; }));
+              document.body.appendChild(aviso);
+              pintar();
+              timer = setInterval(function () { seg--; if (seg <= 0) { clearInterval(timer); location.reload(); } else pintar(); }, 1000);
+            }
+            function consultar() {
+              fetch('/api/recarga-estado', { credentials: 'same-origin', cache: 'no-store' })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (j) {
+                  if (!j || !j.ok) return;
+                  var marca = j.data && j.data.marca;
+                  if (base === null) { base = marca || ''; return; }
+                  if (marca && marca !== base) { base = marca; recargaConAviso(); }
+                })
+                .catch(function () {});
+            }
+            consultar();
+            setInterval(consultar, 45000);
+            document.addEventListener('visibilitychange', function () { if (!document.hidden) consultar(); });
+          })();
+          `}
+        </script>
+      )
+    }
 
     {
       (usuario?.rol === 'dev' || usuario?.username.toLowerCase().includes('aure')) && commitShort && (
