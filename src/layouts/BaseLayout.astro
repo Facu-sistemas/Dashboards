@@ -165,7 +165,6 @@ const manifest = ruta.startsWith('/fichaje')
     {
       usuario && (
         <script is:inline>
-          {`
           // Recarga remota: el dev la pide desde Admin; acá se consulta la marca cada ~45 s (y al volver a la pestaña).
           (function () {
             var base = null;
@@ -201,7 +200,6 @@ const manifest = ruta.startsWith('/fichaje')
             setInterval(consultar, 45000);
             document.addEventListener('visibilitychange', function () { if (!document.hidden) consultar(); });
           })();
-          `}
         </script>
       )
     }
