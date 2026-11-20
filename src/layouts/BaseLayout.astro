@@ -163,7 +163,7 @@ const manifest = ruta.startsWith('/fichaje')
     <slot />
     <ScrollToTop />
     {
-      usuario && (
+      usuario && !ruta.startsWith('/fichaje') && (
         <script is:inline>
           // Recarga remota: el dev la pide desde Admin; acá se consulta la marca cada ~45 s (y al volver a la pestaña).
           (function () {
