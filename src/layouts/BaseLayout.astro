@@ -173,11 +173,16 @@ const manifest = ruta.startsWith('/fichaje')
               if (aviso) return;
               var seg = 10;
               aviso = document.createElement('div');
-              aviso.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:200;display:flex;gap:12px;align-items:center;padding:10px 16px;border-radius:12px;background:#0f172a;color:#f1f5f9;border:1px solid #fb923c;box-shadow:0 8px 30px rgba(0,0,0,.4);font:500 13px Manrope,system-ui,sans-serif';
+              aviso.setAttribute('role', 'status');
+              aviso.setAttribute('aria-live', 'polite');
+              aviso.className = 'fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900/90 px-3 py-1.5 text-xs text-slate-300 shadow-lg backdrop-blur';
+              var rueda = document.createElement('span');
+              rueda.className = 'h-3 w-3 animate-spin rounded-full border-2 border-slate-600 border-t-brand-500';
               var txt = document.createElement('span');
-              function btn(t, f) { var b = document.createElement('button'); b.textContent = t; b.style.cssText = 'padding:4px 10px;border-radius:8px;border:1px solid #475569;background:transparent;color:inherit;cursor:pointer;font:inherit'; b.onclick = f; return b; }
+              function btn(t, f) { var b = document.createElement('button'); b.textContent = t; b.className = 'rounded-full border border-slate-700 px-2 py-0.5 text-slate-300 transition-colors hover:border-brand-500 hover:text-brand-400'; b.onclick = f; return b; }
               var timer;
-              function pintar() { txt.textContent = 'Hay una versión nueva. Se recarga en ' + seg + ' s'; }
+              function pintar() { txt.textContent = 'Versión nueva · recargando en ' + seg + ' s'; }
+              aviso.appendChild(rueda);
               aviso.appendChild(txt);
               aviso.appendChild(btn('Ahora', function () { location.reload(); }));
               aviso.appendChild(btn('Cancelar', function () { clearInterval(timer); aviso.remove(); aviso = null; }));
