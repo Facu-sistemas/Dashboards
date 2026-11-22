@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { EMPLEADO_COOKIE, leerToken } from '@/lib/empleado-sesion';
-import { crearSolicitud, listSolicitudesDeEmpleado, tienePendienteEseDia } from '@/lib/supabase/rrhh-solicitudes-retiro';
+import { cancelarSolicitud, crearSolicitud, listSolicitudesDeEmpleado, marcarVistasPorEmpleado, tienePendienteEseDia } from '@/lib/supabase/rrhh-solicitudes-retiro';
 import { getArgentinaTodayIso } from '@/lib/odoo/oee';
 import { addDaysIso } from '@/lib/date';
 import { handleApiRoute, jsonResponse, ApiValidationError } from '@/lib/api-helpers';
@@ -53,5 +53,35 @@ export const POST: APIRoute = async (context) => {
       throw new ApiValidationError('No se pudo guardar la solicitud. Avisale a RRHH.');
     }
     return { ok: true };
+  });
+};
+
+const patchSchema = z.discriminatedUnion('accion', [z.object({ accion: z.literal('cancelar'), id: z.string().uuid() }), z.object({ accion: z.literal('vistas') })]);
+
+// PATCH /api/empleados/solicitudes — {accion:'cancelar', id}: cancela una propia pendiente. {accion:'vistas'}: marca como vistas las respuestas de RRHH.
+export const PATCH: APIRoute = async (context) => {
+  const sesion = leerToken(context.cookies.get(EMPLEADO_COOKIE)?.value);
+  if (!sesion) return sinSesion();
+  return handleApiRoute(async () => {
+    let body: unknown;
+    try {
+      body = await context.request.json();
+    } catch {
+      throw new ApiValidationError('JSON inválido');
+    }
+    const parsed = patchSchema.safeParse(body);
+    if (!parsed.success) throw new ApiValidationError('Datos inválidos');
+    try {
+      if (parsed.data.accion === 'vistas') {
+        await marcarVistasPorEmpleado(sesion.empleadoId);
+        return { ok: true };
+      }
+      if (!(await cancelarSolicitud(parsed.data.id, sesion.empleadoId))) throw new ApiValidationError('Esa solicitud ya no se puede cancelar (RRHH ya la resolvió)');
+      return { ok: true };
+    } catch (err) {
+      if (err instanceof ApiValidationError) throw err;
+      console.error('[empleados/solicitudes]', err);
+      throw new ApiValidationError('No se pudo completar la acción. Probá de nuevo.');
+    }
   });
 };

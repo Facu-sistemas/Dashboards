@@ -6,7 +6,7 @@ import type { EstadoSolicitud, SolicitudRetiro } from '@/lib/rrhh-solicitudes';
  * mano en Supabase. RLS default-deny: único acceso vía estas funciones desde /api routes (mismo patrón que fichaje-caras.ts).
  */
 
-const COLUMNAS = 'id, empleado_id, empleado_nombre, fecha, hora_retiro, motivo, estado, creada_en, resuelta_por, resuelta_en, comentario_rrhh';
+const COLUMNAS = 'id, empleado_id, empleado_nombre, fecha, hora_retiro, motivo, estado, creada_en, resuelta_por, resuelta_en, comentario_rrhh, visto_empleado_en';
 
 type Fila = {
   id: string;
@@ -20,6 +20,7 @@ type Fila = {
   resuelta_por: string | null;
   resuelta_en: string | null;
   comentario_rrhh: string | null;
+  visto_empleado_en: string | null;
 };
 
 function aSolicitud(r: Fila): SolicitudRetiro {
@@ -35,6 +36,7 @@ function aSolicitud(r: Fila): SolicitudRetiro {
     resueltaPor: r.resuelta_por,
     resueltaEn: r.resuelta_en,
     comentarioRrhh: r.comentario_rrhh,
+    vistaPorEmpleado: r.visto_empleado_en !== null,
   };
 }
 
@@ -88,4 +90,39 @@ export async function resolverSolicitud(id: string, estado: 'aprobada' | 'rechaz
     .select('id');
   if (error) throw new Error(error.message);
   return (data ?? []).length > 0;
+}
+
+/** El empleado cancela una solicitud propia mientras sigue pendiente. Devuelve false si ya no se puede (resuelta, ajena o inexistente). */
+export async function cancelarSolicitud(id: string, empleadoId: number): Promise<boolean> {
+  const { data, error } = await getSupabaseAdminClient()
+    .from('rrhh_solicitudes_retiro')
+    .update({ estado: 'cancelada', resuelta_en: new Date().toISOString(), resuelta_por: 'empleado' })
+    .eq('id', id)
+    .eq('empleado_id', empleadoId)
+    .eq('estado', 'pendiente')
+    .select('id');
+  if (error) throw new Error(error.message);
+  return (data ?? []).length > 0;
+}
+
+/** El empleado abrió su pestaña de solicitudes: sus respuestas pendientes de ver quedan como vistas. */
+export async function marcarVistasPorEmpleado(empleadoId: number): Promise<void> {
+  const { error } = await getSupabaseAdminClient()
+    .from('rrhh_solicitudes_retiro')
+    .update({ visto_empleado_en: new Date().toISOString() })
+    .eq('empleado_id', empleadoId)
+    .in('estado', ['aprobada', 'rechazada'])
+    .is('visto_empleado_en', null);
+  if (error) throw new Error(error.message);
+}
+
+/** Cuántas esperan respuesta de RRHH (globito de la pestaña). Si la tabla falta o falla, 0: no tiene que romper el menú. */
+export async function contarPendientes(): Promise<number> {
+  try {
+    const { count, error } = await getSupabaseAdminClient().from('rrhh_solicitudes_retiro').select('id', { count: 'exact', head: true }).eq('estado', 'pendiente');
+    if (error) return 0;
+    return count ?? 0;
+  } catch {
+    return 0;
+  }
 }

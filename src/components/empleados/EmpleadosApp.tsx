@@ -136,7 +136,7 @@ function Login({ alEntrar, errorInicial }: { alEntrar: (nombre: string) => Promi
       <p className="max-w-sm text-center text-sm text-slate-400">
         Mirá de frente a la cámara: entrás con la misma cara que registraste para fichar.
       </p>
-      <div className="relative aspect-[4/3] w-full max-w-md overflow-hidden rounded-2xl border border-slate-800 bg-black">
+      <div className="relative aspect-[3/4] max-h-[70vh] w-full max-w-md overflow-hidden sm:aspect-[4/3] rounded-2xl border border-slate-800 bg-black">
         <video ref={videoRef} playsInline muted className="h-full w-full -scale-x-100 object-cover" />
         <div className={`pointer-events-none absolute inset-6 rounded-[3rem] border-2 ${verificando ? 'border-emerald-400' : 'border-white/40'}`} />
       </div>
@@ -195,15 +195,49 @@ function Portal({ data, alSalir, alActualizar }: { data: PortalEmpleado; alSalir
   const { empleado, hoyEstado, mes, banco, vacaciones } = data;
   const [verTodoBanco, setVerTodoBanco] = useState(false);
   const [vista, setVista] = useState<'resumen' | 'retiro'>('resumen');
+  const [solicitudes, setSolicitudes] = useState<SolicitudRetiro[] | null>(null);
+  /** Respuestas que el empleado ya vio en esta sesión (el servidor las marca al abrir la pestaña; esto apaga el puntito al instante). */
+  const [vistasLocal, setVistasLocal] = useState<Set<string>>(new Set());
+
+  const cargarSolicitudes = useCallback(async () => {
+    try {
+      const res = await fetch('/api/empleados/solicitudes', { credentials: 'same-origin' });
+      const json = (await res.json()) as { ok: boolean; data?: SolicitudRetiro[] };
+      setSolicitudes(json.ok && json.data ? json.data : []);
+    } catch {
+      setSolicitudes((s) => s ?? []);
+    }
+  }, []);
+  useEffect(() => {
+    void cargarSolicitudes();
+  }, [cargarSolicitudes]);
+
+  const sinVer = (solicitudes ?? []).filter((s) => (s.estado === 'aprobada' || s.estado === 'rechazada') && !s.vistaPorEmpleado && !vistasLocal.has(s.id));
+
+  function abrirRetiro() {
+    setVista('retiro');
+    if (sinVer.length > 0) {
+      setVistasLocal((v) => new Set([...v, ...sinVer.map((s) => s.id)]));
+      void fetch('/api/empleados/solicitudes', {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'vistas' }),
+      }).catch(() => {});
+    }
+  }
   const movimientos = verTodoBanco ? banco.movimientos : banco.movimientos.slice(0, 5);
   const pct = mes.horasEsperadas ? Math.min(100, Math.round((mes.horasCargadas / mes.horasEsperadas) * 100)) : null;
   const diasConDato = mes.dias.filter((d) => d.fecha <= data.hoy && !['fin-de-semana', 'sin-datos', 'pendiente'].includes(d.estado)).reverse();
 
   // Se recarga solo cada 2 minutos (por si fichó mientras tenía el portal abierto).
   useEffect(() => {
-    const t = setInterval(() => void alActualizar(), 120_000);
+    const t = setInterval(() => {
+      void alActualizar();
+      void cargarSolicitudes();
+    }, 120_000);
     return () => clearInterval(t);
-  }, [alActualizar]);
+  }, [alActualizar, cargarSolicitudes]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -225,16 +259,19 @@ function Portal({ data, alSalir, alActualizar }: { data: PortalEmpleado; alSalir
           <button
             key={id}
             type="button"
-            onClick={() => setVista(id)}
-            className={`flex-1 rounded-full border px-4 py-2 text-sm font-medium ${vista === id ? 'border-brand-500 bg-brand-500/10 text-brand-300' : 'border-slate-700 text-slate-300 hover:bg-slate-800'}`}
+            onClick={() => (id === 'retiro' ? abrirRetiro() : setVista(id))}
+            className={`relative flex-1 rounded-full border px-4 py-2 text-sm font-medium ${vista === id ? 'border-brand-500 bg-brand-500/10 text-brand-300' : 'border-slate-700 text-slate-300 hover:bg-slate-800'}`}
           >
             {texto}
+            {id === 'retiro' && sinVer.length > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1 text-[11px] font-bold text-slate-950">{sinVer.length}</span>
+            )}
           </button>
         ))}
       </nav>
 
       {vista === 'retiro' ? (
-        <RetiroAnticipado hoy={data.hoy} />
+        <RetiroAnticipado hoy={data.hoy} lista={solicitudes} recargar={cargarSolicitudes} />
       ) : (
         <>
       <Tarjeta titulo="Hoy">
@@ -356,7 +393,7 @@ function Portal({ data, alSalir, alActualizar }: { data: PortalEmpleado; alSalir
       )}
 
       <p className="pb-6 text-center text-xs text-slate-500">
-        La sesión se cierra sola a los 30 minutos. Si algo no coincide con tus fichadas, avisale a RRHH.
+        La sesión se cierra sola a la hora. Si algo no coincide con tus fichadas, avisale a RRHH.
       </p>
     </div>
   );
@@ -368,29 +405,17 @@ const COLOR_SOLICITUD: Record<EstadoSolicitud, string> = {
   pendiente: 'bg-amber-500/20 text-amber-300',
   aprobada: 'bg-emerald-500/20 text-emerald-300',
   rechazada: 'bg-rose-500/20 text-rose-300',
+  cancelada: 'bg-slate-700/60 text-slate-400',
 };
 
-function RetiroAnticipado({ hoy }: { hoy: string }) {
+function RetiroAnticipado({ hoy, lista, recargar }: { hoy: string; lista: SolicitudRetiro[] | null; recargar: () => Promise<void> }) {
   const [fecha, setFecha] = useState(hoy);
   const [hora, setHora] = useState('');
   const [motivo, setMotivo] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [enviada, setEnviada] = useState(false);
-  const [lista, setLista] = useState<SolicitudRetiro[] | null>(null);
-
-  const cargarLista = useCallback(async () => {
-    try {
-      const res = await fetch('/api/empleados/solicitudes', { credentials: 'same-origin' });
-      const json = (await res.json()) as { ok: boolean; data?: SolicitudRetiro[] };
-      setLista(json.ok && json.data ? json.data : []);
-    } catch {
-      setLista([]);
-    }
-  }, []);
-  useEffect(() => {
-    void cargarLista();
-  }, [cargarLista]);
+  const [cancelando, setCancelando] = useState<string | null>(null);
 
   async function enviar(e: React.FormEvent) {
     e.preventDefault();
@@ -409,11 +434,32 @@ function RetiroAnticipado({ hoy }: { hoy: string }) {
       setEnviada(true);
       setMotivo('');
       setHora('');
-      await cargarLista();
+      await recargar();
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setEnviando(false);
+    }
+  }
+
+  async function cancelar(id: string) {
+    if (!window.confirm('¿Cancelar esta solicitud?')) return;
+    setCancelando(id);
+    setError(null);
+    try {
+      const res = await fetch('/api/empleados/solicitudes', {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'cancelar', id }),
+      });
+      const json = (await res.json()) as { ok: boolean; error?: string };
+      if (!json.ok) throw new Error(json.error ?? 'No se pudo cancelar.');
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setCancelando(null);
+      await recargar();
     }
   }
 
@@ -460,6 +506,12 @@ function RetiroAnticipado({ hoy }: { hoy: string }) {
                 </div>
                 <p className="mt-1 text-slate-400">{s.motivo}</p>
                 {s.comentarioRrhh && <p className="mt-1 text-slate-300">RRHH: {s.comentarioRrhh}</p>}
+                {(s.estado === 'aprobada' || s.estado === 'rechazada') && !s.vistaPorEmpleado && <p className="mt-1 text-xs font-semibold text-amber-300">Nueva respuesta de RRHH</p>}
+                {s.estado === 'pendiente' && (
+                  <button type="button" disabled={cancelando === s.id} onClick={() => void cancelar(s.id)} className="mt-2 rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-red-500 hover:text-red-400 disabled:opacity-50">
+                    {cancelando === s.id ? 'Cancelando...' : 'Cancelar solicitud'}
+                  </button>
+                )}
               </li>
             ))}
           </ul>

@@ -16,6 +16,7 @@ const COLOR: Record<EstadoSolicitud, string> = {
   pendiente: 'bg-amber-500/20 text-amber-300',
   aprobada: 'bg-emerald-500/20 text-emerald-300',
   rechazada: 'bg-rose-500/20 text-rose-300',
+  cancelada: 'bg-slate-700/60 text-slate-400',
 };
 
 const fmtFecha = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: 'short' });
@@ -135,7 +136,7 @@ function SolicitudesInner() {
                 </div>
               ) : (
                 <p className="mt-2 text-xs text-slate-400">
-                  {ESTADO_SOLICITUD_TEXTO[s.estado]} por {s.resueltaPor ?? '—'}
+                  {s.estado === 'cancelada' ? 'Cancelada por el empleado' : `${ESTADO_SOLICITUD_TEXTO[s.estado]} por ${s.resueltaPor ?? '—'}`}
                   {s.resueltaEn ? ` el ${fmtCreada(s.resueltaEn)}` : ''}
                   {s.comentarioRrhh ? ` · "${s.comentarioRrhh}"` : ''}
                 </p>

@@ -1,6 +1,7 @@
 ---
 import type { AreaConfig } from '@/lib/areas.config';
 import { tabVisible } from '@/lib/tab-acceso';
+import { contarPendientes } from '@/lib/supabase/rrhh-solicitudes-retiro';
 
 interface Props {
   area: AreaConfig;
@@ -11,6 +12,8 @@ const { area, activeTabSlug } = Astro.props;
 // Las pestañas restringidas (ej. RRHH > Administración) solo aparecen para quien tiene permiso.
 const tabs = area.tabs.filter((t) => tabVisible(t, Astro.locals.usuario));
 // Áreas con subdivisión (ej. Herramientas de producción): una fila por grupo, en el orden en que aparecen.
+// Globito con las solicitudes de retiro pendientes de resolver (RRHH > Solicitudes; solo lo ve quien tiene la pestaña).
+const pendientesSolicitudes = area.slug === 'rrhh' && tabs.some((t) => t.slug === 'solicitudes') ? await contarPendientes() : 0;
 const grupos: { nombre: string; tabs: typeof tabs }[] = [];
 for (const t of tabs) {
   const nombre = t.grupo ?? '';
@@ -64,6 +67,9 @@ for (const t of tabs) {
           }`}
         >
           {tab.name}
+          {tab.slug === 'solicitudes' && pendientesSolicitudes > 0 && (
+            <span class="ml-1.5 rounded-full bg-amber-500 px-1.5 py-0.5 text-[11px] font-bold leading-none text-slate-950">{pendientesSolicitudes}</span>
+          )}
         </a>
       ))}
     </nav>

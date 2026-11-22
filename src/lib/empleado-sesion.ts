@@ -7,7 +7,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 
 export const EMPLEADO_COOKIE = 'empleado_sesion';
 /** El portal es para mirar datos propios: la sesión es corta, y se vuelve a entrar con la cara. */
-export const EMPLEADO_SESION_MINUTOS = 30;
+export const EMPLEADO_SESION_MINUTOS = 60;
 
 export interface SesionEmpleado {
   empleadoId: number;
