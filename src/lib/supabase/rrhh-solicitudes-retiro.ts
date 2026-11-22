@@ -119,12 +119,17 @@ export async function marcarVistasPorEmpleado(empleadoId: number): Promise<void>
 /** Cuántas esperan respuesta de RRHH (globito de la pestaña). Si la tabla falta o falla, 0: no tiene que romper el menú. */
 export async function contarPendientes(): Promise<number> {
   try {
-    const { count, error } = await getSupabaseAdminClient().from('rrhh_solicitudes_retiro').select('id', { count: 'exact', head: true }).eq('estado', 'pendiente');
-    if (error) return 0;
-    return count ?? 0;
+    return await contarPendientesOError();
   } catch {
     return 0;
   }
+}
+
+/** Igual pero tira el error: el aviso en vivo no tiene que confundir una falla con "0 pendientes". */
+export async function contarPendientesOError(): Promise<number> {
+  const { count, error } = await getSupabaseAdminClient().from('rrhh_solicitudes_retiro').select('id', { count: 'exact', head: true }).eq('estado', 'pendiente');
+  if (error) throw new Error(error.message);
+  return count ?? 0;
 }
 
 /** Borra la solicitud definitivamente (solo la usa RRHH/dev). Devuelve false si no existía. */

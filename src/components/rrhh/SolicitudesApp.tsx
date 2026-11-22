@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import QueryProvider from '@/components/QueryProvider';
 import { useApiQuery } from '@/components/dashboard/useApiQuery';
@@ -45,6 +45,12 @@ function SolicitudesInner() {
   const [comentarios, setComentarios] = useState<Record<string, string>>({});
   const [guardando, setGuardando] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Si llega una solicitud mientras RRHH tiene la pestaña abierta, aparece sola (el aviso en vivo suena cada 30 s).
+  useEffect(() => {
+    const t = setInterval(() => void queryClient.invalidateQueries({ queryKey: QUERY_KEY }), 30_000);
+    return () => clearInterval(t);
+  }, [queryClient]);
 
   const solicitudes = query.data?.solicitudes ?? [];
   const pendientes = solicitudes.filter((s) => s.estado === 'pendiente').length;
