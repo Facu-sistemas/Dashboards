@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { activarAudio, sonidoPreferido, timbre } from './solicitudes-avisos';
+import { activarAudio, activarPush, estadoPushInicial, sonidoPreferido, timbre } from './solicitudes-avisos';
 
 /**
  * Aviso en vivo de solicitudes de retiro nuevas para RRHH: se monta en la barra de pestañas de RRHH, así funciona en
@@ -10,6 +10,18 @@ import { activarAudio, sonidoPreferido, timbre } from './solicitudes-avisos';
  */
 const CADA_MS = 30_000;
 const TOAST_MS = 12_000;
+/** Si dijo "Ahora no", no se le vuelve a ofrecer activar las notificaciones durante este tiempo. */
+const OCULTAR_OFERTA_MS = 7 * 24 * 60 * 60 * 1000;
+const PREF_OFERTA = 'rrhh-push-oferta-oculta';
+
+function ofertaOculta(): boolean {
+  try {
+    const t = Number(localStorage.getItem(PREF_OFERTA) ?? 0);
+    return Date.now() - t < OCULTAR_OFERTA_MS;
+  } catch {
+    return false;
+  }
+}
 
 function actualizarGlobito(n: number) {
   const el = document.getElementById('badge-solicitudes');
@@ -26,6 +38,39 @@ function actualizarTitulo(n: number) {
 export default function AvisoSolicitudes({ inicial }: { inicial: number }) {
   const ultimo = useRef(inicial);
   const [nuevas, setNuevas] = useState<number | null>(null);
+  const [ofrecerPush, setOfrecerPush] = useState(false);
+  const [activando, setActivando] = useState(false);
+  const [errorOferta, setErrorOferta] = useState<string | null>(null);
+
+  // Al entrar a RRHH > Solicitudes se ofrece activar las notificaciones en este dispositivo (si todavía no lo hizo, no las bloqueó y no dijo "Ahora no" hace poco).
+  // El permiso del navegador solo se puede pedir desde un toque, por eso es un cartel con botón y no un pedido automático.
+  useEffect(() => {
+    // Solo en la pestaña Solicitudes: es donde tiene sentido pedirlo. En las demás pestañas el aviso en vivo sigue funcionando igual.
+    if (!location.pathname.startsWith('/rrhh/solicitudes') || ofertaOculta()) return;
+    void estadoPushInicial().then((e) => setOfrecerPush(e === 'inactivo'));
+  }, []);
+
+  async function aceptarOferta() {
+    setActivando(true);
+    setErrorOferta(null);
+    try {
+      const estado = await activarPush();
+      if (estado === 'activo' || estado === 'denegado') setOfrecerPush(false);
+    } catch (err) {
+      setErrorOferta(err instanceof Error ? err.message : 'No se pudo activar.');
+    } finally {
+      setActivando(false);
+    }
+  }
+
+  function rechazarOferta() {
+    try {
+      localStorage.setItem(PREF_OFERTA, String(Date.now()));
+    } catch {
+      // Sin localStorage: se vuelve a ofrecer en la próxima carga.
+    }
+    setOfrecerPush(false);
+  }
 
   useEffect(() => {
     actualizarTitulo(inicial);
@@ -79,19 +124,48 @@ export default function AvisoSolicitudes({ inicial }: { inicial: number }) {
     return () => clearTimeout(t);
   }, [nuevas]);
 
-  if (nuevas === null) return null;
+  if (nuevas === null && !ofrecerPush) return null;
   // Va al <body>: la cabecera de pestañas es translúcida (backdrop-filter) y ahí un cartel "fixed" quedaría pegado a la cabecera.
   return createPortal(
-    <a
-      href="/rrhh/solicitudes"
-      className="fixed bottom-4 right-4 z-[150] flex max-w-sm items-center gap-3 rounded-xl border border-amber-500/60 bg-slate-900 px-4 py-3 shadow-xl hover:bg-slate-800"
-    >
-      <span className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-amber-400" />
-      <span className="text-sm text-slate-100">
-        <span className="block font-semibold">{nuevas === 1 ? 'Nueva solicitud de retiro' : `${nuevas} solicitudes nuevas de retiro`}</span>
-        <span className="text-xs text-slate-400">Tocá para verla en RRHH &gt; Solicitudes</span>
-      </span>
-    </a>,
+    <div className="fixed inset-x-4 bottom-4 z-[150] flex flex-col items-end gap-3 sm:inset-x-auto sm:right-4 sm:w-96">
+      {ofrecerPush && (
+        <div className="w-full rounded-xl border border-slate-700 bg-slate-900 p-4 shadow-xl">
+          <p className="text-sm font-semibold text-slate-100">¿Querés recibir avisos en este dispositivo?</p>
+          <p className="mt-1 text-xs text-slate-400">Te mandamos una notificación cuando un empleado pide un retiro anticipado, aunque tengas la web cerrada.</p>
+          {errorOferta && <p className="mt-2 rounded border border-red-900 bg-red-950/50 px-3 py-1.5 text-xs text-red-300">{errorOferta}</p>}
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              disabled={activando}
+              onClick={() => void aceptarOferta()}
+              className="flex-1 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-600 disabled:opacity-60"
+            >
+              {activando ? 'Un momento...' : 'Activar'}
+            </button>
+            <button
+              type="button"
+              disabled={activando}
+              onClick={rechazarOferta}
+              className="rounded-lg border border-slate-700 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800 disabled:opacity-60"
+            >
+              Ahora no
+            </button>
+          </div>
+        </div>
+      )}
+      {nuevas !== null && (
+        <a
+          href="/rrhh/solicitudes"
+          className="flex w-full items-center gap-3 rounded-xl border border-amber-500/60 bg-slate-900 px-4 py-3 shadow-xl hover:bg-slate-800"
+        >
+          <span className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-amber-400" />
+          <span className="text-sm text-slate-100">
+            <span className="block font-semibold">{nuevas === 1 ? 'Nueva solicitud de retiro' : `${nuevas} solicitudes nuevas de retiro`}</span>
+            <span className="text-xs text-slate-400">Tocá para verla en RRHH &gt; Solicitudes</span>
+          </span>
+        </a>
+      )}
+    </div>,
     document.body
   );
 }
