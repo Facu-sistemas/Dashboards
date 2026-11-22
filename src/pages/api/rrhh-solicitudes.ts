@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
-import { listSolicitudes, resolverSolicitud } from '@/lib/supabase/rrhh-solicitudes-retiro';
+import { eliminarSolicitud, listSolicitudes, resolverSolicitud } from '@/lib/supabase/rrhh-solicitudes-retiro';
 import { puedeAdministrarRrhh } from '@/lib/rrhh-permisos';
 import { handleApiRoute, jsonResponse, ApiValidationError } from '@/lib/api-helpers';
 
@@ -47,5 +47,28 @@ export const PUT: APIRoute = async (context) => {
     });
     if (!resuelta) throw new ApiValidationError('Esa solicitud ya fue resuelta');
     return { id, estado: decision };
+  });
+};
+
+// DELETE /api/rrhh-solicitudes — borra una solicitud (en cualquier estado). Solo dev y la cuenta rrhh.
+export const DELETE: APIRoute = async (context) => {
+  const usuario = context.locals.usuario;
+  if (!puedeAdministrarRrhh(usuario)) return noAutorizado();
+  return handleApiRoute(async () => {
+    let body: unknown;
+    try {
+      body = await context.request.json();
+    } catch {
+      throw new ApiValidationError('JSON inválido');
+    }
+    const parsed = z.object({ id: z.string().uuid() }).safeParse(body);
+    if (!parsed.success) throw new ApiValidationError('Datos inválidos');
+    const borrada = await eliminarSolicitud(parsed.data.id).catch((err: unknown) => {
+      console.error('[rrhh-solicitudes]', err);
+      throw new ApiValidationError('No se pudo eliminar. Probá de nuevo.');
+    });
+    if (!borrada) throw new ApiValidationError('Esa solicitud ya no existe');
+    console.info(`[rrhh-solicitudes] ${usuario!.username} eliminó la solicitud ${parsed.data.id}`);
+    return { id: parsed.data.id };
   });
 };

@@ -32,6 +32,12 @@ async function resolver(id: string, decision: 'aprobada' | 'rechazada', comentar
   if (!res.ok || !json.ok) throw new Error(json.error ?? 'No se pudo guardar la decisión.');
 }
 
+async function eliminar(id: string): Promise<void> {
+  const res = await fetch('/api/rrhh-solicitudes', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+  const json = (await res.json()) as { ok: boolean; error?: string };
+  if (!res.ok || !json.ok) throw new Error(json.error ?? 'No se pudo eliminar.');
+}
+
 function SolicitudesInner() {
   const queryClient = useQueryClient();
   const query = useApiQuery<Respuesta>(QUERY_KEY, '/api/rrhh-solicitudes');
@@ -49,6 +55,20 @@ function SolicitudesInner() {
     setError(null);
     try {
       await resolver(s.id, decision, comentarios[s.id] ?? '');
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setGuardando(null);
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+    }
+  }
+
+  async function borrar(s: SolicitudRetiro) {
+    if (!window.confirm(`¿Eliminar la solicitud de ${s.empleadoNombre} del ${fmtFecha(s.fecha)}? No se puede deshacer.`)) return;
+    setGuardando(s.id);
+    setError(null);
+    try {
+      await eliminar(s.id);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -105,7 +125,17 @@ function SolicitudesInner() {
                 <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${COLOR[s.estado]}`}>{ESTADO_SOLICITUD_TEXTO[s.estado]}</span>
               </div>
               <p className="mt-2 whitespace-pre-wrap rounded bg-slate-800/60 p-3 text-sm text-slate-200">{s.motivo}</p>
-              <p className="mt-2 text-xs text-slate-500">Pedida el {fmtCreada(s.creadaEn)}</p>
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <p className="text-xs text-slate-500">Pedida el {fmtCreada(s.creadaEn)}</p>
+                <button
+                  type="button"
+                  disabled={guardando === s.id}
+                  onClick={() => void borrar(s)}
+                  className="rounded border border-slate-700 px-2.5 py-1 text-xs text-slate-400 hover:border-red-500 hover:text-red-400 disabled:opacity-50"
+                >
+                  Eliminar
+                </button>
+              </div>
 
               {s.estado === 'pendiente' ? (
                 <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">

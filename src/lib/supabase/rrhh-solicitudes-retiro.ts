@@ -126,3 +126,10 @@ export async function contarPendientes(): Promise<number> {
     return 0;
   }
 }
+
+/** Borra la solicitud definitivamente (solo la usa RRHH/dev). Devuelve false si no existía. */
+export async function eliminarSolicitud(id: string): Promise<boolean> {
+  const { data, error } = await getSupabaseAdminClient().from('rrhh_solicitudes_retiro').delete().eq('id', id).select('id');
+  if (error) throw new Error(error.message);
+  return (data ?? []).length > 0;
+}
