@@ -6,7 +6,7 @@ import type { PortalEmpleado } from '@/lib/odoo/empleado-portal';
 const CUADROS = 3;
 const INTERVALO_MS = 400;
 
-type Fase = 'cargando' | 'login' | 'portal';
+type Fase = 'cargando' | 'login' | 'entrando' | 'portal';
 
 const fmtHs = (n: number) => `${n.toFixed(1).replace('.', ',')} hs`;
 const fmtFecha = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
@@ -28,6 +28,7 @@ export default function EmpleadosApp() {
   const [fase, setFase] = useState<Fase>('cargando');
   const [data, setData] = useState<PortalEmpleado | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [nombreEntrando, setNombreEntrando] = useState('');
 
   const cargar = useCallback(async () => {
     const r = await pedirPortal();
@@ -44,6 +45,12 @@ export default function EmpleadosApp() {
     }
   }, []);
 
+  const entrar = useCallback(async (nombre: string) => {
+    setNombreEntrando(nombre);
+    setFase('entrando');
+    await cargar();
+  }, [cargar]);
+
   useEffect(() => {
     void cargar();
   }, [cargar]);
@@ -55,13 +62,14 @@ export default function EmpleadosApp() {
   }
 
   if (fase === 'cargando') return <p className="py-20 text-center text-slate-400">Cargando...</p>;
-  if (fase === 'login') return <Login alEntrar={cargar} errorInicial={error} />;
+  if (fase === 'login') return <Login alEntrar={entrar} errorInicial={error} />;
+  if (fase === 'entrando') return <Entrando nombre={nombreEntrando} />;
   return <Portal data={data!} alSalir={salir} alActualizar={cargar} />;
 }
 
 // ───────────────────────────── Login con la cara ─────────────────────────────
 
-function Login({ alEntrar, errorInicial }: { alEntrar: () => Promise<void>; errorInicial: string | null }) {
+function Login({ alEntrar, errorInicial }: { alEntrar: (nombre: string) => Promise<void>; errorInicial: string | null }) {
   const { videoRef, camaraActiva, estado, setEstado, error, detectar } = useFichajeCamara(true);
   const [mensaje, setMensaje] = useState<string | null>(errorInicial);
   const [verificando, setVerificando] = useState(false);
@@ -97,9 +105,9 @@ function Login({ alEntrar, errorInicial }: { alEntrar: () => Promise<void>; erro
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ descriptores }),
             });
-            const json = (await res.json()) as { ok: boolean; error?: string };
+            const json = (await res.json()) as { ok: boolean; data?: { nombre: string }; error?: string };
             if (json.ok) {
-              await alEntrar();
+              await alEntrar(json.data?.nombre ?? '');
               return;
             }
             setMensaje(json.error ?? 'No te pude reconocer.');
@@ -137,6 +145,25 @@ function Login({ alEntrar, errorInicial }: { alEntrar: () => Promise<void>; erro
       <p className="max-w-sm text-center text-xs text-slate-500">
         ¿No te reconoce? Pedile a RRHH que revise tu registro facial.
       </p>
+    </div>
+  );
+}
+
+// ───────────────────────────── Pantalla de carga tras el login ─────────────────────────────
+
+const PASOS_ENTRANDO = ['Entrando...', 'Buscando tus fichadas...', 'Calculando tu banco de horas...', 'Revisando tus vacaciones...', 'Ya casi...'];
+
+function Entrando({ nombre }: { nombre: string }) {
+  const [paso, setPaso] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setPaso((p) => Math.min(p + 1, PASOS_ENTRANDO.length - 1)), 1800);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div className="flex flex-col items-center gap-4 pt-28 text-center">
+      <div className="h-12 w-12 animate-spin rounded-full border-4 border-slate-700 border-t-emerald-400" />
+      <h1 className="text-2xl font-bold text-slate-100">{nombre ? `Hola, ${nombre}` : 'Hola'}</h1>
+      <p className="text-sm text-slate-300">{PASOS_ENTRANDO[paso]}</p>
     </div>
   );
 }
