@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import QueryProvider from '@/components/QueryProvider';
 import { useApiQuery } from '@/components/dashboard/useApiQuery';
+import AvisosPanel from './AvisosPanel';
 import { ESTADO_SOLICITUD_TEXTO, type EstadoSolicitud, type SolicitudRetiro } from '@/lib/rrhh-solicitudes';
 
 interface Respuesta {
@@ -98,6 +99,7 @@ function SolicitudesInner() {
 
   return (
     <div className="flex flex-col gap-4">
+      <AvisosPanel />
       <div className="flex flex-wrap items-center gap-2">
         {(['pendiente', 'todas'] as const).map((f) => (
           <button
