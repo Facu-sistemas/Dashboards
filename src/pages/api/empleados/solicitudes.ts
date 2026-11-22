@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { EMPLEADO_COOKIE, leerToken } from '@/lib/empleado-sesion';
 import { cancelarSolicitud, crearSolicitud, listSolicitudesDeEmpleado, marcarVistasPorEmpleado, tienePendienteEseDia } from '@/lib/supabase/rrhh-solicitudes-retiro';
+import { notificarRrhh } from '@/lib/push-rrhh';
 import { getArgentinaTodayIso } from '@/lib/odoo/oee';
 import { addDaysIso } from '@/lib/date';
 import { handleApiRoute, jsonResponse, ApiValidationError } from '@/lib/api-helpers';
@@ -52,6 +53,14 @@ export const POST: APIRoute = async (context) => {
       console.error('[empleados/solicitudes]', err);
       throw new ApiValidationError('No se pudo guardar la solicitud. Avisale a RRHH.');
     }
+    // Aviso al celu/compu de RRHH. Si falla no importa: la solicitud ya quedó guardada.
+    const [, mes, dia] = fecha.split('-');
+    await notificarRrhh({
+      titulo: 'Nueva solicitud de retiro',
+      cuerpo: `${sesion.nombre} pide retirarse el ${dia}/${mes} a las ${horaRetiro} hs`,
+      url: '/rrhh/solicitudes',
+      tag: 'rrhh-solicitud',
+    });
     return { ok: true };
   });
 };

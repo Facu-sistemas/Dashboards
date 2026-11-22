@@ -70,11 +70,91 @@ function actualizarTitulo(n: number) {
   document.title = n > 0 ? `(${n}) ${TITULO_ORIGINAL}` : TITULO_ORIGINAL;
 }
 
+type EstadoPush = 'cargando' | 'no-soportado' | 'ios-sin-instalar' | 'denegado' | 'inactivo' | 'activo';
+
+function aUint8(base64Url: string): Uint8Array<ArrayBuffer> {
+  const base64 = (base64Url + '='.repeat((4 - (base64Url.length % 4)) % 4)).replace(/-/g, '+').replace(/_/g, '/');
+  const bin = atob(base64);
+  const out = new Uint8Array(new ArrayBuffer(bin.length));
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+async function registroPush(): Promise<ServiceWorkerRegistration> {
+  const reg = await navigator.serviceWorker.register('/sw-push.js');
+  await navigator.serviceWorker.ready;
+  return reg;
+}
+
 export default function AvisoSolicitudes({ inicial }: { inicial: number }) {
   const ultimo = useRef(inicial);
   const [nuevas, setNuevas] = useState<number | null>(null);
   const [audioListo, setAudioListo] = useState(false);
   const [sonido, setSonido] = useState(true);
+  const [push, setPush] = useState<EstadoPush>('cargando');
+  const [errorPush, setErrorPush] = useState<string | null>(null);
+  const [trabajandoPush, setTrabajandoPush] = useState(false);
+
+  // Notificaciones push (llegan con la web cerrada). En iPhone solo existen si la web está instalada en la pantalla de inicio.
+  useEffect(() => {
+    const esIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+      setPush(esIOS ? 'ios-sin-instalar' : 'no-soportado');
+      return;
+    }
+    if (Notification.permission === 'denied') {
+      setPush('denegado');
+      return;
+    }
+    void navigator.serviceWorker
+      .getRegistration('/sw-push.js')
+      .then((reg) => reg?.pushManager.getSubscription())
+      .then((sub) => setPush(sub && Notification.permission === 'granted' ? 'activo' : 'inactivo'))
+      .catch(() => setPush('inactivo'));
+  }, []);
+
+  async function activarPush() {
+    setTrabajandoPush(true);
+    setErrorPush(null);
+    try {
+      const permiso = await Notification.requestPermission();
+      if (permiso !== 'granted') {
+        setPush(permiso === 'denied' ? 'denegado' : 'inactivo');
+        return;
+      }
+      const resClave = await fetch('/api/rrhh-push', { headers: { Accept: 'application/json' } });
+      const jsonClave = (await resClave.json()) as { ok: boolean; data?: { clave: string }; error?: string };
+      if (!jsonClave.ok || !jsonClave.data) throw new Error(jsonClave.error ?? 'No se pudo obtener la clave de notificaciones.');
+      const reg = await registroPush();
+      const sub = (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: aUint8(jsonClave.data.clave) }));
+      const res = await fetch('/api/rrhh-push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sub.toJSON()) });
+      const json = (await res.json()) as { ok: boolean; error?: string };
+      if (!json.ok) throw new Error(json.error ?? 'No se pudo activar.');
+      setPush('activo');
+    } catch (err) {
+      setErrorPush(err instanceof Error ? err.message : 'No se pudo activar.');
+    } finally {
+      setTrabajandoPush(false);
+    }
+  }
+
+  async function desactivarPush() {
+    setTrabajandoPush(true);
+    setErrorPush(null);
+    try {
+      const reg = await navigator.serviceWorker.getRegistration('/sw-push.js');
+      const sub = await reg?.pushManager.getSubscription();
+      if (sub) {
+        await fetch('/api/rrhh-push', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint }) }).catch(() => {});
+        await sub.unsubscribe();
+      }
+      setPush('inactivo');
+    } catch (err) {
+      setErrorPush(err instanceof Error ? err.message : 'No se pudo desactivar.');
+    } finally {
+      setTrabajandoPush(false);
+    }
+  }
 
   useEffect(() => {
     setSonido(sonidoPreferido());
@@ -155,15 +235,39 @@ export default function AvisoSolicitudes({ inicial }: { inicial: number }) {
           </span>
         </a>
       )}
-      {/* Campanita fija: prender/apagar el timbre. Si el navegador todavía bloquea el audio, avisa que hace falta un toque. */}
-      <button
-        type="button"
-        onClick={alternarSonido}
-        title={sonido ? 'Apagar el timbre de solicitudes nuevas' : 'Activar el timbre de solicitudes nuevas'}
-        className="fixed bottom-4 left-4 z-[140] rounded-full border border-slate-700 bg-slate-900/90 px-3 py-1.5 text-xs text-slate-300 shadow hover:border-amber-500"
-      >
-        {sonido ? (audioListo ? '🔔 Timbre activado' : '🔔 Tocá la pantalla para activar el timbre') : '🔕 Timbre apagado'}
-      </button>
+      {/* Controles fijos abajo a la izquierda: timbre en esta pestaña y notificaciones push al celular/compu. */}
+      <div className="fixed bottom-4 left-4 z-[140] flex max-w-[18rem] flex-col items-start gap-1.5">
+        {errorPush && <p className="rounded-lg border border-red-900 bg-red-950/90 px-3 py-1.5 text-xs text-red-300">{errorPush}</p>}
+        {push === 'denegado' && (
+          <p className="rounded-lg border border-slate-700 bg-slate-900/95 px-3 py-1.5 text-xs text-slate-300">
+            Las notificaciones están bloqueadas. Habilitalas en los ajustes del navegador (candado junto a la dirección) y recargá.
+          </p>
+        )}
+        {push === 'ios-sin-instalar' && (
+          <p className="rounded-lg border border-slate-700 bg-slate-900/95 px-3 py-1.5 text-xs text-slate-300">
+            📱 En iPhone: abrí la web en Safari, tocá Compartir → "Agregar a pantalla de inicio" y abrila desde ahí para recibir notificaciones.
+          </p>
+        )}
+        {(push === 'inactivo' || push === 'activo') && (
+          <button
+            type="button"
+            disabled={trabajandoPush}
+            onClick={() => void (push === 'activo' ? desactivarPush() : activarPush())}
+            className="rounded-full border border-slate-700 bg-slate-900/90 px-3 py-1.5 text-xs text-slate-300 shadow hover:border-amber-500 disabled:opacity-60"
+            title={push === 'activo' ? 'Este dispositivo recibe avisos de solicitudes nuevas' : 'Recibir un aviso en este dispositivo cuando llegue una solicitud (aunque la web esté cerrada)'}
+          >
+            {trabajandoPush ? 'Un momento...' : push === 'activo' ? '📲 Notificaciones activadas (tocá para apagar)' : '📲 Activar notificaciones en este dispositivo'}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={alternarSonido}
+          title={sonido ? 'Apagar el timbre de solicitudes nuevas' : 'Activar el timbre de solicitudes nuevas'}
+          className="rounded-full border border-slate-700 bg-slate-900/90 px-3 py-1.5 text-xs text-slate-300 shadow hover:border-amber-500"
+        >
+          {sonido ? (audioListo ? '🔔 Timbre activado' : '🔔 Tocá la pantalla para activar el timbre') : '🔕 Timbre apagado'}
+        </button>
+      </div>
     </>
   );
 }
