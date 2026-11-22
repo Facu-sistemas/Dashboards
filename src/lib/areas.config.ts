@@ -95,6 +95,7 @@ export const AREAS: AreaConfig[] = [
       { slug: 'vacaciones', name: 'Vacaciones' },
       { slug: 'horas', name: 'Horas' },
       { slug: 'planilla', name: 'Planilla' },
+      { slug: 'solicitudes', name: 'Solicitudes', acceso: 'admin-rrhh' },
       { slug: 'administracion', name: 'Administración', acceso: 'admin-rrhh' },
     ],
   },

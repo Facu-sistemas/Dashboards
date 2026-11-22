@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFichajeCamara } from '@/components/fichaje/useFichajeCamara';
 import type { PortalEmpleado } from '@/lib/odoo/empleado-portal';
+import { ESTADO_SOLICITUD_TEXTO, type EstadoSolicitud, type SolicitudRetiro } from '@/lib/rrhh-solicitudes';
 
 /** Cuadros que el navegador junta antes de pedirle al servidor que verifique (el servidor repite el reconocimiento). */
 const CUADROS = 3;
@@ -193,6 +194,7 @@ function Tarjeta({ titulo, children, className = '' }: { titulo: string; childre
 function Portal({ data, alSalir, alActualizar }: { data: PortalEmpleado; alSalir: () => void; alActualizar: () => Promise<void> }) {
   const { empleado, hoyEstado, mes, banco, vacaciones } = data;
   const [verTodoBanco, setVerTodoBanco] = useState(false);
+  const [vista, setVista] = useState<'resumen' | 'retiro'>('resumen');
   const movimientos = verTodoBanco ? banco.movimientos : banco.movimientos.slice(0, 5);
   const pct = mes.horasEsperadas ? Math.min(100, Math.round((mes.horasCargadas / mes.horasEsperadas) * 100)) : null;
   const diasConDato = mes.dias.filter((d) => d.fecha <= data.hoy && !['fin-de-semana', 'sin-datos', 'pendiente'].includes(d.estado)).reverse();
@@ -218,6 +220,23 @@ function Portal({ data, alSalir, alActualizar }: { data: PortalEmpleado; alSalir
         </button>
       </header>
 
+      <nav className="flex gap-2">
+        {([['resumen', 'Mi resumen'], ['retiro', 'Retiro anticipado']] as const).map(([id, texto]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setVista(id)}
+            className={`flex-1 rounded-full border px-4 py-2 text-sm font-medium ${vista === id ? 'border-brand-500 bg-brand-500/10 text-brand-300' : 'border-slate-700 text-slate-300 hover:bg-slate-800'}`}
+          >
+            {texto}
+          </button>
+        ))}
+      </nav>
+
+      {vista === 'retiro' ? (
+        <RetiroAnticipado hoy={data.hoy} />
+      ) : (
+        <>
       <Tarjeta titulo="Hoy">
         <div className="flex items-center gap-3">
           <span className={`h-3 w-3 rounded-full ${hoyEstado.fichado ? 'animate-pulse bg-emerald-400' : hoyEstado.marcas.length > 0 ? 'bg-slate-500' : 'bg-amber-400'}`} />
@@ -333,9 +352,119 @@ function Portal({ data, alSalir, alActualizar }: { data: PortalEmpleado; alSalir
         </Tarjeta>
       )}
 
+        </>
+      )}
+
       <p className="pb-6 text-center text-xs text-slate-500">
         La sesión se cierra sola a los 30 minutos. Si algo no coincide con tus fichadas, avisale a RRHH.
       </p>
     </div>
+  );
+}
+
+// ───────────────────────────── Nota de solicitud de retiro anticipado ─────────────────────────────
+
+const COLOR_SOLICITUD: Record<EstadoSolicitud, string> = {
+  pendiente: 'bg-amber-500/20 text-amber-300',
+  aprobada: 'bg-emerald-500/20 text-emerald-300',
+  rechazada: 'bg-rose-500/20 text-rose-300',
+};
+
+function RetiroAnticipado({ hoy }: { hoy: string }) {
+  const [fecha, setFecha] = useState(hoy);
+  const [hora, setHora] = useState('');
+  const [motivo, setMotivo] = useState('');
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [enviada, setEnviada] = useState(false);
+  const [lista, setLista] = useState<SolicitudRetiro[] | null>(null);
+
+  const cargarLista = useCallback(async () => {
+    try {
+      const res = await fetch('/api/empleados/solicitudes', { credentials: 'same-origin' });
+      const json = (await res.json()) as { ok: boolean; data?: SolicitudRetiro[] };
+      setLista(json.ok && json.data ? json.data : []);
+    } catch {
+      setLista([]);
+    }
+  }, []);
+  useEffect(() => {
+    void cargarLista();
+  }, [cargarLista]);
+
+  async function enviar(e: React.FormEvent) {
+    e.preventDefault();
+    setEnviando(true);
+    setError(null);
+    setEnviada(false);
+    try {
+      const res = await fetch('/api/empleados/solicitudes', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fecha, horaRetiro: hora, motivo }),
+      });
+      const json = (await res.json()) as { ok: boolean; error?: string };
+      if (!json.ok) throw new Error(res.status === 401 ? 'Tu sesión venció. Salí y volvé a entrar.' : (json.error ?? 'No se pudo enviar la solicitud.'));
+      setEnviada(true);
+      setMotivo('');
+      setHora('');
+      await cargarLista();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  const campo = 'w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-base text-slate-100 placeholder:text-slate-500';
+
+  return (
+    <>
+      <Tarjeta titulo="Nota de solicitud de retiro anticipado">
+        <form onSubmit={enviar} className="flex flex-col gap-3">
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex flex-col gap-1 text-sm text-slate-300">
+              Día
+              <input type="date" required min={hoy} value={fecha} onChange={(e) => setFecha(e.target.value)} className={campo} />
+            </label>
+            <label className="flex flex-col gap-1 text-sm text-slate-300">
+              Hora en que te retirás
+              <input type="time" required value={hora} onChange={(e) => setHora(e.target.value)} className={campo} />
+            </label>
+          </div>
+          <label className="flex flex-col gap-1 text-sm text-slate-300">
+            Motivo
+            <textarea required minLength={5} maxLength={500} rows={3} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Contá brevemente por qué necesitás retirarte antes" className={campo} />
+          </label>
+          {error && <p className="rounded border border-red-900 bg-red-950/50 px-3 py-2 text-sm text-red-300">{error}</p>}
+          {enviada && <p className="rounded border border-emerald-900 bg-emerald-950/50 px-3 py-2 text-sm text-emerald-300">Solicitud enviada. RRHH la va a revisar.</p>}
+          <button type="submit" disabled={enviando} className="rounded-lg bg-brand-500 px-4 py-3 text-base font-semibold text-white hover:bg-brand-600 disabled:opacity-60">
+            {enviando ? 'Enviando...' : 'Enviar solicitud'}
+          </button>
+        </form>
+      </Tarjeta>
+
+      <Tarjeta titulo="Mis solicitudes">
+        {lista === null ? (
+          <p className="text-sm text-slate-400">Cargando...</p>
+        ) : lista.length === 0 ? (
+          <p className="text-sm text-slate-400">Todavía no hiciste ninguna solicitud.</p>
+        ) : (
+          <ul className="divide-y divide-slate-800">
+            {lista.map((s) => (
+              <li key={s.id} className="py-3 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-slate-200">{fmtFecha(s.fecha)} · {s.horaRetiro} hs</span>
+                  <span className={`rounded-full px-2 py-0.5 text-xs ${COLOR_SOLICITUD[s.estado]}`}>{ESTADO_SOLICITUD_TEXTO[s.estado]}</span>
+                </div>
+                <p className="mt-1 text-slate-400">{s.motivo}</p>
+                {s.comentarioRrhh && <p className="mt-1 text-slate-300">RRHH: {s.comentarioRrhh}</p>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Tarjeta>
+    </>
   );
 }
