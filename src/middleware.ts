@@ -7,6 +7,9 @@ import { SESSION_STARTED_COOKIE } from './lib/auth-constants';
 // Static assets (favicon, /_astro/* build output, etc.) are matched by
 // isStaticAsset below instead of listed here.
 const PUBLIC_PATHS = new Set(['/login', '/404', '/api/auth/login', '/api/auth/logout']);
+// Portal de empleados: entra con la cara y tiene su propia sesión (cookie firmada, ver lib/empleado-sesion.ts);
+// cada /api/empleados/* la valida por su cuenta.
+const esPortalEmpleados = (p: string) => p === '/empleados' || p.startsWith('/api/empleados/');
 
 function isStaticAsset(pathname: string): boolean {
   return /\.[a-zA-Z0-9]+$/.test(pathname);
@@ -17,7 +20,7 @@ function isStaticAsset(pathname: string): boolean {
 export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname } = context.url;
 
-  if (PUBLIC_PATHS.has(pathname) || isStaticAsset(pathname)) {
+  if (PUBLIC_PATHS.has(pathname) || esPortalEmpleados(pathname) || isStaticAsset(pathname)) {
     return next();
   }
 

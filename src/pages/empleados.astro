@@ -1,0 +1,12 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import EmpleadosApp from '@/components/empleados/EmpleadosApp';
+
+export const prerender = false;
+---
+
+<BaseLayout title="Portal del empleado — Frontera Living">
+  <main class="mx-auto min-h-screen w-full max-w-3xl px-4 py-6">
+    <EmpleadosApp client:only="react" />
+  </main>
+</BaseLayout>
