@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { z } from 'zod';
 import { borrarSuscripcion, guardarSuscripcion } from '@/lib/supabase/rrhh-push';
-import { claveVapidPublica, notificarDispositivo } from '@/lib/push-rrhh';
+import { claveVapidPublica, notificarDispositivo, probarRrhh } from '@/lib/push-rrhh';
 import { puedeAdministrarRrhh } from '@/lib/rrhh-permisos';
 import { handleApiRoute, jsonResponse, ApiValidationError } from '@/lib/api-helpers';
 
@@ -57,5 +57,18 @@ export const DELETE: APIRoute = async (context) => {
     if (!parsed.success) throw new ApiValidationError('Datos inválidos');
     await borrarSuscripcion(parsed.data.endpoint);
     return { ok: true };
+  });
+};
+
+// PUT /api/rrhh-push — diagnóstico: manda una notificación de prueba a todos los dispositivos suscriptos y devuelve qué pasó.
+export const PUT: APIRoute = async (context) => {
+  if (!puedeAdministrarRrhh(context.locals.usuario)) return noAutorizado();
+  return handleApiRoute(async () => {
+    try {
+      return await probarRrhh();
+    } catch (err) {
+      console.error('[rrhh-push] prueba', err);
+      throw new ApiValidationError(`No se pudo hacer la prueba (${err instanceof Error ? err.message : 'error'}). ¿Se corrió el SQL de rrhh_push_suscripciones?`);
+    }
   });
 };

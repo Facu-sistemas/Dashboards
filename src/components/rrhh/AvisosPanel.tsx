@@ -18,6 +18,8 @@ export default function AvisosPanel() {
   const [push, setPush] = useState<EstadoPush>('cargando');
   const [trabajando, setTrabajando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [probando, setProbando] = useState(false);
+  const [resultadoPrueba, setResultadoPrueba] = useState<{ ok: boolean; texto: string } | null>(null);
 
   useEffect(() => {
     setSonido(sonidoPreferido());
@@ -49,6 +51,34 @@ export default function AvisosPanel() {
       setError(err instanceof Error ? err.message : 'No se pudo completar.');
     } finally {
       setTrabajando(false);
+    }
+  }
+
+  // Diagnóstico: el servidor manda una notificación de prueba a todos los dispositivos suscriptos y cuenta qué pasó.
+  async function probar() {
+    setProbando(true);
+    setResultadoPrueba(null);
+    try {
+      const res = await fetch('/api/rrhh-push', { method: 'PUT', headers: { Accept: 'application/json' } });
+      const json = (await res.json()) as {
+        ok: boolean;
+        error?: string;
+        data?: { configurado: boolean; dispositivos: number; enviados: number; fallidos: { codigo: number | null; mensaje: string }[] };
+      };
+      if (!json.ok || !json.data) throw new Error(json.error ?? 'No se pudo hacer la prueba.');
+      const d = json.data;
+      if (!d.configurado) setResultadoPrueba({ ok: false, texto: 'El servidor no tiene las claves de notificaciones (VAPID). Revisá las variables de entorno en Vercel y redeployá.' });
+      else if (d.dispositivos === 0) setResultadoPrueba({ ok: false, texto: 'No hay ningún dispositivo suscripto en el servidor. Apagá y volvé a activar las notificaciones.' });
+      else if (d.fallidos.length > 0)
+        setResultadoPrueba({
+          ok: false,
+          texto: `Enviadas ${d.enviados} de ${d.dispositivos}. Fallaron: ${d.fallidos.map((f) => `${f.codigo ?? 'sin código'}: ${f.mensaje}`).join(' | ')}`,
+        });
+      else setResultadoPrueba({ ok: true, texto: `El servidor envió la prueba a ${d.enviados} dispositivo${d.enviados === 1 ? '' : 's'}. Si no la ves, el problema está en el sistema o el navegador de ese dispositivo (modo No molestar de Windows, notificaciones de Chrome bloqueadas).` });
+    } catch (err) {
+      setResultadoPrueba({ ok: false, texto: err instanceof Error ? err.message : 'No se pudo hacer la prueba.' });
+    } finally {
+      setProbando(false);
     }
   }
 
@@ -89,6 +119,16 @@ export default function AvisosPanel() {
             </button>
           )}
           {push === 'activo' && <p className="mt-1 text-xs text-slate-500">Tocá el botón para apagarlas.</p>}
+          {(push === 'activo' || push === 'inactivo') && (
+            <button type="button" disabled={probando} onClick={() => void probar()} className={`${boton} ${off} mt-2 block`}>
+              {probando ? 'Enviando prueba...' : 'Enviar notificación de prueba'}
+            </button>
+          )}
+          {resultadoPrueba && (
+            <p className={`mt-2 rounded border px-3 py-1.5 text-xs ${resultadoPrueba.ok ? 'border-emerald-900 bg-emerald-950/50 text-emerald-300' : 'border-red-900 bg-red-950/50 text-red-300'}`}>
+              {resultadoPrueba.texto}
+            </p>
+          )}
           {error && <p className="mt-2 rounded border border-red-900 bg-red-950/50 px-3 py-1.5 text-xs text-red-300">{error}</p>}
         </div>
       </div>

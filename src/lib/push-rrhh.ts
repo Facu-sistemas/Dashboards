@@ -32,14 +32,24 @@ async function configurar(): Promise<WebPush | null> {
   return lib;
 }
 
-async function enviarA(lib: WebPush, s: SuscripcionPush, payload: PayloadPush): Promise<void> {
+export interface FalloPush {
+  codigo: number | null;
+  mensaje: string;
+}
+
+/** Devuelve null si salió bien, o por qué falló (la usa también el diagnóstico). */
+async function enviarA(lib: WebPush, s: SuscripcionPush, payload: PayloadPush): Promise<FalloPush | null> {
   try {
     await lib.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify(payload), { TTL: 60 * 60 * 12, urgency: 'high' });
+    return null;
   } catch (err) {
-    const codigo = (err as { statusCode?: number }).statusCode;
+    const codigo = (err as { statusCode?: number }).statusCode ?? null;
+    const mensaje = err instanceof Error ? err.message : String(err);
+    const cuerpo = (err as { body?: string }).body;
     // 404/410: el dispositivo se dio de baja o venció la suscripción: se limpia para no insistir.
     if (codigo === 404 || codigo === 410) await borrarSuscripcion(s.endpoint).catch(() => {});
-    else console.error('[push-rrhh] no se pudo enviar', codigo ?? '', err instanceof Error ? err.message : err);
+    else console.error('[push-rrhh] no se pudo enviar', codigo ?? '', mensaje, cuerpo ?? '');
+    return { codigo, mensaje: cuerpo ? `${mensaje} — ${String(cuerpo).slice(0, 200)}` : mensaje };
   }
 }
 
@@ -62,4 +72,24 @@ export async function notificarDispositivo(s: SuscripcionPush, payload: PayloadP
   const lib = await configurar();
   if (!lib) return;
   await enviarA(lib, s, payload);
+}
+
+export interface ResultadoPrueba {
+  /** El servidor tiene las claves VAPID. */
+  configurado: boolean;
+  dispositivos: number;
+  enviados: number;
+  fallidos: FalloPush[];
+}
+
+/** Diagnóstico: manda una notificación de prueba a todos los dispositivos suscriptos y cuenta qué pasó con cada uno. */
+export async function probarRrhh(): Promise<ResultadoPrueba> {
+  const lib = await configurar();
+  if (!lib) return { configurado: false, dispositivos: 0, enviados: 0, fallidos: [] };
+  const suscripciones = await listSuscripciones();
+  const resultados = await Promise.all(
+    suscripciones.map((s) => enviarA(lib, s, { titulo: 'Prueba de notificación', cuerpo: 'Si ves esto, las notificaciones de RRHH funcionan.', tag: 'rrhh-prueba' }))
+  );
+  const fallidos = resultados.filter((r): r is FalloPush => r !== null);
+  return { configurado: true, dispositivos: suscripciones.length, enviados: resultados.length - fallidos.length, fallidos };
 }
