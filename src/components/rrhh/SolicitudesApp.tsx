@@ -45,6 +45,17 @@ function SolicitudesInner() {
   const [filtro, setFiltro] = useState<'pendiente' | 'todas'>('pendiente');
   const [comentarios, setComentarios] = useState<Record<string, string>>({});
   const [guardando, setGuardando] = useState<string | null>(null);
+  const [abiertas, setAbiertas] = useState<Set<string>>(new Set());
+  const [limite, setLimite] = useState(15);
+
+  function alternarAbierta(id: string) {
+    setAbiertas((previas) => {
+      const nuevas = new Set(previas);
+      if (nuevas.has(id)) nuevas.delete(id);
+      else nuevas.add(id);
+      return nuevas;
+    });
+  }
   const [error, setError] = useState<string | null>(null);
 
   // Si llega una solicitud mientras RRHH tiene la pestaña abierta, aparece sola (el aviso en vivo suena cada 30 s).
@@ -120,68 +131,92 @@ function SolicitudesInner() {
           {filtro === 'pendiente' ? 'No hay solicitudes pendientes.' : 'Todavía no hay solicitudes.'}
         </p>
       ) : (
-        <ul className="flex flex-col gap-3">
-          {visibles.map((s) => (
-            <li key={s.id} className="rounded-lg border border-slate-800 bg-slate-900 p-4">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className="font-semibold text-slate-100">{s.empleadoNombre}</p>
-                  <p className="text-sm text-slate-300">
-                    Se retira el <span className="font-medium">{fmtFecha(s.fecha)}</span> a las <span className="font-medium">{s.horaRetiro} hs</span>
-                  </p>
-                </div>
-                <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${COLOR[s.estado]}`}>{ESTADO_SOLICITUD_TEXTO[s.estado]}</span>
-              </div>
-              <p className="mt-2 whitespace-pre-wrap rounded bg-slate-800/60 p-3 text-sm text-slate-200">{s.motivo}</p>
-              <div className="mt-2 flex items-center justify-between gap-2">
-                <p className="text-xs text-slate-500">Pedida el {fmtCreada(s.creadaEn)}</p>
-                <button
-                  type="button"
-                  disabled={guardando === s.id}
-                  onClick={() => void borrar(s)}
-                  className="rounded border border-slate-700 px-2.5 py-1 text-xs text-slate-400 hover:border-red-500 hover:text-red-400 disabled:opacity-50"
-                >
-                  Eliminar
-                </button>
-              </div>
+        <>
+          {/* Una fila por solicitud (nombre, día y hora, motivo, estado). Las resueltas se abren con un toque para ver el detalle; las pendientes ya vienen abiertas para decidir. */}
+          <ul className="flex flex-col gap-1.5">
+            {visibles.slice(0, limite).map((s) => {
+              const pendiente = s.estado === 'pendiente';
+              const abierta = pendiente || abiertas.has(s.id);
+              return (
+                <li key={s.id} className="rounded-lg border border-slate-800 bg-slate-900">
+                  <div className="flex items-center gap-2 px-3 py-2">
+                    <button
+                      type="button"
+                      aria-expanded={abierta}
+                      onClick={() => alternarAbierta(s.id)}
+                      className="grid min-w-0 flex-1 grid-cols-1 items-center gap-x-4 text-left sm:grid-cols-[13rem_9rem_minmax(0,1fr)]"
+                    >
+                      <span className="truncate text-sm font-semibold text-slate-100">{s.empleadoNombre}</span>
+                      <span className="text-xs text-slate-300">
+                        {fmtFecha(s.fecha)} · {s.horaRetiro} hs
+                      </span>
+                      <span className="truncate text-sm text-slate-400">{s.motivo}</span>
+                    </button>
+                    <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${COLOR[s.estado]}`}>{ESTADO_SOLICITUD_TEXTO[s.estado]}</span>
+                    <button
+                      type="button"
+                      disabled={guardando === s.id}
+                      onClick={() => void borrar(s)}
+                      className="shrink-0 rounded border border-slate-700 px-2 py-0.5 text-xs text-slate-400 hover:border-red-500 hover:text-red-400 disabled:opacity-50"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
 
-              {s.estado === 'pendiente' ? (
-                <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <input
-                    type="text"
-                    value={comentarios[s.id] ?? ''}
-                    onChange={(e) => setComentarios((c) => ({ ...c, [s.id]: e.target.value }))}
-                    placeholder="Comentario para el empleado (opcional)"
-                    maxLength={500}
-                    className="flex-1 rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
-                  />
-                  <button
-                    type="button"
-                    disabled={guardando === s.id}
-                    onClick={() => void decidir(s, 'aprobada')}
-                    className="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-                  >
-                    Aprobar
-                  </button>
-                  <button
-                    type="button"
-                    disabled={guardando === s.id}
-                    onClick={() => void decidir(s, 'rechazada')}
-                    className="rounded bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50"
-                  >
-                    Rechazar
-                  </button>
-                </div>
-              ) : (
-                <p className="mt-2 text-xs text-slate-400">
-                  {s.estado === 'cancelada' ? 'Cancelada por el empleado' : `${ESTADO_SOLICITUD_TEXTO[s.estado]} por ${s.resueltaPor ?? '—'}`}
-                  {s.resueltaEn ? ` el ${fmtCreada(s.resueltaEn)}` : ''}
-                  {s.comentarioRrhh ? ` · "${s.comentarioRrhh}"` : ''}
-                </p>
-              )}
-            </li>
-          ))}
-        </ul>
+                  {abierta && (
+                    <div className="flex flex-col gap-2 border-t border-slate-800 px-3 py-2.5">
+                      <p className="whitespace-pre-wrap text-sm text-slate-200">{s.motivo}</p>
+                      <p className="text-xs text-slate-500">
+                        Pedida el {fmtCreada(s.creadaEn)}
+                        {!pendiente && (
+                          <>
+                            {' · '}
+                            {s.estado === 'cancelada' ? 'Cancelada por el empleado' : `${ESTADO_SOLICITUD_TEXTO[s.estado]} por ${s.resueltaPor ?? '—'}`}
+                            {s.resueltaEn ? ` el ${fmtCreada(s.resueltaEn)}` : ''}
+                            {s.comentarioRrhh ? ` · "${s.comentarioRrhh}"` : ''}
+                          </>
+                        )}
+                      </p>
+                      {pendiente && (
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                          <input
+                            type="text"
+                            value={comentarios[s.id] ?? ''}
+                            onChange={(e) => setComentarios((c) => ({ ...c, [s.id]: e.target.value }))}
+                            placeholder="Comentario para el empleado (opcional)"
+                            maxLength={500}
+                            className="flex-1 rounded border border-slate-700 bg-slate-950 px-3 py-1.5 text-sm text-slate-100 placeholder:text-slate-500"
+                          />
+                          <button
+                            type="button"
+                            disabled={guardando === s.id}
+                            onClick={() => void decidir(s, 'aprobada')}
+                            className="rounded bg-emerald-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                          >
+                            Aprobar
+                          </button>
+                          <button
+                            type="button"
+                            disabled={guardando === s.id}
+                            onClick={() => void decidir(s, 'rechazada')}
+                            className="rounded bg-rose-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50"
+                          >
+                            Rechazar
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          {visibles.length > limite && (
+            <button type="button" onClick={() => setLimite((l) => l + 20)} className="self-center rounded-full border border-slate-700 px-4 py-1.5 text-sm text-slate-300 hover:bg-slate-800">
+              Ver {Math.min(20, visibles.length - limite)} más ({visibles.length - limite} restantes)
+            </button>
+          )}
+        </>
       )}
     </div>
   );

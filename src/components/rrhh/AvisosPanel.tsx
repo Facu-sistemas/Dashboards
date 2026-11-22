@@ -87,9 +87,14 @@ export default function AvisosPanel() {
   const off = 'border-slate-700 text-slate-300 hover:bg-slate-800';
 
   return (
-    <section className="rounded-lg border border-slate-800 bg-slate-900 p-4">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Avisos de solicitudes nuevas</h3>
-      <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:gap-8">
+    <details className="rounded-lg border border-slate-800 bg-slate-900 [&_summary::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-2.5">
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Avisos de solicitudes nuevas</span>
+        <span className="text-xs text-slate-400">
+          Timbre {sonido ? 'activado' : 'apagado'} · Notificaciones {push === 'activo' ? 'activadas' : 'sin activar'} · <span className="text-brand-400">Configurar</span>
+        </span>
+      </summary>
+      <div className="flex flex-col gap-4 border-t border-slate-800 p-4 sm:flex-row sm:gap-8">
         <div className="flex-1">
           <p className="text-sm font-medium text-slate-200">Timbre en la web</p>
           <p className="mt-0.5 text-xs text-slate-400">
@@ -132,6 +137,6 @@ export default function AvisosPanel() {
           {error && <p className="mt-2 rounded border border-red-900 bg-red-950/50 px-3 py-1.5 text-xs text-red-300">{error}</p>}
         </div>
       </div>
-    </section>
+    </details>
   );
 }

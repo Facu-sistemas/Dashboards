@@ -62,10 +62,46 @@ export default function EmpleadosApp() {
     setFase('login');
   }
 
-  if (fase === 'cargando') return <p className="py-20 text-center text-slate-400">Cargando...</p>;
-  if (fase === 'login') return <Login alEntrar={entrar} errorInicial={error} />;
-  if (fase === 'entrando') return <Entrando nombre={nombreEntrando} />;
-  return <Portal data={data!} alSalir={salir} alActualizar={cargar} />;
+  return (
+    <div className="flex flex-col">
+      {fase === 'cargando' ? (
+        <p className="py-20 text-center text-slate-400">Cargando...</p>
+      ) : fase === 'login' ? (
+        <Login alEntrar={entrar} errorInicial={error} />
+      ) : fase === 'entrando' ? (
+        <Entrando nombre={nombreEntrando} />
+      ) : (
+        <Portal data={data!} alSalir={salir} alActualizar={cargar} />
+      )}
+      <CambiarTema />
+    </div>
+  );
+}
+
+/** Modo claro/oscuro: mismo mecanismo que el botón del layout (atributo data-theme + localStorage), pero al pie de la pantalla para que no tape nada. */
+function CambiarTema() {
+  const [claro, setClaro] = useState(false);
+  useEffect(() => setClaro(document.documentElement.getAttribute('data-theme') === 'light'), []);
+  function alternar() {
+    const siguiente = !claro;
+    if (siguiente) document.documentElement.setAttribute('data-theme', 'light');
+    else document.documentElement.removeAttribute('data-theme');
+    try {
+      localStorage.setItem('theme', siguiente ? 'light' : 'dark');
+    } catch {
+      // Sin localStorage: vale solo para esta visita.
+    }
+    window.dispatchEvent(new CustomEvent('themechange', { detail: { theme: siguiente ? 'light' : 'dark' } }));
+    setClaro(siguiente);
+  }
+  return (
+    <button type="button" onClick={alternar} className="mx-auto mt-2 flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:border-brand-500 hover:text-brand-400">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+        {claro ? <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z" /> : <><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" /></>}
+      </svg>
+      {claro ? 'Modo oscuro' : 'Modo claro'}
+    </button>
+  );
 }
 
 // ───────────────────────────── Login con la cara ─────────────────────────────

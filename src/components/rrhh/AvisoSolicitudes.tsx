@@ -8,7 +8,7 @@ import { activarAudio, activarPush, estadoPushInicial, sonidoPreferido, timbre }
  * pone el número en el título de la pestaña del navegador. También actualiza el globito de la pestaña "Solicitudes".
  * No dibuja controles: el timbre y las notificaciones se configuran en la pestaña Solicitudes (AvisosPanel).
  */
-const CADA_MS = 30_000;
+const CADA_MS = 15_000;
 const TOAST_MS = 12_000;
 /** Si dijo "Ahora no", no se le vuelve a ofrecer activar las notificaciones durante este tiempo. */
 const OCULTAR_OFERTA_MS = 7 * 24 * 60 * 60 * 1000;
@@ -35,8 +35,9 @@ function actualizarTitulo(n: number) {
   document.title = n > 0 ? `(${n}) ${TITULO_ORIGINAL}` : TITULO_ORIGINAL;
 }
 
-export default function AvisoSolicitudes({ inicial }: { inicial: number }) {
-  const ultimo = useRef(inicial);
+export default function AvisoSolicitudes({ inicial, ultima }: { inicial: number; ultima: string | null }) {
+  /** Creación de la solicitud más reciente que esta pantalla ya conoce: todo lo posterior es nuevo. */
+  const ultimaVista = useRef<string | null>(ultima);
   const [nuevas, setNuevas] = useState<number | null>(null);
   const [ofrecerPush, setOfrecerPush] = useState(false);
   const [activando, setActivando] = useState(false);
@@ -92,18 +93,19 @@ export default function AvisoSolicitudes({ inicial }: { inicial: number }) {
     let cancelado = false;
     async function consultar() {
       try {
-        const res = await fetch('/api/rrhh-solicitudes-pendientes', { headers: { Accept: 'application/json' } });
+        const url = '/api/rrhh-solicitudes-pendientes' + (ultimaVista.current ? `?desde=${encodeURIComponent(ultimaVista.current)}` : '');
+        const res = await fetch(url, { headers: { Accept: 'application/json' } });
         if (!res.ok || !(res.headers.get('content-type') ?? '').includes('json')) return;
-        const json = (await res.json()) as { ok: boolean; data?: { pendientes: number } };
+        const json = (await res.json()) as { ok: boolean; data?: { pendientes: number; ultima: string | null; nuevas: number } };
         if (cancelado || !json.ok || json.data === undefined) return;
-        const n = json.data.pendientes;
-        if (n > ultimo.current) {
-          setNuevas(n - ultimo.current);
+        const { pendientes, ultima: ultimaServidor, nuevas: cuantas } = json.data;
+        if (cuantas > 0) {
+          setNuevas((previas) => (previas ?? 0) + cuantas);
           if (sonidoPreferido()) timbre();
         }
-        ultimo.current = n;
-        actualizarGlobito(n);
-        actualizarTitulo(n);
+        if (ultimaServidor && (!ultimaVista.current || ultimaServidor > ultimaVista.current)) ultimaVista.current = ultimaServidor;
+        actualizarGlobito(pendientes);
+        actualizarTitulo(pendientes);
       } catch {
         // Sin red o servidor caído: se reintenta en el próximo ciclo, sin avisar nada.
       }
@@ -118,10 +120,21 @@ export default function AvisoSolicitudes({ inicial }: { inicial: number }) {
     };
   }, []);
 
+  // El cartel se apaga a los 12 s, pero contados desde que la pestaña se ve: si llegó con la pestaña en segundo plano, está esperando cuando volvés.
   useEffect(() => {
     if (nuevas === null) return;
-    const t = setTimeout(() => setNuevas(null), TOAST_MS);
-    return () => clearTimeout(t);
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const iniciar = () => {
+      clearTimeout(t);
+      t = setTimeout(() => setNuevas(null), TOAST_MS);
+    };
+    if (document.visibilityState === 'visible') iniciar();
+    const alVer = () => document.visibilityState === 'visible' && iniciar();
+    document.addEventListener('visibilitychange', alVer);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener('visibilitychange', alVer);
+    };
   }, [nuevas]);
 
   if (nuevas === null && !ofrecerPush) return null;

@@ -4,9 +4,11 @@ import ScrollToTop from '@/components/nav/ScrollToTop.astro';
 
 interface Props {
   title: string;
+  /** Oculta el botón flotante de modo claro/oscuro (la página trae el suyo en otro lugar, ej. el portal de empleados en el celular). */
+  ocultarTema?: boolean;
 }
 
-const { title } = Astro.props;
+const { title, ocultarTema = false } = Astro.props;
 // Set by src/middleware.ts for every request — undefined only on /login
 // (already redirected away if a session exists by the time this renders).
 const usuario = Astro.locals.usuario;
@@ -63,7 +65,7 @@ const manifest = ruta.startsWith('/fichaje')
     </div>
 
     <!-- Hasta 1800px de ancho va en su propia franja arriba (absolute, scrollea con la página) para no pisar el nombre del área ni las pestañas; en pantallas anchas queda fija. -->
-    <div class="absolute right-4 top-1.5 z-40 flex items-center gap-2 min-[1800px]:fixed min-[1800px]:top-4">
+    <div class:list={["absolute right-4 top-1.5 z-40 flex items-center gap-2 min-[1800px]:fixed min-[1800px]:top-4", { hidden: ocultarTema }]}>
       {
         usuario && (
           <>

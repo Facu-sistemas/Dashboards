@@ -1,7 +1,7 @@
 ---
 import type { AreaConfig } from '@/lib/areas.config';
 import { tabVisible } from '@/lib/tab-acceso';
-import { contarPendientes } from '@/lib/supabase/rrhh-solicitudes-retiro';
+import { estadoSolicitudes } from '@/lib/supabase/rrhh-solicitudes-retiro';
 import AvisoSolicitudes from '@/components/rrhh/AvisoSolicitudes';
 
 interface Props {
@@ -15,7 +15,8 @@ const tabs = area.tabs.filter((t) => tabVisible(t, Astro.locals.usuario));
 // Áreas con subdivisión (ej. Herramientas de producción): una fila por grupo, en el orden en que aparecen.
 // Globito con las solicitudes de retiro pendientes de resolver (RRHH > Solicitudes; solo lo ve quien tiene la pestaña).
 const veSolicitudes = area.slug === 'rrhh' && tabs.some((t) => t.slug === 'solicitudes');
-const pendientesSolicitudes = veSolicitudes ? await contarPendientes() : 0;
+const estadoInicial = veSolicitudes ? await estadoSolicitudes().catch(() => ({ pendientes: 0, ultima: null, nuevas: 0 })) : { pendientes: 0, ultima: null, nuevas: 0 };
+const pendientesSolicitudes = estadoInicial.pendientes;
 const grupos: { nombre: string; tabs: typeof tabs }[] = [];
 for (const t of tabs) {
   const nombre = t.grupo ?? '';
@@ -79,4 +80,4 @@ for (const t of tabs) {
     </nav>
   )
 }
-{veSolicitudes && <AvisoSolicitudes client:load inicial={pendientesSolicitudes} />}
+{veSolicitudes && <AvisoSolicitudes client:load inicial={pendientesSolicitudes} ultima={estadoInicial.ultima} />}

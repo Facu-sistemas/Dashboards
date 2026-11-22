@@ -125,6 +125,32 @@ export async function contarPendientes(): Promise<number> {
   }
 }
 
+export interface EstadoSolicitudes {
+  pendientes: number;
+  /** Cuándo se creó la solicitud más reciente (de cualquier estado); null si no hay ninguna. */
+  ultima: string | null;
+  /** Pendientes creadas después de `desde` (0 si no se pasó). */
+  nuevas: number;
+}
+
+/**
+ * Estado para el aviso en vivo. Se avisa por "hay solicitudes pendientes creadas después de la última que vio esta pantalla" y no por
+ * "subió la cantidad": así no se pierde una nueva cuando justo se resolvió otra, y al volver a una pestaña dormida se avisa lo que llegó mientras tanto.
+ */
+export async function estadoSolicitudes(desde?: string): Promise<EstadoSolicitudes> {
+  const db = getSupabaseAdminClient();
+  const [pend, ult, nue] = await Promise.all([
+    db.from('rrhh_solicitudes_retiro').select('id', { count: 'exact', head: true }).eq('estado', 'pendiente'),
+    db.from('rrhh_solicitudes_retiro').select('creada_en').order('creada_en', { ascending: false }).limit(1),
+    desde
+      ? db.from('rrhh_solicitudes_retiro').select('id', { count: 'exact', head: true }).eq('estado', 'pendiente').gt('creada_en', desde)
+      : Promise.resolve({ count: 0, error: null }),
+  ]);
+  const error = pend.error ?? ult.error ?? nue.error;
+  if (error) throw new Error(error.message);
+  return { pendientes: pend.count ?? 0, ultima: (ult.data?.[0]?.creada_en as string | undefined) ?? null, nuevas: nue.count ?? 0 };
+}
+
 /** Igual pero tira el error: el aviso en vivo no tiene que confundir una falla con "0 pendientes". */
 export async function contarPendientesOError(): Promise<number> {
   const { count, error } = await getSupabaseAdminClient().from('rrhh_solicitudes_retiro').select('id', { count: 'exact', head: true }).eq('estado', 'pendiente');
