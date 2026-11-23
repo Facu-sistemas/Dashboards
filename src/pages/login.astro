@@ -108,6 +108,8 @@ const sessionExpired = Astro.url.searchParams.get('expired') === '1';
           </button>
         </form>
 
+        <a href="/empleados" class="emp-link">Empleados</a>
+
         <p class="foot">Acceso restringido a personal autorizado</p>
       </div>
     </main>
@@ -285,7 +287,13 @@ const sessionExpired = Astro.url.searchParams.get('expired') === '1';
     .go.ok .go-check { stroke: #052e1b; }
     .go.ok .go-check { display: block; }
 
-    .foot { margin-top: 2.2rem; font-size: 0.72rem; color: var(--faint); text-align: center; animation: fadeup 0.8s 1.1s both; }
+    .emp-link {
+      display: block; margin-top: 1.4rem; padding: 0.7rem 1rem; text-align: center; font-size: 0.85rem; font-weight: 600;
+      color: var(--text2); border: 1px solid var(--line); border-radius: 0.75rem; text-decoration: none;
+      transition: border-color 0.2s, background 0.2s; animation: fadeup 0.8s 1s both;
+    }
+    .emp-link:hover { border-color: var(--brand); color: var(--brand-l); }
+    .foot { margin-top: 1.2rem; font-size: 0.72rem; color: var(--faint); text-align: center; animation: fadeup 0.8s 1.1s both; }
 
     @media (max-width: 900px) {
       .stage { grid-template-columns: 1fr; }
