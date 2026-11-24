@@ -50,8 +50,6 @@ export interface ProductoSinResolver {
 
 export interface PlanSillon {
   hoy: string;
-  /** Plan fijado y bloqueado: no se rearma ni se sincroniza con Odoo hasta que se desbloquee. */
-  bloqueado?: boolean;
   lineas: LineaPlan[];
   sinResolver: ProductoSinResolver[];
   sinLinea: { ordenes: number; unidades: number };
@@ -86,9 +84,17 @@ export function catalogoDe(config: ConfigSillon): ProductoDato[] {
 
 const unidadesDe = (o: OrdenSillon) => Math.min(MAX_UNIDADES_POR_ORDEN, Math.max(1, Math.round(o.cantidad)));
 
-/** Orden de planificación: lo más viejo primero (el atrasado se arrastra), lo que no tiene fecha al final; dentro del día, por prioridad de Odoo. */
-const porFecha = (a: OrdenSillon, b: OrdenSillon) =>
+/**
+ * Los respaldos ("RC90-2_ MAT-SIMPLE…", equivalentes a "RESP. MAT.") no llevan prioridad en Odoo (0) pero la planificación los
+ * pone primeros del día, antes que las órdenes con número. El 0 del resto de los productos sigue siendo "sin prioridad", al final.
+ */
+const esRespaldo = (o: OrdenSillon, cat: ReturnType<typeof armarCatalogo>) =>
+  /^(\[[^\]]*\]\s*)?RC\d/i.test(o.producto) || (resolverProducto(o.producto, cat)?.nombre ?? '').toUpperCase().startsWith('RESP');
+
+/** Orden de planificación: lo más viejo primero (el atrasado se arrastra), lo que no tiene fecha al final; dentro del día, respaldos y después por prioridad de Odoo. */
+const porFecha = (cat: ReturnType<typeof armarCatalogo>) => (a: OrdenSillon, b: OrdenSillon) =>
   (a.fecha || '9999').localeCompare(b.fecha || '9999') ||
+  Number(esRespaldo(b, cat)) - Number(esRespaldo(a, cat)) ||
   (a.prioridad || Infinity) - (b.prioridad || Infinity) ||
   a.id - b.id;
 
@@ -149,7 +155,7 @@ export function armarPlan(ordenes: OrdenSillon[], config: ConfigSillon, hoy: str
   const ignoradas: PlanSillon['ignoradas'] = [];
   const hoyPorProducto = new Map<string, { linea: number; unidades: number }>();
 
-  for (const o of [...ordenes].sort(porFecha)) {
+  for (const o of [...ordenes].sort(porFecha(cat))) {
     if (!o.fecha) sinFecha += 1;
     const total = unidadesDe(o);
     const descartadas = Math.min(total, config.ignoradas[o.nombre] ?? 0);
