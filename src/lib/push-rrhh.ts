@@ -47,7 +47,10 @@ async function enviarA(lib: WebPush, s: SuscripcionPush, payload: PayloadPush): 
     const mensaje = err instanceof Error ? err.message : String(err);
     const cuerpo = (err as { body?: string }).body;
     // 404/410: el dispositivo se dio de baja o venció la suscripción: se limpia para no insistir.
-    if (codigo === 404 || codigo === 410) await borrarSuscripcion(s.endpoint).catch(() => {});
+    // 403 por claves VAPID distintas: la suscripción se creó con otras claves (se cambiaron en el servidor) y nunca va a funcionar con estas;
+    // se borra y el dispositivo la vuelve a crear al activar las notificaciones de nuevo.
+    const clavesDistintas = codigo === 403 && /vapid/i.test(`${mensaje} ${cuerpo ?? ''}`);
+    if (codigo === 404 || codigo === 410 || clavesDistintas) await borrarSuscripcion(s.endpoint).catch(() => {});
     else console.error('[push-rrhh] no se pudo enviar', codigo ?? '', mensaje, cuerpo ?? '');
     return { codigo, mensaje: cuerpo ? `${mensaje} — ${String(cuerpo).slice(0, 200)}` : mensaje };
   }
