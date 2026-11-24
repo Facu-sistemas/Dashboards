@@ -259,7 +259,9 @@ export async function getCostosProductosTest(fuente: FuenteCostos): Promise<Cost
 
   const porCodigo = new Map<string, CostoProducto>(odoo.map((p) => [p.codigo, p]));
   const codigosTela = odoo.filter((p) => p.categoria === 'Materia Prima / Tela Living').map((p) => p.codigo);
-  const precioTelaOdoo = new Map(odoo.filter((p) => p.categoria === 'Materia Prima / Tela Living').map((p) => [p.codigo, p.costo]));
+  const telasOdoo = odoo.filter((p) => p.categoria === 'Materia Prima / Tela Living');
+  const precioTelaOdoo = new Map(telasOdoo.map((p) => [p.codigo, p.costo]));
+  const grupoTelaOdoo = new Map(telasOdoo.map((p) => [p.codigo, p.grupo]));
 
   const planilla = new Map<string, string[]>();
   for (const f of hojaCp.slice(1)) if ((f[0] ?? '').trim() !== '') planilla.set(f[0]!.trim(), f);
@@ -291,12 +293,16 @@ export async function getCostosProductosTest(fuente: FuenteCostos): Promise<Cost
       // G / I: grupo y precio de la tela. La planilla los lleva a mano ("Grupos de telas"); Odoo tiene el precio de la tela
       // como costo del producto de la categoría Materia Prima / Tela Living.
       const infoTela = descTela ? telas.get(claveTexto(descTela)) : undefined;
-      const grupoTela = infoTela?.grupo ?? '';
+      const codTela = codigoTela(p.codigo, codigosTela);
+      let grupoTela = infoTela?.grupo ?? '';
       let precioTela: number | null = infoTela?.precio ?? null;
       if (fuente === 'odoo') {
-        const cod = codigoTela(p.codigo, codigosTela);
-        const enOdoo = cod ? precioTelaOdoo.get(cod) : undefined;
+        const enOdoo = codTela ? precioTelaOdoo.get(codTela) : undefined;
         if (enOdoo !== undefined) precioTela = enOdoo;
+        // Grupo de la tela: x_studio_grupo de Odoo (2, 3 o 4). Si la tela todavía no lo tiene cargado (0), se usa el de la planilla.
+        const grupoOdoo = codTela ? (grupoTelaOdoo.get(codTela) ?? 0) : 0;
+        if (grupoOdoo > 0) grupoTela = `Grupo ${grupoOdoo}`;
+        else if (codTela) avisos.push('La tela no tiene grupo cargado en Odoo (x_studio_grupo = 0): se usó el de la planilla.');
       }
 
       // K: tela = largo de tela del modelo x precio de la tela (colchones: 0).

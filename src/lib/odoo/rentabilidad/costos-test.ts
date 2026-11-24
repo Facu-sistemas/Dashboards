@@ -36,6 +36,8 @@ export interface CostoProducto {
   precioVenta: number;
   /** Tiempo estimado de línea (hs) cargado en Odoo (x_studio_tiempo_estimado). Lo usa "Costos productos (test)". */
   tiempoHs: number;
+  /** Grupo de la tela (x_studio_grupo: 2, 3 o 4; 0 = sin asignar). Solo tiene sentido en telas. */
+  grupo: number;
 }
 
 interface VarianteOdoo extends Record<string, unknown> {
@@ -49,6 +51,7 @@ interface VarianteOdoo extends Record<string, unknown> {
   cloth_length: number;
   lst_price: number;
   x_studio_tiempo_estimado: number;
+  x_studio_grupo: number;
 }
 
 /** Todos los productos con código de barras, con los campos de la pestaña Costos. Cacheado 60 s. */
@@ -57,7 +60,7 @@ export async function getProductosOdoo(): Promise<CostoProducto[]> {
     const rows = await searchReadAll<VarianteOdoo>({
       model: 'product.product',
       domain: [['barcode', '!=', false]],
-      fields: ['barcode', 'name', 'standard_price', 'categ_id', 'volume', 'x_studio_cantidad_patas', 'cloth_length', 'lst_price', 'x_studio_tiempo_estimado'],
+      fields: ['barcode', 'name', 'standard_price', 'categ_id', 'volume', 'x_studio_cantidad_patas', 'cloth_length', 'lst_price', 'x_studio_tiempo_estimado', 'x_studio_grupo'],
       context: { allowed_company_ids: [COMPANIA_COSTOS] },
     });
     return rows.map((r) => ({
@@ -71,6 +74,7 @@ export async function getProductosOdoo(): Promise<CostoProducto[]> {
       largoTela: r.cloth_length,
       precioVenta: r.lst_price,
       tiempoHs: r.x_studio_tiempo_estimado,
+      grupo: r.x_studio_grupo || 0,
     }));
   });
 }

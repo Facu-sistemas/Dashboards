@@ -34,7 +34,7 @@ export const GLOSARIO_TEST = {
   cpProducto: 'Nombre del producto sin la parte de tela y pata: lo que está antes del primer " - " del nombre de Odoo (salvo productos "SUMA", que van enteros).',
   cpTelaPata: 'Lo que viene después del primer " - " en el nombre de Odoo: "TELA - PATA". Ej.: "SHOT LATTE - MADRID APLIQUE LUSTRE WENGUE".',
   cpGrupoTela:
-    'Grupo de la tela (2, 3 o 4).\nNo está en Odoo: sale de la pestaña "Grupos de telas" de la planilla, por nombre de tela (Grupo 2 = no se vende, 3 = ~9% de las ventas, 4 = el resto). Define el sobreprecio del precio de venta: Grupo 3 × 1,09, Grupo 4 × 1,09².',
+    'Grupo de la tela (2, 3 o 4).\nModo Odoo: product.template.x_studio_grupo de la tela (el producto de la categoría "Materia Prima / Tela Living" cuyo código está dentro del de la variante). Si la tela todavía no tiene grupo cargado en Odoo (0), se usa el de la pestaña "Grupos de telas" de la planilla y la fila avisa con un ⚠.\nModo Planilla: siempre el de la pestaña "Grupos de telas".\nDefine el sobreprecio del precio de venta: Grupo 3 × 1,09, Grupo 4 × 1,09² (Grupo 2 sin sobreprecio).',
   cpPrecioTela:
     'Precio por metro de la tela.\nModo Planilla: pestaña "Grupos de telas" (columna Costo, que viene de "Telas").\nModo Odoo: standard_price del producto de la categoría "Materia Prima / Tela Living" cuyo código está dentro del de la variante (ej. …MP04C40043… → MP04C40043).',
   cpCostoMp: 'Costo de la variante sin la tela.\nOdoo: product.product.standard_price (compañía 1). Igual a la columna "Costo" de la pestaña Costos.',
@@ -58,7 +58,7 @@ export const GLOSARIO_TEST = {
   cpRentabilidadPesos: 'Rentabilidad en $ = Precio de venta × % de rentabilidad (por unidad).',
   cpUnidadEq: 'Unidad equivalente = Tiempo de línea ÷ 4,0667 hs (un sillón "estándar"). Colchones y productos sin mano de obra: vacío (cuenta 1 por unidad).',
   cpFuente:
-    'De dónde se toman los datos que NO son fijos en Odoo:\n• Planilla (valida las fórmulas): usa el tiempo de línea y los precios de tela de la planilla; si el resultado no coincide con la hoja, el problema es de fórmula.\n• Odoo (dinámico): usa el tiempo de Odoo / hoja de tiempos de colchones y el precio de la tela de Odoo; las diferencias que aparecen son datos que cambiaron en Odoo desde que se armó la planilla.',
+    'De dónde se toman los datos que NO son fijos en Odoo:\n• Planilla (valida las fórmulas): usa el tiempo de línea y los precios de tela de la planilla; si el resultado no coincide con la hoja, el problema es de fórmula.\n• Odoo (dinámico): usa el tiempo de Odoo / hoja de tiempos de colchones, el precio de la tela de Odoo y el grupo de tela de Odoo (x_studio_grupo); las diferencias que aparecen son datos que cambiaron en Odoo desde que se armó la planilla.',
   cpParametros:
     'Parámetros que no están en Odoo y que se leen EN VIVO de la planilla: valor hora y pozos de no productiva (pestaña VALOR HORA), pozos de costos fijos (COSTOS PRODUCTOS Z1/AB1) y constantes de capacidad (Capacidad living). Si cambian en la planilla, se actualizan acá en 5 minutos.',
 
@@ -81,7 +81,7 @@ export const GLOSARIO_TEST = {
   faCantidad: 'Odoo: account.move.line.quantity. Negativa en notas de crédito.',
   faTicket: 'Ticket = Subtotal ÷ Cantidad (precio unitario facturado).',
   faCategoria: 'Odoo: product.product.categ_id → complete_name.',
-  faGrupoTela: 'Grupo de la tela del producto (2, 3 o 4). Sale de la pestaña "Grupos de telas" de la planilla (no está en Odoo), el mismo que usa "Costos productos".',
+  faGrupoTela: 'Grupo de la tela del producto (2, 3 o 4). Es el mismo que usa "Costos productos (test)": en modo Odoo sale de x_studio_grupo de la tela (con respaldo en la planilla si la tela no lo tiene cargado); en modo Planilla, de la pestaña "Grupos de telas".',
   faVolumen: 'm³ por unidad. Odoo: product.product.volume.',
   faRecargoPct:
     '% de recargo regional del cliente.\nOdoo: res.partner.region_id del cliente comercial (ej. "COSTA BS AS - 12,5%" = 12,5%). Es 0 en Bonificación y PI / Block Espuma. Si el cliente no tiene región cargada, queda en 0 y la fila avisa.',
