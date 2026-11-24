@@ -1,0 +1,16 @@
+---
+import FacturacionTestApp from './FacturacionTestApp';
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Facturación productos (test)</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      La pestaña <strong>Facturación productos</strong> de la planilla de rentabilidad (una fila por línea de factura, con costo, flete, costo financiero, contribución y
+      rentabilidad) armada en vivo desde Odoo para el mes que elijas, con las fórmulas de la planilla y los costos de <em>Costos productos (test)</em>. De la planilla solo
+      toma los plazos de pago de los clientes, y se contrasta línea por línea. Prueba: solo lectura.
+    </p>
+  </header>
+
+  <FacturacionTestApp client:load />
+</div>

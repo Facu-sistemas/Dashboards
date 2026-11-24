@@ -59,8 +59,9 @@ import CreditoChequesTab from '@/components/mejora-continua/CreditoChequesTab.as
 import DistribucionChequesTab from '@/components/mejora-continua/DistribucionChequesTab.astro';
 import PresupuestoMpTab from '@/components/compras/presupuesto-mp/PresupuestoMpTab.astro';
 import AvisoQuiebreTab from '@/components/compras/aviso-quiebre/AvisoQuiebreTab.astro';
-import RentabilidadClientesTab from '@/components/rentabilidad/RentabilidadClientesTab.astro';
-import RentabilidadCategoriasTab from '@/components/rentabilidad/RentabilidadCategoriasTab.astro';
+import FacturacionTestTab from '@/components/finanzas-test/FacturacionTestTab.astro';
+import CostosTestTab from '@/components/finanzas-test/CostosTestTab.astro';
+import CostosProductosTestTab from '@/components/finanzas-test/CostosProductosTestTab.astro';
 import { getArea } from '@/lib/areas.config';
 
 export const prerender = false;
@@ -132,8 +133,9 @@ if (!area || !tabConfig || !tabVisible(tabConfig, Astro.locals.usuario) || !Astr
   {area.slug === 'logistica' && tabSlug === 'avance-carga' && <AvanceCargaTab />}
   {area.slug === 'planta' && tabSlug === 'embalaje' && <EmbalajeTab />}
   {area.slug === 'logistica' && tabSlug === 'entregas' && <EntregasTab />}
-  {area.slug === 'finanzas' && tabSlug === 'rentabilidad-clientes' && <RentabilidadClientesTab />}
-  {area.slug === 'finanzas' && tabSlug === 'rentabilidad-categorias' && <RentabilidadCategoriasTab />}
+  {area.slug === 'finanzas' && tabSlug === 'facturacion-productos-test' && <FacturacionTestTab />}
+  {area.slug === 'finanzas' && tabSlug === 'costos-test' && <CostosTestTab />}
+  {area.slug === 'finanzas' && tabSlug === 'costos-productos-test' && <CostosProductosTestTab />}
   {!['compras', 'comercial', 'manufactura', 'almacen', 'planta', 'produccion', 'gestion-calidad', 'test', 'gerencia-general', 'rrhh', 'finanzas', 'logistica', 'fichaje'].includes(
     area.slug
   ) && <PlaceholderTab areaName={area.name} />}

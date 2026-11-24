@@ -148,8 +148,9 @@ export const AREAS: AreaConfig[] = [
     tabs: [
       { slug: 'credito-cheques', name: 'Crédito y Cheques' },
       { slug: 'distribucion-cheques', name: 'Distribución de Cheques' },
-      { slug: 'rentabilidad-clientes', name: 'Rentabilidad clientes' },
-      { slug: 'rentabilidad-categorias', name: 'Rentabilidad categorías' },
+      { slug: 'facturacion-productos-test', name: 'Facturación productos (test)' },
+      { slug: 'costos-test', name: 'Costos (test)' },
+      { slug: 'costos-productos-test', name: 'Costos productos (test)' },
     ],
   },
   {

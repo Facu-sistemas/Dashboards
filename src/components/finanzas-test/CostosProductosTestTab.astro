@@ -1,0 +1,16 @@
+---
+import CostosProductosTestApp from './CostosProductosTestApp';
+---
+
+<div>
+  <header class="mb-6">
+    <h2 class="text-lg font-semibold text-slate-100">Costos productos (test)</h2>
+    <p class="mt-1 text-sm text-slate-400">
+      La pestaña <strong>COSTOS PRODUCTOS</strong> de la planilla de rentabilidad calculada con sus mismas fórmulas, tomando de Odoo todo lo que está en Odoo (costo, largo de
+      tela, precio, tiempo de línea de sillones, precio de la tela) y de la planilla solo lo que no está (valor hora, pozos de no productiva y fijos, tiempos de colchones, grupos
+      de tela). Cada fila se contrasta con la de la planilla. Prueba: solo lectura.
+    </p>
+  </header>
+
+  <CostosProductosTestApp client:load />
+</div>
