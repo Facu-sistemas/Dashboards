@@ -20,6 +20,7 @@ const MACROS: { key: Macro; titulo: string }[] = [
   { key: 'sillones', titulo: 'Sillones' },
 ];
 
+const diaLabel = (iso: string) => iso.slice(8) + '/' + iso.slice(5, 7);
 const anioActual = data ? Number(data.hoy.slice(0, 4)) : 0;
 
 function tablasDe(macro: Macro): { id: string; titulo: string; ayuda: string; grupo: GrupoMensual }[] {
@@ -34,7 +35,15 @@ function tablasDe(macro: Macro): { id: string; titulo: string; ayuda: string; gr
 
 <div>
   <header class="mb-6">
-    <h2 class="text-lg font-semibold text-slate-100">Entregas</h2>
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <h2 class="text-lg font-semibold text-slate-100">Entregas</h2>
+      {data && (
+        <div class="flex gap-2">
+          <button type="button" data-general="xlsx" class="rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800">Excel general</button>
+          <button type="button" data-general="pdf" class="rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800">PDF general</button>
+        </div>
+      )}
+    </div>
     <p class="mt-1 text-sm text-slate-400">
       Stock disponible y movimiento mensual de lo entregado, fabricado y vendido. Cada tabla usa su propia fecha:
       entregas = facturado menos notas de crédito, fabricadas = fecha fin de la orden, vendidas = fecha del pedido.
@@ -59,9 +68,21 @@ function tablasDe(macro: Macro): { id: string; titulo: string; ayuda: string; gr
             const colMedida = key === 'colchones' ? 'm³' : 'Cant. equiv.';
             return (
               <div class="rounded-lg border border-slate-800 bg-slate-900 p-4">
-                <h3 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-200">{titulo} disponibles</h3>
+                <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-200">{titulo} disponibles</h3>
+                  <div class="flex gap-2">
+                    <button type="button" data-export="xlsx" class="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800">Excel</button>
+                    <button type="button" data-export="pdf" class="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800">PDF</button>
+                  </div>
+                </div>
+                <input
+                  type="search"
+                  data-buscador
+                  placeholder="Buscar producto…"
+                  class="mb-3 w-full rounded border border-slate-700 bg-slate-950 px-3 py-1.5 text-sm text-slate-200 placeholder:text-slate-500 focus:border-slate-500 focus:outline-none"
+                />
                 <div class="max-h-96 overflow-y-auto">
-                  <table class="w-full text-left text-sm">
+                  <table class="w-full text-left text-sm" data-stock-tabla data-titulo={`${titulo} disponibles`} data-medida={colMedida}>
                     <thead class="sticky top-0 bg-slate-900 text-xs text-slate-400">
                       <tr class="border-b border-slate-800">
                         <th class="py-2 pr-4 font-medium">Producto</th>
@@ -71,7 +92,7 @@ function tablasDe(macro: Macro): { id: string; titulo: string; ayuda: string; gr
                     </thead>
                     <tbody>
                       {s.filas.map((f) => (
-                        <tr class="border-b border-slate-800/60 text-slate-200">
+                        <tr class="border-b border-slate-800/60 text-slate-200" data-fila-stock>
                           <td class="py-1.5 pr-4">{f.producto}</td>
                           <td class="py-1.5 pr-4 text-right tabular-nums">{fmt0(f.disponible)}</td>
                           <td class="py-1.5 text-right tabular-nums">{fmt2(f.medida)}</td>
@@ -133,15 +154,29 @@ function tablasDe(macro: Macro): { id: string; titulo: string; ayuda: string; gr
                             <td class="py-1.5 text-right tabular-nums">{fmt2(a.m3)}</td>
                           </tr>
                           {a.meses.map((m) => (
-                            <tr
-                              class={`border-b border-slate-800/60 text-slate-300 ${a.anio === anioActual ? '' : 'hidden'}`}
-                              data-mes-de={a.anio}
-                            >
-                              <td class="py-1 pr-2 pl-6">{mesNombre(m.mes)}</td>
-                              <td class="py-1 pr-2 text-right tabular-nums">{fmt0(m.cant)}</td>
-                              <td class="py-1 pr-2 text-right tabular-nums">{fmt2(m.equiv)}</td>
-                              <td class="py-1 text-right tabular-nums">{fmt2(m.m3)}</td>
-                            </tr>
+                            <>
+                              <tr
+                                class={`cursor-pointer border-b border-slate-800/60 text-slate-300 hover:bg-slate-800/40 ${a.anio === anioActual ? '' : 'hidden'}`}
+                                data-mes-de={a.anio}
+                                data-toggle-mes={m.mes}
+                              >
+                                <td class="py-1 pr-2 pl-3">
+                                  <span class="mr-1 inline-block w-3 text-slate-500" data-icono>+</span>
+                                  {mesNombre(m.mes)}
+                                </td>
+                                <td class="py-1 pr-2 text-right tabular-nums">{fmt0(m.cant)}</td>
+                                <td class="py-1 pr-2 text-right tabular-nums">{fmt2(m.equiv)}</td>
+                                <td class="py-1 text-right tabular-nums">{fmt2(m.m3)}</td>
+                              </tr>
+                              {m.dias.map((d) => (
+                                <tr class="hidden border-b border-slate-800/40 text-xs text-slate-400" data-dia-de={m.mes}>
+                                  <td class="py-0.5 pr-2 pl-9">{diaLabel(d.dia)}</td>
+                                  <td class="py-0.5 pr-2 text-right tabular-nums">{fmt0(d.cant)}</td>
+                                  <td class="py-0.5 pr-2 text-right tabular-nums">{fmt2(d.equiv)}</td>
+                                  <td class="py-0.5 text-right tabular-nums">{fmt2(d.m3)}</td>
+                                </tr>
+                              ))}
+                            </>
                           ))}
                         </>
                       ))}
@@ -163,16 +198,86 @@ function tablasDe(macro: Macro): { id: string; titulo: string; ayuda: string; gr
   }
 </div>
 
+{data && <script type="application/json" id="entregas-data" set:html={JSON.stringify(data)} />}
+
 <script>
-  // Expandir/contraer los meses de cada año.
+  document.querySelectorAll<HTMLButtonElement>('[data-general]').forEach((btn) => btn.addEventListener('click', async () => {
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Generando…';
+    try {
+      const data = JSON.parse(document.getElementById('entregas-data')!.textContent!);
+      const { descargarExcelGeneral } = await import('./entregas-export');
+      const { descargarPdfGeneral } = await import('./entregas-export');
+      if (btn.dataset.general === 'pdf') await descargarPdfGeneral(data);
+      else await descargarExcelGeneral(data);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = original;
+    }
+  }));
+
+  // Expandir/contraer los meses de cada año y los días de cada mes.
   document.querySelectorAll<HTMLElement>('[data-toggle-anio]').forEach((row) => {
     row.addEventListener('click', () => {
       const anio = row.dataset.toggleAnio;
-      const meses = row.parentElement!.querySelectorAll<HTMLElement>(`[data-mes-de="${anio}"]`);
+      const tbody = row.parentElement!;
+      const meses = tbody.querySelectorAll<HTMLElement>(`[data-mes-de="${anio}"]`);
       const abrir = meses.length > 0 && meses[0]!.classList.contains('hidden');
-      meses.forEach((m) => m.classList.toggle('hidden', !abrir));
+      meses.forEach((m) => {
+        m.classList.toggle('hidden', !abrir);
+        if (!abrir) {
+          // al cerrar el año, también se pliegan los días
+          tbody.querySelectorAll<HTMLElement>(`[data-dia-de="${m.dataset.toggleMes}"]`).forEach((d) => d.classList.add('hidden'));
+          const ic = m.querySelector('[data-icono]');
+          if (ic) ic.textContent = '+';
+        }
+      });
       const icono = row.querySelector('[data-icono]');
       if (icono) icono.textContent = abrir ? '−' : '+';
+    });
+  });
+  document.querySelectorAll<HTMLElement>('[data-toggle-mes]').forEach((row) => {
+    row.addEventListener('click', () => {
+      const dias = row.parentElement!.querySelectorAll<HTMLElement>(`[data-dia-de="${row.dataset.toggleMes}"]`);
+      const abrir = dias.length > 0 && dias[0]!.classList.contains('hidden');
+      dias.forEach((d) => d.classList.toggle('hidden', !abrir));
+      const icono = row.querySelector('[data-icono]');
+      if (icono) icono.textContent = abrir ? '−' : '+';
+    });
+  });
+
+  // Stock disponible: buscador y descarga (de lo que se ve filtrado).
+  const norm = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  document.querySelectorAll<HTMLElement>('[data-buscador]').forEach((input) => {
+    const card = input.parentElement!;
+    const filas = card.querySelectorAll<HTMLElement>('[data-fila-stock]');
+    input.addEventListener('input', () => {
+      const q = norm((input as HTMLInputElement).value.trim());
+      filas.forEach((f) => f.classList.toggle('hidden', q !== '' && !norm(f.cells[0]!.textContent ?? '').includes(q)));
+    });
+  });
+  document.querySelectorAll<HTMLButtonElement>('[data-export]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const card = btn.closest('div.rounded-lg')!;
+      const tabla = card.querySelector<HTMLElement>('[data-stock-tabla]')!;
+      const titulo = tabla.dataset.titulo ?? 'Stock';
+      const medida = tabla.dataset.medida ?? '';
+      const filas = [...tabla.querySelectorAll<HTMLTableRowElement>('[data-fila-stock]')]
+        .filter((f) => !f.classList.contains('hidden'))
+        .map((f) => [f.cells[0]!.textContent!.trim(), f.cells[1]!.textContent!.trim(), f.cells[2]!.textContent!.trim()]);
+      const head = ['Producto', 'Stock disponible', medida];
+      const nombre = `${titulo.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().slice(0, 10)}`;
+      const original = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '…';
+      try {
+        const { exportarStock } = await import('./entregas-export');
+        await exportarStock(btn.dataset.export as 'xlsx' | 'pdf', titulo, head, filas, nombre);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = original;
+      }
     });
   });
 </script>

@@ -39,9 +39,15 @@ export interface Medidas {
   m3: number;
 }
 
+export interface DiaFila extends Medidas {
+  /** "YYYY-MM-DD" */
+  dia: string;
+}
+
 export interface MesFila extends Medidas {
   /** "YYYY-MM" */
   mes: string;
+  dias: DiaFila[];
 }
 
 export interface AnioFila extends Medidas {
@@ -103,6 +109,7 @@ async function infoProductos(productIds: number[]): Promise<{ info: Map<number, 
 async function agrupar(lineas: Linea[]): Promise<GrupoMensual> {
   const { info, ue } = await infoProductos([...new Set(lineas.map((l) => l.productId))]);
   const porMes = new Map<string, Medidas>();
+  const porDia = new Map<string, Medidas>();
   const total = vacio();
   for (const l of lineas) {
     const p = info.get(l.productId);
@@ -114,6 +121,11 @@ async function agrupar(lineas: Linea[]): Promise<GrupoMensual> {
     m.equiv += equiv;
     m.m3 += m3;
     porMes.set(l.fecha.slice(0, 7), m);
+    const d = porDia.get(l.fecha.slice(0, 10)) ?? vacio();
+    d.cant += l.cant;
+    d.equiv += equiv;
+    d.m3 += m3;
+    porDia.set(l.fecha.slice(0, 10), d);
     total.cant += l.cant;
     total.equiv += equiv;
     total.m3 += m3;
@@ -125,7 +137,11 @@ async function agrupar(lineas: Linea[]): Promise<GrupoMensual> {
     fila.cant += m.cant;
     fila.equiv += m.equiv;
     fila.m3 += m.m3;
-    fila.meses.push({ mes, ...m });
+    const dias = [...porDia.entries()]
+      .filter(([dia]) => dia.startsWith(mes))
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([dia, d]) => ({ dia, ...d }));
+    fila.meses.push({ mes, ...m, dias });
     anios.set(anio, fila);
   }
   return { total, anios: [...anios.values()].sort((a, b) => a.anio - b.anio) };
