@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 
-/** Orden por columna de las tablas de RRHH: un clic ordena ascendente, otro descendente y el tercero vuelve al orden original. */
+/** Orden por columna de las tablas de RRHH: un clic ordena ascendente y cada clic siguiente en la misma columna alterna descendente / ascendente. */
 export interface Orden {
   col: string;
   desc: boolean;
@@ -8,7 +8,7 @@ export interface Orden {
 
 export function useOrden() {
   const [orden, setOrden] = useState<Orden | null>(null);
-  const alternar = (col: string) => setOrden((o) => (!o || o.col !== col ? { col, desc: false } : o.desc ? null : { col, desc: true }));
+  const alternar = (col: string) => setOrden((o) => (o && o.col === col ? { col, desc: !o.desc } : { col, desc: false }));
   return { orden, alternar };
 }
 
@@ -50,12 +50,12 @@ export function ThOrden({ col, orden, alternar, className = '', title, children 
   return (
     <th
       className={`${className} cursor-pointer select-none hover:text-slate-200 ${activa ? 'text-brand-400' : ''}`}
-      title={title ? `${title}\n\nClic para ordenar.` : 'Clic para ordenar (ascendente, descendente, sin orden).'}
+      title={title ? `${title}\n\nClic para ordenar.` : 'Clic para ordenar (ascendente / descendente).'}
       aria-sort={activa ? (orden!.desc ? 'descending' : 'ascending') : 'none'}
       onClick={() => alternar(col)}
     >
       {children}
-      {activa ? (orden!.desc ? ' ↓' : ' ↑') : ''}
+      {activa ? (orden!.desc ? ' ↓' : ' ↑') : <span className="opacity-30"> ↕</span>}
     </th>
   );
 }

@@ -1,4 +1,5 @@
 import { getRrhhQuincena, type QuincenaEmpleadoRow } from './odoo/rrhh-quincena';
+import { getEstadosResumen } from './supabase/rrhh-resumen-estado';
 import { claveNombre, fetchSheetTable, legajoNumero, num, round2 } from './rrhh-sheet';
 
 /**
@@ -55,6 +56,8 @@ export interface PlanillaAlerta {
 }
 
 export interface PlanillaRow {
+  /** Identificador único de la fila: el legajo se puede repetir entre personas distintas. */
+  clave: string;
   legajo: number;
   nombre: string;
   centroCosto: string;
@@ -114,6 +117,8 @@ export interface RrhhPlanillaResult {
   exporta: PlanillaExportaRow[];
   /** Personas que figuran en la hoja de nómina pero ya no están activas en Odoo (bajas): no entran a la planilla. */
   sinOdoo: { legajo: number; nombre: string }[];
+  /** Marcados como "Ignorar" en RRHH > Administración: no se liquidan. */
+  ignorados: { legajo: number; nombre: string }[];
 }
 
 type NominaRow = { legajo: number; nombre: string; centroCosto: string; tipoLiquidacion: string; convenio: string };
@@ -184,13 +189,16 @@ function presentismoDe(convenio: string, e: QuincenaEmpleadoRow | undefined, aus
 }
 
 export async function getRrhhPlanilla(desde: string, hasta: string): Promise<RrhhPlanillaResult> {
-  const [odoo, nomina, extras, ant] = await Promise.all([getRrhhQuincena(desde, hasta), leerNomina(), leerExtras(), leerAnticiposYGuarderia()]);
+  const [odoo, nomina, extras, ant, estados] = await Promise.all([getRrhhQuincena(desde, hasta), leerNomina(), leerExtras(), leerAnticiposYGuarderia(), getEstadosResumen()]);
+  // Los que RRHH marcó como "Ignorar" en Administración no se liquidan (mismo criterio que el Resumen).
+  const ignoradoPorId = (id: number) => estados.get(id) === 'ignorar';
 
-  const odooPorLegajo = new Map<number, QuincenaEmpleadoRow>();
+  // Los números de legajo se pueden repetir entre personas de distinto agrupamiento (01/0003 y 02/0003 dan 3): por eso van en lista.
+  const odooPorLegajo = new Map<number, QuincenaEmpleadoRow[]>();
   const odooPorNombre = new Map<string, QuincenaEmpleadoRow>();
   for (const e of odoo.rows) {
     const n = legajoNumero(e.legajo);
-    if (n !== null) odooPorLegajo.set(n, e);
+    if (n !== null) odooPorLegajo.set(n, [...(odooPorLegajo.get(n) ?? []), e]);
     odooPorNombre.set(claveNombre(e.nombre), e);
   }
   const diasLaborables = odoo.diasHabiles - odoo.feriados.length;
@@ -198,18 +206,31 @@ export async function getRrhhPlanilla(desde: string, hasta: string): Promise<Rrh
   // La lista de empleados sale de Odoo (los activos de hoy); la hoja de nómina solo aporta el tipo de liquidación, el centro de
   // costo y el convenio. Así, quien entra aparece solo (con aviso si todavía no está en la hoja) y quien ya no trabaja no queda
   // en la planilla: se informa aparte para que RRHH lo saque de la hoja.
-  const encontradoEnOdoo = (n: NominaRow) => odooPorLegajo.get(n.legajo) ?? odooPorNombre.get(claveNombre(n.nombre));
-  const nominaVigente = nomina.filter((n) => encontradoEnOdoo(n));
+  // Primero por nombre; el legajo solo desempata si es de una única persona en Odoo (si lo comparten dos, no se puede confiar en él).
+  const encontradoEnOdoo = (n: NominaRow): QuincenaEmpleadoRow | undefined => {
+    const porNombre = odooPorNombre.get(claveNombre(n.nombre));
+    if (porNombre) return porNombre;
+    const porLegajo = odooPorLegajo.get(n.legajo);
+    return porLegajo?.length === 1 ? porLegajo[0] : undefined;
+  };
+  const nominaActiva = nomina.filter((n) => encontradoEnOdoo(n));
+  const nominaVigente = nominaActiva.filter((n) => !ignoradoPorId(encontradoEnOdoo(n)!.id));
   const sinOdoo = nomina.filter((n) => !encontradoEnOdoo(n)).map((n) => ({ legajo: n.legajo, nombre: n.nombre }));
-  const enNomina = new Set(nominaVigente.map((n) => encontradoEnOdoo(n)!.id));
+  const enNomina = new Set(nominaActiva.map((n) => encontradoEnOdoo(n)!.id));
+  const ignorados = [
+    ...nominaActiva.filter((n) => ignoradoPorId(encontradoEnOdoo(n)!.id)).map((n) => ({ legajo: n.legajo, nombre: n.nombre })),
+    ...odoo.rows
+      .filter((e) => ignoradoPorId(e.id) && !enNomina.has(e.id) && legajoNumero(e.legajo) !== null)
+      .map((e) => ({ legajo: legajoNumero(e.legajo)!, nombre: e.nombre })),
+  ];
   const nuevos: NominaRow[] = odoo.rows
-    .filter((e) => !enNomina.has(e.id) && legajoNumero(e.legajo) !== null)
+    .filter((e) => !enNomina.has(e.id) && !ignoradoPorId(e.id) && legajoNumero(e.legajo) !== null)
     .map((e) => ({ legajo: legajoNumero(e.legajo)!, nombre: e.nombre, centroCosto: e.centroCosto ?? '', tipoLiquidacion: '', convenio: (e.convenio ?? '').trim().toUpperCase() }));
-  const nuevosLegajos = new Set(nuevos.map((n) => n.legajo));
+  const nuevosIds = new Set(odoo.rows.filter((e) => !enNomina.has(e.id) && !ignoradoPorId(e.id) && legajoNumero(e.legajo) !== null).map((e) => e.id));
 
   const rows: PlanillaRow[] = [...nominaVigente, ...nuevos].map((n) => {
     const clave = claveNombre(n.nombre);
-    const e = odooPorLegajo.get(n.legajo) ?? odooPorNombre.get(clave);
+    const e = encontradoEnOdoo(n);
 
     const totalHs = e?.horasEsperadas ?? odoo.diasHabiles * HORAS_DIA;
     const feriadosHs = e?.feriadosHs ?? odoo.feriados.length * HORAS_DIA;
@@ -244,7 +265,7 @@ export async function getRrhhPlanilla(desde: string, hasta: string): Promise<Rrh
 
     const alertas: PlanillaAlerta[] = [];
     if (!e) alertas.push({ nivel: 'error', detalle: 'No se encontró este legajo ni este nombre entre los empleados activos de Odoo: sus incidencias no se calcularon.' });
-    if (nuevosLegajos.has(n.legajo)) alertas.push({ nivel: 'aviso', detalle: 'Está activo en Odoo pero no figura en la hoja de nómina (PLANILLA DE CALCULO 2Q): falta cargarlo ahí para tener su tipo de liquidación. Convenio y centro de costo salen de Odoo.' });
+    if (e && nuevosIds.has(e.id)) alertas.push({ nivel: 'aviso', detalle: 'Está activo en Odoo pero no figura en la hoja de nómina (PLANILLA DE CALCULO 2Q): falta cargarlo ahí para tener su tipo de liquidación. Convenio y centro de costo salen de Odoo.' });
     for (const a of e?.alertas ?? []) alertas.push({ nivel: a.nivel, detalle: a.detalle });
     if (otrasHs > TOLERANCIA_HS) alertas.push({ nivel: 'aviso', detalle: `${round2(otrasHs)} hs de licencias que la planilla no tiene como columna (ej. maternidad): se descontaron de las horas normales.` });
     for (const c of COLUMNAS_INCIDENCIA) {
@@ -258,6 +279,7 @@ export async function getRrhhPlanilla(desde: string, hasta: string): Promise<Rrh
     }
 
     return {
+      clave: e ? `o${e.id}` : `n${n.legajo}-${clave}`,
       legajo: n.legajo,
       nombre: n.nombre,
       centroCosto: n.centroCosto,
@@ -331,5 +353,6 @@ export async function getRrhhPlanilla(desde: string, hasta: string): Promise<Rrh
     rows,
     exporta,
     sinOdoo,
+    ignorados,
   };
 }

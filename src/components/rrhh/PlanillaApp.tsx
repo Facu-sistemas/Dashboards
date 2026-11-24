@@ -42,7 +42,7 @@ function PlanillaInner({ hoy }: Props) {
   const [busqueda, setBusqueda] = useState('');
   const [soloAlertas, setSoloAlertas] = useState(false);
   const [todasLasColumnas, setTodasLasColumnas] = useState(false);
-  const [abierto, setAbierto] = useState<Set<number>>(new Set());
+  const [abierto, setAbierto] = useState<Set<string>>(new Set());
   // Columnas opcionales que se muestran: las estándar (Total hs, Feriados y Viático) están siempre; el resto se elige y se recuerda en este navegador.
   const [ocultas, setOcultas] = useState<Set<string>>(new Set());
   useEffect(() => {
@@ -143,11 +143,11 @@ function PlanillaInner({ hoy }: Props) {
     return t;
   }, [rows]);
 
-  function toggle(legajo: number) {
+  function toggle(clave: string) {
     setAbierto((prev) => {
       const next = new Set(prev);
-      if (next.has(legajo)) next.delete(legajo);
-      else next.add(legajo);
+      if (next.has(clave)) next.delete(clave);
+      else next.add(clave);
       return next;
     });
   }
@@ -346,11 +346,11 @@ function PlanillaInner({ hoy }: Props) {
             </thead>
             <tbody>
               {rows.map((r: PlanillaRow) => {
-                const open = abierto.has(r.legajo);
+                const open = abierto.has(r.clave);
                 const hayError = r.alertas.some((a) => a.nivel === 'error');
                 return (
-                  <Fragment key={r.legajo}>
-                    <tr onClick={() => toggle(r.legajo)} className="cursor-pointer border-t border-slate-800 hover:bg-slate-900/60">
+                  <Fragment key={r.clave}>
+                    <tr onClick={() => toggle(r.clave)} className="cursor-pointer border-t border-slate-800 hover:bg-slate-900/60">
                       <td className="whitespace-nowrap px-2 py-1.5 tabular-nums text-slate-500">{r.legajo}</td>
                       <td className="whitespace-nowrap px-2 py-1.5 text-slate-100">
                         {r.nombre}
@@ -454,6 +454,15 @@ function PlanillaInner({ hoy }: Props) {
       {data && (
         <p className="text-xs text-slate-500">
           Período: {formatFechaIso(data.desde)} – {formatFechaIso(data.hasta)}. Solo lectura: no modifica la planilla de Google ni Odoo.
+        </p>
+      )}
+
+      {data && data.ignorados.length > 0 && (
+        <p
+          className="rounded border border-slate-800 bg-slate-900 p-3 text-xs text-slate-400"
+          title="Se marcan como Ignorar en RRHH > Administración. No se liquidan ni entran a EXPORTA ni a los totales. Para liquidarlos, ponelos en Normal en esa pestaña."
+        >
+          Ignorados desde Administración (no se liquidan): {data.ignorados.map((p) => `${p.nombre} (${p.legajo})`).join(', ')}.
         </p>
       )}
 
