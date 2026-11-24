@@ -41,7 +41,13 @@ const setAreasSchema = z.object({
   areaSlugs: z.array(areaSlugSchema),
 });
 
-const patchSchema = z.union([toggleAreaSchema, setAreasSchema, setSessionLimitSchema]);
+const setLiderSchema = z.object({
+  type: z.literal('setLider'),
+  userId: z.string().uuid(),
+  esLider: z.boolean(),
+});
+
+const patchSchema = z.union([toggleAreaSchema, setAreasSchema, setSessionLimitSchema, setLiderSchema]);
 
 const deleteSchema = z.object({
   userId: z.string().uuid(),
@@ -143,6 +149,15 @@ export const PATCH: APIRoute = async (context) => {
     const habilitadas = new Set(parsed.data.areaSlugs);
     const rows = AREA_SLUGS.map((area_slug) => ({ user_id: parsed.data.userId, area_slug, activo: habilitadas.has(area_slug) }));
     const { error } = await admin.from('permisos_modulo').upsert(rows, { onConflict: 'user_id,area_slug' });
+    if (error) {
+      return jsonResponse({ ok: false, error: error.message }, { status: 400 });
+    }
+    return jsonResponse({ ok: true });
+  }
+
+  if (parsed.data.type === 'setLider') {
+    // Marca la cuenta como Líder: puede ver RRHH > Solicitudes y dar el segundo check. Requiere haber corrido docs/rrhh-solicitudes-doble-aprobacion.sql.
+    const { error } = await admin.from('perfiles').update({ es_lider: parsed.data.esLider }).eq('id', parsed.data.userId);
     if (error) {
       return jsonResponse({ ok: false, error: error.message }, { status: 400 });
     }

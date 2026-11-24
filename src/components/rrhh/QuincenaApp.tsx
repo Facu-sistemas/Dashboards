@@ -3,6 +3,7 @@ import QueryProvider from '@/components/QueryProvider';
 import { useApiQuery } from '@/components/dashboard/useApiQuery';
 import LastUpdated from '@/components/shared/LastUpdated';
 import { formatDias, formatFechaIso } from './format';
+import { ThOrden, ordenarFilas, useOrden } from './ordenar';
 import { ultimasQuincenas } from './quincena-utils';
 import type { QuincenaAlerta, QuincenaEmpleadoRow, RrhhQuincenaResult } from '@/lib/odoo/rrhh-quincena';
 
@@ -146,15 +147,28 @@ function QuincenaInner({ hoy, rangoInicial, onRango }: Props) {
     [allRows]
   );
 
+  const { orden, alternar } = useOrden();
   const rows = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
-    return allRows.filter((r) => {
+    const filtradas = allRows.filter((r) => {
       if (departamento && r.departamento !== departamento) return false;
       if (soloDiferencias && r.alertas.length === 0) return false;
       if (q && !r.nombre.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [allRows, departamento, busqueda, soloDiferencias]);
+    return ordenarFilas<QuincenaEmpleadoRow>(filtradas, orden, {
+      empleado: (r) => r.nombre,
+      jornada: (r) => r.horasEsperadas,
+      feriados: (r) => r.feriadosHs,
+      personal: (r) => r.tiempoPersonalHs,
+      atrabajar: (r) => r.horasATrabajar,
+      fichadas: (r) => r.fichadasHs,
+      ausentismo: (r) => (r.ausentismoBaseHs > 0 ? r.ausentismoHs / r.ausentismoBaseHs : null),
+      bancousado: (r) => r.bancoUsado,
+      banco: (r) => r.bancoSaldo,
+      diferencias: (r) => r.alertas.length,
+    });
+  }, [allRows, departamento, busqueda, soloDiferencias, orden]);
 
   const hayFichadas = (data?.fichadasTotal ?? 0) > 0;
   const maxTipo = Math.max(1, ...(data?.porTipo ?? []).map((t) => t.horas));
@@ -385,19 +399,20 @@ function QuincenaInner({ hoy, rangoInicial, onRango }: Props) {
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-900 text-xs uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="whitespace-nowrap px-3 py-2 font-medium" title="Nombre y departamento en Odoo.">Empleado</th>
-                <th className="whitespace-nowrap px-3 py-2 text-right font-medium" title="Días hábiles del período × 8,80 hs (desde el ingreso si fue dentro del período).">Jornada</th>
-                <th className="whitespace-nowrap px-3 py-2 text-right font-medium" title="Feriados del calendario laboral de Odoo que caen en día hábil, en horas.">Feriados</th>
-                <th className="whitespace-nowrap px-3 py-2 font-medium" title="Licencias aprobadas en Odoo en el período, con el detalle por tipo.">Tiempo personal</th>
-                <th className="whitespace-nowrap px-3 py-2 text-right font-medium" title="Jornada − feriados − tiempo personal.">A trabajar</th>
+                <ThOrden col="empleado" orden={orden} alternar={alternar} className="whitespace-nowrap px-3 py-2 font-medium" title="Nombre y departamento en Odoo.">Empleado</ThOrden>
+                <ThOrden col="jornada" orden={orden} alternar={alternar} className="whitespace-nowrap px-3 py-2 text-right font-medium" title="Días hábiles del período × 8,80 hs (desde el ingreso si fue dentro del período).">Jornada</ThOrden>
+                <ThOrden col="feriados" orden={orden} alternar={alternar} className="whitespace-nowrap px-3 py-2 text-right font-medium" title="Feriados del calendario laboral de Odoo que caen en día hábil, en horas.">Feriados</ThOrden>
+                <ThOrden col="personal" orden={orden} alternar={alternar} className="whitespace-nowrap px-3 py-2 font-medium" title="Licencias aprobadas en Odoo en el período, con el detalle por tipo.">Tiempo personal</ThOrden>
+                <ThOrden col="atrabajar" orden={orden} alternar={alternar} className="whitespace-nowrap px-3 py-2 text-right font-medium" title="Jornada − feriados − tiempo personal.">A trabajar</ThOrden>
                 {hayFichadas && (
                   <>
-                    <th className="whitespace-nowrap px-3 py-2 text-right font-medium" title="Horas de las fichadas propias (kiosco facial → hr.attendance de Odoo) en el período, y días distintos con fichada.">Fichadas</th>
-                    <th className="whitespace-nowrap px-3 py-2 text-right font-medium" title="Ausencias no programadas (enfermedad, accidente, sin pagar y días sin fichada ni licencia) sobre las horas en que podía asistir. Los días sin fichada solo cuentan desde la primera fichada de la persona en el período.">Ausentismo</th>
+                    <ThOrden col="fichadas" orden={orden} alternar={alternar} className="whitespace-nowrap px-3 py-2 text-right font-medium" title="Horas de las fichadas propias (kiosco facial → hr.attendance de Odoo) en el período, y días distintos con fichada.">Fichadas</ThOrden>
+                    <ThOrden col="ausentismo" orden={orden} alternar={alternar} className="whitespace-nowrap px-3 py-2 text-right font-medium" title="Ausencias no programadas (enfermedad, accidente, sin pagar y días sin fichada ni licencia) sobre las horas en que podía asistir. Los días sin fichada solo cuentan desde la primera fichada de la persona en el período.">Ausentismo</ThOrden>
                   </>
                 )}
-                <th className="whitespace-nowrap px-3 py-2 text-right font-medium" title="Saldo actual del banco de horas (campo del empleado en Odoo). Abajo: acreditado (+) y usado (−) en el período.">Banco (saldo)</th>
-                <th className="whitespace-nowrap px-3 py-2 font-medium" title="Observaciones que RRHH tiene que revisar antes de liquidar. Pasá el mouse por cada una para ver el detalle.">Diferencias</th>
+                <ThOrden col="bancousado" orden={orden} alternar={alternar} className="whitespace-nowrap px-3 py-2 text-right font-medium" title="Horas de licencia de tipo «Banco de horas» aprobadas dentro del período, o sea cuánto de la jornada se cubrió con banco en lugar de trabajarlo. Abajo, el porcentaje sobre las horas de jornada del período.">Banco usado</ThOrden>
+                <ThOrden col="banco" orden={orden} alternar={alternar} className="whitespace-nowrap px-3 py-2 text-right font-medium" title="Saldo actual del banco de horas (campo del empleado en Odoo). Abajo: acreditado (+) y usado (−) en el período.">Banco (saldo)</ThOrden>
+                <ThOrden col="diferencias" orden={orden} alternar={alternar} className="whitespace-nowrap px-3 py-2 font-medium" title="Observaciones que RRHH tiene que revisar antes de liquidar. Pasá el mouse por cada una para ver el detalle.">Diferencias</ThOrden>
               </tr>
             </thead>
             <tbody>
@@ -432,6 +447,16 @@ function QuincenaInner({ hoy, rangoInicial, onRango }: Props) {
                           {r.ausentismoBaseHs > 0 && r.ausentismoHs > 0 ? pct1(r.ausentismoHs / r.ausentismoBaseHs) : '—'}
                         </td>
                       )}
+                      <td className="px-3 py-2 text-right tabular-nums text-slate-300" title={r.bancoUsado > 0 ? `${hs(r.bancoUsado)} de banco de horas sobre ${hs(r.horasEsperadas)} de jornada del período` : 'No usó banco de horas en el período'}>
+                        {r.bancoUsado > 0 ? (
+                          <>
+                            {hs(r.bancoUsado)}
+                            {r.horasEsperadas > 0 && <span className="block text-xs text-slate-500">{pct1(r.bancoUsado / r.horasEsperadas)} de la jornada</span>}
+                          </>
+                        ) : (
+                          <span className="text-slate-600">—</span>
+                        )}
+                      </td>
                       <td className={`px-3 py-2 text-right tabular-nums ${r.bancoSaldo < 0 ? 'text-rose-300' : 'text-slate-300'}`}>
                         {hs(r.bancoSaldo)}
                         {(r.bancoAcreditado > 0 || r.bancoUsado > 0) && (
@@ -453,7 +478,7 @@ function QuincenaInner({ hoy, rangoInicial, onRango }: Props) {
                     </tr>
                     {open && (
                       <tr className="bg-slate-900/40">
-                        <td colSpan={hayFichadas ? 9 : 7} className="px-3 py-3">
+                        <td colSpan={hayFichadas ? 10 : 8} className="px-3 py-3">
                           <Detalle row={r} />
                         </td>
                       </tr>

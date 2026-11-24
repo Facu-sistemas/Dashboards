@@ -26,6 +26,8 @@ interface Usuario {
   id: string;
   username: string;
   rol: 'dev' | 'usuario';
+  /** Cuenta marcada como "Líder" en /admin/usuarios: puede dar el segundo check de las solicitudes de retiro. */
+  esLider: boolean;
   /** area_slug values from areas.config.ts this user can see — every slug when rol is 'dev'. */
   areasPermitidas: string[];
 }

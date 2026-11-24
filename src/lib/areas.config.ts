@@ -12,7 +12,7 @@ export interface TabConfig {
   slug: string;
   name: string;
   /** Pestaña restringida: solo la ven y abren quienes cumplan la regla (ver tab-acceso.ts). Sin esto, la ve todo el que tenga el área. */
-  acceso?: 'admin-rrhh' | 'registrar-caras';
+  acceso?: 'admin-rrhh' | 'solicitudes' | 'registrar-caras';
   /** Subdivisión dentro del área: la barra de pestañas muestra una fila por grupo, con su nombre a la izquierda. */
   grupo?: string;
 }
@@ -95,7 +95,7 @@ export const AREAS: AreaConfig[] = [
       { slug: 'vacaciones', name: 'Vacaciones' },
       { slug: 'horas', name: 'Horas' },
       { slug: 'planilla', name: 'Planilla' },
-      { slug: 'solicitudes', name: 'Solicitudes', acceso: 'admin-rrhh' },
+      { slug: 'solicitudes', name: 'Solicitudes', acceso: 'solicitudes' },
       { slug: 'administracion', name: 'Administración', acceso: 'admin-rrhh' },
     ],
   },

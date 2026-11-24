@@ -6,6 +6,8 @@ export interface UsuarioConPermisos {
   username: string;
   nombreCompleto: string | null;
   rol: 'dev' | 'usuario';
+  /** Marca "Líder": ve RRHH > Solicitudes y da el segundo check de la doble aprobación. */
+  esLider: boolean;
   areasActivas: string[];
   sesionMaxMinutos: number | null;
 }
@@ -240,6 +242,40 @@ function DeleteUserButton({ usuario, onError }: { usuario: UsuarioConPermisos; o
   );
 }
 
+function LiderControl({ usuario, onError }: { usuario: UsuarioConPermisos; onError: (message: string) => void }) {
+  const [esLider, setEsLider] = useState(usuario.esLider);
+  const [saving, setSaving] = useState(false);
+
+  async function cambiar() {
+    const next = !esLider;
+    setSaving(true);
+    try {
+      const res = await fetch('/api/admin/usuarios', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'setLider', userId: usuario.id, esLider: next }),
+      });
+      const body = await res.json();
+      if (!res.ok || !body.ok) throw new Error(body.error ?? 'No se pudo cambiar la marca de líder.');
+      setEsLider(next);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'No se pudo cambiar la marca de líder.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <label
+      className="flex w-fit cursor-pointer items-center gap-2 text-xs text-slate-300"
+      title="Un líder ve RRHH > Solicitudes y da el segundo check de las solicitudes de retiro (el otro lo da RRHH). Necesita tener el área RRHH habilitada."
+    >
+      <input type="checkbox" checked={esLider} disabled={saving} onChange={cambiar} />
+      Líder (aprueba solicitudes junto con RRHH)
+    </label>
+  );
+}
+
 function UsuarioRow({ usuario, onError }: { usuario: UsuarioConPermisos; onError: (message: string) => void }) {
   return (
     <div className="flex flex-col gap-2 rounded border border-slate-800 bg-slate-950/40 p-3">
@@ -249,6 +285,9 @@ function UsuarioRow({ usuario, onError }: { usuario: UsuarioConPermisos; onError
         {usuario.rol === 'dev' && (
           <span className="rounded bg-brand-500/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-brand-400">dev</span>
         )}
+        {usuario.rol !== 'dev' && usuario.esLider && (
+          <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-amber-400">líder</span>
+        )}
         {usuario.rol !== 'dev' && <DeleteUserButton usuario={usuario} onError={onError} />}
       </div>
 
@@ -257,6 +296,7 @@ function UsuarioRow({ usuario, onError }: { usuario: UsuarioConPermisos; onError
       ) : (
         <>
           <UsuarioAreas usuario={usuario} onError={onError} />
+          <LiderControl usuario={usuario} onError={onError} />
           <SessionLimitControl usuario={usuario} onError={onError} />
         </>
       )}
@@ -316,7 +356,7 @@ export default function AdminUsuariosApp({ usuarios }: Props) {
     if (palabras.length === 0) return usuarios;
     return usuarios.filter((u) => {
       const texto = normalizar(
-        [u.username, u.nombreCompleto ?? '', u.rol, ...u.areasActivas.map((slug) => AREAS.find((a) => a.slug === slug)?.name ?? slug)].join(' '),
+        [u.username, u.nombreCompleto ?? '', u.rol, u.esLider ? 'lider líder' : '', ...u.areasActivas.map((slug) => AREAS.find((a) => a.slug === slug)?.name ?? slug)].join(' '),
       );
       return palabras.every((p) => texto.includes(p));
     });

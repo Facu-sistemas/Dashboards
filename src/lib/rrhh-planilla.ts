@@ -112,6 +112,8 @@ export interface RrhhPlanillaResult {
   };
   rows: PlanillaRow[];
   exporta: PlanillaExportaRow[];
+  /** Personas que figuran en la hoja de nómina pero ya no están activas en Odoo (bajas): no entran a la planilla. */
+  sinOdoo: { legajo: number; nombre: string }[];
 }
 
 type NominaRow = { legajo: number; nombre: string; centroCosto: string; tipoLiquidacion: string; convenio: string };
@@ -193,7 +195,19 @@ export async function getRrhhPlanilla(desde: string, hasta: string): Promise<Rrh
   }
   const diasLaborables = odoo.diasHabiles - odoo.feriados.length;
 
-  const rows: PlanillaRow[] = nomina.map((n) => {
+  // La lista de empleados sale de Odoo (los activos de hoy); la hoja de nómina solo aporta el tipo de liquidación, el centro de
+  // costo y el convenio. Así, quien entra aparece solo (con aviso si todavía no está en la hoja) y quien ya no trabaja no queda
+  // en la planilla: se informa aparte para que RRHH lo saque de la hoja.
+  const encontradoEnOdoo = (n: NominaRow) => odooPorLegajo.get(n.legajo) ?? odooPorNombre.get(claveNombre(n.nombre));
+  const nominaVigente = nomina.filter((n) => encontradoEnOdoo(n));
+  const sinOdoo = nomina.filter((n) => !encontradoEnOdoo(n)).map((n) => ({ legajo: n.legajo, nombre: n.nombre }));
+  const enNomina = new Set(nominaVigente.map((n) => encontradoEnOdoo(n)!.id));
+  const nuevos: NominaRow[] = odoo.rows
+    .filter((e) => !enNomina.has(e.id) && legajoNumero(e.legajo) !== null)
+    .map((e) => ({ legajo: legajoNumero(e.legajo)!, nombre: e.nombre, centroCosto: e.centroCosto ?? '', tipoLiquidacion: '', convenio: (e.convenio ?? '').trim().toUpperCase() }));
+  const nuevosLegajos = new Set(nuevos.map((n) => n.legajo));
+
+  const rows: PlanillaRow[] = [...nominaVigente, ...nuevos].map((n) => {
     const clave = claveNombre(n.nombre);
     const e = odooPorLegajo.get(n.legajo) ?? odooPorNombre.get(clave);
 
@@ -230,6 +244,7 @@ export async function getRrhhPlanilla(desde: string, hasta: string): Promise<Rrh
 
     const alertas: PlanillaAlerta[] = [];
     if (!e) alertas.push({ nivel: 'error', detalle: 'No se encontró este legajo ni este nombre entre los empleados activos de Odoo: sus incidencias no se calcularon.' });
+    if (nuevosLegajos.has(n.legajo)) alertas.push({ nivel: 'aviso', detalle: 'Está activo en Odoo pero no figura en la hoja de nómina (PLANILLA DE CALCULO 2Q): falta cargarlo ahí para tener su tipo de liquidación. Convenio y centro de costo salen de Odoo.' });
     for (const a of e?.alertas ?? []) alertas.push({ nivel: a.nivel, detalle: a.detalle });
     if (otrasHs > TOLERANCIA_HS) alertas.push({ nivel: 'aviso', detalle: `${round2(otrasHs)} hs de licencias que la planilla no tiene como columna (ej. maternidad): se descontaron de las horas normales.` });
     for (const c of COLUMNAS_INCIDENCIA) {
@@ -315,5 +330,6 @@ export async function getRrhhPlanilla(desde: string, hasta: string): Promise<Rrh
     },
     rows,
     exporta,
+    sinOdoo,
   };
 }

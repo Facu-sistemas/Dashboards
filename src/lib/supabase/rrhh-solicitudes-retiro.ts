@@ -6,7 +6,7 @@ import type { EstadoSolicitud, SolicitudRetiro } from '@/lib/rrhh-solicitudes';
  * mano en Supabase. RLS default-deny: único acceso vía estas funciones desde /api routes (mismo patrón que fichaje-caras.ts).
  */
 
-const COLUMNAS = 'id, empleado_id, empleado_nombre, fecha, hora_retiro, motivo, estado, creada_en, resuelta_por, resuelta_en, comentario_rrhh, visto_empleado_en';
+const COLUMNAS = 'id, empleado_id, empleado_nombre, fecha, hora_retiro, motivo, estado, creada_en, resuelta_por, resuelta_en, comentario_rrhh, visto_empleado_en, aprobo_rrhh_por, aprobo_rrhh_en, aprobo_lider_por, aprobo_lider_en, comentario_lider';
 
 type Fila = {
   id: string;
@@ -21,6 +21,11 @@ type Fila = {
   resuelta_en: string | null;
   comentario_rrhh: string | null;
   visto_empleado_en: string | null;
+  aprobo_rrhh_por: string | null;
+  aprobo_rrhh_en: string | null;
+  aprobo_lider_por: string | null;
+  aprobo_lider_en: string | null;
+  comentario_lider: string | null;
 };
 
 function aSolicitud(r: Fila): SolicitudRetiro {
@@ -37,6 +42,11 @@ function aSolicitud(r: Fila): SolicitudRetiro {
     resueltaEn: r.resuelta_en,
     comentarioRrhh: r.comentario_rrhh,
     vistaPorEmpleado: r.visto_empleado_en !== null,
+    aproboRrhhPor: r.aprobo_rrhh_por,
+    aproboRrhhEn: r.aprobo_rrhh_en,
+    aproboLiderPor: r.aprobo_lider_por,
+    aproboLiderEn: r.aprobo_lider_en,
+    comentarioLider: r.comentario_lider,
   };
 }
 
@@ -80,16 +90,63 @@ export async function tienePendienteEseDia(empleadoId: number, fecha: string): P
   return (count ?? 0) > 0;
 }
 
-/** Resuelve solo si sigue pendiente (así dos clics o dos personas no la pisan). Devuelve false si ya estaba resuelta. */
-export async function resolverSolicitud(id: string, estado: 'aprobada' | 'rechazada', usuario: string, comentario: string | null): Promise<boolean> {
+/**
+ * Rechaza (cualquiera de los dos pasos alcanza para rechazar) solo si sigue pendiente, así dos clics o dos personas no la pisan.
+ * El comentario va al campo del paso que rechaza. Devuelve false si ya estaba resuelta.
+ */
+export async function resolverSolicitud(id: string, estado: 'aprobada' | 'rechazada', usuario: string, comentario: string | null, paso: 'rrhh' | 'lider' = 'rrhh'): Promise<boolean> {
   const { data, error } = await getSupabaseAdminClient()
     .from('rrhh_solicitudes_retiro')
-    .update({ estado, resuelta_por: usuario, resuelta_en: new Date().toISOString(), comentario_rrhh: comentario })
+    .update({ estado, resuelta_por: usuario, resuelta_en: new Date().toISOString(), ...(paso === 'lider' ? { comentario_lider: comentario } : { comentario_rrhh: comentario }) })
     .eq('id', id)
     .eq('estado', 'pendiente')
     .select('id');
   if (error) throw new Error(error.message);
   return (data ?? []).length > 0;
+}
+
+export type ResultadoAprobacion = 'registrada' | 'aprobada-final' | 'ya-resuelta' | 'paso-ya-dado' | 'misma-persona';
+
+/**
+ * Da uno de los dos checks de la doble aprobación. La solicitud pasa a "aprobada" recién cuando están los dos, de dos personas
+ * distintas (una misma cuenta no puede dar los dos checks, ni siquiera el dev).
+ */
+export async function aprobarPaso(id: string, paso: 'rrhh' | 'lider', usuario: string, comentario: string | null): Promise<ResultadoAprobacion> {
+  const db = getSupabaseAdminClient();
+  const { data: actual, error: errLeer } = await db.from('rrhh_solicitudes_retiro').select(COLUMNAS).eq('id', id).maybeSingle();
+  if (errLeer) throw new Error(errLeer.message);
+  const fila = actual as Fila | null;
+  if (!fila || fila.estado !== 'pendiente') return 'ya-resuelta';
+  const otro = paso === 'rrhh' ? fila.aprobo_lider_por : fila.aprobo_rrhh_por;
+  if (otro && otro.trim().toLowerCase() === usuario.trim().toLowerCase()) return 'misma-persona';
+  const yaDado = paso === 'rrhh' ? fila.aprobo_rrhh_por : fila.aprobo_lider_por;
+  if (yaDado) return 'paso-ya-dado';
+
+  const ahora = new Date().toISOString();
+  const campos = paso === 'rrhh'
+    ? { aprobo_rrhh_por: usuario, aprobo_rrhh_en: ahora, ...(comentario ? { comentario_rrhh: comentario } : {}) }
+    : { aprobo_lider_por: usuario, aprobo_lider_en: ahora, ...(comentario ? { comentario_lider: comentario } : {}) };
+  const { data: upd, error } = await db
+    .from('rrhh_solicitudes_retiro')
+    .update(campos)
+    .eq('id', id)
+    .eq('estado', 'pendiente')
+    .is(paso === 'rrhh' ? 'aprobo_rrhh_por' : 'aprobo_lider_por', null)
+    .select(COLUMNAS);
+  if (error) throw new Error(error.message);
+  const nueva = ((upd ?? []) as Fila[])[0];
+  if (!nueva) return 'paso-ya-dado';
+
+  if (nueva.aprobo_rrhh_por && nueva.aprobo_lider_por) {
+    const { error: errFinal } = await db
+      .from('rrhh_solicitudes_retiro')
+      .update({ estado: 'aprobada', resuelta_por: `${nueva.aprobo_rrhh_por} y ${nueva.aprobo_lider_por}`, resuelta_en: ahora })
+      .eq('id', id)
+      .eq('estado', 'pendiente');
+    if (errFinal) throw new Error(errFinal.message);
+    return 'aprobada-final';
+  }
+  return 'registrada';
 }
 
 /** El empleado cancela una solicitud propia mientras sigue pendiente. Devuelve false si ya no se puede (resuelta, ajena o inexistente). */

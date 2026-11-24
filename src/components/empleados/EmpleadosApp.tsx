@@ -541,7 +541,14 @@ function RetiroAnticipado({ hoy, lista, recargar }: { hoy: string; lista: Solici
                   <span className={`rounded-full px-2 py-0.5 text-xs ${COLOR_SOLICITUD[s.estado]}`}>{ESTADO_SOLICITUD_TEXTO[s.estado]}</span>
                 </div>
                 <p className="mt-1 text-slate-400">{s.motivo}</p>
+                {s.estado === 'pendiente' && (
+                  <p className="mt-1 text-xs text-slate-300">
+                    {s.aproboRrhhPor ? '✓' : '○'} RRHH · {s.aproboLiderPor ? '✓' : '○'} Líder
+                    <span className="text-slate-500"> — {!s.aproboRrhhPor && !s.aproboLiderPor ? 'esperando a RRHH y a tu líder' : !s.aproboRrhhPor ? 'tu líder ya aprobó, falta RRHH' : !s.aproboLiderPor ? 'RRHH ya aprobó, falta tu líder' : ''}</span>
+                  </p>
+                )}
                 {s.comentarioRrhh && <p className="mt-1 text-slate-300">RRHH: {s.comentarioRrhh}</p>}
+                {s.comentarioLider && <p className="mt-1 text-slate-300">Líder: {s.comentarioLider}</p>}
                 {(s.estado === 'aprobada' || s.estado === 'rechazada') && !s.vistaPorEmpleado && <p className="mt-1 text-xs font-semibold text-amber-300">Nueva respuesta de RRHH</p>}
                 {s.estado === 'pendiente' && (
                   <button type="button" disabled={cancelando === s.id} onClick={() => void cancelar(s.id)} className="mt-2 rounded border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-red-500 hover:text-red-400 disabled:opacity-50">

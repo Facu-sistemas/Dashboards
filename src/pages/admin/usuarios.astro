@@ -21,10 +21,13 @@ if (Astro.locals.usuario?.rol !== 'dev') {
 }
 
 const admin = getSupabaseAdminClient();
+// es_lider va en un select aparte: si todavía no se corrió docs/rrhh-solicitudes-doble-aprobacion.sql, la lista de usuarios tiene que seguir andando.
 const { data: perfiles } = await admin
   .from('perfiles')
   .select('id, username, nombre_completo, rol, sesion_max_minutos')
   .order('username');
+const { data: lideres } = await admin.from('perfiles').select('id').eq('es_lider', true);
+const idsLider = new Set((lideres ?? []).map((l) => l.id));
 const { data: permisos } = await admin.from('permisos_modulo').select('user_id, area_slug').eq('activo', true);
 
 const usuarios: UsuarioConPermisos[] = (perfiles ?? []).map((p) => ({
@@ -32,6 +35,7 @@ const usuarios: UsuarioConPermisos[] = (perfiles ?? []).map((p) => ({
   username: p.username,
   nombreCompleto: p.nombre_completo,
   rol: p.rol,
+  esLider: idsLider.has(p.id),
   areasActivas: (permisos ?? []).filter((perm) => perm.user_id === p.id).map((perm) => perm.area_slug),
   sesionMaxMinutos: p.sesion_max_minutos,
 }));

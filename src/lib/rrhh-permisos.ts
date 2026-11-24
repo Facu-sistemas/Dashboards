@@ -5,7 +5,7 @@
 export const AREA_RRHH = 'rrhh';
 export const USUARIO_ADMIN_RRHH = 'rrhh';
 
-type UsuarioMin = { username: string; rol: string; areasPermitidas: string[] } | undefined;
+type UsuarioMin = { username: string; rol: string; areasPermitidas: string[]; esLider?: boolean } | undefined;
 
 /**
  * Quién puede registrar caras (Fichaje > Registrar): el dev y la cuenta `rrhh`. Los celulares de quiosco (fichero1, 2, 3…)
@@ -20,4 +20,15 @@ export function puedeAdministrarRrhh(u: UsuarioMin): boolean {
   if (!u) return false;
   if (u.rol === 'dev') return true;
   return u.areasPermitidas.includes(AREA_RRHH) && u.username.trim().toLowerCase() === USUARIO_ADMIN_RRHH;
+}
+
+/** Segundo check de las solicitudes de retiro: cuentas marcadas como Líder, y el dev. */
+export function puedeAprobarComoLider(u: UsuarioMin): boolean {
+  if (!u) return false;
+  return u.rol === 'dev' || u.esLider === true;
+}
+
+/** Pestaña RRHH > Solicitudes: la ven RRHH, el dev y los líderes (siempre que tengan el área RRHH habilitada). */
+export function puedeVerSolicitudes(u: UsuarioMin): boolean {
+  return puedeAdministrarRrhh(u) || puedeAprobarComoLider(u);
 }

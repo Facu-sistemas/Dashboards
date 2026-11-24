@@ -67,12 +67,17 @@ export const onRequest = defineMiddleware(async (context, next) => {
     }
   }
 
+  // Aparte y tolerante: si todavía no se corrió el SQL (columna es_lider), no tiene que dejar a nadie afuera.
+  const { data: liderRow, error: liderError } = await supabase.from('perfiles').select('es_lider').eq('id', user.id).single();
+  const esLider = !liderError && liderRow?.es_lider === true;
+
   const { data: permisos } = await supabase.from('permisos_modulo').select('area_slug').eq('user_id', user.id).eq('activo', true);
 
   context.locals.usuario = {
     id: perfil.id,
     username: perfil.username,
     rol: perfil.rol,
+    esLider,
     // dev manages every area's permissions from /admin/usuarios, so it
     // wouldn't make sense for that same account to be locked out of the
     // areas it administers — everyone else gets exactly what's toggled on.

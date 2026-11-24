@@ -1,6 +1,7 @@
 import { Fragment, useMemo, useState } from 'react';
 import QueryProvider from '@/components/QueryProvider';
 import { MAX_HORAS_AUSENCIA, MAX_HORAS_EXTRA, TIPOS_AUSENCIA_CARGABLES, TIPOS_AUSENCIA_DIA_COMPLETO } from '@/lib/rrhh-novedades-tipos';
+import { ThOrden, ordenarFilas, useOrden } from './ordenar';
 import { useApiQuery } from '@/components/dashboard/useApiQuery';
 import LastUpdated from '@/components/shared/LastUpdated';
 import { formatDias, formatFechaIso } from './format';
@@ -345,10 +346,7 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
   }, [diaActivo, rowsDia, historialDia.data]);
 
   // Orden opcional de la tabla: por hora de entrada, de salida o por horas a resolver. Tocar el encabezado alterna ↑ / ↓ / sin orden.
-  const [orden, setOrden] = useState<{ col: 'entrada' | 'salida' | 'resolver'; desc: boolean } | null>(null);
-  function ordenarPor(col: 'entrada' | 'salida' | 'resolver') {
-    setOrden((o) => (!o || o.col !== col ? { col, desc: false } : o.desc ? null : { col, desc: true }));
-  }
+  const { orden, alternar: ordenarPor } = useOrden();
 
   const rows = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
@@ -359,18 +357,17 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
       if (q && !r.empleado.toLowerCase().includes(q)) return false;
       return true;
     });
-    if (!orden) return filtradas;
     // Las filas sin ese dato (ej. sin salida) van siempre al final, sea cual sea el sentido.
-    const valor = (r: NovedadRow): string | number | null =>
-      orden.col === 'entrada' ? r.entrada : orden.col === 'salida' ? r.salida : r.tipo === 'sin-salida' ? null : r.horasAResolver;
-    return [...filtradas].sort((a, b) => {
-      const va = valor(a);
-      const vb = valor(b);
-      if (va === null && vb === null) return 0;
-      if (va === null) return 1;
-      if (vb === null) return -1;
-      const c = va < vb ? -1 : va > vb ? 1 : 0;
-      return orden.desc ? -c : c;
+    return ordenarFilas<NovedadRow>(filtradas, orden, {
+      dia: (r) => r.fecha,
+      empleado: (r) => r.empleado,
+      que: (r) => TIPOS.find((t) => t.tipo === r.tipo)?.label ?? r.tipo,
+      entrada: (r) => r.entrada,
+      salida: (r) => r.salida,
+      fichado: (r) => r.fichadoHs,
+      resolver: (r) => (r.tipo === 'sin-salida' ? null : r.horasAResolver),
+      cargado: (r) => r.cubiertoHs + r.pendienteHs,
+      banco: (r) => r.saldoBanco,
     });
   }, [rowsDia, tipo, departamento, busqueda, orden]);
 
@@ -771,9 +768,9 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
                     <input type="checkbox" aria-label="Seleccionar todas las visibles" title="Seleccionar todas las visibles" checked={todasMarcadas} onChange={alternarTodas} disabled={seleccionables.length === 0} />
                   </th>
                 )}
-                <th className="px-3 py-2 font-medium">Día</th>
-                <th className="px-3 py-2 font-medium">Empleado</th>
-                <th className="px-3 py-2 font-medium">Qué pasó</th>
+                <ThOrden col="dia" orden={orden} alternar={ordenarPor} className="px-3 py-2 font-medium">Día</ThOrden>
+                <ThOrden col="empleado" orden={orden} alternar={ordenarPor} className="px-3 py-2 font-medium">Empleado</ThOrden>
+                <ThOrden col="que" orden={orden} alternar={ordenarPor} className="px-3 py-2 font-medium">Qué pasó</ThOrden>
                 <th className="whitespace-nowrap px-3 py-2 font-medium">
                   Fichadas{' '}
                   <button type="button" onClick={() => ordenarPor('entrada')} title="Ordenar por hora de entrada (llegadas tarde)" className={`rounded px-1 normal-case ${orden?.col === 'entrada' ? 'bg-slate-800 text-brand-400' : 'hover:text-slate-200'}`}>
@@ -783,14 +780,14 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
                     Salida{orden?.col === 'salida' ? (orden.desc ? ' ↓' : ' ↑') : ''}
                   </button>
                 </th>
-                <th className="px-3 py-2 text-right font-medium">Fichado</th>
+                <ThOrden col="fichado" orden={orden} alternar={ordenarPor} className="px-3 py-2 text-right font-medium">Fichado</ThOrden>
                 <th className="px-3 py-2 text-right font-medium">
                   <button type="button" onClick={() => ordenarPor('resolver')} title="Ordenar por horas a resolver (horas extra, faltantes)" className={`rounded px-1 uppercase ${orden?.col === 'resolver' ? 'bg-slate-800 text-brand-400' : 'hover:text-slate-200'}`}>
                     A resolver{orden?.col === 'resolver' ? (orden.desc ? ' ↓' : ' ↑') : ''}
                   </button>
                 </th>
-                <th className="px-3 py-2 font-medium">Ya cargado en Odoo</th>
-                <th className="px-3 py-2 text-right font-medium">Banco hoy</th>
+                <ThOrden col="cargado" orden={orden} alternar={ordenarPor} className="px-3 py-2 font-medium" title="Ordena por las horas de licencia ya cubiertas (aprobadas y sin aprobar).">Ya cargado en Odoo</ThOrden>
+                <ThOrden col="banco" orden={orden} alternar={ordenarPor} className="px-3 py-2 text-right font-medium" title="Saldo actual del banco de horas.">Banco hoy</ThOrden>
                 {puedeCargar && <th className="px-3 py-2 text-right font-medium">Acción</th>}
               </tr>
             </thead>

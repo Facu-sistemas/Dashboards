@@ -3,6 +3,7 @@ import type { DehydratedState } from '@tanstack/react-query';
 import QueryProvider from '@/components/QueryProvider';
 import { useApiQuery } from '@/components/dashboard/useApiQuery';
 import LastUpdated from '@/components/shared/LastUpdated';
+import DiasHabilesStrip from '@/components/gerencia/DiasHabilesStrip';
 import EmpleadoCard from './EmpleadoCard';
 import { formatDias, formatHoras } from './format';
 import { buildConvenioColors, convenioDe, cumplimiento, resumirPorConvenio } from './resumen-utils';
@@ -128,6 +129,12 @@ function ResumenInner() {
         <p className="rounded border border-red-900 bg-red-950/50 p-3 text-sm text-red-300">
           No se pudieron cargar los datos: {(query.error as Error).message}
         </p>
+      )}
+
+      {data && (
+        <div title="Días hábiles del mes (lunes a viernes, sin feriados) que ya pasaron, contados hasta ayer, sobre el total del mes. Es el mismo criterio con el que se calcula el cumplimiento de horas.">
+          <DiasHabilesStrip diasTranscurridos={[data.mes.diasHabiles]} diasTotal={[data.mes.diasHabilesTotal]} idxs={[0]} />
+        </div>
       )}
 
       {query.isLoading ? (

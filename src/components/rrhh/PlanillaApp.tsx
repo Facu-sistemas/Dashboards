@@ -3,6 +3,7 @@ import QueryProvider from '@/components/QueryProvider';
 import { useApiQuery } from '@/components/dashboard/useApiQuery';
 import LastUpdated from '@/components/shared/LastUpdated';
 import { formatDias, formatFechaIso } from './format';
+import { ThOrden, ordenarFilas, useOrden } from './ordenar';
 import { ultimasQuincenas } from './quincena-utils';
 import type { PlanillaRow, RrhhPlanillaResult } from '@/lib/rrhh-planilla';
 
@@ -42,6 +43,26 @@ function PlanillaInner({ hoy }: Props) {
   const [soloAlertas, setSoloAlertas] = useState(false);
   const [todasLasColumnas, setTodasLasColumnas] = useState(false);
   const [abierto, setAbierto] = useState<Set<number>>(new Set());
+  // Columnas opcionales que se muestran: las estándar (Total hs, Feriados y Viático) están siempre; el resto se elige y se recuerda en este navegador.
+  const [ocultas, setOcultas] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    try {
+      const g = localStorage.getItem('rrhh-planilla-ocultas');
+      if (g) setOcultas(new Set(JSON.parse(g) as string[]));
+    } catch {}
+  }, []);
+  function alternarColumna(key: string) {
+    setOcultas((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      try {
+        localStorage.setItem('rrhh-planilla-ocultas', JSON.stringify([...next]));
+      } catch {}
+      return next;
+    });
+  }
+  const v = (key: string) => !ocultas.has(key);
   const [vistaPrevia, setVistaPrevia] = useState(false);
   const [hojaPrevia, setHojaPrevia] = useState<'planilla' | 'exporta'>('exporta');
 
@@ -76,18 +97,38 @@ function PlanillaInner({ hoy }: Props) {
     return todasLasColumnas ? cols : cols.filter((c) => allRows.some((r) => (r.incidencias[c.key] ?? 0) > 0));
   }, [data, allRows, todasLasColumnas]);
 
+  const { orden, alternar } = useOrden();
   const rows = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
-    return allRows.filter((r) => {
+    const filtradas = allRows.filter((r) => {
       if (convenio && r.convenio !== convenio) return false;
       if (soloAlertas && r.alertas.length === 0) return false;
       if (q && !r.nombre.toLowerCase().includes(q) && !String(r.legajo).includes(q)) return false;
       return true;
     });
-  }, [allRows, convenio, soloAlertas, busqueda]);
+    return ordenarFilas<PlanillaRow>(filtradas, orden, {
+      legajo: (r) => r.legajo,
+      nombre: (r) => r.nombre,
+      convenio: (r) => r.convenio,
+      total: (r) => r.totalHs,
+      feriados: (r) => r.feriadosHs,
+      extras: (r) => r.extrasHs,
+      normales: (r) => r.normalesHs,
+      otras: (r) => r.otrasHs,
+      sinGoce: (r) => r.sinGoceHs,
+      presentismo: (r) => r.presentismo,
+      viatico: (r) => r.viaticoDias,
+      sabDom: (r) => r.sabDomDias,
+      vacDias: (r) => r.diasVacaciones,
+      anticipos: (r) => r.anticipos,
+      guarderia: (r) => r.guarderia,
+      obs: (r) => r.alertas.length,
+      ...Object.fromEntries((data?.columnas ?? []).map((c) => [`inc:${c.key}`, (r: PlanillaRow) => r.incidencias[c.key] ?? 0])),
+    });
+  }, [allRows, convenio, soloAlertas, busqueda, orden, data]);
 
   const totalesFiltro = useMemo(() => {
-    const t = { total: 0, feriados: 0, extras: 0, normales: 0, otras: 0, sinGoce: 0, viatico: 0, sabDom: 0, vacDias: 0, anticipos: 0, guarderia: 0, inc: {} as Record<string, number> };
+    const t = { total: 0, feriados: 0, extras: 0, normales: 0, otras: 0, sinGoce: 0, viatico: 0, sabDom: 0, inc: {} as Record<string, number> };
     for (const r of rows) {
       t.total += r.totalHs;
       t.feriados += r.feriadosHs;
@@ -97,9 +138,6 @@ function PlanillaInner({ hoy }: Props) {
       t.sinGoce += r.sinGoceHs;
       t.viatico += r.viaticoDias ?? 0;
       t.sabDom += r.sabDomDias;
-      t.vacDias += r.diasVacaciones;
-      t.anticipos += r.anticipos;
-      t.guarderia += r.guarderia;
       for (const [k, v] of Object.entries(r.incidencias)) t.inc[k] = (t.inc[k] ?? 0) + v;
     }
     return t;
@@ -134,9 +172,6 @@ function PlanillaInner({ hoy }: Props) {
       Presentismo: r.presentismo ?? '',
       'Viático + refrigerio (días)': r.viaticoDias ?? 'NO',
       'Liq. sáb y dom vac. (días)': r.sabDomDias,
-      'Días de vacaciones': r.diasVacaciones,
-      Anticipos: r.anticipos,
-      Guardería: r.guarderia,
       Observaciones: r.alertas.map((a) => a.detalle).join(' | '),
     }));
     const exporta = data.exporta.map((e) => ({ LEGAJO: e.legajo, CODIGO: e.codigo, VALOR: e.valor }));
@@ -244,6 +279,194 @@ function PlanillaInner({ hoy }: Props) {
       )}
 
       {data && (
+        <details className="rounded-lg border border-slate-800 bg-slate-900 p-3 text-sm text-slate-300">
+          <summary className="cursor-pointer" title="Elegí qué columnas ver. Las estándar no se pueden sacar. La elección se recuerda en este navegador y no cambia el Excel.">
+            Columnas
+          </summary>
+          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs">
+            {['ID', 'Nombre', 'Convenio', 'Total hs', 'Feriados', 'Viático (solo SOIVA)'].map((l) => (
+              <label key={l} className="flex items-center gap-1.5 text-slate-500" title="Columna estándar: está siempre.">
+                <input type="checkbox" checked disabled /> {l}
+              </label>
+            ))}
+            {[
+              ['extras', 'Extras'], ['normales', 'Hs normales'], ['inc', 'Incidencias (por tipo de licencia)'], ['otras', 'Otras lic.'],
+              ['sinGoce', 'Dif. horas'], ['presentismo', 'Presentismo'], ['sabDom', 'Sáb/Dom vac.'], ['obs', 'Observaciones'],
+            ].map(([k, l]) => (
+              <label key={k} className="flex cursor-pointer items-center gap-1.5">
+                <input type="checkbox" checked={v(k!)} onChange={() => alternarColumna(k!)} /> {l}
+              </label>
+            ))}
+          </div>
+        </details>
+      )}
+
+      {query.isLoading ? (
+        <div className="h-64 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
+      ) : rows.length === 0 ? (
+        <p className="py-8 text-center text-sm text-slate-500">Sin empleados que coincidan con el filtro.</p>
+      ) : (
+        <div className="max-h-[70vh] overflow-auto rounded-lg border border-slate-800">
+          <table className="w-full text-left text-sm">
+            <thead className="sticky top-0 z-10 bg-slate-900 text-xs uppercase tracking-wide text-slate-500">
+              <tr>
+                <ThOrden col="legajo" orden={orden} alternar={alternar} className="px-2 py-2 font-medium">ID</ThOrden>
+                <ThOrden col="nombre" orden={orden} alternar={alternar} className="px-2 py-2 font-medium">Nombre y apellido</ThOrden>
+                <ThOrden col="convenio" orden={orden} alternar={alternar} className="px-2 py-2 font-medium">Convenio</ThOrden>
+                <ThOrden col="total" orden={orden} alternar={alternar} className={th} title="Horas esperadas de la quincena según la jornada del empleado en Odoo (días hábiles × horas por día), con feriados incluidos.">Total hs</ThOrden>
+                <ThOrden col="feriados" orden={orden} alternar={alternar} className={th} title="Horas de feriados del calendario laboral de Odoo dentro de la quincena. Se restan de las horas normales.">Feriados</ThOrden>
+                {v('extras') && (
+                <ThOrden col="extras" orden={orden} alternar={alternar} className={th} title="Horas extras al 50% cargadas en la planilla de Google (no vienen de Odoo). Código 15 en EXPORTA.">Extras</ThOrden>
+                )}
+                {v('normales') && (
+                <ThOrden col="normales" orden={orden} alternar={alternar} className={th} title="Total hs − feriados − incidencias − vacaciones − otras licencias − permisos sin goce. El banco de horas, compensatorios, tiempo personal pagado y horas extra de Odoo no se descuentan.">Hs normales</ThOrden>
+                )}
+                {v('inc') && columnas.map((c) => (
+                  <ThOrden key={c.key} col={`inc:${c.key}`} orden={orden} alternar={alternar} className={th} title={`Horas de ausencia tipo «${c.label}» aprobadas en Odoo dentro de la quincena.${c.codigo === null ? ' Sin código en EXPORTA: hay que definirlo con RRHH.' : ' Código ' + c.codigo + ' en EXPORTA.'}`}>
+                    {c.label}
+                  </ThOrden>
+                ))}
+                {v('otras') && (
+                <ThOrden col="otras" orden={orden} alternar={alternar} className={th} title="Horas de licencias de Odoo que la planilla no tiene como columna (ej. maternidad). Se descuentan de las horas normales.">Otras lic.</ThOrden>
+                )}
+                {v('sinGoce') && (
+                <ThOrden col="sinGoce" orden={orden} alternar={alternar} className={th} title="Permisos sin pagar de Odoo (faltas injustificadas). Se descuentan de las horas normales y del presentismo.">Dif. horas</ThOrden>
+                )}
+                {v('presentismo') && (
+                <ThOrden col="presentismo" orden={orden} alternar={alternar} className={th} title="SOIVA: 25, o 20 − 3 por día de enfermedad, accidente o sin goce (vacaciones no descuentan). Madereros: 10 con quita proporcional por faltas sin goce. Sale de las ausencias de Odoo; tardanzas y salidas anticipadas todavía no entran. Pasá el mouse por cada valor para ver el cálculo.">Presentismo</ThOrden>
+                )}
+                <ThOrden col="viatico" orden={orden} alternar={alternar} className={th} title="Solo SOIVA: días de la quincena menos vacaciones y faltas sin goce (las carpetas médicas sí pagan). Código 40 en EXPORTA.">Viático</ThOrden>
+                {v('sabDom') && (
+                <ThOrden col="sabDom" orden={orden} alternar={alternar} className={th} title="Por cada bloque de 5 días hábiles de vacaciones aprobadas en Odoo suma sábado y domingo (+2 días).">Sáb/Dom vac.</ThOrden>
+                )}
+                {v('obs') && (
+                <ThOrden col="obs" orden={orden} alternar={alternar} className="px-2 py-2 font-medium" title="Cantidad de observaciones de la fila.">Observaciones</ThOrden>
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r: PlanillaRow) => {
+                const open = abierto.has(r.legajo);
+                const hayError = r.alertas.some((a) => a.nivel === 'error');
+                return (
+                  <Fragment key={r.legajo}>
+                    <tr onClick={() => toggle(r.legajo)} className="cursor-pointer border-t border-slate-800 hover:bg-slate-900/60">
+                      <td className="whitespace-nowrap px-2 py-1.5 tabular-nums text-slate-500">{r.legajo}</td>
+                      <td className="whitespace-nowrap px-2 py-1.5 text-slate-100">
+                        {r.nombre}
+                        <span className="block text-xs text-slate-500">{r.centroCosto} · {r.tipoLiquidacion}</span>
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-1.5 text-xs text-slate-400">{r.convenio}</td>
+                      <td className={td}>{formatDias(r.totalHs)}</td>
+                      <td className={td}>{n2(r.feriadosHs)}</td>
+                      {v('extras') && (
+                      <td className={td}>{n2(r.extrasHs)}</td>
+                      )}
+                      {v('normales') && (
+                      <td className={`${td} text-slate-100`}>{formatDias(r.normalesHs)}</td>
+                      )}
+                      {v('inc') && columnas.map((c) => (
+                        <td key={c.key} className={td}>
+                          {n2(r.incidencias[c.key] ?? 0)}
+                        </td>
+                      ))}
+                      {v('otras') && (
+                      <td className={td}>{n2(r.otrasHs)}</td>
+                      )}
+                      {v('sinGoce') && (
+                      <td className={`${td} ${r.sinGoceHs > 0 ? 'text-amber-300' : ''}`}>{n2(r.sinGoceHs)}</td>
+                      )}
+                      {v('presentismo') && (
+                      <td className={td} title={`Presentismo: ${r.presentismoNota}`}>{r.presentismo === null ? '—' : formatDias(r.presentismo)}</td>
+                      )}
+                      <td className={td} title={r.viaticoDias === null ? 'El viático y refrigerio solo corresponde al convenio SOIVA.' : undefined}>{r.viaticoDias === null ? '—' : formatDias(r.viaticoDias)}</td>
+                      {v('sabDom') && (
+                      <td className={td}>{n2(r.sabDomDias)}</td>
+                      )}
+                      {v('obs') && (
+                      <td className="px-2 py-1.5">
+                        {r.alertas.length === 0 ? (
+                          <span className="text-xs text-emerald-400">OK</span>
+                        ) : (
+                          <span className={`rounded px-1.5 py-0.5 text-xs ${hayError ? 'bg-rose-950 text-rose-300' : 'bg-amber-950 text-amber-300'}`}>
+                            {r.alertas.length} {r.alertas.length === 1 ? 'observación' : 'observaciones'}
+                          </span>
+                        )}
+                      </td>
+                      )}
+                    </tr>
+                    {open && (
+                      <tr className="bg-slate-900/40">
+                        <td colSpan={100} className="px-3 py-3 text-sm">
+                          <div className="flex flex-col gap-2">
+                            <p className="text-slate-400">Presentismo: {r.presentismoNota}.</p>
+                            {r.alertas.map((a, i) => (
+                              <p key={i} className={a.nivel === 'error' ? 'text-rose-300' : 'text-amber-300'}>
+                                {a.detalle}
+                              </p>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+            <tfoot className="sticky bottom-0 bg-slate-900 text-slate-200">
+              <tr className="border-t border-slate-700 font-medium">
+                <td className="px-2 py-2" colSpan={3}>
+                  Totales ({rows.length})
+                </td>
+                <td className={th}>{formatDias(totalesFiltro.total)}</td>
+                <td className={th}>{formatDias(totalesFiltro.feriados)}</td>
+                {v('extras') && (
+                <td className={th}>{formatDias(totalesFiltro.extras)}</td>
+                )}
+                {v('normales') && (
+                <td className={th}>{formatDias(totalesFiltro.normales)}</td>
+                )}
+                {v('inc') && columnas.map((c) => (
+                  <td key={c.key} className={th}>
+                    {formatDias(totalesFiltro.inc[c.key] ?? 0)}
+                  </td>
+                ))}
+                {v('otras') && (
+                <td className={th}>{formatDias(totalesFiltro.otras)}</td>
+                )}
+                {v('sinGoce') && (
+                <td className={th}>{formatDias(totalesFiltro.sinGoce)}</td>
+                )}
+                {v('presentismo') && (
+                <td className={th}>—</td>
+                )}
+                <td className={th}>{formatDias(totalesFiltro.viatico)}</td>
+                {v('sabDom') && (
+                <td className={th}>{formatDias(totalesFiltro.sabDom)}</td>
+                )}
+                {v('obs') && <td />}
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+
+      {data && (
+        <p className="text-xs text-slate-500">
+          Período: {formatFechaIso(data.desde)} – {formatFechaIso(data.hasta)}. Solo lectura: no modifica la planilla de Google ni Odoo.
+        </p>
+      )}
+
+      {data && data.sinOdoo.length > 0 && (
+        <p
+          className="rounded border border-slate-800 bg-slate-900 p-3 text-xs text-slate-400"
+          title="La lista de la planilla sale de los empleados activos de Odoo. Estas personas siguen en la hoja de nómina (PLANILLA DE CALCULO 2Q) pero ya no están activas en Odoo, por eso no se liquidan acá. Si se fueron, conviene sacarlas de la hoja."
+        >
+          Fuera de la planilla (en la hoja de nómina pero no activos en Odoo): {data.sinOdoo.map((p) => `${p.nombre} (${p.legajo})`).join(', ')}.
+        </p>
+      )}
+
+      {data && (
         <details className="rounded-lg border border-slate-800 bg-slate-900 p-4 text-sm text-slate-400">
           <summary className="cursor-pointer text-slate-300">Cómo se calcula cada columna</summary>
           <ul className="mt-3 list-disc space-y-1 pl-5">
@@ -277,131 +500,6 @@ function PlanillaInner({ hoy }: Props) {
             </li>
           </ul>
         </details>
-      )}
-
-      {query.isLoading ? (
-        <div className="h-64 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
-      ) : rows.length === 0 ? (
-        <p className="py-8 text-center text-sm text-slate-500">Sin empleados que coincidan con el filtro.</p>
-      ) : (
-        <div className="max-h-[70vh] overflow-auto rounded-lg border border-slate-800">
-          <table className="w-full text-left text-sm">
-            <thead className="sticky top-0 z-10 bg-slate-900 text-xs uppercase tracking-wide text-slate-500">
-              <tr>
-                <th className="px-2 py-2 font-medium">ID</th>
-                <th className="px-2 py-2 font-medium">Nombre y apellido</th>
-                <th className="px-2 py-2 font-medium">Convenio</th>
-                <th className={th} title="Horas esperadas de la quincena según la jornada del empleado en Odoo (días hábiles × horas por día), con feriados incluidos.">Total hs</th>
-                <th className={th} title="Horas de feriados del calendario laboral de Odoo dentro de la quincena. Se restan de las horas normales.">Feriados</th>
-                <th className={th} title="Horas extras al 50% cargadas en la planilla de Google (no vienen de Odoo). Código 15 en EXPORTA.">Extras</th>
-                <th className={th} title="Total hs − feriados − incidencias − vacaciones − otras licencias − permisos sin goce. El banco de horas, compensatorios, tiempo personal pagado y horas extra de Odoo no se descuentan.">Hs normales</th>
-                {columnas.map((c) => (
-                  <th key={c.key} className={th} title={`Horas de ausencia tipo «${c.label}» aprobadas en Odoo dentro de la quincena.${c.codigo === null ? ' Sin código en EXPORTA: hay que definirlo con RRHH.' : ' Código ' + c.codigo + ' en EXPORTA.'}`}>
-                    {c.label}
-                  </th>
-                ))}
-                <th className={th} title="Horas de licencias de Odoo que la planilla no tiene como columna (ej. maternidad). Se descuentan de las horas normales.">Otras lic.</th>
-                <th className={th} title="Permisos sin pagar de Odoo (faltas injustificadas). Se descuentan de las horas normales y del presentismo.">Dif. horas</th>
-                <th className={th} title="SOIVA: 25, o 20 − 3 por día de enfermedad, accidente o sin goce (vacaciones no descuentan). Madereros: 10 con quita proporcional por faltas sin goce. Sale de las ausencias de Odoo; tardanzas y salidas anticipadas todavía no entran. Pasá el mouse por cada valor para ver el cálculo.">Presentismo</th>
-                <th className={th} title="Solo SOIVA: días de la quincena menos vacaciones y faltas sin goce (las carpetas médicas sí pagan). Código 40 en EXPORTA.">Viático</th>
-                <th className={th} title="Por cada bloque de 5 días hábiles de vacaciones aprobadas en Odoo suma sábado y domingo (+2 días).">Sáb/Dom vac.</th>
-                <th className={th} title="Horas de vacaciones de Odoo divididas por las horas de la jornada.">Días vac.</th>
-                <th className={th} title="Anticipos de la planilla de Google (no vienen de Odoo).">Anticipos</th>
-                <th className={th} title="Guardería de la planilla de Google (no viene de Odoo).">Guardería</th>
-                <th className="px-2 py-2 font-medium">Observaciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r: PlanillaRow) => {
-                const open = abierto.has(r.legajo);
-                const hayError = r.alertas.some((a) => a.nivel === 'error');
-                return (
-                  <Fragment key={r.legajo}>
-                    <tr onClick={() => toggle(r.legajo)} className="cursor-pointer border-t border-slate-800 hover:bg-slate-900/60">
-                      <td className="whitespace-nowrap px-2 py-1.5 tabular-nums text-slate-500">{r.legajo}</td>
-                      <td className="whitespace-nowrap px-2 py-1.5 text-slate-100">
-                        {r.nombre}
-                        <span className="block text-xs text-slate-500">{r.centroCosto} · {r.tipoLiquidacion}</span>
-                      </td>
-                      <td className="whitespace-nowrap px-2 py-1.5 text-xs text-slate-400">{r.convenio}</td>
-                      <td className={td}>{formatDias(r.totalHs)}</td>
-                      <td className={td}>{n2(r.feriadosHs)}</td>
-                      <td className={td}>{n2(r.extrasHs)}</td>
-                      <td className={`${td} text-slate-100`}>{formatDias(r.normalesHs)}</td>
-                      {columnas.map((c) => (
-                        <td key={c.key} className={td}>
-                          {n2(r.incidencias[c.key] ?? 0)}
-                        </td>
-                      ))}
-                      <td className={td}>{n2(r.otrasHs)}</td>
-                      <td className={`${td} ${r.sinGoceHs > 0 ? 'text-amber-300' : ''}`}>{n2(r.sinGoceHs)}</td>
-                      <td className={td} title={`Presentismo: ${r.presentismoNota}`}>{r.presentismo === null ? '—' : formatDias(r.presentismo)}</td>
-                      <td className={td}>{r.viaticoDias === null ? 'NO' : formatDias(r.viaticoDias)}</td>
-                      <td className={td}>{n2(r.sabDomDias)}</td>
-                      <td className={td}>{n2(r.diasVacaciones)}</td>
-                      <td className={td}>{r.anticipos ? money.format(r.anticipos) : '—'}</td>
-                      <td className={td}>{r.guarderia ? money.format(r.guarderia) : '—'}</td>
-                      <td className="px-2 py-1.5">
-                        {r.alertas.length === 0 ? (
-                          <span className="text-xs text-emerald-400">OK</span>
-                        ) : (
-                          <span className={`rounded px-1.5 py-0.5 text-xs ${hayError ? 'bg-rose-950 text-rose-300' : 'bg-amber-950 text-amber-300'}`}>
-                            {r.alertas.length} {r.alertas.length === 1 ? 'observación' : 'observaciones'}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                    {open && (
-                      <tr className="bg-slate-900/40">
-                        <td colSpan={17 + columnas.length} className="px-3 py-3 text-sm">
-                          <div className="flex flex-col gap-2">
-                            <p className="text-slate-400">Presentismo: {r.presentismoNota}.</p>
-                            {r.alertas.map((a, i) => (
-                              <p key={i} className={a.nivel === 'error' ? 'text-rose-300' : 'text-amber-300'}>
-                                {a.detalle}
-                              </p>
-                            ))}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-            <tfoot className="sticky bottom-0 bg-slate-900 text-slate-200">
-              <tr className="border-t border-slate-700 font-medium">
-                <td className="px-2 py-2" colSpan={3}>
-                  Totales ({rows.length})
-                </td>
-                <td className={th}>{formatDias(totalesFiltro.total)}</td>
-                <td className={th}>{formatDias(totalesFiltro.feriados)}</td>
-                <td className={th}>{formatDias(totalesFiltro.extras)}</td>
-                <td className={th}>{formatDias(totalesFiltro.normales)}</td>
-                {columnas.map((c) => (
-                  <td key={c.key} className={th}>
-                    {formatDias(totalesFiltro.inc[c.key] ?? 0)}
-                  </td>
-                ))}
-                <td className={th}>{formatDias(totalesFiltro.otras)}</td>
-                <td className={th}>{formatDias(totalesFiltro.sinGoce)}</td>
-                <td className={th}>—</td>
-                <td className={th}>{formatDias(totalesFiltro.viatico)}</td>
-                <td className={th}>{formatDias(totalesFiltro.sabDom)}</td>
-                <td className={th}>{formatDias(totalesFiltro.vacDias)}</td>
-                <td className={th}>{money.format(totalesFiltro.anticipos)}</td>
-                <td className={th}>{money.format(totalesFiltro.guarderia)}</td>
-                <td />
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      )}
-
-      {data && (
-        <p className="text-xs text-slate-500">
-          Período: {formatFechaIso(data.desde)} – {formatFechaIso(data.hasta)}. Solo lectura: no modifica la planilla de Google ni Odoo.
-        </p>
       )}
 
       {vistaPrevia && data && hojas && (

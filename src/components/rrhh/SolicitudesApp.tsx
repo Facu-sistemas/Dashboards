@@ -3,12 +3,38 @@ import { useQueryClient } from '@tanstack/react-query';
 import QueryProvider from '@/components/QueryProvider';
 import { useApiQuery } from '@/components/dashboard/useApiQuery';
 import AvisosPanel from './AvisosPanel';
-import { ESTADO_SOLICITUD_TEXTO, type EstadoSolicitud, type SolicitudRetiro } from '@/lib/rrhh-solicitudes';
+import { ESTADO_SOLICITUD_TEXTO, pasosFaltantes, type EstadoSolicitud, type PasoAprobacion, type SolicitudRetiro } from '@/lib/rrhh-solicitudes';
 
 interface Respuesta {
   tablaLista: boolean;
   errorTabla: string | null;
   solicitudes: SolicitudRetiro[];
+  /** Con qué check puede decidir quien mira (dev: los dos; rrhh: el de RRHH; líder: el del líder). */
+  yo: { usuario: string; puedeRrhh: boolean; puedeLider: boolean };
+}
+
+const NOMBRE_PASO: Record<PasoAprobacion, string> = { rrhh: 'RRHH', lider: 'líder' };
+
+/** Los dos checks de una solicitud: quién los dio y cuál falta. */
+function Checks({ s }: { s: SolicitudRetiro }) {
+  const pasos: { paso: PasoAprobacion; por: string | null; en: string | null }[] = [
+    { paso: 'rrhh', por: s.aproboRrhhPor, en: s.aproboRrhhEn },
+    { paso: 'lider', por: s.aproboLiderPor, en: s.aproboLiderEn },
+  ];
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      {pasos.map(({ paso, por, en }) => (
+        <span
+          key={paso}
+          title={por ? `Aprobó ${NOMBRE_PASO[paso]}: ${por}${en ? ' el ' + fmtCreada(en) : ''}` : `Falta el check de ${NOMBRE_PASO[paso]}`}
+          className={`rounded-full px-2 py-0.5 text-xs ${por ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-700/60 text-slate-400'}`}
+        >
+          {por ? '✓' : '○'} {NOMBRE_PASO[paso]}
+          {por ? `: ${por}` : ''}
+        </span>
+      ))}
+    </span>
+  );
 }
 
 const QUERY_KEY = ['rrhh-solicitudes'];
@@ -23,11 +49,11 @@ const COLOR: Record<EstadoSolicitud, string> = {
 const fmtFecha = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: 'short' });
 const fmtCreada = (iso: string) => new Date(iso).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
-async function resolver(id: string, decision: 'aprobada' | 'rechazada', comentario: string): Promise<void> {
+async function resolver(id: string, decision: 'aprobada' | 'rechazada', comentario: string, paso: PasoAprobacion): Promise<void> {
   const res = await fetch('/api/rrhh-solicitudes', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ id, decision, comentario: comentario || undefined }),
+    body: JSON.stringify({ id, decision, comentario: comentario || undefined, paso }),
   });
   const json = (await res.json()) as { ok: boolean; error?: string };
   if (!res.ok || !json.ok) throw new Error(json.error ?? 'No se pudo guardar la decisión.');
@@ -68,11 +94,19 @@ function SolicitudesInner() {
   const pendientes = solicitudes.filter((s) => s.estado === 'pendiente').length;
   const visibles = useMemo(() => (filtro === 'pendiente' ? solicitudes.filter((s) => s.estado === 'pendiente') : solicitudes), [solicitudes, filtro]);
 
-  async function decidir(s: SolicitudRetiro, decision: 'aprobada' | 'rechazada') {
+  const yo = query.data?.yo;
+  /** Pasos que esta persona puede dar ahora: los que faltan, que su cuenta puede dar y que no choquen con que ella ya dio el otro. */
+  function pasosDisponibles(s: SolicitudRetiro): PasoAprobacion[] {
+    if (!yo) return [];
+    const dioElOtro = (paso: PasoAprobacion) => (paso === 'rrhh' ? s.aproboLiderPor : s.aproboRrhhPor)?.toLowerCase() === yo.usuario.toLowerCase();
+    return pasosFaltantes(s).filter((p) => (p === 'rrhh' ? yo.puedeRrhh : yo.puedeLider) && !dioElOtro(p));
+  }
+
+  async function decidir(s: SolicitudRetiro, decision: 'aprobada' | 'rechazada', paso: PasoAprobacion) {
     setGuardando(s.id);
     setError(null);
     try {
-      await resolver(s.id, decision, comentarios[s.id] ?? '');
+      await resolver(s.id, decision, comentarios[s.id] ?? '', paso);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -102,7 +136,7 @@ function SolicitudesInner() {
     return (
       <div className="rounded border border-amber-800 bg-amber-950/40 p-4 text-sm text-amber-200">
         <p className="font-semibold">Falta crear la tabla en Supabase.</p>
-        <p className="mt-1">Corré el SQL de <code>docs/rrhh-solicitudes-retiro.sql</code> en el SQL editor de Supabase y recargá.</p>
+        <p className="mt-1">Corré el SQL de <code>docs/rrhh-solicitudes-retiro.sql</code> y después el de <code>docs/rrhh-solicitudes-doble-aprobacion.sql</code> en el SQL editor de Supabase y recargá.</p>
         {query.data.errorTabla && <p className="mt-2 text-xs opacity-80">{query.data.errorTabla}</p>}
       </div>
     );
@@ -152,7 +186,8 @@ function SolicitudesInner() {
                       </span>
                       <span className="truncate text-sm text-slate-400">{s.motivo}</span>
                     </button>
-                    <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${COLOR[s.estado]}`}>{ESTADO_SOLICITUD_TEXTO[s.estado]}</span>
+                    {pendiente ? <Checks s={s} /> : <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${COLOR[s.estado]}`}>{ESTADO_SOLICITUD_TEXTO[s.estado]}</span>}
+                    {!pendiente && s.estado === 'aprobada' && <Checks s={s} />}
                     <button
                       type="button"
                       disabled={guardando === s.id}
@@ -173,38 +208,56 @@ function SolicitudesInner() {
                             {' · '}
                             {s.estado === 'cancelada' ? 'Cancelada por el empleado' : `${ESTADO_SOLICITUD_TEXTO[s.estado]} por ${s.resueltaPor ?? '—'}`}
                             {s.resueltaEn ? ` el ${fmtCreada(s.resueltaEn)}` : ''}
-                            {s.comentarioRrhh ? ` · "${s.comentarioRrhh}"` : ''}
+                            {s.comentarioRrhh ? ` · RRHH: "${s.comentarioRrhh}"` : ''}
+                            {s.comentarioLider ? ` · Líder: "${s.comentarioLider}"` : ''}
                           </>
                         )}
                       </p>
-                      {pendiente && (
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                          <input
-                            type="text"
-                            value={comentarios[s.id] ?? ''}
-                            onChange={(e) => setComentarios((c) => ({ ...c, [s.id]: e.target.value }))}
-                            placeholder="Comentario para el empleado (opcional)"
-                            maxLength={500}
-                            className="flex-1 rounded border border-slate-700 bg-slate-950 px-3 py-1.5 text-sm text-slate-100 placeholder:text-slate-500"
-                          />
-                          <button
-                            type="button"
-                            disabled={guardando === s.id}
-                            onClick={() => void decidir(s, 'aprobada')}
-                            className="rounded bg-emerald-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-                          >
-                            Aprobar
-                          </button>
-                          <button
-                            type="button"
-                            disabled={guardando === s.id}
-                            onClick={() => void decidir(s, 'rechazada')}
-                            className="rounded bg-rose-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50"
-                          >
-                            Rechazar
-                          </button>
-                        </div>
-                      )}
+                      {pendiente && (() => {
+                        const pasos = pasosDisponibles(s);
+                        if (pasos.length === 0) {
+                          return (
+                            <p className="text-xs text-slate-400">
+                              {pasosFaltantes(s).length === 0
+                                ? 'Esperando…'
+                                : `Falta el check de ${pasosFaltantes(s).map((p) => NOMBRE_PASO[p]).join(' y ')}. ${yo && (yo.puedeRrhh || yo.puedeLider) ? 'Ese paso lo tiene que dar otra persona.' : ''}`}
+                            </p>
+                          );
+                        }
+                        return (
+                          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                            <input
+                              type="text"
+                              value={comentarios[s.id] ?? ''}
+                              onChange={(e) => setComentarios((c) => ({ ...c, [s.id]: e.target.value }))}
+                              placeholder="Comentario para el empleado (opcional)"
+                              maxLength={500}
+                              className="flex-1 rounded border border-slate-700 bg-slate-950 px-3 py-1.5 text-sm text-slate-100 placeholder:text-slate-500"
+                            />
+                            {pasos.map((p) => (
+                              <button
+                                key={p}
+                                type="button"
+                                disabled={guardando === s.id}
+                                onClick={() => void decidir(s, 'aprobada', p)}
+                                title={`Da el check de ${NOMBRE_PASO[p]}. La solicitud queda aprobada cuando están los dos checks, de dos personas distintas.`}
+                                className="rounded bg-emerald-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                              >
+                                {pasos.length > 1 ? `Aprobar como ${NOMBRE_PASO[p]}` : 'Aprobar'}
+                              </button>
+                            ))}
+                            <button
+                              type="button"
+                              disabled={guardando === s.id}
+                              onClick={() => void decidir(s, 'rechazada', pasos[0]!)}
+                              title="Con que uno rechace alcanza: la solicitud queda rechazada."
+                              className="rounded bg-rose-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50"
+                            >
+                              Rechazar
+                            </button>
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </li>
