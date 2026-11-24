@@ -251,7 +251,7 @@ function tablasDe(macro: Macro): { id: string; titulo: string; ayuda: string; gr
   const norm = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   document.querySelectorAll<HTMLElement>('[data-buscador]').forEach((input) => {
     const card = input.parentElement!;
-    const filas = card.querySelectorAll<HTMLElement>('[data-fila-stock]');
+    const filas = card.querySelectorAll<HTMLTableRowElement>('[data-fila-stock]');
     input.addEventListener('input', () => {
       const q = norm((input as HTMLInputElement).value.trim());
       filas.forEach((f) => f.classList.toggle('hidden', q !== '' && !norm(f.cells[0]!.textContent ?? '').includes(q)));
