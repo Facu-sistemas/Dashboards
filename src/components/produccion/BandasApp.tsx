@@ -6,7 +6,6 @@ import LastUpdated from '@/components/shared/LastUpdated';
 import {
   parseRows,
   calcCorte,
-  calcCorteVisual,
   calcMatel,
   optimizarCorte,
   calcEnvivado,
@@ -167,8 +166,8 @@ function BandasInner() {
 
   // `corte` alimenta Matelaseadora y Optimización de corte tal cual (sin expandir por receta).
   const corte = useMemo(() => calcCorte(rows, stockMap), [rows, stockMap]);
-  // `corteVisual` es solo para la tab "Corte de bandas": los altos con pillow se expanden a la receta real de corte.
-  const corteVisual = useMemo(() => calcCorteVisual(corte, tablas.recetaPorAlto), [corte, tablas]);
+  // La tab "Corte de bandas" muestra el alto tal cual viene (ej. 34), sin expandir a la receta de corte.
+  const corteVisual = corte;
   const matel = useMemo(() => calcMatel(corte), [corte]);
   const optData = useMemo(() => optimizarCorte(corte), [corte]);
   const { envRows, totalSeg: totalSegEnv } = useMemo(() => calcEnvivado(rows, tablas, corte), [rows, tablas, corte]);
