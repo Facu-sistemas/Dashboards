@@ -65,6 +65,8 @@ export interface PlanSillon {
   coincidencias: Record<string, { producto: string; linea: number; unidades: number; nivel: Nivel | null }[]>;
   /** Persona → cuántos productos hace solo y cuántos enseña en el proceso de su puesto (solo las que tienen niveles cargados). */
   resumenNiveles: Record<string, { productosSolo: number; productosEnsena: number }>;
+  /** Plan fijado y bloqueado: no se rearma ni se sincroniza con Odoo hasta que se desbloquee. */
+  bloqueado?: boolean;
 }
 
 const PROCESO_DE_PUESTO: Record<PersonaSillon['puesto'], ProcesoHoja> = {
