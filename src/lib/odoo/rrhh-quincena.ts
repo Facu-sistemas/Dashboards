@@ -2,6 +2,7 @@ import { searchReadAll } from './client';
 import { addDaysIso } from '@/lib/date';
 import { getArgentinaTodayIso } from './oee';
 import { ApiValidationError } from '@/lib/api-helpers';
+import { getEstadosResumen } from '@/lib/supabase/rrhh-resumen-estado';
 
 /** `hr.leave.type` id de "Banco de horas" — fijo, mismo criterio que VACACIONES_TYPE_ID en rrhh-vacaciones.ts. */
 export const BANCO_HORAS_TYPE_ID = 6;
@@ -188,8 +189,10 @@ function sumar(map: Map<number, number>, id: number, v: number) {
  * (`account.analytic.line`): Odoo no genera hoja de horas para Vacaciones ni para
  * las licencias por hora, así que ahí faltarían licencias reales.
  */
-export async function getRrhhQuincena(desde: string, hasta: string): Promise<RrhhQuincenaResult> {
+export async function getRrhhQuincena(desde: string, hasta: string, opciones?: { sinIgnorados?: boolean }): Promise<RrhhQuincenaResult> {
   validarRango(desde, hasta);
+  // "Ignorar" en RRHH > Administración: la pestaña Horas no los muestra (la Planilla los trata aparte, por eso es opcional).
+  const estadosAdmin = opciones?.sinIgnorados ? await getEstadosResumen() : null;
 
   const [employees, leaves, bancoAsignaciones, bancoLicencias, attendance] = await Promise.all([
     searchReadAll<EmployeeRow>({
@@ -310,7 +313,8 @@ export async function getRrhhQuincena(desde: string, hasta: string): Promise<Rrh
 
   const feriadosEnRango = new Set<string>();
 
-  const rows: QuincenaEmpleadoRow[] = employees.map((e) => {
+  const empleadosVisibles = estadosAdmin ? employees.filter((e) => estadosAdmin.get(e.id) !== 'ignorar') : employees;
+  const rows: QuincenaEmpleadoRow[] = empleadosVisibles.map((e) => {
     const calendarId = e.resource_calendar_id ? e.resource_calendar_id[0] : null;
     const horasPorDia = HORAS_DIA;
     const feriados = (calendarId !== null ? feriadosPorCalendario.get(calendarId) : undefined) ?? new Set<string>();

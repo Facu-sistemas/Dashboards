@@ -10,6 +10,6 @@ export const GET: APIRoute = async ({ url }) => {
     const desde = url.searchParams.get('desde');
     const hasta = url.searchParams.get('hasta');
     if (!desde || !hasta) throw new ApiValidationError('Faltan los parámetros desde y hasta');
-    return getRrhhQuincena(desde, hasta);
+    return getRrhhQuincena(desde, hasta, { sinIgnorados: true });
   });
 };
