@@ -29,6 +29,7 @@ export const TIPOS_AUSENCIA_CARGABLES: TipoAusenciaCargable[] = [
  */
 export const TIPOS_AUSENCIA_DIA_COMPLETO: { id: number; nombre: string }[] = [
   { id: 4, nombre: 'Permisos sin pagar (falta injustificada)' },
+  { id: 6, nombre: 'Banco de horas' },
   { id: 2, nombre: 'Baja por enfermedad' },
   { id: 9, nombre: 'Accidente' },
   { id: 10, nombre: 'Trámite' },
@@ -39,6 +40,10 @@ export const TIPOS_AUSENCIA_DIA_COMPLETO: { id: number; nombre: string }[] = [
   { id: 13, nombre: 'Mudanza' },
   { id: 15, nombre: 'Donación de sangre' },
   { id: 20, nombre: 'Licencia por maternidad' },
+  { id: 14, nombre: 'Estudio' },
+  { id: 16, nombre: 'Lactancia' },
+  { id: 17, nombre: 'Permiso gremial' },
+  { id: 18, nombre: 'Bombero' },
 ];
 
 /** Id del tipo "Banco de horas" en Odoo: las horas extra se acreditan con una asignación de este tipo. */
