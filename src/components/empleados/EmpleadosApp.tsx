@@ -6,6 +6,11 @@ import { ESTADO_SOLICITUD_TEXTO, type EstadoSolicitud, type SolicitudRetiro } fr
 /** Cuadros que el navegador junta antes de pedirle al servidor que verifique (el servidor repite el reconocimiento). */
 const CUADROS = 3;
 const INTERVALO_MS = 400;
+/** Los primeros cuadros de una cámara recién abierta salen oscuros o desenfocados (exposición y foco todavía ajustando): se descartan. */
+const CALENTAMIENTO_MS = 1500;
+/** Un cuadro solo cuenta si la cara se detecta con firmeza y ocupa una parte razonable de la imagen. */
+const SCORE_MIN = 0.8;
+const ANCHO_CARA_MIN = 0.22;
 
 type Fase = 'cargando' | 'login' | 'entrando' | 'portal';
 
@@ -111,6 +116,11 @@ function Login({ alEntrar, errorInicial }: { alEntrar: (nombre: string) => Promi
   const [mensaje, setMensaje] = useState<string | null>(errorInicial);
   const [verificando, setVerificando] = useState(false);
   const bloqueadoHasta = useRef(0);
+  const camaraDesde = useRef(0);
+
+  useEffect(() => {
+    if (camaraActiva) camaraDesde.current = Date.now();
+  }, [camaraActiva]);
 
   useEffect(() => {
     if (!camaraActiva || verificando) return;
@@ -123,11 +133,18 @@ function Login({ alEntrar, errorInicial }: { alEntrar: (nombre: string) => Promi
         setTimeout(tick, INTERVALO_MS);
         return;
       }
+      if (Date.now() - camaraDesde.current < CALENTAMIENTO_MS) {
+        setEstado('Ajustando la cámara...');
+        setTimeout(tick, INTERVALO_MS);
+        return;
+      }
       const det = await detectar();
       if (cancelado) return;
-      if (!det) {
+      const anchoImagen = videoRef.current?.videoWidth || 640;
+      const firme = !!det && det.detection.score >= SCORE_MIN && det.detection.box.width >= anchoImagen * ANCHO_CARA_MIN;
+      if (!det || !firme) {
         juntos = [];
-        setEstado('Buscando tu cara...');
+        setEstado(det ? 'Acercate y mirá de frente...' : 'Buscando tu cara...');
       } else {
         juntos.push(Array.from(det.descriptor));
         setEstado('Verificando...');
