@@ -35,7 +35,7 @@ export interface OrdenSillon {
   cantidad: number;
   /** Línea 1..8, o null si la orden no tiene una línea válida ('nt', vacío…). */
   linea: number | null;
-  /** Orden de la planificación de Odoo (x_studio_prioridad): menor primero; 0 o vacío = sin prioridad, va al final del día. */
+  /** Orden de la planificación de Odoo (x_studio_prioridad): menor primero, como en Odoo (el 0 o vacío va antes que el 1). */
   prioridad: number;
   /** YYYY-MM-DD, o '' si no está agendada. */
   fecha: string;

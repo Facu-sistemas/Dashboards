@@ -88,7 +88,7 @@ const unidadesDe = (o: OrdenSillon) => Math.min(MAX_UNIDADES_POR_ORDEN, Math.max
 
 /**
  * Los respaldos ("RC90-2_ MAT-SIMPLE…", equivalentes a "RESP. MAT.") no llevan prioridad en Odoo (0) pero la planificación los
- * pone primeros del día, antes que las órdenes con número. El 0 del resto de los productos sigue siendo "sin prioridad", al final.
+ * pone primeros del día, antes que las órdenes con número. El 0 del resto de los productos se ordena como en Odoo: el más chico, primero.
  */
 const esRespaldo = (o: OrdenSillon, cat: ReturnType<typeof armarCatalogo>) =>
   /^(\[[^\]]*\]\s*)?RC\d/i.test(o.producto) || (resolverProducto(o.producto, cat)?.nombre ?? '').toUpperCase().startsWith('RESP');
@@ -97,7 +97,7 @@ const esRespaldo = (o: OrdenSillon, cat: ReturnType<typeof armarCatalogo>) =>
 const porFecha = (cat: ReturnType<typeof armarCatalogo>) => (a: OrdenSillon, b: OrdenSillon) =>
   (a.fecha || '9999').localeCompare(b.fecha || '9999') ||
   Number(esRespaldo(b, cat)) - Number(esRespaldo(a, cat)) ||
-  (a.prioridad || Infinity) - (b.prioridad || Infinity) ||
+  a.prioridad - b.prioridad ||
   a.id - b.id;
 
 const SOBRANTE_VACIO: Sobrante = { tapiceria: [], ensamble: [] };
