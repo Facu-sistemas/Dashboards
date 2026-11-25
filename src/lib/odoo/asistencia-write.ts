@@ -1,5 +1,6 @@
 import { getOdooConfig } from '@/lib/env';
 import { OdooError } from './types';
+import { getEstadosResumen } from '@/lib/supabase/rrhh-resumen-estado';
 
 /**
  * ÚNICO módulo del proyecto que escribe en Odoo — separado a propósito de
@@ -66,6 +67,34 @@ function ahoraOdoo(): string {
   return new Date().toISOString().slice(0, 19).replace('T', ' ');
 }
 
+/** Minuto del día (hora Argentina, UTC-3) a partir del cual una primera fichada ya no cuenta como entrada: 10:30. */
+const CORTE_ENTRADA_MIN = 10 * 60 + 30;
+const OFFSET_ARG_MS = 3 * 60 * 60 * 1000;
+
+/** `hora` en formato Odoo (UTC). ¿Son las 10:30 o más en Argentina? */
+function esPrimeraFichadaTardia(hora: string): boolean {
+  const local = new Date(Date.parse(`${hora.replace(' ', 'T')}Z`) - OFFSET_ARG_MS);
+  return local.getUTCHours() * 60 + local.getUTCMinutes() >= CORTE_ENTRADA_MIN;
+}
+
+/** Ventana UTC del día argentino de `hora`: arranca a las 03:00 UTC. */
+function diaLocalUtc(hora: string): { inicio: string; fin: string } {
+  const local = new Date(Date.parse(`${hora.replace(' ', 'T')}Z`) - OFFSET_ARG_MS);
+  const dia = local.toISOString().slice(0, 10);
+  const siguiente = new Date(Date.parse(`${dia}T00:00:00Z`) + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return { inicio: `${dia} 03:00:00`, fin: `${siguiente} 03:00:00` };
+}
+
+/** Los ignorados y los de "reporte perfecto" (RRHH > Administración) fichan como siempre: sin corte de las 10:30. Si no se puede consultar, no se exceptúa a nadie. */
+async function estaExceptuado(empleadoId: number): Promise<boolean> {
+  try {
+    return (await getEstadosResumen()).has(empleadoId);
+  } catch (err) {
+    console.error('[asistencia-write] no se pudo leer el estado de RRHH del empleado', err);
+    return false;
+  }
+}
+
 /** Pasa un ISO a "YYYY-MM-DD HH:MM:SS" en UTC. */
 function aFormatoOdoo(iso: string): string {
   return new Date(iso).toISOString().slice(0, 19).replace('T', ' ');
@@ -91,6 +120,23 @@ export async function marcarAsistencia(empleadoId: number, horaIso?: string): Pr
     if (horaIso && empleado.last_attendance_id) {
       const [ultima] = await call<{ check_out: string | false }[]>('hr.attendance', 'read', [[empleado.last_attendance_id[0]], ['check_out']]);
       if (ultima && typeof ultima.check_out === 'string' && ultima.check_out > hora) hora = ultima.check_out;
+    }
+
+    // Jornada de 6:00 a 14:18: pasadas las 10:30 una primera fichada del día no puede ser la entrada, es una salida cuya entrada no se
+    // fichó. Odoo no admite una salida sin entrada, así que se guarda una marca de 0 hs (entrada = salida) que la bandeja de novedades
+    // muestra como "Marca incompleta" para que RRHH cargue la hora real. No se aplica a quienes RRHH ignora o tiene en "reporte perfecto".
+    if (esPrimeraFichadaTardia(hora) && !(await estaExceptuado(empleadoId))) {
+      const dia = diaLocalUtc(hora);
+      const delDia = await call<{ id: number }[]>('hr.attendance', 'search_read', [
+        [['employee_id', '=', empleadoId], ['check_in', '>=', dia.inicio], ['check_in', '<', dia.fin]],
+        ['id'],
+        0,
+        1,
+      ]);
+      if (delDia.length === 0) {
+        await call<number>('hr.attendance', 'create', [[{ employee_id: empleadoId, check_in: hora, check_out: hora, in_mode: 'kiosk', out_mode: 'kiosk' }]]);
+        return { empleado: empleado.name, accion: 'salida', hora: `${hora.replace(' ', 'T')}Z` };
+      }
     }
     await call<number>('hr.attendance', 'create', [[{ employee_id: empleadoId, check_in: hora, in_mode: 'kiosk' }]]);
     return { empleado: empleado.name, accion: 'entrada', hora: `${hora.replace(' ', 'T')}Z` };
