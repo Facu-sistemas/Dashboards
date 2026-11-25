@@ -24,7 +24,7 @@ const SALDO_ALTO_UMBRAL = 20;
 
 
 /** Días hábiles (lun-vie, sin los feriados dados) entre dos fechas ISO, ambas inclusive. */
-function diasHabilesEntre(desdeIso: string, hastaIso: string, feriados: Record<string, string> = {}): number {
+export function diasHabilesEntre(desdeIso: string, hastaIso: string, feriados: Record<string, string> = {}): number {
   let n = 0;
   for (let d = desdeIso; d <= hastaIso; d = addDaysIso(d, 1)) {
     const dow = new Date(`${d}T12:00:00Z`).getUTCDay();
@@ -150,7 +150,7 @@ const JORNADA_MAXIMA_HS = 16;
  * alcanza a cubrir ninguna asignación se resta del saldo vigente (puede dar negativo). Sumar todas las asignaciones sin mirar fechas
  * mostraba, por ejemplo, 20 días cuando tenía 10 vigentes y 5 ya pedidos.
  */
-function saldoVigente(allocs: AllocationRow[], leaves: LeaveRow[], hoy: string): { asignado: number; saldo: number } {
+export function saldoVigente(allocs: AllocationRow[], leaves: LeaveRow[], hoy: string): { asignado: number; saldo: number } {
   const piezas = allocs
     .map((a) => ({ desde: a.date_from ? a.date_from.slice(0, 10) : '0000-00-00', hasta: a.date_to ? a.date_to.slice(0, 10) : '9999-99-99', resto: a.number_of_days, total: a.number_of_days }))
     .sort((a, b) => a.hasta.localeCompare(b.hasta) || a.desde.localeCompare(b.desde));

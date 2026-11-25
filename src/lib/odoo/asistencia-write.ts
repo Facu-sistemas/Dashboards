@@ -72,13 +72,13 @@ const CORTE_ENTRADA_MIN = 10 * 60 + 30;
 const OFFSET_ARG_MS = 3 * 60 * 60 * 1000;
 
 /** `hora` en formato Odoo (UTC). ¿Son las 10:30 o más en Argentina? */
-function esPrimeraFichadaTardia(hora: string): boolean {
+export function esPrimeraFichadaTardia(hora: string): boolean {
   const local = new Date(Date.parse(`${hora.replace(' ', 'T')}Z`) - OFFSET_ARG_MS);
   return local.getUTCHours() * 60 + local.getUTCMinutes() >= CORTE_ENTRADA_MIN;
 }
 
 /** Ventana UTC del día argentino de `hora`: arranca a las 03:00 UTC. */
-function diaLocalUtc(hora: string): { inicio: string; fin: string } {
+export function diaLocalUtc(hora: string): { inicio: string; fin: string } {
   const local = new Date(Date.parse(`${hora.replace(' ', 'T')}Z`) - OFFSET_ARG_MS);
   const dia = local.toISOString().slice(0, 10);
   const siguiente = new Date(Date.parse(`${dia}T00:00:00Z`) + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
