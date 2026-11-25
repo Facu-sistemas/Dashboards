@@ -31,27 +31,46 @@ function diasLabel(dias: number): string {
   return `En ${dias} días`;
 }
 
+type Orden = 'proximos' | 'edad-desc' | 'edad-asc';
+
+/** Edad actual: si hoy es el cumpleaños ya la cumplió, si no todavía tiene una menos. */
+function edadActual(e: UpcomingBirthday): number {
+  return e.esHoy ? e.edadQueCumple : e.edadQueCumple - 1;
+}
+
 function CumpleanosInner() {
   const [busqueda, setBusqueda] = useState('');
   const [soloProximos, setSoloProximos] = useState(true);
+  const [orden, setOrden] = useState<Orden>('proximos');
+  const porEdad = orden !== 'proximos';
 
   const query = useApiQuery<UpcomingBirthday[]>(['cumpleanos'], '/api/cumpleanos');
   const data = query.data ?? [];
 
   const filtrados = useMemo(() => {
     const texto = busqueda.trim().toLowerCase();
-    return data.filter((e) => {
-      if (soloProximos && e.diasRestantes > 30) return false;
+    const lista = data.filter((e) => {
+      if (!porEdad && soloProximos && e.diasRestantes > 30) return false;
       if (!texto) return true;
       return (
         e.nombre.toLowerCase().includes(texto) ||
         (e.departamento ?? '').toLowerCase().includes(texto)
       );
     });
-  }, [data, busqueda, soloProximos]);
+    if (porEdad) {
+      // Fecha de nacimiento ISO (YYYY-MM-DD): ordenar el string ordena por edad exacta.
+      lista.sort((a, b) =>
+        orden === 'edad-desc'
+          ? a.fechaNacimiento.localeCompare(b.fechaNacimiento)
+          : b.fechaNacimiento.localeCompare(a.fechaNacimiento),
+      );
+    }
+    return lista;
+  }, [data, busqueda, soloProximos, orden, porEdad]);
 
-  const hoy = filtrados.filter((e) => e.esHoy);
-  const resto = filtrados.filter((e) => !e.esHoy);
+  // En modo edad va todo a la tabla, sin separar los de hoy.
+  const hoy = porEdad ? [] : filtrados.filter((e) => e.esHoy);
+  const resto = porEdad ? filtrados : filtrados.filter((e) => !e.esHoy);
 
   return (
     <div className="flex flex-col gap-6">
@@ -67,10 +86,24 @@ function CumpleanosInner() {
           />
         </label>
 
-        <label className="flex items-center gap-2 text-sm text-slate-300">
+        <label className="flex flex-col gap-1 text-sm text-slate-300">
+          Ordenar por
+          <select
+            value={orden}
+            onChange={(e) => setOrden(e.target.value as Orden)}
+            className="rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-slate-100 focus:border-brand-500 focus:outline-none"
+          >
+            <option value="proximos">Próximo cumpleaños</option>
+            <option value="edad-desc">Edad (mayor a menor)</option>
+            <option value="edad-asc">Edad (menor a mayor)</option>
+          </select>
+        </label>
+
+        <label className={`flex items-center gap-2 text-sm ${porEdad ? 'text-slate-600' : 'text-slate-300'}`}>
           <input
             type="checkbox"
-            checked={soloProximos}
+            disabled={porEdad}
+            checked={soloProximos && !porEdad}
             onChange={(e) => setSoloProximos(e.target.checked)}
             className="h-4 w-4 rounded border-slate-600 bg-slate-950 text-brand-500 focus:ring-brand-500"
           />
@@ -93,7 +126,11 @@ function CumpleanosInner() {
           {!query.isLoading && (
             <p className="text-sm text-slate-400">
               <span className="font-medium text-slate-200">{filtrados.length}</span> empleado
-              {filtrados.length === 1 ? '' : 's'} {soloProximos ? 'con cumpleaños en los próximos 30 días' : 'en total'}.
+              {filtrados.length === 1 ? '' : 's'} {porEdad
+                ? 'en total, ordenados por edad'
+                : soloProximos
+                  ? 'con cumpleaños en los próximos 30 días'
+                  : 'en total'}.
             </p>
           )}
 
@@ -121,6 +158,7 @@ function CumpleanosInner() {
                   <th className="px-4 py-3">Departamento</th>
                   <th className="px-4 py-3">Puesto</th>
                   <th className="px-4 py-3">Fecha</th>
+                  <th className="px-4 py-3">Edad</th>
                   <th className="px-4 py-3">Cumple</th>
                   <th className="px-4 py-3 text-right">Faltan</th>
                 </tr>
@@ -132,13 +170,14 @@ function CumpleanosInner() {
                     <td className="px-4 py-2.5 text-slate-300">{e.departamento ?? '—'}</td>
                     <td className="px-4 py-2.5 text-slate-300">{e.puesto ?? '—'}</td>
                     <td className="px-4 py-2.5 text-slate-300">{formatFecha(e.proximaFecha)}</td>
+                    <td className="px-4 py-2.5 text-slate-300">{edadActual(e)}</td>
                     <td className="px-4 py-2.5 text-slate-300">{e.edadQueCumple} años</td>
                     <td className="px-4 py-2.5 text-right text-slate-300">{diasLabel(e.diasRestantes)}</td>
                   </tr>
                 ))}
                 {resto.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-6 text-center text-slate-500">
+                    <td colSpan={7} className="px-4 py-6 text-center text-slate-500">
                       No hay empleados que coincidan con el filtro.
                     </td>
                   </tr>
