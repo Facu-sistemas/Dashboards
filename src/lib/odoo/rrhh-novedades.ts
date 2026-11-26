@@ -6,6 +6,7 @@ import { BANCO_HORAS_TYPE_ID, esFinDeSemana, fechaArgentina, HORAS_DIA, OFFSET_A
 import { cargarBaseFichaje } from './rrhh-fichaje-base';
 import { getEstadosResumen } from '@/lib/supabase/rrhh-resumen-estado';
 import { listNovedadesDescartadas, type NovedadDescartada } from '@/lib/supabase/rrhh-novedades-descartadas';
+import { extraRedondeadaHs, horasExtraCrudasHs, JORNADA_FICHADA_HS } from '@/lib/rrhh-horas-extra';
 
 /**
  * Bandeja de novedades: recorre día por día las fichadas de Odoo y lista lo que se sale de la jornada, para que RRHH
@@ -17,19 +18,14 @@ import { listNovedadesDescartadas, type NovedadDescartada } from '@/lib/supabase
  *  - `marca-incompleta`: solo hay una marca "de un minuto" (entrada y salida casi iguales, ej. 14:39–14:39): se olvidó de
  *    fichar al entrar o al salir.
  *  - `sin-fichada`: ese día no fichó y no tiene licencia aprobada que lo cubra.
- *  - `horas-extra`: trabajó bastante más que la jornada y no se le acreditaron horas al banco ese día.
+ *  - `horas-extra`: se quedó bastante después del cierre del turno (14:18) y no se le acreditaron horas al banco ese día.
  */
 
-/** Jornada que se ficha: de 6:00 a 14:18. Se computan 8,80 hs porque la media hora de descanso se paga (ver rrhh-quincena.ts). */
-export const JORNADA_FICHADA_HS = 8.3;
+// Jornada fichada (6:00 a 14:18), cierre del turno y reglas de horas extra: viven en un módulo sin imports de servidor para que
+// las pantallas usen el mismo cálculo. Se reexportan acá para no cambiar a quienes ya las importaban de este archivo.
+export { CIERRE_TURNO, extraRedondeadaHs, horasExtraCrudasHs, JORNADA_FICHADA_HS, TOLERANCIA_EXTRA_HS } from '@/lib/rrhh-horas-extra';
 /** Diferencia que se tolera antes de marcar horas faltantes (15 min: fichar un rato más tarde o antes es normal). */
 export const TOLERANCIA_FALTANTE_HS = 0.25;
-/**
- * Las horas de más se marcan desde 30 min sobre la jornada fichada (se cuentan desde las 14:18 si entró a las 6:00; a las 14:48 ya hay 30 min), ya redondeadas al cuarto de hora: quien
- * sobra 29 min cuenta como 30 (la pantalla muestra el tiempo exacto entre paréntesis). Lo pidió RRHH (Juan): umbral de 30 min
- * (antes era 1 h).
- */
-export const TOLERANCIA_EXTRA_HS = 0.5;
 
 /** Horas decimales a "1 h 5 min". */
 export function minutosTxt(hs: number): string {
@@ -37,11 +33,6 @@ export function minutosTxt(hs: number): string {
   return m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}` : `${m} min`;
 }
 
-/** Horas extra del día redondeadas al cuarto de hora más cercano; 0 si no llegan al mínimo para marcarse. */
-export function extraRedondeadaHs(fichadoHs: number): number {
-  const redondeada = Math.round((fichadoHs - JORNADA_FICHADA_HS) * 4) / 4;
-  return redondeada >= TOLERANCIA_EXTRA_HS ? redondeada : 0;
-}
 /** Una marca más corta que esto (entrada y salida casi en el mismo minuto) no es trabajo real: es un fichaje olvidado. */
 export const MARCA_MINIMA_HS = 0.25;
 /**
@@ -385,8 +376,9 @@ export async function getRrhhNovedades(desde: string, hasta: string): Promise<Rr
           horasAResolver: round2(faltan),
           detalle: `Trabajó de ${entrada} a ${salida} (${fichadoHs} hs) y le faltan ${round2(faltan)} hs para completar la jornada.`,
         });
-      } else if (cubiertoHs === 0 && !acreditado.has(`${e.id}|${d}`) && extraRedondeadaHs(fichadoHs) > 0) {
-        const sobran = extraRedondeadaHs(fichadoHs);
+      } else if (cubiertoHs === 0 && !acreditado.has(`${e.id}|${d}`) && extraRedondeadaHs(fichadoHs, ultimaSalida) > 0) {
+        // Se cuentan desde el cierre del turno (14:18): llegar antes no suma (ver horasExtraCrudasHs).
+        const sobran = extraRedondeadaHs(fichadoHs, ultimaSalida);
         detectadas.push({
           ...base,
           clave: `${e.id}|${d}|horas-extra`,
@@ -395,7 +387,7 @@ export async function getRrhhNovedades(desde: string, hasta: string): Promise<Rr
           salida,
           fichadoHs,
           horasAResolver: round2(sobran),
-          detalle: `Trabajó de ${entrada} a ${salida} (${fichadoHs} hs): ${round2(sobran)} hs más que la jornada (tiempo exacto: ${minutosTxt(fichadoHs - JORNADA_FICHADA_HS)}).`,
+          detalle: `Trabajó de ${entrada} a ${salida} (${fichadoHs} hs): ${round2(sobran)} hs extra desde las 14:18 (tiempo exacto: ${minutosTxt(horasExtraCrudasHs(fichadoHs, ultimaSalida))}).`,
         });
       }
     }

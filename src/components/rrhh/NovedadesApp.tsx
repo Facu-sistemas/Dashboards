@@ -6,6 +6,7 @@ import { useApiQuery } from '@/components/dashboard/useApiQuery';
 import LastUpdated from '@/components/shared/LastUpdated';
 import { formatDias, formatFechaIso } from './format';
 import { ultimasQuincenas } from './quincena-utils';
+import { horasExtraCrudasHs } from '@/lib/rrhh-horas-extra';
 import type { NovedadRow, NovedadTipo, RrhhNovedadesResult } from '@/lib/odoo/rrhh-novedades';
 import type { EmpleadoResumen, EstadoDia, RrhhHistorialResult } from '@/lib/odoo/rrhh-historial';
 
@@ -43,9 +44,12 @@ const MAX_DIAS = 93;
 
 const hs = (v: number) => `${formatDias(v)} hs`;
 
-/** Las horas extra se redondean al cuarto de hora; si el tiempo exacto es otro, lo devuelve ("59 min") para mostrarlo entre paréntesis. */
-function exactoExtra(fichadoHs: number, jornadaHs: number, redondeadaHs: number): string | null {
-  const min = Math.round((fichadoHs - jornadaHs) * 60);
+/**
+ * Las horas extra se redondean al cuarto de hora; si el tiempo exacto es otro, lo devuelve ("59 min") para mostrarlo entre
+ * paréntesis. El exacto se cuenta desde el cierre del turno (14:18), igual que en el servidor (ver horasExtraCrudasHs).
+ */
+function exactoExtra(fichadoHs: number, salida: string | null, redondeadaHs: number): string | null {
+  const min = Math.round(horasExtraCrudasHs(fichadoHs, salida) * 60);
   if (min === Math.round(redondeadaHs * 60)) return null;
   return min >= 60 ? `${Math.floor(min / 60)} h${min % 60 ? ` ${min % 60} min` : ''}` : `${min} min`;
 }
@@ -702,7 +706,7 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
       {data && (
         <p className="text-xs text-slate-500">
           Se revisan los días hábiles hasta el {formatFechaIso(data.evaluadoHasta)} (hoy no, porque todavía puede estar trabajando). Jornada fichada de{' '}
-          {formatDias(data.jornadaHs)} hs: se tolera 15 min de diferencia, y las horas extra se redondean al cuarto de hora desde 30 min de más (el tiempo exacto va entre paréntesis). Lo que ya está cubierto por una licencia aprobada en Odoo (por ejemplo un
+          {formatDias(data.jornadaHs)} hs: se tolera 15 min de diferencia. Las horas extra se cuentan desde el cierre del turno (14:18), no desde la entrada: llegar antes no suma, y a quien llegó tarde no se le cuenta lo que se quedó para compensar. Se redondean al cuarto de hora desde 30 min (el tiempo exacto va entre paréntesis). Lo que ya está cubierto por una licencia aprobada en Odoo (por ejemplo un
           banco de horas ya cargado) no aparece.{puedeCargar ? ' Cada novedad tiene su acción: cargar la ausencia, acreditar las horas extra al banco o corregir la fichada, todo en Odoo; o descartarla.' : ' Solo lectura.'}
         </p>
       )}
@@ -831,8 +835,8 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
                     <td className="px-3 py-2 text-right tabular-nums text-slate-300">{r.tipo === 'sin-fichada' ? '—' : hs(r.fichadoHs)}</td>
                     <td className={`px-3 py-2 text-right tabular-nums ${r.tipo === 'horas-extra' ? 'text-sky-300' : 'text-amber-300'}`}>
                       {r.tipo === 'sin-salida' ? '—' : `${r.tipo === 'horas-extra' ? '+' : '−'}${hs(r.horasAResolver)}`}
-                      {r.tipo === 'horas-extra' && exactoExtra(r.fichadoHs, data.jornadaHs, r.horasAResolver) && (
-                        <span className="block text-xs text-slate-500">({exactoExtra(r.fichadoHs, data.jornadaHs, r.horasAResolver)})</span>
+                      {r.tipo === 'horas-extra' && exactoExtra(r.fichadoHs, r.salida, r.horasAResolver) && (
+                        <span className="block text-xs text-slate-500">({exactoExtra(r.fichadoHs, r.salida, r.horasAResolver)})</span>
                       )}
                     </td>
                     <td className="px-3 py-2 text-xs">
@@ -934,7 +938,7 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
                   entrada: d.entrada,
                   salida: d.salida,
                   fichadoHs: d.fichadoHs,
-                  horasAResolver: Math.max(0, Math.round((d.fichadoHs - data.jornadaHs) * 100) / 100),
+                  horasAResolver: Math.round(horasExtraCrudasHs(d.fichadoHs, d.salida) * 100) / 100,
                   cubiertoHs: 0,
                   pendienteHs: 0,
                   licencias: d.licencias,

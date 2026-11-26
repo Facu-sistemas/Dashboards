@@ -3,6 +3,7 @@ import QueryProvider from '@/components/QueryProvider';
 import { useApiQuery } from '@/components/dashboard/useApiQuery';
 import LastUpdated from '@/components/shared/LastUpdated';
 import { formatDias } from './format';
+import { horasExtraCrudasHs } from '@/lib/rrhh-horas-extra';
 import { exigirJson } from '@/lib/respuesta-no-json';
 import type { ApiEnvelope } from '@/components/dashboard/types';
 import type { RrhhBancoResult } from '@/lib/odoo/rrhh-banco';
@@ -406,7 +407,7 @@ function Detalle({ hoy, empleadoId, mes, setMes, onVolver }: { hoy: string; empl
                 {sel.fecha.split('-').reverse().join('/')} · {ESTILO_DIA[sel.estado].label}
                 {sel.descartada && <span className="ml-2 text-xs text-slate-500">(descartada por RRHH)</span>}
               </p>
-              {sel.horasAResolver > 0 && <p className="mt-1 text-slate-300">{sel.estado === 'horas-extra' ? 'Sobran' : 'Faltan'} {hs(sel.horasAResolver)}{sel.estado === 'horas-extra' && Math.round((sel.fichadoHs - 8.3) * 60) !== Math.round(sel.horasAResolver * 60) ? ` (exacto: ${Math.round((sel.fichadoHs - 8.3) * 60)} min)` : ''}.</p>}
+              {sel.horasAResolver > 0 && <p className="mt-1 text-slate-300">{sel.estado === 'horas-extra' ? 'Sobran' : 'Faltan'} {hs(sel.horasAResolver)}{sel.estado === 'horas-extra' && Math.round(horasExtraCrudasHs(sel.fichadoHs, sel.salida) * 60) !== Math.round(sel.horasAResolver * 60) ? ` (exacto desde las 14:18: ${Math.round(horasExtraCrudasHs(sel.fichadoHs, sel.salida) * 60)} min)` : ''}.</p>}
               <div className="mt-2 grid gap-4 sm:grid-cols-2">
                 <div>
                   <p className="text-xs uppercase tracking-wide text-slate-500">Fichadas</p>

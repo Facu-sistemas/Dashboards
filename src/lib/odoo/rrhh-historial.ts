@@ -248,9 +248,9 @@ export async function getRrhhHistorial(desde: string, hasta: string, empleadoId?
         if (faltan > TOLERANCIA_FALTANTE_HS) {
           tipo = 'horas-faltantes';
           dia.horasAResolver = round2(faltan);
-        } else if (cubiertoHs === 0 && !acreditado.has(`${e.id}|${d}`) && extraRedondeadaHs(fichadoHs) > 0) {
+        } else if (cubiertoHs === 0 && !acreditado.has(`${e.id}|${d}`) && extraRedondeadaHs(fichadoHs, ultimaSalida) > 0) {
           tipo = 'horas-extra';
-          dia.horasAResolver = extraRedondeadaHs(fichadoHs);
+          dia.horasAResolver = extraRedondeadaHs(fichadoHs, ultimaSalida);
         }
       }
 
