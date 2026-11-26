@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFichajeCamara } from '@/components/fichaje/useFichajeCamara';
 import type { PortalEmpleado } from '@/lib/odoo/empleado-portal';
 import { ESTADO_SOLICITUD_TEXTO, type EstadoSolicitud, type SolicitudRetiro } from '@/lib/rrhh-solicitudes';
+import { horasMinTxt } from '@/lib/horas-formato';
 
 /** Cuadros que el navegador junta antes de pedirle al servidor que verifique (el servidor repite el reconocimiento). */
 const CUADROS = 3;
@@ -14,7 +15,8 @@ const ANCHO_CARA_MIN = 0.22;
 
 type Fase = 'cargando' | 'login' | 'entrando' | 'portal';
 
-const fmtHs = (n: number) => `${n.toFixed(1).replace('.', ',')} hs`;
+/** Las horas se muestran en horas y minutos ("14 h 6 min"), no en decimales: el empleado leería 0,73 como 73 minutos. */
+const fmtHs = horasMinTxt;
 const fmtFecha = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
 const fmtHora = (iso: string) => iso;
 
@@ -416,7 +418,7 @@ function Portal({ data, alSalir, alActualizar }: { data: PortalEmpleado; alSalir
                     {m.concepto}
                     {m.estado === 'pendiente' && <span className="ml-2 text-xs text-amber-300">pendiente</span>}
                   </span>
-                  <span className={`font-semibold ${m.horas < 0 ? 'text-red-400' : 'text-emerald-400'}`}>{m.horas > 0 ? '+' : ''}{fmtHs(m.horas)}</span>
+                  <span className={`font-semibold ${m.horas < 0 ? 'text-red-400' : 'text-emerald-400'}`}>{m.horas > 0 && Math.round(m.horas * 60) > 0 ? '+' : ''}{fmtHs(m.horas)}</span>
                 </li>
               ))}
             </ul>
