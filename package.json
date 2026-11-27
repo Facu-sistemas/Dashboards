@@ -19,6 +19,8 @@
     "@supabase/ssr": "^0.12.5",
     "@supabase/supabase-js": "^2.112.4",
     "@tanstack/react-query": "^5.59.0",
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.1.1",
     "@vladmandic/face-api": "^1.7.15",
     "astro": "^7.4.5",
     "bwip-js": "^4.11.4",

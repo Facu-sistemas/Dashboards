@@ -1,6 +1,8 @@
 ---
 import '@/styles/global.css';
 import ScrollToTop from '@/components/nav/ScrollToTop.astro';
+import Analytics from '@vercel/analytics/astro';
+import SpeedInsights from '@vercel/speed-insights/astro';
 
 interface Props {
   title: string;
@@ -164,6 +166,9 @@ const manifest = ruta.startsWith('/fichaje')
 
     <slot />
     <ScrollToTop />
+    <!-- Vercel Web Analytics + Speed Insights: visitas por solapa y tiempos de carga reales; se ven en el panel de Vercel (Analytics / Speed Insights). Sin cookies, no identifican al usuario. -->
+    <Analytics />
+    <SpeedInsights />
     {
       usuario && !ruta.startsWith('/fichaje') && (
         <script is:inline>
