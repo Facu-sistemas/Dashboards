@@ -1,4 +1,4 @@
-import { getOdooConfig } from '@/lib/env';
+import { getOdooRrhhConfig } from '@/lib/env';
 import { ApiValidationError } from '@/lib/api-helpers';
 import { addDaysIso } from '@/lib/date';
 import { OdooError } from './types';
@@ -52,18 +52,33 @@ async function rpc<T>(url: string, service: string, method: string, args: unknow
   return payload.result;
 }
 
+// Se escribe con el usuario "Recursos Humanos" de Odoo (ODOO_API_KEY_RRHH): los avisos al empleado salen firmados por RRHH y no por
+// la cuenta personal de Sistemas. Sin esa key, con las credenciales generales (ver getOdooRrhhConfig).
+let uidCache: Promise<number> | null = null;
+
 async function getUid(): Promise<number> {
-  const config = getOdooConfig();
+  const config = getOdooRrhhConfig();
   if (config.uid) return config.uid;
-  const uid = await rpc<number | false>(config.url, 'common', 'authenticate', [config.db, config.userEmail, config.apiKey, {}]);
-  if (!uid) throw new OdooError('Odoo authentication failed: invalid DB, email, or API key');
-  return uid;
+  if (!uidCache) {
+    uidCache = rpc<number | false>(config.url, 'common', 'authenticate', [config.db, config.userEmail, config.apiKey, {}]).then((uid) => {
+      if (!uid) {
+        uidCache = null;
+        throw new OdooError(
+          config.esRrhh
+            ? `Odoo no aceptó la API key de RRHH (ODOO_API_KEY_RRHH) para el usuario ${config.userEmail}.`
+            : 'Odoo authentication failed: invalid DB, email, or API key'
+        );
+      }
+      return uid;
+    });
+  }
+  return uidCache;
 }
 
 type Call = <T>(model: string, method: string, args: unknown[], kwargs?: Record<string, unknown>) => Promise<T>;
 
 async function conectar(): Promise<Call> {
-  const config = getOdooConfig();
+  const config = getOdooRrhhConfig();
   const uid = await getUid();
   return <T>(model: string, method: string, args: unknown[], kwargs: Record<string, unknown> = {}) =>
     rpc<T>(config.url, 'object', 'execute_kw', [config.db, uid, config.apiKey, model, method, args, { context: { lang: 'es_AR' }, ...kwargs }]);

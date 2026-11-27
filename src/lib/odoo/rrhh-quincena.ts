@@ -3,6 +3,7 @@ import { addDaysIso } from '@/lib/date';
 import { getArgentinaTodayIso } from './oee';
 import { ApiValidationError } from '@/lib/api-helpers';
 import { getEstadosResumen } from '@/lib/supabase/rrhh-resumen-estado';
+import { extraRedondeadaHs } from '@/lib/rrhh-horas-extra';
 
 /** `hr.leave.type` id de "Banco de horas" — fijo, mismo criterio que VACACIONES_TYPE_ID en rrhh-vacaciones.ts. */
 export const BANCO_HORAS_TYPE_ID = 6;
@@ -13,6 +14,12 @@ export const BANCO_HORAS_TYPE_ID = 6;
  * (96,80 hs en una quincena de 11 días hábiles), por eso no se usa la jornada del calendario de Odoo (8,3).
  */
 export const HORAS_DIA = 8.8;
+
+/**
+ * Tipo de ausencia de Odoo con el que RRHH aprueba las horas extra a pagar (por horas, sin saldo). No es tiempo libre: no
+ * cubre la jornada, no cuenta como tiempo personal y resuelve la novedad de horas extra de ese día.
+ */
+export const TIPO_HORAS_EXTRA = 'Horas extra';
 
 /** Diferencia que se tolera antes de marcar un descuadre (Odoo guarda horas con decimales largos). */
 const TOLERANCIA_HS = 0.1;
@@ -25,7 +32,7 @@ export const OFFSET_ARG_MS = 3 * 60 * 60 * 1000;
 /** Ausencias no programadas: lo que cuenta como ausentismo (las vacaciones, trámites, banco de horas y demás permisos no). */
 const TIPOS_AUSENTISMO = ['Baja por enfermedad', 'Accidente', 'Permisos sin pagar'];
 
-export type QuincenaAlertaTipo = 'banco-descuadre' | 'superpuestas' | 'exceso' | 'pendiente' | 'banco-negativo';
+export type QuincenaAlertaTipo = 'banco-descuadre' | 'superpuestas' | 'exceso' | 'pendiente' | 'banco-negativo' | 'dias-licencia' | 'fichada-en-licencia';
 export type QuincenaAlertaNivel = 'error' | 'aviso';
 
 export interface QuincenaAlerta {
@@ -44,6 +51,11 @@ export interface QuincenaLicenciaRow {
   horasLicencia: number;
   /** Horas de esa licencia que caen dentro de la quincena (las que cuentan en esta pantalla). */
   horasEnQuincena: number;
+  /**
+   * Días hábiles (sin feriados) de la licencia que caen en la quincena, siempre enteros. null: licencia por horas o de
+   * medio día, que no se cuenta en días.
+   */
+  diasEnQuincena: number | null;
 }
 
 export interface QuincenaTipoHoras {
@@ -68,9 +80,22 @@ export interface QuincenaEmpleadoRow {
   tiempoPersonalHs: number;
   porTipo: QuincenaTipoHoras[];
   horasATrabajar: number;
+  /** Horas fichadas, sin las de los días cubiertos por una licencia de día completo aprobada (ver `fichadasEnLicenciaHs`). */
   fichadasHs: number;
-  /** Días hábiles con al menos una fichada. */
+  /**
+   * Horas fichadas en días que tienen una licencia de día completo aprobada (ej. vacaciones cambiadas por banco: vino a
+   * trabajar pero el día se paga como vacaciones). No cuentan como trabajadas; quedan en Odoo y se informan aparte.
+   */
+  fichadasEnLicenciaHs: number;
+  /** Días hábiles con al menos una fichada (sin los cubiertos por una licencia de día completo). */
   diasTrabajados: number;
+  /**
+   * Horas extra según las fichadas (base): por día hábil sin feriado, lo que pasa de la jornada fichada con la misma regla que la
+   * bandeja de Novedades. No cuenta los días con licencias ni los que ya tienen horas acreditadas al banco. Fines de semana no.
+   */
+  extrasBaseHs: number;
+  /** Horas extra a pagar: ausencias tipo "Horas extra" aprobadas en Odoo dentro del período. */
+  extrasAprobadasHs: number;
   /** Días sin fichada, sin feriado y sin licencia aprobada × 8,80 (RRHH lo revisa antes de liquidar). */
   injustificadasHs: number;
   /** Horas de ausencia no programada: enfermedad, accidente, permisos sin pagar y días sin fichada ni justificación (estos últimos solo desde la primera fichada de la persona en el período). */
@@ -143,7 +168,7 @@ type LeaveRow = {
 
 type HoursRow = { employee_id: M2o; number_of_hours_display: number; date_from?: string | false };
 
-type AttendanceRow = { employee_id: M2o; worked_hours: number; check_in: string };
+type AttendanceRow = { employee_id: M2o; worked_hours: number; check_in: string; check_out: string | false };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -254,7 +279,7 @@ export async function getRrhhQuincena(desde: string, hasta: string, opciones?: {
         ['check_in', '>=', `${desde} 03:00:00`],
         ['check_in', '<', `${addDaysIso(hasta, 1)} 03:00:00`],
       ],
-      fields: ['employee_id', 'worked_hours', 'check_in'],
+      fields: ['employee_id', 'worked_hours', 'check_in', 'check_out'],
     }),
   ]);
 
@@ -282,25 +307,32 @@ export async function getRrhhQuincena(desde: string, hasta: string, opciones?: {
 
   const asignadoTotal = new Map<number, number>();
   const bancoAcreditado = new Map<number, number>();
+  /** "empleado|día" con horas acreditadas al banco: esas horas extra ya se compensaron, no se pagan. */
+  const acreditadoDia = new Set<string>();
   for (const a of bancoAsignaciones) {
     if (!a.employee_id) continue;
     sumar(asignadoTotal, a.employee_id[0], a.number_of_hours_display);
     const fecha = a.date_from ? a.date_from.slice(0, 10) : '';
-    if (fecha >= desde && fecha <= hasta) sumar(bancoAcreditado, a.employee_id[0], a.number_of_hours_display);
+    if (fecha >= desde && fecha <= hasta) {
+      sumar(bancoAcreditado, a.employee_id[0], a.number_of_hours_display);
+      acreditadoDia.add(`${a.employee_id[0]}|${fecha}`);
+    }
   }
   const tomadoTotal = new Map<number, number>();
   for (const l of bancoLicencias) if (l.employee_id) sumar(tomadoTotal, l.employee_id[0], l.number_of_hours_display);
 
-  const fichadasHs = new Map<number, number>();
-  const diasFichados = new Map<number, Set<string>>();
+  // Horas fichadas por empleado y por día (hora argentina), con la última salida: hacen falta por día para separar las de días con
+  // licencia completa y para las horas extra (que se cuentan desde el cierre del turno, ver rrhh-horas-extra.ts).
+  const fichadasPorDia = new Map<number, Map<string, number>>();
+  const ultimaSalidaPorDia = new Map<string, string>();
   for (const a of attendance) {
     if (!a.employee_id) continue;
-    sumar(fichadasHs, a.employee_id[0], a.worked_hours);
     const dia = fechaArgentina(a.check_in);
-    if (esFinDeSemana(dia)) continue;
-    const dias = diasFichados.get(a.employee_id[0]) ?? new Set<string>();
-    dias.add(dia);
-    diasFichados.set(a.employee_id[0], dias);
+    const porDia = fichadasPorDia.get(a.employee_id[0]) ?? new Map<string, number>();
+    porDia.set(dia, (porDia.get(dia) ?? 0) + a.worked_hours);
+    fichadasPorDia.set(a.employee_id[0], porDia);
+    const k = `${a.employee_id[0]}|${dia}`;
+    if (a.check_out && (ultimaSalidaPorDia.get(k) ?? '') < a.check_out) ultimaSalidaPorDia.set(k, a.check_out);
   }
 
   const licenciasPorEmpleado = new Map<number, LeaveRow[]>();
@@ -328,17 +360,35 @@ export async function getRrhhQuincena(desde: string, hasta: string, opciones?: {
     const feriadosHs = diasFeriado * horasPorDia;
 
     const tipoHoras = new Map<string, number>();
+    const diasMalContados: string[] = [];
     const licencias: QuincenaLicenciaRow[] = (licenciasPorEmpleado.get(e.id) ?? []).map((l) => {
-      // Una licencia por hora cae entera en un día; las de días se reparten por días hábiles (sin feriados) si cruzan la quincena.
       const totalDias = contarDiasHabiles(l.request_date_from, l.request_date_to, feriados);
       const enRangoDesde = l.request_date_from > desde ? l.request_date_from : desde;
       const enRangoHasta = l.request_date_to < hasta ? l.request_date_to : hasta;
       const diasEnRango = enRangoDesde > enRangoHasta ? 0 : contarDiasHabiles(enRangoDesde, enRangoHasta, feriados);
       const contenida = l.request_date_from >= desde && l.request_date_to <= hasta;
-      // Las licencias por días valen 8,80 hs por día (Odoo las guarda con 8,3); las por hora se respetan tal cual.
-      const total = l.request_unit_hours ? l.number_of_hours_display : l.number_of_days * HORAS_DIA;
-      const horasEnQuincena = contenida ? total : totalDias > 0 ? (total * diasEnRango) / totalDias : 0;
       const tipo = l.holiday_status_id ? l.holiday_status_id[1] : 'Sin tipo';
+      // Licencias de días completos: se cuentan los días hábiles del calendario (sin feriados) que caen en la quincena, × 8,80 hs.
+      // Antes se prorrateaban los días de Odoo, y cuando Odoo contaba distinto que el calendario (ej. 10 días donde hay 9 hábiles,
+      // por un feriado que la licencia no descontó) daban horas con decimales (9,78, 96,38…). Si Odoo cuenta distinto, se avisa.
+      const diasCompletos = !l.request_unit_hours && Math.abs(l.number_of_days - Math.round(l.number_of_days)) < 0.01 && l.number_of_days >= 1;
+      let total: number;
+      let horasEnQuincena: number;
+      let diasEnQuincena: number | null = null;
+      if (diasCompletos) {
+        total = totalDias * HORAS_DIA;
+        diasEnQuincena = diasEnRango;
+        horasEnQuincena = diasEnRango * HORAS_DIA;
+        if (Math.round(l.number_of_days) !== totalDias) {
+          diasMalContados.push(
+            `${tipo} del ${l.request_date_from} al ${l.request_date_to}: Odoo cuenta ${Math.round(l.number_of_days)} días y el calendario tiene ${totalDias} días hábiles sin feriados (se tomaron ${totalDias})`
+          );
+        }
+      } else {
+        // Por hora o medio día: las horas de Odoo tal cual (las de medio día valen 8,80 × fracción), prorrateadas si cruzan la quincena.
+        total = l.request_unit_hours ? l.number_of_hours_display : l.number_of_days * HORAS_DIA;
+        horasEnQuincena = contenida ? total : totalDias > 0 ? (total * diasEnRango) / totalDias : 0;
+      }
       if (l.state === 'validate') tipoHoras.set(tipo, (tipoHoras.get(tipo) ?? 0) + horasEnQuincena);
       return {
         id: l.id,
@@ -348,14 +398,50 @@ export async function getRrhhQuincena(desde: string, hasta: string, opciones?: {
         hasta: l.request_date_to,
         horasLicencia: round2(total),
         horasEnQuincena: round2(horasEnQuincena),
+        diasEnQuincena,
       };
     });
+
+    // Fichadas: las de días hábiles cubiertos por una licencia de día completo aprobada no cuentan como trabajadas.
+    const diasConLicenciaCompleta = new Map<string, string>();
+    for (const l of licenciasPorEmpleado.get(e.id) ?? []) {
+      if (l.state !== 'validate' || l.request_unit_hours || l.number_of_days < 1) continue;
+      const tipo = l.holiday_status_id ? l.holiday_status_id[1] : 'Sin tipo';
+      for (let d = l.request_date_from > desde ? l.request_date_from : desde; d <= l.request_date_to && d <= hasta; d = addDaysIso(d, 1)) {
+        if (!esFinDeSemana(d) && !feriados.has(d)) diasConLicenciaCompleta.set(d, tipo);
+      }
+    }
+    // Días con alguna licencia aprobada (salvo "Horas extra"): ahí no se calculan horas extra, igual que en la bandeja de Novedades.
+    const conLicencia = (d: string) =>
+      (licenciasPorEmpleado.get(e.id) ?? []).some(
+        (l) => l.state === 'validate' && l.request_date_from <= d && d <= l.request_date_to && (l.holiday_status_id ? l.holiday_status_id[1] : '') !== TIPO_HORAS_EXTRA
+      );
+    let extrasBaseHs = 0;
+    let fichadasTotalHs = 0;
+    let fichadasEnLicenciaHs = 0;
+    const fichadosEnLicencia: string[] = [];
+    const fichados = new Set<string>();
+    for (const [d, horas] of fichadasPorDia.get(e.id) ?? []) {
+      const tipoLic = diasConLicenciaCompleta.get(d);
+      if (tipoLic && horas > 0) {
+        fichadasEnLicenciaHs += horas;
+        fichadosEnLicencia.push(`${d} (${round2(horas)} hs, ${tipoLic})`);
+        continue;
+      }
+      fichadasTotalHs += horas;
+      if (!esFinDeSemana(d)) fichados.add(d);
+      if (d >= desde && d <= hasta && !esFinDeSemana(d) && !feriados.has(d) && !conLicencia(d) && !acreditadoDia.has(`${e.id}|${d}`)) {
+        extrasBaseHs += extraRedondeadaHs(horas, ultimaSalidaPorDia.get(`${e.id}|${d}`) ?? null);
+      }
+    }
 
     const porTipo = [...tipoHoras.entries()]
       .map(([tipo, horas]) => ({ tipo, horas: round2(horas) }))
       .filter((t) => t.horas > 0)
       .sort((a, b) => b.horas - a.horas);
-    const tiempoPersonalHs = porTipo.reduce((s, t) => s + t.horas, 0);
+    // Las "Horas extra" aprobadas no son tiempo libre: no entran al tiempo personal.
+    const tiempoPersonalHs = porTipo.filter((t) => t.tipo !== TIPO_HORAS_EXTRA).reduce((s, t) => s + t.horas, 0);
+    const extrasAprobadasHs = tipoHoras.get(TIPO_HORAS_EXTRA) ?? 0;
 
     const pendientes = licencias.filter((l) => l.estado !== 'validate');
     const pendientesHs = pendientes.reduce((s, l) => s + l.horasEnQuincena, 0);
@@ -410,22 +496,31 @@ export async function getRrhhQuincena(desde: string, hasta: string, opciones?: {
     if (saldo < -TOLERANCIA_HS) {
       alertas.push({ tipo: 'banco-negativo', nivel: 'aviso', detalle: `Saldo de banco de horas negativo (${round2(saldo)} hs).` });
     }
+    if (diasMalContados.length > 0) {
+      alertas.push({ tipo: 'dias-licencia', nivel: 'aviso', detalle: `${diasMalContados.join('; ')}. Conviene corregir la licencia en Odoo.` });
+    }
+    if (fichadosEnLicencia.length > 0) {
+      alertas.push({
+        tipo: 'fichada-en-licencia',
+        nivel: 'aviso',
+        detalle: `Fichó en días con licencia de día completo aprobada: ${fichadosEnLicencia.join('; ')}. Esas horas no se cuentan como trabajadas (el día se paga como la licencia). Si cambió un día de vacaciones por banco, las 8,30 hs al banco se acreditan aparte en Odoo.`,
+      });
+    }
 
-    const diasTrabajados = diasFichados.get(e.id)?.size ?? 0;
+    const diasTrabajados = fichados.size;
     const diasSinJustificar = Math.max(0, Math.round(Math.max(0, horasEsperadas - feriadosHs - tiempoPersonalHs) / HORAS_DIA) - diasTrabajados);
 
     const horasDeTipos = (nombres: string[]) => porTipo.filter((t) => nombres.includes(t.tipo)).reduce((s, t) => s + t.horas, 0);
     const ausentismoBaseHs = Math.max(0, horasEsperadas - feriadosHs - horasDeTipos(['Vacaciones']));
     // Días sin fichada ni feriado ni licencia aprobada, contados desde la primera fichada de la persona en el período
     // (antes no se puede saber si faltó o todavía no usaba el kiosco) y sin pasar de hoy.
-    const fichados = diasFichados.get(e.id);
-    const primeraFichada = fichados && fichados.size > 0 ? [...fichados].sort()[0]! : null;
+    const primeraFichada = fichados.size > 0 ? [...fichados].sort()[0]! : null;
     let diasSinFichar = 0;
     if (primeraFichada) {
       const tope = hasta < getArgentinaTodayIso() ? hasta : addDaysIso(getArgentinaTodayIso(), -1);
       for (let d = primeraFichada > inicio ? primeraFichada : inicio; d <= tope; d = addDaysIso(d, 1)) {
-        if (esFinDeSemana(d) || feriados.has(d) || fichados!.has(d)) continue;
-        if ((licenciasPorEmpleado.get(e.id) ?? []).some((l) => l.state === 'validate' && l.request_date_from <= d && d <= l.request_date_to)) continue;
+        if (esFinDeSemana(d) || feriados.has(d) || fichados.has(d)) continue;
+        if (conLicencia(d)) continue;
         diasSinFichar += 1;
       }
     }
@@ -447,7 +542,10 @@ export async function getRrhhQuincena(desde: string, hasta: string, opciones?: {
       tiempoPersonalHs: round2(tiempoPersonalHs),
       porTipo,
       horasATrabajar: round2(Math.max(0, horasEsperadas - feriadosHs - tiempoPersonalHs)),
-      fichadasHs: round2(fichadasHs.get(e.id) ?? 0),
+      fichadasHs: round2(fichadasTotalHs),
+      fichadasEnLicenciaHs: round2(fichadasEnLicenciaHs),
+      extrasBaseHs: round2(extrasBaseHs),
+      extrasAprobadasHs: round2(extrasAprobadasHs),
       diasTrabajados,
       injustificadasHs: round2(diasSinJustificar * HORAS_DIA),
       ausentismoHs: round2(ausentismoHs),

@@ -6,6 +6,9 @@ interface ImportMetaEnv {
   readonly ODOO_DB: string;
   readonly ODOO_USER_EMAIL: string;
   readonly ODOO_API_KEY: string;
+  /** API key del usuario "Recursos Humanos" de Odoo: con ella escribe la bandeja de Novedades (ver getOdooRrhhConfig). */
+  readonly ODOO_API_KEY_RRHH?: string;
+  readonly ODOO_USER_EMAIL_RRHH?: string;
   readonly ODOO_UID?: string;
   readonly ODOO_CACHE_TTL_MS?: string;
   readonly PUBLIC_SUPABASE_URL: string;

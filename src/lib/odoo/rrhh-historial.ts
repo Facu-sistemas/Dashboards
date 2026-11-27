@@ -3,13 +3,14 @@ import type { OdooDomainLeaf } from './types';
 import { addDaysIso } from '@/lib/date';
 import { getArgentinaTodayIso } from './oee';
 import { ApiValidationError } from '@/lib/api-helpers';
-import { BANCO_HORAS_TYPE_ID, esFinDeSemana, fechaArgentina, HORAS_DIA } from './rrhh-quincena';
+import { BANCO_HORAS_TYPE_ID, esFinDeSemana, fechaArgentina, HORAS_DIA, TIPO_HORAS_EXTRA } from './rrhh-quincena';
 import {
   horaArgentina,
   horasDeLicenciaEnDia,
   JORNADA_FICHADA_HS,
   MARCA_MINIMA_HS,
   extraRedondeadaHs,
+  cambioDeHorarioMin,
   TOLERANCIA_FALTANTE_HS,
   type LeaveRow,
   type M2o,
@@ -192,7 +193,7 @@ export async function getRrhhHistorial(desde: string, hasta: string, empleadoId?
       diasTrabajados: 0,
       fichadoHs: 0,
       diasLicencia: 0,
-      porTipo: { 'horas-faltantes': 0, 'sin-salida': 0, 'marca-incompleta': 0, 'sin-fichada': 0, 'horas-extra': 0 },
+      porTipo: { 'horas-faltantes': 0, 'sin-salida': 0, 'marca-incompleta': 0, 'sin-fichada': 0, 'horas-extra': 0, 'cambio-horario': 0 },
       novedades: 0,
       horasFaltantes: 0,
       horasExtra: 0,
@@ -209,7 +210,8 @@ export async function getRrhhHistorial(desde: string, hasta: string, empleadoId?
       const delDia: NovedadLicenciaDia[] = licencias
         .map((l) => ({ id: l.id, tipo: l.holiday_status_id ? l.holiday_status_id[1] : 'Sin tipo', estado: l.state, horas: round2(horasDeLicenciaEnDia(l, d)) }))
         .filter((l) => l.horas > 0);
-      const cubiertoHs = delDia.filter((l) => l.estado === 'validate').reduce((s, l) => s + l.horas, 0);
+      const extraAprobada = delDia.some((l) => l.tipo === TIPO_HORAS_EXTRA && l.estado === 'validate');
+      const cubiertoHs = delDia.filter((l) => l.estado === 'validate' && l.tipo !== TIPO_HORAS_EXTRA).reduce((s, l) => s + l.horas, 0);
 
       const dia: DiaHistorial = {
         fecha: d,
@@ -248,9 +250,13 @@ export async function getRrhhHistorial(desde: string, hasta: string, empleadoId?
         if (faltan > TOLERANCIA_FALTANTE_HS) {
           tipo = 'horas-faltantes';
           dia.horasAResolver = round2(faltan);
-        } else if (cubiertoHs === 0 && !acreditado.has(`${e.id}|${d}`) && extraRedondeadaHs(fichadoHs, ultimaSalida) > 0) {
+        } else if (cubiertoHs === 0 && !extraAprobada && !acreditado.has(`${e.id}|${d}`) && extraRedondeadaHs(fichadoHs, ultimaSalida) > 0) {
           tipo = 'horas-extra';
           dia.horasAResolver = extraRedondeadaHs(fichadoHs, ultimaSalida);
+        } else if (cubiertoHs === 0 && entrada && salida && cambioDeHorarioMin(entrada, salida) !== null) {
+          // Un día tiene un solo estado en el historial; la bandeja puede mostrar además el cambio de horario junto a las horas extra.
+          tipo = 'cambio-horario';
+          dia.horasAResolver = round2(Math.abs(cambioDeHorarioMin(entrada, salida)!) / 60);
         }
       }
 

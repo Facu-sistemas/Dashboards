@@ -1,19 +1,23 @@
 ---
 import PlanillaApp from './PlanillaApp';
 import { getArgentinaTodayIso } from '@/lib/odoo/oee';
+import { puedeAdministrarRrhh } from '@/lib/rrhh-permisos';
 
 const hoy = getArgentinaTodayIso();
+// Cargar los parámetros de la quincena y ajustar celdas: la cuenta rrhh y el dev (mismo criterio que Administración).
+const puedeEditar = puedeAdministrarRrhh(Astro.locals.usuario);
 ---
 
 <div>
   <header class="mb-6">
     <h2 class="text-lg font-semibold text-slate-100">Planilla de cálculo</h2>
     <p class="mt-1 text-sm text-slate-400">
-      La planilla de cálculo quincenal de la liquidación, armada desde Odoo: horas normales, incidencias, vacaciones,
-      presentismo y viáticos con las reglas del instructivo, más horas extras, anticipos y guardería de la planilla
-      de Google. Incluye la solapa EXPORTA (legajo · código · valor) para INFOCOR. Solo lectura.
+      La planilla de cálculo quincenal de la liquidación, armada desde Odoo: empleados, horas normales, incidencias,
+      vacaciones, horas extras (fichadas y aprobadas), presentismo y viáticos con las reglas del instructivo. Incluye la
+      solapa EXPORTA (legajo · código · valor) para INFOCOR. No escribe en Odoo: los parámetros de la quincena (total de horas,
+      feriados y días de viático) se cargan arriba y se pueden ajustar por persona.
     </p>
   </header>
 
-  <PlanillaApp client:load hoy={hoy} />
+  <PlanillaApp client:load hoy={hoy} puedeEditar={puedeEditar} />
 </div>

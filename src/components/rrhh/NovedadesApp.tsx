@@ -31,6 +31,8 @@ const ACCION_POR_TIPO: Record<NovedadTipo, { modo: Exclude<Modo, 'descartar'>; b
   'horas-extra': { modo: 'banco', boton: 'Acreditar al banco' },
   'marca-incompleta': { modo: 'fichada', boton: 'Corregir fichada' },
   'sin-salida': { modo: 'fichada', boton: 'Corregir fichada' },
+  // Cambio de horario: si RRHH lo toma como tardanza, se clasifica (banco, sin goce…); si hay un acuerdo, se descarta con ese motivo.
+  'cambio-horario': { modo: 'cargar', boton: 'Clasificar' },
 };
 
 /** Segunda acción posible en algunas novedades: un "sin fichada" puede ser que trabajó y no fichó, así que además de la ausencia se puede cargar la fichada. */
@@ -89,9 +91,17 @@ const TIPOS: { tipo: NovedadTipo; label: string; ayuda: string; badge: string; a
   {
     tipo: 'horas-extra',
     label: 'Horas extra',
-    ayuda: 'Trabajó más de una hora por encima de la jornada fichada (después de las 15:20 aprox.).',
+    ayuda: 'Trabajó más de 30 min por encima de la jornada fichada (desde las 14:48 si entró a las 6:00).',
     badge: 'bg-sky-950 text-sky-300',
     acento: 'bg-sky-500',
+  },
+  {
+    tipo: 'cambio-horario',
+    label: 'Cambio de horario',
+    ayuda:
+      'Completó las horas pero en otro horario (ej. entró 07:00 y salió 15:20). No se compensa solo: RRHH decide cada caso. Si hay un acuerdo, descartala con ese motivo; si fue una tardanza, clasificala.',
+    badge: 'bg-teal-950 text-teal-300',
+    acento: 'bg-teal-500',
   },
 ];
 
@@ -326,7 +336,7 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
   // Las tarjetas de arriba cuentan lo del día elegido (no el período entero), para que coincidan con la tabla.
   const rowsDia = useMemo(() => (diaActivo ? allRows.filter((r) => r.fecha === diaActivo) : allRows), [allRows, diaActivo]);
   const kpi = useMemo(() => {
-    const porTipo: Record<NovedadTipo, number> = { 'horas-faltantes': 0, 'sin-salida': 0, 'marca-incompleta': 0, 'sin-fichada': 0, 'horas-extra': 0 };
+    const porTipo: Record<NovedadTipo, number> = { 'horas-faltantes': 0, 'sin-salida': 0, 'marca-incompleta': 0, 'sin-fichada': 0, 'horas-extra': 0, 'cambio-horario': 0 };
     let faltantes = 0;
     let extra = 0;
     for (const r of rowsDia) {
@@ -498,7 +508,8 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
                           {modo === 'cargar' && (
                             <>
                               Se crea en Odoo, ya aprobada, una ausencia de {TIPOS_AUSENCIA_CARGABLES.find((t) => t.id === form.tipoId)?.nombre.toLowerCase()} de{' '}
-                              {form.horas || '—'} hs para {r.empleado} el {fechaCorta(r.fecha)}. Faltan {hs(r.horasAResolver)} según las fichadas.
+                              {form.horas || '—'} hs para {r.empleado} el {fechaCorta(r.fecha)}.{' '}
+                              {r.tipo === 'cambio-horario' ? `Completó las horas, pero el horario se corrió ${hs(r.horasAResolver)}.` : `Faltan ${hs(r.horasAResolver)} según las fichadas.`}
                               {form.tipoId === 6 && ` Descuenta del banco de horas (saldo hoy: ${hs(r.saldoBanco)}).`}
                             </>
                           )}
@@ -651,7 +662,7 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
         <div className="h-28 w-full animate-pulse-slow rounded-lg bg-slate-800/60" />
       ) : (
         data && (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 2xl:grid-cols-8">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 2xl:grid-cols-9">
             <Kpi
               label="Todos"
               acento="bg-slate-400"
@@ -834,7 +845,7 @@ function NovedadesInner({ hoy, rangoInicial, onRango, puedeCargar, onVerHistoria
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums text-slate-300">{r.tipo === 'sin-fichada' ? '—' : hs(r.fichadoHs)}</td>
                     <td className={`px-3 py-2 text-right tabular-nums ${r.tipo === 'horas-extra' ? 'text-sky-300' : 'text-amber-300'}`}>
-                      {r.tipo === 'sin-salida' ? '—' : `${r.tipo === 'horas-extra' ? '+' : '−'}${hs(r.horasAResolver)}`}
+                      {r.tipo === 'sin-salida' ? '—' : r.tipo === 'cambio-horario' ? <span className="text-teal-300" title="Cuánto se corrió la entrada respecto de las 6:00">{hs(r.horasAResolver)} corrido</span> : `${r.tipo === 'horas-extra' ? '+' : '−'}${hs(r.horasAResolver)}`}
                       {r.tipo === 'horas-extra' && exactoExtra(r.fichadoHs, r.salida, r.horasAResolver) && (
                         <span className="block text-xs text-slate-500">({exactoExtra(r.fichadoHs, r.salida, r.horasAResolver)})</span>
                       )}

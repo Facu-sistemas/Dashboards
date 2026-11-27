@@ -6,7 +6,7 @@ import { handleApiRoute, jsonResponse, ApiValidationError } from '@/lib/api-help
 
 export const prerender = false;
 
-const TIPOS = ['horas-faltantes', 'sin-salida', 'marca-incompleta', 'sin-fichada', 'horas-extra'] as const;
+const TIPOS = ['horas-faltantes', 'sin-salida', 'marca-incompleta', 'sin-fichada', 'horas-extra', 'cambio-horario'] as const;
 
 const itemSchema = z.object({
   empleadoId: z.number().int().positive(),

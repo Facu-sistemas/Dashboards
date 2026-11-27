@@ -48,6 +48,8 @@ function AlertaBadge({ alerta }: { alerta: QuincenaAlerta }) {
         exceso: 'Excede la jornada',
         pendiente: 'Pendiente',
         'banco-negativo': 'Banco negativo',
+        'dias-licencia': 'Días de licencia',
+        'fichada-en-licencia': 'Fichó con licencia',
       }[alerta.tipo]}
     </span>
   );
@@ -91,7 +93,10 @@ function Detalle({ row }: { row: QuincenaEmpleadoRow }) {
                 <td className="py-1 pr-3 text-slate-200">{l.tipo}</td>
                 <td className="py-1 pr-3 text-slate-400">{formatFechaIso(l.desde)}</td>
                 <td className="py-1 pr-3 text-slate-400">{formatFechaIso(l.hasta)}</td>
-                <td className="py-1 pr-3 text-right tabular-nums text-slate-200">{hs(l.horasEnQuincena)}</td>
+                <td className="py-1 pr-3 text-right tabular-nums text-slate-200" title={l.diasEnQuincena !== null ? 'Días hábiles (sin feriados) del calendario que caen en el período × 8,80 hs.' : 'Licencia por horas: las horas cargadas en Odoo.'}>
+                  {hs(l.horasEnQuincena)}
+                  {l.diasEnQuincena !== null && <span className="block text-xs text-slate-500">{l.diasEnQuincena} {l.diasEnQuincena === 1 ? 'día' : 'días'}</span>}
+                </td>
                 <td className="py-1 pr-3 text-right tabular-nums text-slate-400">{hs(l.horasLicencia)}</td>
                 <td className={`py-1 ${l.estado === 'validate' ? 'text-slate-400' : 'text-amber-300'}`}>{ESTADO_LABEL[l.estado]}</td>
               </tr>
@@ -232,20 +237,20 @@ function QuincenaInner({ hoy, rangoInicial, onRango }: Props) {
       'Situación Laboral', 'Banco de horas', 'Lic x Maternidad', 'Injustificadas', '', 'control',
       // Extras de control, a la derecha de la columna AI para no correr las que toma la planilla.
       'CUIL', 'Convenio', 'Centro de costo', 'Supervisor', 'Tiempo trabajado (hh:mm)', 'Banco: saldo a favor (hs)',
-      'Banco: saldo en contra (hs)', 'Licencias sin aprobar (hs)', 'Diferencias',
+      'Banco: saldo en contra (hs)', 'Licencias sin aprobar (hs)', 'Fichado en días con licencia (hs, no suma)', 'Diferencias',
     ];
     const filas = allRows.map((r) => {
       const fichadas = d2(r.fichadasHs);
       const licenciasHs = r.tiempoPersonalHs;
       return [
         r.departamento ?? '', legajoSinCeros(r.legajo), r.nombre, r.diasHabiles - Math.round(r.feriadosHs / 8.8), r.diasTrabajados,
-        0, 0, 0, 0, fichadas, r.diasTrabajados * 10, 0,
+        0, 0, 0, d2(r.extrasBaseHs), fichadas, r.diasTrabajados * 10, 0,
         ...COLUMNAS_LICENCIA.map(([, n]) => d2(horasTipo(r, n))), 0,
         ...COLUMNAS_LICENCIA_2.map(([, n]) => d2(horasTipo(r, n))),
         0, d2(r.bancoUsado), d2(horasTipo(r, ['Licencia por maternidad'])), d2(r.injustificadasHs), '',
         d2(fichadas + licenciasHs),
         r.cuil ?? '', r.convenio ?? '', r.centroCosto ?? '', r.supervisor ?? '', hhmm(r.fichadasHs), noNeg(r.bancoSaldo),
-        noNeg(-r.bancoSaldo), noNeg(r.pendientesHs), r.alertas.map((a) => a.detalle).join(' | '),
+        noNeg(-r.bancoSaldo), noNeg(r.pendientesHs), d2(r.fichadasEnLicenciaHs), r.alertas.map((a) => a.detalle).join(' | '),
       ];
     });
     const ws = XLSX.utils.aoa_to_sheet([[], [], [], encabezados, ...filas]);

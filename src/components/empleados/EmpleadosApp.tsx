@@ -235,6 +235,7 @@ const ETIQUETA_ESTADO: Record<string, { texto: string; clase: string }> = {
   'marca-incompleta': { texto: 'Marca incompleta', clase: 'bg-amber-500/20 text-amber-300' },
   'sin-fichada': { texto: 'Sin fichada', clase: 'bg-red-500/20 text-red-300' },
   'horas-extra': { texto: 'Horas extra', clase: 'bg-violet-500/20 text-violet-300' },
+  'cambio-horario': { texto: 'Otro horario', clase: 'bg-teal-500/20 text-teal-300' },
 };
 
 function Tarjeta({ titulo, children, className = '' }: { titulo: string; children: React.ReactNode; className?: string }) {

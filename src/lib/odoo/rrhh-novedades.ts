@@ -2,7 +2,7 @@ import { searchReadAll } from './client';
 import { addDaysIso } from '@/lib/date';
 import { getArgentinaTodayIso } from './oee';
 import { ApiValidationError } from '@/lib/api-helpers';
-import { BANCO_HORAS_TYPE_ID, esFinDeSemana, fechaArgentina, HORAS_DIA, OFFSET_ARG_MS } from './rrhh-quincena';
+import { BANCO_HORAS_TYPE_ID, esFinDeSemana, fechaArgentina, HORAS_DIA, OFFSET_ARG_MS, TIPO_HORAS_EXTRA } from './rrhh-quincena';
 import { cargarBaseFichaje } from './rrhh-fichaje-base';
 import { getEstadosResumen } from '@/lib/supabase/rrhh-resumen-estado';
 import { listNovedadesDescartadas, type NovedadDescartada } from '@/lib/supabase/rrhh-novedades-descartadas';
@@ -19,6 +19,8 @@ import { extraRedondeadaHs, horasExtraCrudasHs, JORNADA_FICHADA_HS } from '@/lib
  *    fichar al entrar o al salir.
  *  - `sin-fichada`: ese día no fichó y no tiene licencia aprobada que lo cubra.
  *  - `horas-extra`: se quedó bastante después del cierre del turno (14:18) y no se le acreditaron horas al banco ese día.
+ *  - `cambio-horario`: cumplió las horas pero en otro horario (ej. entró 07:00 y salió 15:20). No se compensa solo: lo
+ *    decide RRHH caso por caso, porque hay acuerdos particulares que no valen para el personal de planta.
  */
 
 // Jornada fichada (6:00 a 14:18), cierre del turno y reglas de horas extra: viven en un módulo sin imports de servidor para que
@@ -42,9 +44,28 @@ export const MARCA_MINIMA_HS = 0.25;
  */
 export const JORNADA_MAXIMA_HS = 16;
 
+/** Horario habitual de planta, en minutos desde las 00:00 (6:00 a 14:18). */
+const ENTRADA_HABITUAL_MIN = 6 * 60;
+const SALIDA_HABITUAL_MIN = 14 * 60 + 18;
+/** Margen antes de marcar un cambio de horario: el mismo que se tolera en las horas faltantes. */
+const TOLERANCIA_HORARIO_MIN = Math.round(TOLERANCIA_FALTANTE_HS * 60);
+
+const aMinutos = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
+
+/**
+ * Minutos que se corrió la entrada respecto de las 6:00 si es un cambio de horario (positivo: llegó tarde; negativo: entró antes
+ * y se fue antes de las 14:18); null si está dentro del horario habitual. Entrar antes y quedarse hasta el final no cuenta.
+ */
+export function cambioDeHorarioMin(entrada: string, salida: string): number | null {
+  const tarde = aMinutos(entrada) - ENTRADA_HABITUAL_MIN;
+  if (tarde > TOLERANCIA_HORARIO_MIN) return tarde;
+  if (-tarde > TOLERANCIA_HORARIO_MIN && SALIDA_HABITUAL_MIN - aMinutos(salida) > TOLERANCIA_HORARIO_MIN) return tarde;
+  return null;
+}
+
 const MAX_DIAS_RANGO = 93;
 
-export type NovedadTipo = 'horas-faltantes' | 'sin-salida' | 'marca-incompleta' | 'sin-fichada' | 'horas-extra';
+export type NovedadTipo = 'horas-faltantes' | 'sin-salida' | 'marca-incompleta' | 'sin-fichada' | 'horas-extra' | 'cambio-horario';
 
 export interface NovedadLicenciaDia {
   id: number;
@@ -295,8 +316,10 @@ export async function getRrhhNovedades(desde: string, hasta: string): Promise<Rr
           horas: round2(horasDeLicenciaEnDia(l, d)),
         }))
         .filter((l) => l.horas > 0);
-      const cubiertoHs = delDia.filter((l) => l.estado === 'validate').reduce((s, l) => s + l.horas, 0);
-      const pendienteHs = delDia.filter((l) => l.estado !== 'validate').reduce((s, l) => s + l.horas, 0);
+      // "Horas extra" (lo que RRHH aprueba para pagar) no es una ausencia: no cubre la jornada, resuelve la novedad de horas extra.
+      const extraAprobada = delDia.some((l) => l.tipo === TIPO_HORAS_EXTRA && l.estado === 'validate');
+      const cubiertoHs = delDia.filter((l) => l.estado === 'validate' && l.tipo !== TIPO_HORAS_EXTRA).reduce((s, l) => s + l.horas, 0);
+      const pendienteHs = delDia.filter((l) => l.estado !== 'validate' && l.tipo !== TIPO_HORAS_EXTRA).reduce((s, l) => s + l.horas, 0);
 
       // Día cubierto entero por licencias aprobadas (vacaciones, enfermedad, banco de horas de día completo…): nada que revisar.
       if (cubiertoHs >= HORAS_DIA - TOLERANCIA_FALTANTE_HS) continue;
@@ -365,6 +388,28 @@ export async function getRrhhNovedades(desde: string, hasta: string): Promise<Rr
       }
 
       const faltan = JORNADA_FICHADA_HS - fichadoHs - cubiertoHs;
+
+      // Llegada tarde compensada con salida posterior (o jornada corrida antes): no aparece como horas faltantes ni extra, pero
+      // RRHH la tiene que ver. Solo en días sin licencias, cuando las horas están completas.
+      if (faltan <= TOLERANCIA_FALTANTE_HS && cubiertoHs === 0 && salida) {
+        const tarde = cambioDeHorarioMin(entrada, salida);
+        if (tarde !== null) {
+          detectadas.push({
+            ...base,
+            clave: `${e.id}|${d}|cambio-horario`,
+            tipo: 'cambio-horario',
+            entrada,
+            salida,
+            fichadoHs,
+            horasAResolver: round2(Math.abs(tarde) / 60),
+            detalle:
+              tarde > 0
+                ? `Llegó ${minutosTxt(tarde / 60)} tarde (${entrada}) y salió a las ${salida}: completó las horas en otro horario. No se compensa solo; RRHH decide (acuerdo, tardanza, banco…).`
+                : `Trabajó de ${entrada} a ${salida}: entró ${minutosTxt(-tarde / 60)} antes y se fue antes de las 14:18. No se compensa solo; RRHH decide.`,
+          });
+        }
+      }
+
       if (faltan > TOLERANCIA_FALTANTE_HS) {
         detectadas.push({
           ...base,
@@ -376,7 +421,7 @@ export async function getRrhhNovedades(desde: string, hasta: string): Promise<Rr
           horasAResolver: round2(faltan),
           detalle: `Trabajó de ${entrada} a ${salida} (${fichadoHs} hs) y le faltan ${round2(faltan)} hs para completar la jornada.`,
         });
-      } else if (cubiertoHs === 0 && !acreditado.has(`${e.id}|${d}`) && extraRedondeadaHs(fichadoHs, ultimaSalida) > 0) {
+      } else if (cubiertoHs === 0 && !extraAprobada && !acreditado.has(`${e.id}|${d}`) && extraRedondeadaHs(fichadoHs, ultimaSalida) > 0) {
         // Se cuentan desde el cierre del turno (14:18): llegar antes no suma (ver horasExtraCrudasHs).
         const sobran = extraRedondeadaHs(fichadoHs, ultimaSalida);
         detectadas.push({
@@ -401,7 +446,7 @@ export async function getRrhhNovedades(desde: string, hasta: string): Promise<Rr
   const todas: NovedadRow[] = detectadas.map((r) => ({ ...r, descartada: descartes.map.get(r.clave) ?? null }));
   const rows = todas.filter((r) => !r.descartada);
 
-  const porTipo: Record<NovedadTipo, number> = { 'horas-faltantes': 0, 'sin-salida': 0, 'marca-incompleta': 0, 'sin-fichada': 0, 'horas-extra': 0 };
+  const porTipo: Record<NovedadTipo, number> = { 'horas-faltantes': 0, 'sin-salida': 0, 'marca-incompleta': 0, 'sin-fichada': 0, 'horas-extra': 0, 'cambio-horario': 0 };
   for (const r of rows) porTipo[r.tipo] += 1;
 
   return {

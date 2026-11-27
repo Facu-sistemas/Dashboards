@@ -48,6 +48,7 @@ const TIPOS: { tipo: NovedadTipo; label: string; corto: string; badge: string }[
   { tipo: 'marca-incompleta', label: 'Marca incompleta', corto: 'Marca inc.', badge: 'bg-orange-950 text-orange-300' },
   { tipo: 'sin-salida', label: 'Sin salida', corto: 'Sin salida', badge: 'bg-fuchsia-950 text-fuchsia-300' },
   { tipo: 'horas-extra', label: 'Horas extra', corto: 'Extra', badge: 'bg-sky-950 text-sky-300' },
+  { tipo: 'cambio-horario', label: 'Cambio de horario', corto: 'Horario', badge: 'bg-teal-950 text-teal-300' },
 ];
 
 const ESTILO_DIA: Record<EstadoDia, { clase: string; label: string }> = {
@@ -58,6 +59,7 @@ const ESTILO_DIA: Record<EstadoDia, { clase: string; label: string }> = {
   'marca-incompleta': { clase: 'border-orange-800 bg-orange-950 text-orange-200', label: 'Marca incompleta' },
   'sin-salida': { clase: 'border-fuchsia-800 bg-fuchsia-950 text-fuchsia-200', label: 'Sin salida' },
   'horas-extra': { clase: 'border-sky-800 bg-sky-950 text-sky-200', label: 'Horas extra' },
+  'cambio-horario': { clase: 'border-teal-800 bg-teal-950 text-teal-200', label: 'Cambio de horario' },
   'fin-de-semana': { clase: 'border-slate-800 bg-slate-900/40 text-slate-500', label: 'Fin de semana' },
   feriado: { clase: 'border-slate-700 bg-slate-800/60 text-slate-400', label: 'Feriado' },
   'sin-datos': { clase: 'border-slate-800 bg-transparent text-slate-600', label: 'Sin datos' },
@@ -76,7 +78,7 @@ function Kpi({ label, value, hint, tone }: { label: string; value: string; hint?
 
 /** Totales de un conjunto de días de un empleado. */
 function totalizar(dias: DiaHistorial[]) {
-  const t = { trabajados: 0, fichadoHs: 0, licencia: 0, faltantes: 0, faltantesHs: 0, sinFichada: 0, sinFichadaHs: 0, marcaInc: 0, sinSalida: 0, extra: 0, extraHs: 0 };
+  const t = { trabajados: 0, fichadoHs: 0, licencia: 0, faltantes: 0, faltantesHs: 0, sinFichada: 0, sinFichadaHs: 0, marcaInc: 0, sinSalida: 0, extra: 0, extraHs: 0, horario: 0 };
   for (const d of dias) {
     if (d.marcas.length > 0) {
       t.trabajados += 1;
@@ -89,6 +91,7 @@ function totalizar(dias: DiaHistorial[]) {
     if (d.estado === 'marca-incompleta') t.marcaInc += 1;
     if (d.estado === 'sin-salida') t.sinSalida += 1;
     if (d.estado === 'horas-extra') (t.extra += 1), (t.extraHs += d.horasAResolver);
+    if (d.estado === 'cambio-horario') t.horario += 1;
   }
   return t;
 }
@@ -393,7 +396,7 @@ function Detalle({ hoy, empleadoId, mes, setMes, onVolver }: { hoy: string; empl
               })}
             </div>
             <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-400">
-              {(['ok', 'horas-faltantes', 'sin-fichada', 'marca-incompleta', 'sin-salida', 'horas-extra', 'licencia', 'feriado', 'fin-de-semana'] as EstadoDia[]).map((e) => (
+              {(['ok', 'horas-faltantes', 'sin-fichada', 'marca-incompleta', 'sin-salida', 'horas-extra', 'cambio-horario', 'licencia', 'feriado', 'fin-de-semana'] as EstadoDia[]).map((e) => (
                 <span key={e} className="flex items-center gap-1">
                   <span className={`inline-block h-3 w-3 rounded border ${ESTILO_DIA[e].clase}`} /> {ESTILO_DIA[e].label}
                 </span>
@@ -407,7 +410,7 @@ function Detalle({ hoy, empleadoId, mes, setMes, onVolver }: { hoy: string; empl
                 {sel.fecha.split('-').reverse().join('/')} · {ESTILO_DIA[sel.estado].label}
                 {sel.descartada && <span className="ml-2 text-xs text-slate-500">(descartada por RRHH)</span>}
               </p>
-              {sel.horasAResolver > 0 && <p className="mt-1 text-slate-300">{sel.estado === 'horas-extra' ? 'Sobran' : 'Faltan'} {hs(sel.horasAResolver)}{sel.estado === 'horas-extra' && Math.round(horasExtraCrudasHs(sel.fichadoHs, sel.salida) * 60) !== Math.round(sel.horasAResolver * 60) ? ` (exacto desde las 14:18: ${Math.round(horasExtraCrudasHs(sel.fichadoHs, sel.salida) * 60)} min)` : ''}.</p>}
+              {sel.horasAResolver > 0 && <p className="mt-1 text-slate-300">{sel.estado === 'horas-extra' ? 'Sobran' : sel.estado === 'cambio-horario' ? 'Horario corrido' : 'Faltan'} {hs(sel.horasAResolver)}{sel.estado === 'horas-extra' && Math.round(horasExtraCrudasHs(sel.fichadoHs, sel.salida) * 60) !== Math.round(sel.horasAResolver * 60) ? ` (exacto desde las 14:18: ${Math.round(horasExtraCrudasHs(sel.fichadoHs, sel.salida) * 60)} min)` : ''}.</p>}
               <div className="mt-2 grid gap-4 sm:grid-cols-2">
                 <div>
                   <p className="text-xs uppercase tracking-wide text-slate-500">Fichadas</p>
@@ -459,7 +462,7 @@ function Detalle({ hoy, empleadoId, mes, setMes, onVolver }: { hoy: string; empl
               <tbody className="divide-y divide-slate-800">
                 {meses.map((m) => {
                   const t = totalizar(dias.filter((d) => d.fecha.startsWith(m)));
-                  const cuentas: Record<NovedadTipo, number> = { 'horas-faltantes': t.faltantes, 'sin-fichada': t.sinFichada, 'marca-incompleta': t.marcaInc, 'sin-salida': t.sinSalida, 'horas-extra': t.extra };
+                  const cuentas: Record<NovedadTipo, number> = { 'horas-faltantes': t.faltantes, 'sin-fichada': t.sinFichada, 'marca-incompleta': t.marcaInc, 'sin-salida': t.sinSalida, 'horas-extra': t.extra, 'cambio-horario': t.horario };
                   return (
                     <tr key={m} className={`cursor-pointer hover:bg-slate-900 ${m === mes ? 'bg-slate-900' : ''}`} onClick={() => irA(m)}>
                       <td className="px-3 py-2 capitalize text-slate-200">{nombreMes(m)}</td>

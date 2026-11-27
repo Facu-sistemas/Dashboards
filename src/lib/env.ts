@@ -38,3 +38,23 @@ export function getOdooConfig(): OdooServerConfig {
   };
   return cached;
 }
+
+/**
+ * Credenciales con las que la bandeja de Novedades de RRHH escribe en Odoo (ausencias, banco de horas, fichadas). Odoo firma los
+ * avisos que le llegan al empleado (correo y chatter) con el usuario dueño de la API key: con estas sale "Recursos Humanos" y no
+ * la cuenta personal de Sistemas. Si ODOO_API_KEY_RRHH no está cargada, se usan las credenciales generales (ODOO_API_KEY).
+ * El usuario es ODOO_USER_EMAIL_RRHH, o rrhh@fronteraliving.com por defecto (el usuario "Recursos Humanos" de Odoo).
+ */
+export function getOdooRrhhConfig(): OdooServerConfig & { esRrhh: boolean } {
+  const general = getOdooConfig();
+  const env = import.meta.env;
+  if (!env.ODOO_API_KEY_RRHH) return { ...general, esRrhh: false };
+  return {
+    ...general,
+    userEmail: env.ODOO_USER_EMAIL_RRHH || 'rrhh@fronteraliving.com',
+    apiKey: env.ODOO_API_KEY_RRHH,
+    // El uid fijo (ODOO_UID) es el de la cuenta general: el de RRHH se obtiene autenticando.
+    uid: undefined,
+    esRrhh: true,
+  };
+}

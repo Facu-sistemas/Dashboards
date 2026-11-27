@@ -1,14 +1,15 @@
 import { readGroup } from './client';
 import { claveNombre, fetchSheetTable, legajoNumero } from '@/lib/rrhh-sheet';
 import { fechaArgentina } from './rrhh-quincena';
+import { leerNominaOdoo } from './rrhh-nomina';
 
 /**
  * Desde cuándo se le puede exigir fichada a cada empleado (para marcar "sin fichada" / "horas faltantes"). SOLO LECTURA.
  *
  *  - Si ya tiene alguna fichada en Odoo (en cualquier fecha): desde su primera fichada. Así, quien estuvo de baja todo el período
  *    y no fichó nada sigue apareciendo como "sin fichada" los días que no tiene licencia.
- *  - Si NUNCA fichó: solo si figura en la nómina de la Planilla con convenio SOIVA o Madereros (los que fichan); en ese caso,
- *    desde que arrancó el kiosco. Gerentes, fuera de convenio y viajantes no fichan y se ignoran, igual que antes.
+ *  - Si NUNCA fichó: solo si su convenio es SOIVA o Madereros (los que fichan); en ese caso, desde que arrancó el kiosco. El
+ *    convenio sale del campo "Convenio" de Odoo (ver rrhh-nomina.ts) y, si está vacío, de la hoja de nómina de Google. Gerentes, fuera de convenio y viajantes no fichan y se ignoran, igual que antes.
  *  - En los dos casos, nunca antes de su fecha de ingreso.
  */
 
@@ -39,9 +40,10 @@ async function nominaQueFicha(): Promise<{ legajos: Set<number>; nombres: Set<st
 }
 
 export async function cargarBaseFichaje(): Promise<BaseFichaje> {
-  const [grupos, nomina] = await Promise.all([
+  const [grupos, nomina, nominaOdoo] = await Promise.all([
     readGroup({ model: 'hr.attendance', domain: [], fields: ['check_in:min'], groupBy: ['employee_id'], lazy: false }),
     nominaQueFicha(),
+    leerNominaOdoo().catch(() => null),
   ]);
 
   const primeras = new Map<number, string>();
@@ -55,9 +57,14 @@ export async function cargarBaseFichaje(): Promise<BaseFichaje> {
   return {
     inicioEvaluacion(e, desde) {
       let primera = primeras.get(e.id) ?? null;
-      if (!primera && nomina && inicioKiosco) {
-        const legajo = legajoNumero(e.barcode || null);
-        if ((legajo !== null && nomina.legajos.has(legajo)) || nomina.nombres.has(claveNombre(e.name))) primera = inicioKiosco;
+      if (!primera && inicioKiosco) {
+        const convenioOdoo = nominaOdoo?.porEmpleado.get(e.id)?.convenio ?? '';
+        if (convenioOdoo) {
+          if (CONVENIOS_QUE_FICHAN.has(convenioOdoo)) primera = inicioKiosco;
+        } else if (nomina) {
+          const legajo = legajoNumero(e.barcode || null);
+          if ((legajo !== null && nomina.legajos.has(legajo)) || nomina.nombres.has(claveNombre(e.name))) primera = inicioKiosco;
+        }
       }
       if (!primera) return null;
       return [desde, primera, e.x_studio_fecha_ingreso || ''].reduce((m, v) => (v > m ? v : m));

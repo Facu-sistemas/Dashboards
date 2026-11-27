@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { EmpleadoVacacionesRow } from '@/lib/odoo/rrhh-vacaciones';
 import { formatAntiguedad, formatDias, formatHoras } from './format';
 import { convenioDe, cumplimiento, cumplimientoColor, horasEsperadasMes, iniciales, type CONVENIO_PALETTE } from './resumen-utils';
@@ -117,7 +118,7 @@ function EstadoFichaje({ row }: { row: EmpleadoVacacionesRow }) {
   );
 }
 
-export default function EmpleadoCard({ row, today, color, maxAbsBanco, diasHabilesMes }: Props) {
+function EmpleadoCard({ row, today, color, maxAbsBanco, diasHabilesMes }: Props) {
   const perfecto = row.estadoResumen === 'reporte_perfecto';
   const saldo = row.bancoHorasSaldo;
   const saldoColor = saldo > 0 ? 'text-emerald-400' : saldo < 0 ? 'text-rose-400' : 'text-slate-300';
@@ -125,10 +126,13 @@ export default function EmpleadoCard({ row, today, color, maxAbsBanco, diasHabil
 
   return (
     // Toda la tarjeta lleva al calendario de fichadas de esa persona (Horas > Historial de fichadas).
+    // content-visibility:auto: con cientos de tarjetas, las que están fuera de pantalla no se pintan ni corren el
+    // "ping" infinito del punto de fichado (eso hacía que el scroll se trabe). contain-intrinsic-block-size reserva el
+    // alto estimado mientras no se pintaron, y `auto` recuerda el alto real una vez vistas (la barra de scroll no salta).
     <a
       href={`/rrhh/horas?historial=${row.id}`}
       aria-label={`Ver el calendario de fichadas de ${row.nombre}`}
-      className="flex h-full min-w-0 cursor-pointer flex-col gap-4 rounded-xl border border-slate-800 bg-slate-900 p-4 transition-colors hover:border-brand-500/60"
+      className="flex h-full min-w-0 cursor-pointer flex-col gap-4 [contain-intrinsic-block-size:auto_14rem] [content-visibility:auto] rounded-xl border border-slate-800 bg-slate-900 p-4 transition-colors hover:border-brand-500/60"
     >
       <header className="flex items-center gap-3">
         <div
@@ -193,3 +197,6 @@ export default function EmpleadoCard({ row, today, color, maxAbsBanco, diasHabil
     </a>
   );
 }
+
+/** Memo: tipear en el buscador o cambiar un filtro no vuelve a renderizar las tarjetas que no cambiaron. */
+export default memo(EmpleadoCard);
